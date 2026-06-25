@@ -1,0 +1,42 @@
+策划案/
+samples/
+
+# macOS
+.DS_Store
+
+# env
+.env
+.env.local
+.env.*.local
+
+# node
+node_modules/
+.pnpm-store/
+.next/
+dist/
+coverage/
+
+# python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+
+# storage runtime
+storage/original_files/*
+storage/parsed_json/*
+storage/reports/*
+storage/labels/*
+storage/task_reports/*
+storage/corrections/*
+
+# keep directory placeholders
+!storage/**/.gitkeep
+
+# docker
+*.log
+
+# IDE
+.vscode/settings.json
+.idea/

@@ -1,0 +1,35 @@
+[project]
+name = "worker-python"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "xiaokh31", email = "xiaofl31@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1.6",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
+    "pillow>=12.2.0",
+    "pydantic>=2.13.4",
+    "qrcode>=8.2",
+    "rich>=15.0.0",
+    "typer>=0.26.7",
+    "weasyprint>=69.0",
+]
+
+[project.scripts]
+worker-python = "worker_python:main"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.20",
+]
