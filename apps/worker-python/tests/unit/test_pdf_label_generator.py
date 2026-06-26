@@ -73,6 +73,29 @@ def test_pdf_label_generator_records_generated_labels(tmp_path: Path) -> None:
     assert record["pallet_ids"] == list(result.palletIds)
 
 
+def test_pdf_label_generator_does_not_overwrite_same_container_labels(
+    tmp_path: Path,
+) -> None:
+    parsed, pallet_result = _parsed_and_pallets(UNLOADING_PLAN_FIXTURE, tmp_path)
+
+    first = generate_pallet_label_pdf(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "labels",
+        label_date=date(2026, 6, 25),
+    )
+    second = generate_pallet_label_pdf(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "labels",
+        label_date=date(2026, 6, 26),
+    )
+
+    assert first.outputPath != second.outputPath
+    assert first.outputPath.is_file()
+    assert second.outputPath.is_file()
+
+
 def test_pdf_label_generator_uses_manual_destination_for_missing_destination(
     tmp_path: Path,
 ) -> None:

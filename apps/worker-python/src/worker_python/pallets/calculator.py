@@ -54,6 +54,7 @@ def calculate_pallets(
     inputs: Iterable[PalletCalculationInput],
     *,
     container_no: str | None = None,
+    pallet_id_namespace: str | None = None,
     config: PalletConfig = DEFAULT_PALLET_CONFIG,
 ) -> PalletCalculationResult:
     errors = _validate_config(config)
@@ -74,6 +75,7 @@ def calculate_pallets(
             item,
             plan_index=plan_index,
             container_no=container_no,
+            pallet_id_namespace=pallet_id_namespace,
             config=config,
         )
         plans.append(plan)
@@ -111,6 +113,7 @@ def _calculate_one(
     *,
     plan_index: int,
     container_no: str | None,
+    pallet_id_namespace: str | None,
     config: PalletConfig,
 ) -> tuple[PalletPlan, list[PalletCalculationIssue]]:
     warnings: list[PalletCalculationIssue] = []
@@ -172,6 +175,7 @@ def _calculate_one(
             finalPallets=final_pallets,
             palletIds=_pallet_ids(
                 container_no=container_no,
+                pallet_id_namespace=pallet_id_namespace,
                 destination_code=item.destinationCode,
                 plan_index=plan_index,
                 count=final_pallets,
@@ -200,12 +204,15 @@ def _calculated_pallet_count(
 def _pallet_ids(
     *,
     container_no: str | None,
+    pallet_id_namespace: str | None,
     destination_code: str | None,
     plan_index: int,
     count: int,
 ) -> tuple[str, ...]:
+    namespace = f"{_slug(pallet_id_namespace)}-" if pallet_id_namespace else ""
     prefix = (
         f"{_slug(container_no or 'UNKNOWN')}-"
+        f"{namespace}"
         f"D{plan_index:03d}-"
         f"{_slug(destination_code or 'UNKNOWN')}"
     )

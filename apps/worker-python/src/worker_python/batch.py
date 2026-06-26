@@ -163,6 +163,7 @@ def _process_file(
             pallet_result = calculate_pallets(
                 inputs_from_destination_summaries(parsed_result.destinationSummaries),
                 container_no=parsed_result.containerNo,
+                pallet_id_namespace=sha256[:12] if sha256 else None,
             )
 
             if not parsed_result.errors and not pallet_result.errors:

@@ -97,7 +97,7 @@ def write_excel_report(
         )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{_safe_filename(container_no)}卸柜报告-En.xlsx"
+    output_path = _unique_output_path(output_dir / f"{_safe_filename(container_no)}卸柜报告-En.xlsx")
     manifest_path = output_dir / REPORT_MANIFEST_FILENAME
 
     workbook = load_workbook(template_path)
@@ -216,6 +216,18 @@ def _load_manifest(manifest_path: Path) -> dict[str, Any]:
 
 def _safe_filename(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "-", value).strip("-") or "UNKNOWN-CONTAINER"
+
+
+def _unique_output_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+
+    for index in range(2, 10_000):
+        candidate = path.with_name(f"{path.stem}-{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+
+    raise RuntimeError(f"Unable to allocate unique report output path for {path}")
 
 
 def _error_result(

@@ -80,6 +80,29 @@ def test_excel_report_writer_records_generated_report(tmp_path: Path) -> None:
     assert str(result.outputPath) in manifest_text
 
 
+def test_excel_report_writer_does_not_overwrite_same_container_report(
+    tmp_path: Path,
+) -> None:
+    parsed, pallet_result = _parsed_and_pallets(STANDARD_FIXTURE, tmp_path)
+
+    first = write_excel_report(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+    second = write_excel_report(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 31),
+    )
+
+    assert first.outputPath != second.outputPath
+    assert first.outputPath.is_file()
+    assert second.outputPath.is_file()
+
+
 def test_excel_report_writer_warns_when_destinations_exceed_template_range(
     tmp_path: Path,
 ) -> None:

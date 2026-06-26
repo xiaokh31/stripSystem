@@ -59,6 +59,16 @@ def test_phase0_e2e_regression_uses_all_real_fixtures(tmp_path: Path) -> None:
         for payload in parsed_payloads
         if payload["detection"]["format_type"] in {"UNLOADING_PLAN_CN", "BESTAR_RECEIVING"}
     ]
+    pallet_ids = [
+        pallet_id
+        for payload in supported_payloads
+        for pallet_id in (payload["label_result"] or {}).get("palletIds", [])
+    ]
+    qr_payloads = [
+        qr_payload
+        for payload in supported_payloads
+        for qr_payload in (payload["label_result"] or {}).get("qrPayloads", [])
+    ]
     assert supported_payloads
     assert {payload["detection"]["format_type"] for payload in supported_payloads} >= {
         "UNLOADING_PLAN_CN",
@@ -68,11 +78,18 @@ def test_phase0_e2e_regression_uses_all_real_fixtures(tmp_path: Path) -> None:
     assert any(payload["pallet_result"]["plans"] for payload in supported_payloads)
     assert any(payload["report_result"] and payload["report_result"]["outputPath"] for payload in supported_payloads)
     assert any(payload["label_result"] and payload["label_result"]["outputPath"] for payload in supported_payloads)
+    assert len(pallet_ids) == len(set(pallet_ids))
+    assert len(qr_payloads) == len(set(qr_payloads))
+    assert all(qr_payload.split("|")[-1] in pallet_ids for qr_payload in qr_payloads)
 
     report_files = sorted((output_dir / "reports").glob("*.xlsx"))
     label_files = sorted((output_dir / "labels").glob("*.pdf"))
+    report_manifest = json.loads((output_dir / "reports" / "report_manifest.json").read_text(encoding="utf-8"))
+    label_manifest = json.loads((output_dir / "labels" / "label_manifest.json").read_text(encoding="utf-8"))
     assert report_files
     assert label_files
+    assert len(report_files) == len(report_manifest["records"])
+    assert len(label_files) == len(label_manifest["records"])
     assert label_files[0].read_bytes().startswith(b"%PDF")
 
     workbook = load_workbook(report_files[0], data_only=False)
