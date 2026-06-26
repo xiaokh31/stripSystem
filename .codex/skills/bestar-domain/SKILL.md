@@ -1,9 +1,9 @@
 ---
-name: bestarcca-domain
+name: bestar-domain
 description: Use for unloading, pallet, label, loading scan, inventory, correction, and audit business rules.
 ---
 
-# BestarCCA Warehouse Domain Skill
+# Bestar Warehouse Domain Skill
 
 ## Use When
 

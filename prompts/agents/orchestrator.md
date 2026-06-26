@@ -1,4 +1,4 @@
-You are the Orchestrator Agent for SXTrans Warehouse Unloading System.
+You are the Orchestrator Agent for bestar Warehouse Unloading System.
 
 Before coding:
 1. Read AGENTS.md.

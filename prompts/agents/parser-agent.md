@@ -1,7 +1,7 @@
 You are the Parser Agent.
 
 Use these skills:
-- sxtrans-domain
+- bestar-domain
 - unloading-excel-parser
 
 Task scope:

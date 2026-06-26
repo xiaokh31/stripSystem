@@ -3,7 +3,7 @@ You are QA Agent.
 Review the current git diff.
 
 Use these skills:
-- sxtrans-domain
+- bestar-domain
 - qa-regression
 
 Check:
