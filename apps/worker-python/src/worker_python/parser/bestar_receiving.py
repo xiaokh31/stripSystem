@@ -10,6 +10,7 @@ from typing import Any
 from openpyxl import load_workbook
 
 from worker_python.parser.detector import FormatType, detect_excel_format
+from worker_python.parser.workbook_warnings import ignore_openpyxl_conditional_formatting_warning
 
 
 PARSER_VERSION = "bestar-receiving-v1"
@@ -122,7 +123,8 @@ def parse_bestar_receiving(path: Path) -> BestarReceivingParseResult:
         )
 
     try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        with ignore_openpyxl_conditional_formatting_warning():
+            workbook = load_workbook(path, read_only=True, data_only=True)
     except Exception as exc:
         return _empty_error_result(
             path=path,
@@ -133,23 +135,24 @@ def parse_bestar_receiving(path: Path) -> BestarReceivingParseResult:
         )
 
     try:
-        worksheet = workbook[detection.matched_sheet]
-        header_values = next(
-            worksheet.iter_rows(
-                min_row=detection.matched_row,
-                max_row=detection.matched_row,
-                values_only=True,
+        with ignore_openpyxl_conditional_formatting_warning():
+            worksheet = workbook[detection.matched_sheet]
+            header_values = next(
+                worksheet.iter_rows(
+                    min_row=detection.matched_row,
+                    max_row=detection.matched_row,
+                    values_only=True,
+                )
             )
-        )
-        headers = _unique_headers(header_values)
-        field_columns = _field_columns(headers)
-        header_metadata = _metadata_values(worksheet, path)
-        lines, warnings = _parse_lines(
-            worksheet=worksheet,
-            header_row=detection.matched_row,
-            headers=headers,
-            field_columns=field_columns,
-        )
+            headers = _unique_headers(header_values)
+            field_columns = _field_columns(headers)
+            header_metadata = _metadata_values(worksheet, path)
+            lines, warnings = _parse_lines(
+                worksheet=worksheet,
+                header_row=detection.matched_row,
+                headers=headers,
+                field_columns=field_columns,
+            )
     finally:
         workbook.close()
 

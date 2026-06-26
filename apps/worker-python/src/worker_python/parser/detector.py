@@ -7,6 +7,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from worker_python.parser.workbook_warnings import ignore_openpyxl_conditional_formatting_warning
+
 
 class FormatType(StrEnum):
     UNLOADING_PLAN_CN = "UNLOADING_PLAN_CN"
@@ -116,7 +118,8 @@ def detect_excel_format(path: Path) -> DetectionResult:
         )
 
     try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        with ignore_openpyxl_conditional_formatting_warning():
+            workbook = load_workbook(path, read_only=True, data_only=True)
     except Exception as exc:
         return DetectionResult(
             format_type=FormatType.UNKNOWN,
@@ -126,7 +129,8 @@ def detect_excel_format(path: Path) -> DetectionResult:
         )
 
     try:
-        scanned_rows = tuple(_scan_rows(workbook))
+        with ignore_openpyxl_conditional_formatting_warning():
+            scanned_rows = tuple(_scan_rows(workbook))
     finally:
         workbook.close()
 

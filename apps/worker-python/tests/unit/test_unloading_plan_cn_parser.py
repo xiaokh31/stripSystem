@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import warnings
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 FIXTURE_DIR = REPO_ROOT / "samples" / "unloading-plans"
 CONTENT_CONTAINER_FIXTURE = FIXTURE_DIR / "CAAU8011090 UNLOADING PLAN.xlsx"
 FILENAME_CONTAINER_FIXTURE = FIXTURE_DIR / "Unloading Plan SMCU1012780.xlsx"
+CONDITIONAL_FORMATTING_FIXTURE = FIXTURE_DIR / "MATU2613753 UNLOADING PLAN.xlsx"
 BESTAR_RECEIVING_FIXTURE = FIXTURE_DIR / "137675 JXJU3246131  PO#3404  BESTAR.xlsx"
 NO_CONTENT_CONTAINER_FIXTURE = FIXTURE_DIR / "BEAU5601716 UNLOADING PLAN.xlsx"
 
@@ -111,6 +113,17 @@ def test_parser_reports_missing_container_when_content_and_filename_have_none(
     assert result.formatType == FormatType.UNLOADING_PLAN_CN
     assert result.containerNo is None
     assert any(error.code == "MISSING_CONTAINER_NO" for error in result.errors)
+    assert result.lines
+
+
+def test_parser_ignores_openpyxl_conditional_formatting_warning_from_real_fixture() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+
+        result = parse_unloading_plan_cn(CONDITIONAL_FORMATTING_FIXTURE)
+
+    assert result.formatType == FormatType.UNLOADING_PLAN_CN
+    assert result.containerNo == "MATU2613753"
     assert result.lines
 
 
