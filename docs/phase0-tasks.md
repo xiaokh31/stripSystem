@@ -13,7 +13,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | P0-04 | Done | Parser Agent | Emit normalized parsed JSON with raw_json, warnings, and errors. | `cd apps/worker-python && uv run pytest tests/unit/test_unloading_plan_cn_parser.py` |
 | P0-05 | Done | Parser Agent | Parse Bestar receiving report rows and preserve missing destination warnings. | `cd apps/worker-python && uv run pytest tests/unit/test_bestar_receiving_parser.py` |
 | P0-06 | Done | Pallet Calculation Agent | Aggregate by destination and calculate pallet count. | `cd apps/worker-python && uv run pytest tests/unit/test_pallet_calculator.py` |
-| P0-07 | Planned | Label Generator Agent | Generate 150mm x 100mm pallet label PDF with 25mm QR target. | `cd apps/worker-python && uv run pytest tests/unit/test_label_pdf.py` |
+| P0-07 | Done | Report Generator Agent | Generate unloading report Excel from parsed data and pallet plans. | `cd apps/worker-python && uv run pytest tests/unit/test_excel_report_writer.py` |
 | P0-08 | Planned | Report Generator Agent + Correction Agent | Generate HTML task report with warnings and auditable corrections. | `cd apps/worker-python && uv run pytest tests/unit/test_task_report.py` |
 | P0-09 | Planned | Orchestrator Agent + QA Regression Agent | Run end-to-end batch CLI from real Excel to all Phase 0 outputs. | `cd apps/worker-python && uv run pytest` |
 
@@ -70,10 +70,13 @@ database, queue, or mobile scan features before these tasks are accepted.
 
 ### P0-07
 
-- PDF labels are exactly 150mm x 100mm.
-- QR physical size target is 25mm x 25mm.
-- QR payload contains a unique pallet ID.
-- Every generated label is recorded.
+- Excel unloading report is copied from `samples/templates/卸柜报告-En.xlsx`.
+- Generated reports are written under `storage/reports` by default.
+- Template file is not modified.
+- Report includes date, time, container number, company, destination, pallet
+  count, carton count, and total carton count.
+- Destination overflow beyond template rows creates a warning.
+- Generated report is recorded in a report manifest.
 
 ### P0-08
 
