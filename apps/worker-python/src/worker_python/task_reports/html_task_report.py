@@ -125,6 +125,8 @@ def record_from_parsed_result(
     pallet_result: Any | None = None,
     report_file: Path | None = None,
     label_file: Path | None = None,
+    report_result: Any | None = None,
+    label_result: Any | None = None,
 ) -> TaskReportRecord:
     warnings = tuple(_issue_from_any(issue) for issue in getattr(parsed_result, "warnings", ()))
     errors = tuple(_issue_from_any(issue) for issue in getattr(parsed_result, "errors", ()))
@@ -132,6 +134,16 @@ def record_from_parsed_result(
     if pallet_result is not None:
         warnings = warnings + tuple(_issue_from_any(issue) for issue in getattr(pallet_result, "warnings", ()))
         errors = errors + tuple(_issue_from_any(issue) for issue in getattr(pallet_result, "errors", ()))
+
+    if report_result is not None:
+        warnings = warnings + tuple(_issue_from_any(issue) for issue in getattr(report_result, "warnings", ()))
+        errors = errors + tuple(_issue_from_any(issue) for issue in getattr(report_result, "errors", ()))
+        report_file = report_file or _existing_output_path(report_result)
+
+    if label_result is not None:
+        warnings = warnings + tuple(_issue_from_any(issue) for issue in getattr(label_result, "warnings", ()))
+        errors = errors + tuple(_issue_from_any(issue) for issue in getattr(label_result, "errors", ()))
+        label_file = label_file or _existing_output_path(label_result)
 
     summaries = _summaries_from(parsed_result, pallet_result)
 
@@ -283,6 +295,13 @@ def _link_or_empty(path: str | None) -> str:
         return "Not generated"
     escaped = html.escape(path)
     return f'<a href="{escaped}">{escaped}</a>'
+
+
+def _existing_output_path(result: Any) -> Path | None:
+    output_path = getattr(result, "outputPath", None)
+    if isinstance(output_path, Path) and output_path.exists():
+        return output_path
+    return None
 
 
 def _issue_from_any(value: Any, *, code: str | None = None) -> TaskIssue:

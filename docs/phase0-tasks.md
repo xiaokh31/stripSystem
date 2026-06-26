@@ -16,6 +16,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | P0-07 | Done | Report Generator Agent | Generate unloading report Excel from parsed data and pallet plans. | `cd apps/worker-python && uv run pytest tests/unit/test_excel_report_writer.py` |
 | P0-08 | Done | Label Generator Agent | Generate 150mm x 100mm pallet label PDF with 25mm QR target. | `cd apps/worker-python && uv run pytest tests/unit/test_pdf_label_generator.py tests/unit/test_qr_payload.py` |
 | P0-09 | Done | Report Generator Agent + Correction Agent | Generate HTML task report and corrections JSON draft. | `cd apps/worker-python && uv run pytest tests/unit/test_task_report.py` |
+| P0-10 | Done | Batch CLI Agent | Run Phase 0 batch CLI from real Excel files to parsed JSON, reports, labels, and task report. | `cd apps/worker-python && uv run pytest tests/integration/test_batch_cli.py` |
 
 ## Acceptance Criteria
 
@@ -97,3 +98,17 @@ database, queue, or mobile scan features before these tasks are accepted.
   warnings, and errors.
 - Corrections JSON includes correctedContainerNo, correctedDestinationCode,
   correctedPallets, and correctionNote placeholders.
+
+### P0-10
+
+- `unloading-worker batch` accepts input directory, Excel report template, and
+  output directory arguments.
+- The batch runner imports and preserves original `.xlsx` files, records
+  SHA-256, detects format, parses supported files, calculates pallets, writes
+  parsed JSON, and generates reports and labels for successful files.
+- Batch output includes `parsed_json`, `reports`, `labels`, `task_reports`, and
+  `corrections` directories under the selected output directory.
+- A failed file does not stop the batch and is included in parsed JSON and the
+  HTML task report with an explicit error reason.
+- The CLI prints a terminal summary with processed, success, warning, and failed
+  counts plus output paths.

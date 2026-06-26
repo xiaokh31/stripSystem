@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 worker-python = "worker_python:main"
+unloading-worker = "worker_python.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.24,<0.12.0"]
