@@ -40,3 +40,6 @@ storage/corrections/*
 # IDE
 .vscode/settings.json
 .idea/
+
+# prompts/tasks
+prompts/tasks/
