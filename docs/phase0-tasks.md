@@ -9,7 +9,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | --- | --- | --- | --- | --- |
 | P0-01 | Done | Orchestrator Agent + Parser Agent | Register real Excel fixtures and validate SHA-256 coverage. | `cd apps/worker-python && uv run pytest tests/unit/test_fixtures.py` |
 | P0-02 | Done | Parser Agent | Preserve imported original files and detect duplicate imports by SHA-256. | `cd apps/worker-python && uv run pytest tests/unit/test_import_registry.py` |
-| P0-03 | Planned | Parser Agent | Detect real Excel unloading-plan format variants. | `cd apps/worker-python && uv run pytest tests/unit/test_parser_detector.py` |
+| P0-03 | Done | Parser Agent | Detect real Excel unloading-plan format variants. | `cd apps/worker-python && uv run pytest tests/unit/test_parser_detector.py` |
 | P0-04 | Planned | Parser Agent | Emit normalized parsed JSON with raw_json, warnings, and errors. | `cd apps/worker-python && uv run pytest tests/unit/test_parsed_json.py` |
 | P0-05 | Planned | Pallet Calculation Agent | Aggregate by destination and calculate pallet count. | `cd apps/worker-python && uv run pytest tests/unit/test_pallet_calculation.py` |
 | P0-06 | Planned | Report Generator Agent | Generate unloading report Excel from parsed JSON. | `cd apps/worker-python && uv run pytest tests/unit/test_excel_report.py` |
