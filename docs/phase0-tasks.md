@@ -12,7 +12,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | P0-03 | Done | Parser Agent | Detect real Excel unloading-plan format variants. | `cd apps/worker-python && uv run pytest tests/unit/test_parser_detector.py` |
 | P0-04 | Done | Parser Agent | Emit normalized parsed JSON with raw_json, warnings, and errors. | `cd apps/worker-python && uv run pytest tests/unit/test_unloading_plan_cn_parser.py` |
 | P0-05 | Done | Parser Agent | Parse Bestar receiving report rows and preserve missing destination warnings. | `cd apps/worker-python && uv run pytest tests/unit/test_bestar_receiving_parser.py` |
-| P0-06 | Planned | Pallet Calculation Agent | Aggregate by destination and calculate pallet count. | `cd apps/worker-python && uv run pytest tests/unit/test_pallet_calculator.py` |
+| P0-06 | Done | Pallet Calculation Agent | Aggregate by destination and calculate pallet count. | `cd apps/worker-python && uv run pytest tests/unit/test_pallet_calculator.py` |
 | P0-07 | Planned | Label Generator Agent | Generate 150mm x 100mm pallet label PDF with 25mm QR target. | `cd apps/worker-python && uv run pytest tests/unit/test_label_pdf.py` |
 | P0-08 | Planned | Report Generator Agent + Correction Agent | Generate HTML task report with warnings and auditable corrections. | `cd apps/worker-python && uv run pytest tests/unit/test_task_report.py` |
 | P0-09 | Planned | Orchestrator Agent + QA Regression Agent | Run end-to-end batch CLI from real Excel to all Phase 0 outputs. | `cd apps/worker-python && uv run pytest` |

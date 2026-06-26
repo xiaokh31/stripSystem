@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+import math
+import re
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from typing import Any, Iterable
+
+from worker_python.pallets.rules import DEFAULT_PALLET_CONFIG, PalletConfig, classify_destination
+
+
+@dataclass(frozen=True)
+class PalletCalculationIssue:
+    code: str
+    message: str
+    destinationCode: str | None = None
+
+
+@dataclass(frozen=True)
+class PalletCalculationInput:
+    destinationCode: str | None
+    totalCartons: int
+    totalVolumeCbm: float
+    lineCount: int
+    manualPallets: int | None = None
+
+
+@dataclass(frozen=True)
+class PalletPlan:
+    destinationCode: str | None
+    destinationType: str
+    totalCartons: int
+    totalVolumeCbm: float
+    lineCount: int
+    heightLimitM: float
+    palletCapacityCbm: float
+    calculatedPallets: int
+    manualPallets: int | None
+    finalPallets: int
+    palletIds: tuple[str, ...]
+    warnings: tuple[PalletCalculationIssue, ...]
+
+
+@dataclass(frozen=True)
+class PalletCalculationResult:
+    plans: tuple[PalletPlan, ...]
+    warnings: tuple[PalletCalculationIssue, ...]
+    errors: tuple[PalletCalculationIssue, ...]
+    totalCalculatedPallets: int
+    totalFinalPallets: int
+
+
+def calculate_pallets(
+    inputs: Iterable[PalletCalculationInput],
+    *,
+    container_no: str | None = None,
+    config: PalletConfig = DEFAULT_PALLET_CONFIG,
+) -> PalletCalculationResult:
+    errors = _validate_config(config)
+    if errors:
+        return PalletCalculationResult(
+            plans=(),
+            warnings=(),
+            errors=tuple(errors),
+            totalCalculatedPallets=0,
+            totalFinalPallets=0,
+        )
+
+    plans: list[PalletPlan] = []
+    all_warnings: list[PalletCalculationIssue] = []
+
+    for plan_index, item in enumerate(inputs, start=1):
+        plan, warnings = _calculate_one(
+            item,
+            plan_index=plan_index,
+            container_no=container_no,
+            config=config,
+        )
+        plans.append(plan)
+        all_warnings.extend(warnings)
+
+    return PalletCalculationResult(
+        plans=tuple(plans),
+        warnings=tuple(all_warnings),
+        errors=(),
+        totalCalculatedPallets=sum(plan.calculatedPallets for plan in plans),
+        totalFinalPallets=sum(plan.finalPallets for plan in plans),
+    )
+
+
+def inputs_from_destination_summaries(
+    summaries: Iterable[Any],
+) -> tuple[PalletCalculationInput, ...]:
+    inputs: list[PalletCalculationInput] = []
+
+    for summary in summaries:
+        inputs.append(
+            PalletCalculationInput(
+                destinationCode=getattr(summary, "destinationCode", None),
+                totalCartons=int(getattr(summary, "totalCartons", 0) or 0),
+                totalVolumeCbm=float(getattr(summary, "totalVolumeCbm", 0) or 0),
+                lineCount=int(getattr(summary, "lineCount", 0) or 0),
+            )
+        )
+
+    return tuple(inputs)
+
+
+def _calculate_one(
+    item: PalletCalculationInput,
+    *,
+    plan_index: int,
+    container_no: str | None,
+    config: PalletConfig,
+) -> tuple[PalletPlan, list[PalletCalculationIssue]]:
+    warnings: list[PalletCalculationIssue] = []
+    classification = classify_destination(item.destinationCode, config)
+    capacity = (
+        config.pallet_length_m
+        * config.pallet_width_m
+        * classification.height_limit_m
+        * config.utilization_ratio
+    )
+    volume = _decimal(item.totalVolumeCbm)
+
+    if classification.needs_confirmation:
+        warnings.append(
+            PalletCalculationIssue(
+                code="NEED_CONFIRM_DESTINATION_TYPE",
+                message="Destination type was not recognized; pallet height needs confirmation.",
+                destinationCode=item.destinationCode,
+            )
+        )
+
+    if item.totalCartons > 0 and volume == 0:
+        warnings.append(
+            PalletCalculationIssue(
+                code="ZERO_VOLUME_WITH_CARTONS",
+                message="Volume is 0 while cartons are greater than 0; pallet count was floored to 1.",
+                destinationCode=item.destinationCode,
+            )
+        )
+
+    calculated_pallets = _calculated_pallet_count(
+        total_cartons=item.totalCartons,
+        total_volume=volume,
+        capacity=capacity,
+    )
+    final_pallets = item.manualPallets if item.manualPallets is not None else calculated_pallets
+
+    if item.manualPallets is not None and item.manualPallets < 0:
+        warnings.append(
+            PalletCalculationIssue(
+                code="INVALID_MANUAL_PALLETS",
+                message="manualPallets is negative; calculated pallet count was used instead.",
+                destinationCode=item.destinationCode,
+            )
+        )
+        final_pallets = calculated_pallets
+
+    return (
+        PalletPlan(
+            destinationCode=item.destinationCode,
+            destinationType=classification.destination_type,
+            totalCartons=item.totalCartons,
+            totalVolumeCbm=float(volume),
+            lineCount=item.lineCount,
+            heightLimitM=float(classification.height_limit_m),
+            palletCapacityCbm=float(capacity),
+            calculatedPallets=calculated_pallets,
+            manualPallets=item.manualPallets,
+            finalPallets=final_pallets,
+            palletIds=_pallet_ids(
+                container_no=container_no,
+                destination_code=item.destinationCode,
+                plan_index=plan_index,
+                count=final_pallets,
+            ),
+            warnings=tuple(warnings),
+        ),
+        warnings,
+    )
+
+
+def _calculated_pallet_count(
+    *,
+    total_cartons: int,
+    total_volume: Decimal,
+    capacity: Decimal,
+) -> int:
+    if total_cartons <= 0 and total_volume <= 0:
+        return 0
+
+    calculated = math.ceil(total_volume / capacity) if total_volume > 0 else 0
+    if total_cartons > 0 and calculated < 1:
+        return 1
+    return calculated
+
+
+def _pallet_ids(
+    *,
+    container_no: str | None,
+    destination_code: str | None,
+    plan_index: int,
+    count: int,
+) -> tuple[str, ...]:
+    prefix = (
+        f"{_slug(container_no or 'UNKNOWN')}-"
+        f"D{plan_index:03d}-"
+        f"{_slug(destination_code or 'UNKNOWN')}"
+    )
+    return tuple(f"{prefix}-P{index:03d}" for index in range(1, count + 1))
+
+
+def _slug(value: str) -> str:
+    slug = re.sub(r"[^A-Z0-9]+", "-", value.upper()).strip("-")
+    return slug or "UNKNOWN"
+
+
+def _decimal(value: float | int | str | Decimal) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return Decimal("0")
+
+
+def _validate_config(config: PalletConfig) -> list[PalletCalculationIssue]:
+    errors: list[PalletCalculationIssue] = []
+    if config.pallet_length_m <= 0:
+        errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="pallet_length_m must be positive."))
+    if config.pallet_width_m <= 0:
+        errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="pallet_width_m must be positive."))
+    if config.utilization_ratio <= 0:
+        errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="utilization_ratio must be positive."))
+    return errors
