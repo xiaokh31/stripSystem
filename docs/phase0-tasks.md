@@ -14,7 +14,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | P0-05 | Done | Parser Agent | Parse Bestar receiving report rows and preserve missing destination warnings. | `cd apps/worker-python && uv run pytest tests/unit/test_bestar_receiving_parser.py` |
 | P0-06 | Done | Pallet Calculation Agent | Aggregate by destination and calculate pallet count. | `cd apps/worker-python && uv run pytest tests/unit/test_pallet_calculator.py` |
 | P0-07 | Done | Report Generator Agent | Generate unloading report Excel from parsed data and pallet plans. | `cd apps/worker-python && uv run pytest tests/unit/test_excel_report_writer.py` |
-| P0-08 | Planned | Report Generator Agent + Correction Agent | Generate HTML task report with warnings and auditable corrections. | `cd apps/worker-python && uv run pytest tests/unit/test_task_report.py` |
+| P0-08 | Done | Label Generator Agent | Generate 150mm x 100mm pallet label PDF with 25mm QR target. | `cd apps/worker-python && uv run pytest tests/unit/test_pdf_label_generator.py tests/unit/test_qr_payload.py` |
 | P0-09 | Planned | Orchestrator Agent + QA Regression Agent | Run end-to-end batch CLI from real Excel to all Phase 0 outputs. | `cd apps/worker-python && uv run pytest` |
 
 ## Acceptance Criteria
@@ -80,9 +80,11 @@ database, queue, or mobile scan features before these tasks are accepted.
 
 ### P0-08
 
-- HTML task report summarizes parsed data, warnings, errors, reports, labels,
-  and corrections.
-- Corrections are append-only and auditable.
+- PDF labels are exactly 150mm x 100mm.
+- QR physical size target is 25mm x 25mm.
+- QR payload contains a unique pallet ID.
+- Every generated label is recorded.
+- Long destination text wraps without changing QR dimensions.
 
 ### P0-09
 

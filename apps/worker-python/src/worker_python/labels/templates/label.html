@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      @page {
+        size: 150mm 100mm;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: Arial, "Noto Sans", sans-serif;
+        color: #111;
+      }
+
+      .label {
+        width: 150mm;
+        height: 100mm;
+        padding: 7mm;
+        display: flex;
+        flex-direction: column;
+        page-break-after: always;
+      }
+
+      .label:last-child {
+        page-break-after: auto;
+      }
+
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 6mm;
+        font-size: 13pt;
+        line-height: 1.2;
+      }
+
+      .container {
+        margin-top: 5mm;
+        font-size: 24pt;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      .middle {
+        margin-top: 5mm;
+        display: flex;
+        gap: 7mm;
+        align-items: flex-start;
+      }
+
+      .destination-block {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      .label-title {
+        font-size: 9pt;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        color: #555;
+      }
+
+      .destination {
+        margin-top: 1.5mm;
+        font-size: 18pt;
+        font-weight: 700;
+        line-height: 1.08;
+        overflow-wrap: anywhere;
+      }
+
+      .qr {
+        width: 25mm;
+        height: 25mm;
+        flex: 0 0 25mm;
+      }
+
+      .qr img {
+        width: 25mm;
+        height: 25mm;
+        display: block;
+      }
+
+      .bottom {
+        margin-top: auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 6mm;
+        align-items: flex-end;
+      }
+
+      .pallet-no {
+        font-size: 28pt;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .pallet-id {
+        max-width: 88mm;
+        font-size: 9pt;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    {% for label in labels %}
+      <section class="label">
+        <div class="top">
+          <div>
+            <div class="label-title">Date</div>
+            <div>{{ label.date }}</div>
+          </div>
+          <div>
+            <div class="label-title">Pallet</div>
+            <div>{{ label.pallet_no }}</div>
+          </div>
+        </div>
+
+        <div class="container">{{ label.container_no }}</div>
+
+        <div class="middle">
+          <div class="destination-block">
+            <div class="label-title">Destination</div>
+            <div class="destination">{{ label.destination }}</div>
+          </div>
+          <div class="qr">
+            <img src="{{ label.qr_data_uri }}" alt="QR">
+          </div>
+        </div>
+
+        <div class="bottom">
+          <div class="pallet-no">{{ label.pallet_no }}</div>
+          <div class="pallet-id">{{ label.pallet_id }}</div>
+        </div>
+      </section>
+    {% endfor %}
+  </body>
+</html>
