@@ -17,6 +17,7 @@ database, queue, or mobile scan features before these tasks are accepted.
 | P0-08 | Done | Label Generator Agent | Generate 150mm x 100mm pallet label PDF with 25mm QR target. | `cd apps/worker-python && uv run pytest tests/unit/test_pdf_label_generator.py tests/unit/test_qr_payload.py` |
 | P0-09 | Done | Report Generator Agent + Correction Agent | Generate HTML task report and corrections JSON draft. | `cd apps/worker-python && uv run pytest tests/unit/test_task_report.py` |
 | P0-10 | Done | Batch CLI Agent | Run Phase 0 batch CLI from real Excel files to parsed JSON, reports, labels, and task report. | `cd apps/worker-python && uv run pytest tests/integration/test_batch_cli.py` |
+| P0-11 | Done | QA Regression Agent | Verify Phase 0 end-to-end with real fixtures, check script, and manual runbook. | `cd apps/worker-python && uv run pytest tests/integration/test_phase0_e2e.py && bash ../../scripts/check-phase0.sh` |
 
 ## Acceptance Criteria
 
@@ -112,3 +113,16 @@ database, queue, or mobile scan features before these tasks are accepted.
   HTML task report with an explicit error reason.
 - The CLI prints a terminal summary with processed, success, warning, and failed
   counts plus output paths.
+
+### P0-11
+
+- End-to-end regression uses real `.xlsx` fixtures from `samples/unloading-plans`.
+- Regression covers detector, parser, pallet calculator, Excel report writer,
+  PDF label generator, HTML task report, and batch CLI.
+- Regression checks parsed JSON basic fields, generated report existence,
+  generated label existence, an openable Excel report, and task report coverage
+  for every input file.
+- `scripts/check-phase0.sh` runs the Phase 0 batch command and verifies core
+  output directories and task report coverage.
+- `docs/runbooks/phase0-manual-verification.md` explains the manual verification
+  steps and expected outputs.
