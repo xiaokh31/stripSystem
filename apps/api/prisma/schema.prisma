@@ -287,19 +287,22 @@ model GeneratedFile {
 }
 
 model LoadJob {
-  id           String          @id @default(cuid())
-  containerId  String          @map("container_id")
-  container    Container       @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  jobNo        String?         @unique @map("job_no")
-  status       LoadJobStatus   @default(PLANNED)
-  startedAt    DateTime?       @map("started_at")
-  completedAt  DateTime?       @map("completed_at")
-  createdById  String?         @map("created_by_id")
-  createdBy    User?           @relation("LoadJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  pallets      Pallet[]
-  events       PalletEvent[]
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
+  id                String          @id @default(cuid())
+  containerId       String          @map("container_id")
+  container         Container       @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  jobNo             String?         @unique @map("job_no")
+  truckNo           String?         @map("truck_no")
+  carrier           String?
+  destinationRegion String?         @map("destination_region")
+  status            LoadJobStatus   @default(PLANNED)
+  startedAt         DateTime?       @map("started_at")
+  closedAt          DateTime?       @map("completed_at")
+  createdById       String?         @map("created_by_id")
+  createdBy         User?           @relation("LoadJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  pallets           Pallet[]
+  events            PalletEvent[]
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
 
   @@index([containerId])
   @@index([status])

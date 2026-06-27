@@ -7,6 +7,7 @@ import { CorrectionsModule } from './corrections/corrections.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
 import { LabelsModule } from './labels/labels.module';
+import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 
@@ -23,6 +24,7 @@ import { ReportsModule } from './reports/reports.module';
     CorrectionsModule,
     ReportsModule,
     LabelsModule,
+    LoadJobsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
