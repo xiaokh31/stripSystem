@@ -44,6 +44,22 @@ describe('HealthController (e2e)', () => {
     return request(app.getHttpServer()).get('/health').expect(404);
   });
 
+  it('allows local web origin CORS preflight requests', () => {
+    return request(app.getHttpServer())
+      .options('/api/imports')
+      .set('Origin', 'http://127.0.0.1:3000')
+      .set('Access-Control-Request-Method', 'POST')
+      .expect(204)
+      .expect((response) => {
+        expect(response.headers['access-control-allow-origin']).toBe(
+          'http://127.0.0.1:3000',
+        );
+        expect(response.headers['access-control-allow-methods']).toContain(
+          'POST',
+        );
+      });
+  });
+
   afterEach(async () => {
     await app.close();
   });

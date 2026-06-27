@@ -15,6 +15,7 @@ from worker_python.parser.workbook_warnings import ignore_openpyxl_conditional_f
 
 PARSER_VERSION = "unloading-plan-cn-v1"
 CONTAINER_PATTERN = re.compile(r"\b[A-Z]{4}\d{7}[A-Z]?\b")
+MIN_VOLUME_CBM = 0.01
 
 
 @dataclass(frozen=True)
@@ -243,6 +244,7 @@ def _parse_line(
     cartons_int = int(cartons) if cartons is not None else None
     volume_float = float(volume) if volume is not None else None
     weight_float = float(weight) if weight is not None else None
+    waybill_no = _text(raw_json, field_columns, "waybillNo")
     destination_code = _text(raw_json, field_columns, "destinationCode")
 
     if destination_code is None:
@@ -273,19 +275,20 @@ def _parse_line(
             )
         )
     elif cartons_int is not None and cartons_int > 0 and volume_float == 0:
-        warnings.append(
-            ParseIssue(
-                code="ZERO_VOLUME_WITH_CARTONS",
-                message="Volume is 0 while cartons are greater than 0.",
-                row_number=row_number,
-                field="volumeCbm",
-            )
-        )
+        volume_float = MIN_VOLUME_CBM
+
+    destination_code, destination_warning = _destination_with_waybill(
+        destination_code=destination_code,
+        waybill_no=waybill_no,
+        row_number=row_number,
+    )
+    if destination_warning is not None:
+        warnings.append(destination_warning)
 
     return (
         ParsedLine(
             rowNumber=row_number,
-            waybillNo=_text(raw_json, field_columns, "waybillNo"),
+            waybillNo=waybill_no,
             fbaNo=_text(raw_json, field_columns, "fbaNo"),
             poNumber=_text(raw_json, field_columns, "poNumber"),
             cartons=cartons_int,
@@ -415,6 +418,52 @@ def _number(
         )
 
 
+def _destination_with_waybill(
+    *,
+    destination_code: str | None,
+    waybill_no: str | None,
+    row_number: int,
+) -> tuple[str | None, ParseIssue | None]:
+    if destination_code is None or not _is_address_destination(destination_code):
+        return destination_code, None
+
+    if waybill_no is None:
+        return (
+            destination_code,
+            ParseIssue(
+                code="MISSING_WAYBILL_FOR_ADDRESS_DESTINATION",
+                message="Commercial or private address destination requires a waybill number.",
+                row_number=row_number,
+                field="waybillNo",
+            ),
+        )
+
+    if waybill_no in destination_code:
+        return destination_code, None
+
+    return f"{destination_code} / {waybill_no}", None
+
+
+def _is_address_destination(destination_code: str) -> bool:
+    normalized = _normalize_address_destination(destination_code)
+    return any(
+        term in normalized
+        for term in (
+            "PRIVATE",
+            "PRIVATEADDRESS",
+            "COMMERCIAL",
+            "COMMERCIALADDRESS",
+            "BUSINESSADDRESS",
+            "私人",
+            "私人地址",
+            "商业",
+            "商业地址",
+            "商業",
+            "商業地址",
+        )
+    )
+
+
 def _text(raw_json: dict[str, Any], field_columns: dict[str, int], field_name: str) -> str | None:
     value = _raw_field(raw_json, field_columns, field_name)
     text = _cell_text(value)
@@ -480,6 +529,10 @@ def _normalize_header(value: str) -> str:
     text = value.replace("＃", "#").replace("：", ":")
     text = text.replace("³", "3")
     return re.sub(r"\s+", "", text).upper()
+
+
+def _normalize_address_destination(value: str) -> str:
+    return re.sub(r"[\s/_-]+", "", value.upper())
 
 
 def _looks_numeric(value: str) -> bool:

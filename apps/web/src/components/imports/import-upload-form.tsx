@@ -148,8 +148,8 @@ export function ImportUploadForm() {
             type="file"
           />
           <p className="mt-2 text-xs leading-5 text-zinc-500">
-            Only .xlsx files are accepted. Each file is uploaded to the real
-            import API.
+            Only .xlsx files are accepted. Selecting files stages them locally;
+            click upload to send them to the real import API.
           </p>
 
           {formError ? (
@@ -168,7 +168,7 @@ export function ImportUploadForm() {
               onClick={handleUpload}
               type="button"
             >
-              {uploading ? "Uploading" : "Upload files"}
+              {uploading ? "Uploading" : uploadButtonLabel(validCount)}
             </button>
             <button
               className="min-h-10 border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
@@ -182,7 +182,8 @@ export function ImportUploadForm() {
 
           {items.length ? (
             <p className="mt-4 text-xs font-medium text-zinc-600">
-              {completeCount} of {items.length} files finished.
+              {completeCount} of {items.length} files finished. Ready files
+              have not been sent until upload starts.
             </p>
           ) : null}
         </div>
@@ -251,17 +252,29 @@ function StatusChip({ status }: { status: UploadQueueItem["status"] }) {
     success: "border-emerald-200 bg-emerald-50 text-emerald-800",
     uploading: "border-cyan-200 bg-cyan-50 text-cyan-800",
   };
+  const labels: Record<UploadQueueItem["status"], string> = {
+    duplicate: "duplicate",
+    error: "error",
+    invalid: "invalid",
+    queued: "ready",
+    success: "success",
+    uploading: "uploading",
+  };
 
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles[status]}`}
     >
-      {status}
+      {labels[status]}
     </span>
   );
 }
 
 function ProgressCell({ item }: { item: UploadItemState }) {
+  if (item.status === "queued") {
+    return <span className="text-xs text-zinc-500">Not started</span>;
+  }
+
   if (
     item.status === "invalid" ||
     item.status === "duplicate" ||
@@ -349,5 +362,19 @@ function ResultCell({ item }: { item: UploadItemState }) {
     );
   }
 
+  if (item.status === "queued") {
+    return (
+      <span className="text-xs text-zinc-500">Click upload to start</span>
+    );
+  }
+
   return <span className="text-xs text-zinc-500">Waiting</span>;
+}
+
+function uploadButtonLabel(validCount: number): string {
+  if (validCount <= 1) {
+    return "Upload file";
+  }
+
+  return `Upload ${validCount} files`;
 }

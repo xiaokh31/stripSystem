@@ -34,6 +34,17 @@ export interface ImportFileResponse {
   updatedAt: string;
 }
 
+export interface ImportFileListResponse {
+  items: ImportFileResponse[];
+  limit: number;
+  offset: number;
+}
+
+export interface ImportListFilters {
+  limit?: number;
+  offset?: number;
+}
+
 export interface ContainerLineResponse {
   id: string;
   lineNo: number;
@@ -285,13 +296,25 @@ export class ApiClientError extends Error {
   }
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:3000/api";
+const DEFAULT_BROWSER_API_BASE_URL = "/api";
+const DEFAULT_SERVER_API_BASE_URL = "http://127.0.0.1:4000/api";
 
 export function getApiBaseUrl(): string {
+  const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const serverBaseUrl =
+    process.env.API_BASE_URL ?? process.env.NEXT_SERVER_API_BASE_URL;
+
+  if (typeof window === "undefined") {
+    return normalizeBaseUrl(
+      serverBaseUrl ??
+        (publicBaseUrl && !isRelativeUrl(publicBaseUrl)
+          ? publicBaseUrl
+          : DEFAULT_SERVER_API_BASE_URL),
+    );
+  }
+
   return normalizeBaseUrl(
-    process.env.NEXT_PUBLIC_API_BASE_URL ??
-      process.env.API_BASE_URL ??
-      DEFAULT_API_BASE_URL,
+    publicBaseUrl ?? DEFAULT_BROWSER_API_BASE_URL,
   );
 }
 
@@ -309,6 +332,15 @@ export function getImportFile(
 ): Promise<ImportFileResponse> {
   return createApiClient(options).get<ImportFileResponse>(
     `/imports/${encodeURIComponent(id)}`,
+  );
+}
+
+export function listImportFiles(
+  filters: ImportListFilters = {},
+  options: ApiClientOptions = {},
+): Promise<ImportFileListResponse> {
+  return createApiClient(options).get<ImportFileListResponse>(
+    `/imports${toImportListQueryString(filters)}`,
   );
 }
 
@@ -427,7 +459,7 @@ export class ApiClient {
   constructor(options: ApiClientOptions = {}) {
     this.authToken = options.authToken ?? null;
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? getApiBaseUrl());
-    this.fetcher = options.fetcher ?? fetch;
+    this.fetcher = options.fetcher ?? defaultFetcher();
   }
 
   get<TResponse>(
@@ -524,12 +556,34 @@ function normalizeBaseUrl(value: string): string {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 }
 
+function defaultFetcher(): typeof fetch {
+  if (typeof window !== "undefined" && typeof window.fetch === "function") {
+    return window.fetch.bind(window);
+  }
+
+  return globalThis.fetch.bind(globalThis);
+}
+
+function isRelativeUrl(value: string): boolean {
+  return value.trim().startsWith("/");
+}
+
 function toInventoryQueryString(filters: InventoryReportFilters): string {
   const params = new URLSearchParams();
 
   appendQueryParam(params, "containerNo", filters.containerNo);
   appendQueryParam(params, "destinationCode", filters.destinationCode);
   appendQueryParam(params, "status", filters.status);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toImportListQueryString(filters: ImportListFilters): string {
+  const params = new URLSearchParams();
+
+  appendNumberQueryParam(params, "limit", filters.limit);
+  appendNumberQueryParam(params, "offset", filters.offset);
 
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -543,6 +597,16 @@ function appendQueryParam(
   const trimmed = value?.trim();
   if (trimmed) {
     params.set(key, trimmed);
+  }
+}
+
+function appendNumberQueryParam(
+  params: URLSearchParams,
+  key: string,
+  value: number | undefined,
+) {
+  if (value !== undefined) {
+    params.set(key, String(value));
   }
 }
 

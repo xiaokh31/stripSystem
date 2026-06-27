@@ -27,7 +27,23 @@ AMAZON_FBA = "AMAZON_FBA"
 PARCEL_PRIVATE = "PARCEL_PRIVATE"
 UNKNOWN = "UNKNOWN"
 
-PARCEL_PRIVATE_TERMS = ("UPS", "PUROLATOR", "PURO", "P/A", "PRIVATE", "PRIVATE ADDRESS")
+PARCEL_PRIVATE_TERMS = (
+    "UPS",
+    "PUROLATOR",
+    "PURO",
+    "P/A",
+    "PRIVATE",
+    "PRIVATE ADDRESS",
+    "COMMERCIAL",
+    "COMMERCIAL ADDRESS",
+    "BUSINESS ADDRESS",
+    "私人",
+    "私人地址",
+    "商业",
+    "商业地址",
+    "商業",
+    "商業地址",
+)
 AMAZON_CODE_PATTERN = re.compile(r"\b[A-Z]{3}\d\b")
 
 

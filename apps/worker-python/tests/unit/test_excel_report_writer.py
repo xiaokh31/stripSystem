@@ -43,9 +43,11 @@ def test_excel_report_writer_generates_openable_report_from_real_parsed_result(
     assert worksheet["H1"].value == "09:30"
     assert worksheet["K1"].value == "CAAU8011090"
     assert worksheet["D2"].value == "Bestar"
-    assert worksheet["N8"].value == "YEG2"
-    assert worksheet["O8"].value == 6
-    assert worksheet["P8"].value == 130
+    assert worksheet["N4"].value == "Private Address / QDCA2605058915"
+    assert worksheet["N6"].value == "Private Address / SZCA2604054725"
+    assert worksheet["N10"].value == "YEG2"
+    assert worksheet["O10"].value == 6
+    assert worksheet["P10"].value == 130
     assert worksheet["P20"].value == 896
     workbook.close()
 

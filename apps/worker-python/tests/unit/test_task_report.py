@@ -63,7 +63,7 @@ def test_task_report_displays_warnings_errors_and_totals_from_real_results(
     )
 
     html = result.htmlPath.read_text(encoding="utf-8")
-    assert "ZERO_VOLUME_WITH_CARTONS" in html
+    assert "ZERO_VOLUME_WITH_CARTONS" not in html
     assert "NEED_CONFIRM_DESTINATION_TYPE" in html
     assert "UNSUPPORTED_FORMAT" in html
     assert "CAAU8011090" in html

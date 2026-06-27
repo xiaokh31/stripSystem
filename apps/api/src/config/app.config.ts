@@ -14,7 +14,10 @@ export interface AppConfiguration {
 
 export const appConfig = (): { app: AppConfiguration } => ({
   app: {
-    port: Number.parseInt(process.env.PORT ?? '3000', 10),
+    port: Number.parseInt(
+      process.env.PORT ?? process.env.API_PORT ?? '4000',
+      10,
+    ),
     version: process.env.npm_package_version ?? '0.0.1',
     databaseUrl: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
     storageRoot: process.env.STORAGE_ROOT ?? defaultStorageRoot(),

@@ -8,6 +8,8 @@ from typing import Any, Iterable
 
 from worker_python.pallets.rules import DEFAULT_PALLET_CONFIG, PalletConfig, classify_destination
 
+MIN_VOLUME_CBM = Decimal("0.01")
+
 
 @dataclass(frozen=True)
 class PalletCalculationIssue:
@@ -136,13 +138,7 @@ def _calculate_one(
         )
 
     if item.totalCartons > 0 and volume == 0:
-        warnings.append(
-            PalletCalculationIssue(
-                code="ZERO_VOLUME_WITH_CARTONS",
-                message="Volume is 0 while cartons are greater than 0; pallet count was floored to 1.",
-                destinationCode=item.destinationCode,
-            )
-        )
+        volume = MIN_VOLUME_CBM
 
     calculated_pallets = _calculated_pallet_count(
         total_cartons=item.totalCartons,

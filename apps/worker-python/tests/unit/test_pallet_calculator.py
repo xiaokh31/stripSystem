@@ -43,7 +43,7 @@ def test_pallet_calculator_uses_private_height_for_private_address(tmp_path: Pat
 
     result = calculate_pallets(inputs, container_no=parsed.containerNo)
 
-    plan = _plan(result, "Private Address")
+    plan = _plan(result, "Private Address / SZCA2604054725")
     assert plan.heightLimitM == pytest.approx(2.0)
     assert plan.palletCapacityCbm == pytest.approx(1.2192 * 1.016 * 2.0)
     assert plan.calculatedPallets == 3
@@ -64,7 +64,7 @@ def test_pallet_calculator_floors_small_positive_volume_to_one_pallet(
     assert plan.calculatedPallets == 1
 
 
-def test_pallet_calculator_warns_for_zero_volume_with_cartons_from_real_line(
+def test_pallet_calculator_treats_zero_volume_as_minimum_volume_without_warning(
     tmp_path: Path,
 ) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(ZERO_VOLUME_FIXTURE)
@@ -84,7 +84,8 @@ def test_pallet_calculator_warns_for_zero_volume_with_cartons_from_real_line(
     )
 
     assert result.plans[0].calculatedPallets == 1
-    assert any(warning.code == "ZERO_VOLUME_WITH_CARTONS" for warning in result.warnings)
+    assert result.plans[0].totalVolumeCbm == pytest.approx(0.01)
+    assert not any(warning.code == "ZERO_VOLUME_WITH_CARTONS" for warning in result.warnings)
 
 
 def test_pallet_calculator_warns_when_destination_type_is_unknown(tmp_path: Path) -> None:
@@ -142,10 +143,9 @@ def test_pallet_calculator_preserves_bestar_missing_destination_warning(
 
     assert result.plans[0].destinationCode is None
     assert result.plans[0].calculatedPallets == 1
-    assert {warning.code for warning in result.warnings} >= {
-        "NEED_CONFIRM_DESTINATION_TYPE",
-        "ZERO_VOLUME_WITH_CARTONS",
-    }
+    warning_codes = {warning.code for warning in result.warnings}
+    assert warning_codes >= {"NEED_CONFIRM_DESTINATION_TYPE"}
+    assert "ZERO_VOLUME_WITH_CARTONS" not in warning_codes
 
 
 def _plan(result, destination_code: str):  # noqa: ANN001, ANN202

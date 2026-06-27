@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildApiUrl,
+  getApiBaseUrl,
   getContainerInventorySummary,
   getDestinationInventory,
 } from "../src/lib/api-client";
@@ -34,3 +36,85 @@ test("inventory API client sends filters to report endpoints", async () => {
     "http://api.local/api/reports/inventory?status=LOADED",
   ]);
 });
+
+test("browser API base defaults to same-origin api path", () => {
+  const env = preserveApiEnv();
+  const windowDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "window",
+  );
+
+  try {
+    clearApiEnv();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {},
+    });
+
+    assert.equal(getApiBaseUrl(), "/api");
+    assert.equal(buildApiUrl("/imports"), "/api/imports");
+  } finally {
+    restoreApiEnv(env);
+    restoreWindow(windowDescriptor);
+  }
+});
+
+test("server API base defaults to local Nest API port", () => {
+  const env = preserveApiEnv();
+  const windowDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "window",
+  );
+
+  try {
+    clearApiEnv();
+    delete (globalThis as Record<string, unknown>).window;
+
+    assert.equal(getApiBaseUrl(), "http://127.0.0.1:4000/api");
+    assert.equal(
+      buildApiUrl("/health"),
+      "http://127.0.0.1:4000/api/health",
+    );
+  } finally {
+    restoreApiEnv(env);
+    restoreWindow(windowDescriptor);
+  }
+});
+
+function preserveApiEnv() {
+  return {
+    API_BASE_URL: process.env.API_BASE_URL,
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+    NEXT_SERVER_API_BASE_URL: process.env.NEXT_SERVER_API_BASE_URL,
+  };
+}
+
+function clearApiEnv() {
+  delete process.env.API_BASE_URL;
+  delete process.env.NEXT_PUBLIC_API_BASE_URL;
+  delete process.env.NEXT_SERVER_API_BASE_URL;
+}
+
+function restoreApiEnv(env: ReturnType<typeof preserveApiEnv>) {
+  restoreEnvValue("API_BASE_URL", env.API_BASE_URL);
+  restoreEnvValue("NEXT_PUBLIC_API_BASE_URL", env.NEXT_PUBLIC_API_BASE_URL);
+  restoreEnvValue("NEXT_SERVER_API_BASE_URL", env.NEXT_SERVER_API_BASE_URL);
+}
+
+function restoreEnvValue(key: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
+function restoreWindow(descriptor: PropertyDescriptor | undefined) {
+  if (descriptor) {
+    Object.defineProperty(globalThis, "window", descriptor);
+    return;
+  }
+
+  delete (globalThis as Record<string, unknown>).window;
+}

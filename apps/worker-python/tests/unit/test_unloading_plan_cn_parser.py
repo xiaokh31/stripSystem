@@ -47,6 +47,10 @@ def test_parse_delivery_plan_extracts_lines_and_destination_summaries(
     assert summaries["YEG2"].totalCartons == 130
     assert summaries["YEG2"].totalVolumeCbm == pytest.approx(13.236)
     assert summaries["YEG2"].lineCount == 14
+    assert summaries["Private Address / QDCA2605058915"].totalCartons == 4
+    assert summaries["Private Address / QDCA2605058915"].lineCount == 1
+    assert summaries["Private Address / SZCA2604054725"].totalCartons == 81
+    assert summaries["Private Address / SZCA2604054725"].lineCount == 1
 
 
 def test_parse_standard_cn_uses_filename_container_and_keeps_raw_json(
@@ -73,11 +77,11 @@ def test_parse_standard_cn_uses_filename_container_and_keeps_raw_json(
 
     summaries = {summary.destinationCode: summary for summary in result.destinationSummaries}
     assert summaries["YYC4"].totalCartons == 693
-    assert summaries["YYC4"].totalVolumeCbm == pytest.approx(56.799)
+    assert summaries["YYC4"].totalVolumeCbm == pytest.approx(56.819)
     assert summaries["YYC4"].lineCount == 35
 
 
-def test_parse_standard_cn_emits_row_warnings_from_real_fixture(tmp_path: Path) -> None:
+def test_parse_standard_cn_normalizes_zero_volume_without_warning(tmp_path: Path) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(FILENAME_CONTAINER_FIXTURE)
 
     result = parse_unloading_plan_cn(imported.stored_path)
@@ -87,6 +91,9 @@ def test_parse_standard_cn_emits_row_warnings_from_real_fixture(tmp_path: Path) 
         for warning in result.warnings
         if warning.code == "ZERO_VOLUME_WITH_CARTONS"
     ]
+    normalized_rows = {
+        line.rowNumber: line.volumeCbm for line in result.lines if line.rowNumber in {13, 14}
+    }
     missing_destination_warnings = [
         warning for warning in result.warnings if warning.code == "MISSING_DESTINATION"
     ]
@@ -94,8 +101,8 @@ def test_parse_standard_cn_emits_row_warnings_from_real_fixture(tmp_path: Path) 
         warning for warning in result.warnings if warning.code == "NON_DETAIL_ROW_SKIPPED"
     ]
 
-    assert zero_volume_warnings
-    assert {warning.row_number for warning in zero_volume_warnings} >= {13, 14}
+    assert zero_volume_warnings == []
+    assert normalized_rows == {13: pytest.approx(0.01), 14: pytest.approx(0.01)}
     assert missing_destination_warnings
     assert {warning.row_number for warning in missing_destination_warnings} >= {59, 60}
     assert skipped_summary_warnings
