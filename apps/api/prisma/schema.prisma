@@ -1,0 +1,371 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  OFFICE
+  WAREHOUSE
+  SYSTEM
+}
+
+enum ImportStatus {
+  UPLOADED
+  DUPLICATE
+  FAILED
+}
+
+enum ParseStatus {
+  NOT_PARSED
+  PARSING
+  PARSED
+  WARNING
+  ERROR
+}
+
+enum FileFormat {
+  UNLOADING_PLAN_CN
+  BESTAR_RECEIVING
+  UNKNOWN
+}
+
+enum ContainerStatus {
+  IMPORTED
+  PARSED
+  CORRECTED
+  REPORT_GENERATED
+  LABELS_GENERATED
+  LOADING_IN_PROGRESS
+  LOADED
+  ERROR
+}
+
+enum GeneratedFileType {
+  PARSED_JSON
+  EXCEL_REPORT
+  PALLET_LABEL_PDF
+  TASK_REPORT_HTML
+  CORRECTIONS_JSON
+}
+
+enum GeneratedFileStatus {
+  GENERATED
+  FAILED
+  SUPERSEDED
+}
+
+enum PalletStatus {
+  PLANNED
+  LABEL_PRINTED
+  LOADING
+  LOADED
+  CANCELLED
+  EXCEPTION
+}
+
+enum LoadJobStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PalletEventType {
+  CREATED
+  LABEL_PRINTED
+  SCANNED
+  LOADED
+  DUPLICATE_SCAN
+  INVALID_SCAN
+  STATUS_CHANGED
+  CANCELLED
+}
+
+enum CorrectionTargetType {
+  IMPORT_FILE
+  CONTAINER
+  CONTAINER_LINE
+  CONTAINER_DESTINATION
+  PALLET
+  GENERATED_FILE
+}
+
+model User {
+  id                 String               @id @default(cuid())
+  email              String?              @unique
+  name               String?
+  role               UserRole             @default(OFFICE)
+  isActive           Boolean              @default(true) @map("is_active")
+  importedFiles      ImportFile[]         @relation("ImportFileImportedBy")
+  generatedFiles     GeneratedFile[]      @relation("GeneratedFileGeneratedBy")
+  loadJobs           LoadJob[]            @relation("LoadJobCreatedBy")
+  palletEvents       PalletEvent[]        @relation("PalletEventOperator")
+  correctionFeedback CorrectionFeedback[] @relation("CorrectionFeedbackCorrectedBy")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model ImportFile {
+  id                 String               @id @default(cuid())
+  originalFilename   String               @map("original_filename")
+  storedPath         String               @map("stored_path")
+  fileSha256         String               @unique @map("file_sha256")
+  mimeType           String?              @map("mime_type")
+  fileSizeBytes      BigInt?              @map("file_size_bytes")
+  format             FileFormat           @default(UNKNOWN)
+  importStatus       ImportStatus         @default(UPLOADED) @map("import_status")
+  parseStatus        ParseStatus          @default(NOT_PARSED) @map("parse_status")
+  parserVersion      String?              @map("parser_version")
+  warningCount       Int                  @default(0) @map("warning_count")
+  errorCount         Int                  @default(0) @map("error_count")
+  errorMessage       String?              @map("error_message")
+  rawMetadata        Json?                @map("raw_metadata")
+  importedById       String?              @map("imported_by_id")
+  importedBy         User?                @relation("ImportFileImportedBy", fields: [importedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containers         Container[]
+  generatedFiles     GeneratedFile[]
+  correctionFeedback CorrectionFeedback[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@index([format])
+  @@index([importStatus])
+  @@index([parseStatus])
+  @@index([createdAt])
+  @@map("import_files")
+}
+
+model Container {
+  id                 String               @id @default(cuid())
+  importFileId       String               @map("import_file_id")
+  importFile         ImportFile           @relation(fields: [importFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  containerNo        String               @unique @map("container_no")
+  sourceFormat       FileFormat           @default(UNKNOWN) @map("source_format")
+  parserVersion      String?              @map("parser_version")
+  dockNo             String?              @map("dock_no")
+  company            String?
+  status             ContainerStatus      @default(IMPORTED)
+  rawJson            Json?                @map("raw_json")
+  warnings           Json?
+  errors             Json?
+  lines              ContainerLine[]
+  destinations       ContainerDestination[]
+  generatedFiles     GeneratedFile[]
+  loadJobs           LoadJob[]
+  correctionFeedback CorrectionFeedback[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@index([importFileId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("containers")
+}
+
+model ContainerLine {
+  id                 String               @id @default(cuid())
+  containerId        String               @map("container_id")
+  container          Container            @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lineNo             Int                  @map("line_no")
+  destinationCode    String?              @map("destination_code")
+  destinationType    String?              @map("destination_type")
+  cartons            Int?
+  volume             Decimal?             @db.Decimal(12, 3)
+  rawJson            Json                 @map("raw_json")
+  warnings           Json?
+  errors             Json?
+  correctionFeedback CorrectionFeedback[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@unique([containerId, lineNo])
+  @@index([containerId])
+  @@index([destinationCode])
+  @@map("container_lines")
+}
+
+model DestinationRule {
+  id               String                 @id @default(cuid())
+  destinationCode  String                 @unique @map("destination_code")
+  destinationType  String?                @map("destination_type")
+  displayName      String?                @map("display_name")
+  palletRule       Json?                  @map("pallet_rule")
+  isActive         Boolean                @default(true) @map("is_active")
+  destinations     ContainerDestination[]
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("destination_rules")
+}
+
+model ContainerDestination {
+  id                 String               @id @default(cuid())
+  containerId        String               @map("container_id")
+  container          Container            @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  destinationCode    String               @map("destination_code")
+  destinationType    String?              @map("destination_type")
+  cartons            Int                  @default(0)
+  volume             Decimal              @default(0) @db.Decimal(12, 3)
+  calculatedPallets  Int                  @default(0) @map("calculated_pallets")
+  manualPallets      Int?                 @map("manual_pallets")
+  finalPallets       Int                  @default(0) @map("final_pallets")
+  note               String?
+  warnings           Json?
+  errors             Json?
+  destinationRuleId  String?              @map("destination_rule_id")
+  destinationRule    DestinationRule?     @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  pallets            Pallet[]
+  correctionFeedback CorrectionFeedback[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@unique([containerId, destinationCode, destinationType])
+  @@index([containerId])
+  @@index([destinationCode])
+  @@index([destinationRuleId])
+  @@map("container_destinations")
+}
+
+model Pallet {
+  id                     String                 @id @default(cuid())
+  containerDestinationId String                 @map("container_destination_id")
+  containerDestination   ContainerDestination   @relation(fields: [containerDestinationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  palletNo              Int                    @map("pallet_no")
+  palletId              String                 @unique @map("pallet_id")
+  qrPayload             String                 @unique @map("qr_payload")
+  status                PalletStatus           @default(PLANNED)
+  labelPrintedAt        DateTime?              @map("label_printed_at")
+  loadedAt              DateTime?              @map("loaded_at")
+  loadJobId             String?                @map("load_job_id")
+  loadJob               LoadJob?               @relation(fields: [loadJobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  events                PalletEvent[]
+  correctionFeedback    CorrectionFeedback[]
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+
+  @@unique([containerDestinationId, palletNo])
+  @@index([containerDestinationId])
+  @@index([status])
+  @@index([loadJobId])
+  @@map("pallets")
+}
+
+model GeneratedFile {
+  id                 String               @id @default(cuid())
+  importFileId       String?              @map("import_file_id")
+  importFile         ImportFile?          @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerId        String?              @map("container_id")
+  container          Container?           @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  fileType           GeneratedFileType    @map("file_type")
+  storagePath        String               @map("storage_path")
+  fileSha256         String?              @map("file_sha256")
+  mimeType           String?              @map("mime_type")
+  fileSizeBytes      BigInt?              @map("file_size_bytes")
+  status             GeneratedFileStatus  @default(GENERATED)
+  errorMessage       String?              @map("error_message")
+  generatedById      String?              @map("generated_by_id")
+  generatedBy        User?                @relation("GeneratedFileGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  correctionFeedback CorrectionFeedback[]
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@index([importFileId])
+  @@index([containerId])
+  @@index([fileType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("generated_files")
+}
+
+model LoadJob {
+  id           String          @id @default(cuid())
+  containerId  String          @map("container_id")
+  container    Container       @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  jobNo        String?         @unique @map("job_no")
+  status       LoadJobStatus   @default(PLANNED)
+  startedAt    DateTime?       @map("started_at")
+  completedAt  DateTime?       @map("completed_at")
+  createdById  String?         @map("created_by_id")
+  createdBy    User?           @relation("LoadJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  pallets      Pallet[]
+  events       PalletEvent[]
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  @@index([containerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("load_jobs")
+}
+
+model PalletEvent {
+  id              String          @id @default(cuid())
+  palletId        String?         @map("pallet_id")
+  pallet          Pallet?         @relation(fields: [palletId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  loadJobId       String?         @map("load_job_id")
+  loadJob         LoadJob?        @relation(fields: [loadJobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  eventType       PalletEventType @map("event_type")
+  fromStatus      PalletStatus?   @map("from_status")
+  toStatus        PalletStatus?   @map("to_status")
+  scanPayload     String?         @map("scan_payload")
+  deviceId        String?         @map("device_id")
+  exceptionReason String?         @map("exception_reason")
+  metadata        Json?
+  operatorId      String?         @map("operator_id")
+  operator        User?           @relation("PalletEventOperator", fields: [operatorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  occurredAt      DateTime        @default(now()) @map("occurred_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@index([palletId])
+  @@index([loadJobId])
+  @@index([eventType])
+  @@index([occurredAt])
+  @@index([operatorId])
+  @@map("pallet_events")
+}
+
+model CorrectionFeedback {
+  id                         String                @id @default(cuid())
+  targetType                 CorrectionTargetType  @map("target_type")
+  importFileId               String?               @map("import_file_id")
+  importFile                 ImportFile?           @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerId                String?               @map("container_id")
+  container                  Container?            @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerLineId            String?               @map("container_line_id")
+  containerLine              ContainerLine?        @relation(fields: [containerLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerDestinationId     String?               @map("container_destination_id")
+  containerDestination       ContainerDestination? @relation(fields: [containerDestinationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  palletId                   String?               @map("pallet_id")
+  pallet                     Pallet?               @relation(fields: [palletId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  generatedFileId            String?               @map("generated_file_id")
+  generatedFile              GeneratedFile?        @relation(fields: [generatedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  fieldName                  String                @map("field_name")
+  oldValue                   Json?                 @map("old_value")
+  newValue                   Json?                 @map("new_value")
+  reason                     String?
+  note                       String?
+  correctedById              String?               @map("corrected_by_id")
+  correctedBy                User?                 @relation("CorrectionFeedbackCorrectedBy", fields: [correctedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt                  DateTime              @default(now()) @map("created_at")
+  updatedAt                  DateTime              @updatedAt @map("updated_at")
+
+  @@index([targetType])
+  @@index([importFileId])
+  @@index([containerId])
+  @@index([containerLineId])
+  @@index([containerDestinationId])
+  @@index([palletId])
+  @@index([generatedFileId])
+  @@index([correctedById])
+  @@index([createdAt])
+  @@map("correction_feedback")
+}

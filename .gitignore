@@ -1,5 +1,6 @@
 策划案/
 samples/
+docs/
 
 # macOS
 .DS_Store
@@ -15,6 +16,7 @@ node_modules/
 .next/
 dist/
 coverage/
+apps/api/src/generated/prisma/
 
 # python
 .venv/
