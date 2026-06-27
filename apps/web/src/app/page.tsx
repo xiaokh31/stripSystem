@@ -1,65 +1,166 @@
-import Image from "next/image";
+import {
+  ApiClientError,
+  getApiBaseUrl,
+  getApiHealth,
+  type ApiHealthResponse,
+} from "@/lib/api-client";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+type HealthState =
+  | {
+      ok: true;
+      data: ApiHealthResponse;
+    }
+  | {
+      ok: false;
+      error: {
+        code: string;
+        message: string;
+        status: number;
+      };
+    };
+
+async function loadHealth(): Promise<HealthState> {
+  try {
+    return {
+      ok: true,
+      data: await getApiHealth(),
+    };
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      return {
+        ok: false,
+        error: {
+          code: error.code,
+          message: error.message,
+          status: error.status,
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      error: {
+        code: "WEB_API_ERROR",
+        message: error instanceof Error ? error.message : "Unknown API error",
+        status: 0,
+      },
+    };
+  }
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const isOk = status === "ok" || status === "up";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <span
+      className={[
+        "inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase tracking-normal",
+        isOk
+          ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border border-amber-200 bg-amber-50 text-amber-800",
+      ].join(" ")}
+    >
+      {status}
+    </span>
+  );
+}
+
+export default async function Home() {
+  const health = await loadHealth();
+  const apiBaseUrl = getApiBaseUrl();
+
+  return (
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="border border-zinc-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold uppercase text-teal-700">
+            Dashboard
           </p>
+          <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
+            Bestar warehouse office
+          </h1>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="border-l-4 border-teal-600 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase text-zinc-500">
+                System
+              </p>
+              <p className="mt-1 text-base font-semibold text-zinc-950">
+                Office console
+              </p>
+            </div>
+            <div className="border-l-4 border-amber-500 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase text-zinc-500">
+                Data source
+              </p>
+              <p className="mt-1 text-base font-semibold text-zinc-950">
+                Live API
+              </p>
+            </div>
+            <div className="border-l-4 border-cyan-600 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase text-zinc-500">
+                Phase
+              </p>
+              <p className="mt-1 text-base font-semibold text-zinc-950">
+                P2 Office
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase text-zinc-500">
+                API connection
+              </p>
+              <p className="mt-1 break-all text-sm text-zinc-700">
+                {apiBaseUrl}
+              </p>
+            </div>
+            {health.ok ? (
+              <StatusBadge status={health.data.status} />
+            ) : (
+              <StatusBadge status="error" />
+            )}
+          </div>
+
+          {health.ok ? (
+            <dl className="mt-5 grid gap-3 text-sm">
+              <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
+                <dt className="text-zinc-500">API version</dt>
+                <dd className="font-medium text-zinc-950">
+                  {health.data.version}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
+                <dt className="text-zinc-500">Database</dt>
+                <dd>
+                  <StatusBadge status={health.data.database.status} />
+                </dd>
+              </div>
+              <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
+                <dt className="text-zinc-500">Checked at</dt>
+                <dd className="font-medium text-zinc-950">
+                  {health.data.timestamp}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <div
+              className="mt-5 border border-red-200 bg-red-50 p-4 text-sm text-red-900"
+              role="alert"
+            >
+              <p className="font-semibold">
+                {health.error.code}
+                {health.error.status ? ` (${health.error.status})` : ""}
+              </p>
+              <p className="mt-1">{health.error.message}</p>
+            </div>
+          )}
         </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
