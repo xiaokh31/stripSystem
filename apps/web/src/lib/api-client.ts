@@ -34,6 +34,53 @@ export interface ImportFileResponse {
   updatedAt: string;
 }
 
+export interface ContainerLineResponse {
+  id: string;
+  lineNo: number;
+  destinationCode: string | null;
+  destinationType: string | null;
+  cartons: number | null;
+  volume: string | null;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+}
+
+export interface ContainerDestinationResponse {
+  id: string;
+  destinationCode: string;
+  destinationType: string | null;
+  cartons: number;
+  volume: string;
+  calculatedPallets: number;
+  manualPallets: number | null;
+  finalPallets: number;
+  note: string | null;
+  warnings: unknown;
+  errors: unknown;
+}
+
+export interface ContainerResponse {
+  id: string;
+  importFileId: string;
+  containerNo: string;
+  sourceFormat: string;
+  parserVersion: string | null;
+  status: string;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+  lines: ContainerLineResponse[];
+  destinations: ContainerDestinationResponse[];
+}
+
+export interface ImportParseResultResponse {
+  importFile: ImportFileResponse;
+  containers: ContainerResponse[];
+  warnings: unknown[];
+  errors: unknown[];
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
@@ -98,6 +145,33 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
 export async function getApiHealth(): Promise<ApiHealthResponse> {
   return createApiClient().get<ApiHealthResponse>("/health");
+}
+
+export function getImportFile(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ImportFileResponse> {
+  return createApiClient(options).get<ImportFileResponse>(
+    `/imports/${encodeURIComponent(id)}`,
+  );
+}
+
+export function getImportParseResult(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ImportParseResultResponse> {
+  return createApiClient(options).get<ImportParseResultResponse>(
+    `/imports/${encodeURIComponent(id)}/parse-result`,
+  );
+}
+
+export function parseImportFile(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ImportParseResultResponse> {
+  return createApiClient(options).post<ImportParseResultResponse>(
+    `/imports/${encodeURIComponent(id)}/parse`,
+  );
 }
 
 export function uploadImportFile(

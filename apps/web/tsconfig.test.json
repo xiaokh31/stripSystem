@@ -11,6 +11,7 @@
     "types": ["node"]
   },
   "include": [
+    "src/components/imports/import-detail-flow.ts",
     "src/components/imports/import-upload-flow.ts",
     "tests/**/*.test.ts"
   ]
