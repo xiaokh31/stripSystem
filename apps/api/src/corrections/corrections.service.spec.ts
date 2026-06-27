@@ -68,6 +68,33 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('creates a manual actual unloading destination and writes audit rows', async () => {
+    const result = await service.createContainerDestination('container-1', {
+      cartons: 12,
+      correctionNote: 'Added from returned paper report',
+      destinationCode: 'MANUAL-YYZ',
+      destinationType: 'WAREHOUSE',
+      manualPallets: 2,
+      note: 'Actual unloading entry',
+      volume: 1.25,
+    });
+
+    expect(result.containerDestination).toMatchObject({
+      containerId: 'container-1',
+      destinationCode: 'MANUAL-YYZ',
+      cartons: 12,
+      volume: '1.250',
+      manualPallets: 2,
+      finalPallets: 2,
+    });
+    expect(result.corrections).toHaveLength(1);
+    expect(result.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      containerDestinationId: result.containerDestination.id,
+      fieldName: 'containerDestination',
+    });
+  });
+
   it('rejects corrections when no value changes', async () => {
     await expect(
       service.updateContainerDestination('destination-1', {
@@ -122,6 +149,15 @@ describe('CorrectionsService', () => {
       },
       containerDestination: {
         findUnique: jest.fn().mockResolvedValue(destination),
+        create: jest.fn(({ data }) => {
+          const created = {
+            id: 'destination-created',
+            ...data,
+            createdAt: new Date('2026-06-26T00:01:00.000Z'),
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          };
+          return Promise.resolve(created);
+        }),
         update: jest.fn(({ data }) => {
           Object.assign(destination, data, {
             updatedAt: new Date('2026-06-26T00:01:00.000Z'),

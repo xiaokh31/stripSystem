@@ -62,7 +62,7 @@ def generate_pallet_label_pdf(
         warnings=warnings,
     )
 
-    output_path = _unique_output_path(output_dir / f"{_safe_filename(container_no)}托盘面单.pdf")
+    output_path = output_dir / f"{_safe_filename(container_no)}托盘面单.pdf"
     manifest_path = output_dir / LABEL_MANIFEST_FILENAME
 
     if not labels:
@@ -198,17 +198,21 @@ def _append_manifest_record(
     warnings: list[LabelGenerationIssue],
 ) -> None:
     manifest = _load_manifest(manifest_path)
-    manifest["records"].append(
-        {
-            "generated_at": datetime.now().isoformat(),
-            "label_date": label_date.isoformat(),
-            "container_no": container_no,
-            "output_path": str(output_path),
-            "label_count": len(labels),
-            "pallet_ids": [label["pallet_id"] for label in labels],
-            "warnings": [warning.code for warning in warnings],
-        }
-    )
+    record = {
+        "generated_at": datetime.now().isoformat(),
+        "label_date": label_date.isoformat(),
+        "container_no": container_no,
+        "output_path": str(output_path),
+        "label_count": len(labels),
+        "pallet_ids": [label["pallet_id"] for label in labels],
+        "warnings": [warning.message for warning in warnings],
+    }
+    manifest["records"] = [
+        existing
+        for existing in manifest["records"]
+        if existing.get("output_path") != str(output_path)
+    ]
+    manifest["records"].append(record)
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -229,15 +233,3 @@ def _load_manifest(manifest_path: Path) -> dict[str, Any]:
 
 def _safe_filename(value: str) -> str:
     return "".join(character for character in value if character.isalnum() or character in "-_") or "UNKNOWN-CONTAINER"
-
-
-def _unique_output_path(path: Path) -> Path:
-    if not path.exists():
-        return path
-
-    for index in range(2, 10_000):
-        candidate = path.with_name(f"{path.stem}-{index}{path.suffix}")
-        if not candidate.exists():
-            return candidate
-
-    raise RuntimeError(f"Unable to allocate unique label output path for {path}")

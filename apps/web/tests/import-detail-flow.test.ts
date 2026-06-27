@@ -47,9 +47,6 @@ test("issue lists preserve parser warning and error messages", () => {
       },
       "plain warning",
     ]),
-    [
-      "MISSING_CONTAINER_NO / containerNo: Worker parsed the file without a container number.",
-      "plain warning",
-    ],
+    ["Worker parsed the file without a container number.", "plain warning"],
   );
 });

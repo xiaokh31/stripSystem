@@ -64,8 +64,9 @@ def test_task_report_displays_warnings_errors_and_totals_from_real_results(
 
     html = result.htmlPath.read_text(encoding="utf-8")
     assert "ZERO_VOLUME_WITH_CARTONS" not in html
-    assert "NEED_CONFIRM_DESTINATION_TYPE" in html
-    assert "UNSUPPORTED_FORMAT" in html
+    assert "体积为0" in html
+    assert "Destination type was not recognized" in html
+    assert "Unsupported Excel format for Phase 0 parser detector." in html
     assert "CAAU8011090" in html
     assert "896" in html
     assert result.warningCount > 0

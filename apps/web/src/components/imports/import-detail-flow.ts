@@ -77,14 +77,11 @@ export function formatDateTime(value: string): string {
 
 function issueText(issue: unknown, index: number): string {
   if (isRecord(issue)) {
-    const code = typeof issue.code === "string" ? issue.code : null;
-    const field = typeof issue.field === "string" ? issue.field : null;
     const message =
       typeof issue.message === "string"
         ? issue.message
         : JSON.stringify(issue);
-    const prefix = [code, field].filter(Boolean).join(" / ");
-    return prefix ? `${prefix}: ${message}` : message;
+    return message;
   }
 
   if (typeof issue === "string") {

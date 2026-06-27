@@ -13,7 +13,6 @@ import {
   formatFileSizeBytes,
   generatedFileTypeLabel,
   generationActionLabel,
-  hasGeneratedLabelPdf,
   isDownloadableGeneratedFile,
   newestGeneratedFiles,
   type GenerationAction,
@@ -45,7 +44,6 @@ export function ContainerGeneratedFiles({
   const router = useRouter();
   const [generation, setGeneration] = useState<GenerationState>(idleState);
   const files = newestGeneratedFiles(initialFiles);
-  const labelsAlreadyGenerated = hasGeneratedLabelPdf(files);
   const runningAction = generation.status === "running" ? generation.action : null;
 
   async function generate(action: GenerationAction) {
@@ -90,7 +88,8 @@ export function ContainerGeneratedFiles({
             Reports and labels
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Generated files are read from the API after each generation action.
+            Regeneration uses the latest saved destination data and overwrites
+            the current file record for the same container.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -112,14 +111,6 @@ export function ContainerGeneratedFiles({
           </button>
         </div>
       </div>
-
-      {labelsAlreadyGenerated ? (
-        <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          A label PDF has already been generated for this container. Generating
-          labels again can create duplicate operational documents, and the API
-          may block the request if pallets already exist.
-        </div>
-      ) : null}
 
       {generation.status !== "idle" ? (
         <GenerationStatus containerId={containerId} generation={generation} />
@@ -222,7 +213,6 @@ function GenerationStatus({
       role={isError ? "alert" : "status"}
     >
       <p className="font-semibold">
-        {generation.code ? `${generation.code}: ` : ""}
         {generation.message}
       </p>
       {generation.file && isDownloadableGeneratedFile(generation.file) ? (

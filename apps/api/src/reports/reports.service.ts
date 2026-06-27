@@ -273,18 +273,14 @@ export class ReportsService {
     const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
 
     return await this.prisma.$transaction(async (tx) => {
-      const generatedFile = await tx.generatedFile.create({
-        data: {
-          importFileId: container.importFileId,
-          containerId: container.id,
-          fileType: GeneratedFileType.EXCEL_REPORT,
-          storagePath: outputPath,
-          fileSha256,
-          mimeType: EXCEL_REPORT_MIME_TYPE,
-          fileSizeBytes: BigInt(fileStat.size),
-          status: GeneratedFileStatus.GENERATED,
-          errorMessage: null,
-        },
+      const generatedFile = await this.upsertGeneratedFile(tx, container, {
+        fileType: GeneratedFileType.EXCEL_REPORT,
+        storagePath: outputPath,
+        fileSha256,
+        mimeType: EXCEL_REPORT_MIME_TYPE,
+        fileSizeBytes: BigInt(fileStat.size),
+        status: GeneratedFileStatus.GENERATED,
+        errorMessage: null,
       });
       await tx.container.update({
         where: { id: container.id },
@@ -300,19 +296,50 @@ export class ReportsService {
     storagePath: string,
     error: unknown,
   ): Promise<GeneratedFileRecord> {
-    return await this.prisma.generatedFile.create({
-      data: {
-        importFileId: container.importFileId,
-        containerId: container.id,
-        fileType: GeneratedFileType.EXCEL_REPORT,
-        storagePath,
-        fileSha256: null,
-        mimeType: EXCEL_REPORT_MIME_TYPE,
-        fileSizeBytes: null,
-        status: GeneratedFileStatus.FAILED,
-        errorMessage: this.errorMessage(error),
-      },
+    return await this.upsertGeneratedFile(this.prisma, container, {
+      fileType: GeneratedFileType.EXCEL_REPORT,
+      storagePath,
+      fileSha256: null,
+      mimeType: EXCEL_REPORT_MIME_TYPE,
+      fileSizeBytes: null,
+      status: GeneratedFileStatus.FAILED,
+      errorMessage: this.errorMessage(error),
     });
+  }
+
+  private async upsertGeneratedFile(
+    tx: any,
+    container: ContainerRecord,
+    data: {
+      fileType: string;
+      storagePath: string;
+      fileSha256: string | null;
+      mimeType: string;
+      fileSizeBytes: bigint | null;
+      status: string;
+      errorMessage: string | null;
+    },
+  ): Promise<GeneratedFileRecord> {
+    const existing = (await tx.generatedFile.findFirst({
+      where: { containerId: container.id, fileType: data.fileType },
+      orderBy: { updatedAt: 'desc' },
+    })) as GeneratedFileRecord | null;
+    const recordData = {
+      importFileId: container.importFileId,
+      containerId: container.id,
+      ...data,
+    };
+
+    if (existing) {
+      return (await tx.generatedFile.update({
+        where: { id: existing.id },
+        data: recordData,
+      })) as GeneratedFileRecord;
+    }
+
+    return (await tx.generatedFile.create({
+      data: recordData,
+    })) as GeneratedFileRecord;
   }
 
   private reportFailure(

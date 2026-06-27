@@ -282,12 +282,7 @@ def _issue_list(issues: tuple[TaskIssue, ...]) -> str:
 
 
 def _issue_text(issue: TaskIssue) -> str:
-    parts = [issue.code, issue.message]
-    if issue.rowNumber is not None:
-        parts.append(f"row={issue.rowNumber}")
-    if issue.field is not None:
-        parts.append(f"field={issue.field}")
-    return " | ".join(parts)
+    return issue.message
 
 
 def _link_or_empty(path: str | None) -> str:

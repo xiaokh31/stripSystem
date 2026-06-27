@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -82,7 +83,7 @@ def test_excel_report_writer_records_generated_report(tmp_path: Path) -> None:
     assert str(result.outputPath) in manifest_text
 
 
-def test_excel_report_writer_does_not_overwrite_same_container_report(
+def test_excel_report_writer_overwrites_same_container_report(
     tmp_path: Path,
 ) -> None:
     parsed, pallet_result = _parsed_and_pallets(STANDARD_FIXTURE, tmp_path)
@@ -100,9 +101,11 @@ def test_excel_report_writer_does_not_overwrite_same_container_report(
         report_datetime=datetime(2026, 6, 25, 9, 31),
     )
 
-    assert first.outputPath != second.outputPath
+    assert first.outputPath == second.outputPath
     assert first.outputPath.is_file()
-    assert second.outputPath.is_file()
+    manifest = json.loads(second.manifestPath.read_text(encoding="utf-8"))
+    assert len(manifest["records"]) == 1
+    assert manifest["records"][0]["generated_at"] == "2026-06-25T09:31:00"
 
 
 def test_excel_report_writer_warns_when_destinations_exceed_template_range(

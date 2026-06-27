@@ -20,7 +20,12 @@ interface ContainerDestinationRecord {
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
-  pallets: Array<{ id: string }>;
+  pallets: Array<{
+    id: string;
+    loadJobId: string | null;
+    loadedAt: Date | null;
+    status: string;
+  }>;
 }
 
 interface ContainerRecord {
@@ -60,6 +65,10 @@ interface PalletUpdateManyArgs {
   };
 }
 
+interface PalletDeleteManyArgs {
+  where: { containerDestinationId: { in: string[] } };
+}
+
 interface PalletEventCreateManyArgs {
   data: Array<{
     palletId: string;
@@ -87,6 +96,16 @@ interface GeneratedFileCreateArgs {
   data: GeneratedFileData;
 }
 
+interface GeneratedFileFindFirstArgs {
+  where: { containerId: string; fileType: string };
+  orderBy?: { updatedAt: string };
+}
+
+interface GeneratedFileUpdateArgs {
+  where: { id: string };
+  data: GeneratedFileData;
+}
+
 interface GeneratedFileRecord extends GeneratedFileData {
   id: string;
   createdAt: Date;
@@ -98,15 +117,10 @@ interface ContainerUpdateArgs {
   data: { status: string };
 }
 
-type TransactionCallback = (
-  tx: LabelsPrismaMock,
-) => Promise<PalletRecord[] | GeneratedFileRecord>;
+type TransactionCallback = (tx: LabelsPrismaMock) => Promise<any>;
 
 interface LabelsPrismaMock {
-  $transaction: jest.Mock<
-    Promise<PalletRecord[] | GeneratedFileRecord>,
-    [TransactionCallback]
-  >;
+  $transaction: jest.Mock<Promise<any>, [TransactionCallback]>;
   container: {
     findUnique: jest.Mock<Promise<ContainerRecord>, []>;
     update: jest.Mock<
@@ -116,6 +130,7 @@ interface LabelsPrismaMock {
   };
   pallet: {
     create: jest.Mock<Promise<PalletRecord>, [PalletCreateArgs]>;
+    deleteMany: jest.Mock<Promise<{ count: number }>, [PalletDeleteManyArgs]>;
     updateMany: jest.Mock<Promise<{ count: number }>, [PalletUpdateManyArgs]>;
     findMany: jest.Mock<Promise<PalletRecord[]>, []>;
   };
@@ -127,6 +142,11 @@ interface LabelsPrismaMock {
   };
   generatedFile: {
     create: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileCreateArgs]>;
+    findFirst: jest.Mock<
+      Promise<GeneratedFileRecord | null>,
+      [GeneratedFileFindFirstArgs]
+    >;
+    update: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>;
   };
 }
 
@@ -241,19 +261,52 @@ describe('LabelsService', () => {
     });
   });
 
-  it('blocks duplicate label generation when pallets already exist', async () => {
+  it('replaces existing reusable label pallets when regenerating labels', async () => {
     const duplicateContainer = containerRecord();
     duplicateContainer.destinations = [
       {
         ...duplicateContainer.destinations[0],
-        pallets: [{ id: 'existing-pallet' }],
+        pallets: [
+          {
+            id: 'existing-pallet',
+            loadJobId: null,
+            loadedAt: null,
+            status: 'LABEL_PRINTED',
+          },
+        ],
       },
     ];
     prisma.container.findUnique.mockResolvedValueOnce(duplicateContainer);
 
+    const result = await service.generateLabels('container-1');
+
+    expect(result.pallets).toHaveLength(2);
+    expect(prisma.pallet.deleteMany).toHaveBeenCalledWith({
+      where: { containerDestinationId: { in: ['destination-1'] } },
+    });
+    expect(workerLabel.writeLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks label regeneration when existing pallets are already loaded', async () => {
+    const loadedContainer = containerRecord();
+    loadedContainer.destinations = [
+      {
+        ...loadedContainer.destinations[0],
+        pallets: [
+          {
+            id: 'loaded-pallet',
+            loadJobId: 'load-job-1',
+            loadedAt: new Date('2026-06-26T00:05:00.000Z'),
+            status: 'LOADED',
+          },
+        ],
+      },
+    ];
+    prisma.container.findUnique.mockResolvedValueOnce(loadedContainer);
+
     await expect(service.generateLabels('container-1')).rejects.toHaveProperty(
       'response.code',
-      'PALLETS_ALREADY_EXIST',
+      'PALLETS_ALREADY_IN_USE',
     );
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
@@ -263,10 +316,9 @@ describe('LabelsService', () => {
     const generatedFiles: GeneratedFileRecord[] = [];
     const mock = {} as LabelsPrismaMock;
 
-    mock.$transaction = jest.fn<
-      Promise<PalletRecord[] | GeneratedFileRecord>,
-      [TransactionCallback]
-    >((callback) => callback(mock));
+    mock.$transaction = jest.fn<Promise<any>, [TransactionCallback]>(
+      (callback) => callback(mock),
+    );
     mock.container = {
       findUnique: jest
         .fn<Promise<ContainerRecord>, []>()
@@ -290,6 +342,18 @@ describe('LabelsService', () => {
         pallets.push(record);
         return Promise.resolve(record);
       }),
+      deleteMany: jest.fn<Promise<{ count: number }>, [PalletDeleteManyArgs]>(
+        ({ where }) => {
+          const ids = new Set(where.containerDestinationId.in);
+          const originalLength = pallets.length;
+          for (let index = pallets.length - 1; index >= 0; index -= 1) {
+            if (ids.has(pallets[index].containerDestinationId)) {
+              pallets.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: originalLength - pallets.length });
+        },
+      ),
       updateMany: jest.fn<Promise<{ count: number }>, [PalletUpdateManyArgs]>(
         ({ where, data }) => {
           const ids = new Set<string>(where.id.in);
@@ -322,6 +386,30 @@ describe('LabelsService', () => {
             updatedAt: now,
           };
           generatedFiles.push(record);
+          return Promise.resolve(record);
+        },
+      ),
+      findFirst: jest.fn<
+        Promise<GeneratedFileRecord | null>,
+        [GeneratedFileFindFirstArgs]
+      >(({ where }) =>
+        Promise.resolve(
+          generatedFiles.find(
+            (record) =>
+              record.containerId === where.containerId &&
+              record.fileType === where.fileType,
+          ) ?? null,
+        ),
+      ),
+      update: jest.fn<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>(
+        ({ where, data }) => {
+          const record = generatedFiles.find((item) => item.id === where.id);
+          if (!record) {
+            throw new Error(`Generated file not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:02:00.000Z'),
+          });
           return Promise.resolve(record);
         },
       ),

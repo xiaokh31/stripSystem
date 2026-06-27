@@ -138,6 +138,14 @@ def _calculate_one(
         )
 
     if item.totalCartons > 0 and volume == 0:
+        destination = item.destinationCode or "未识别目的仓"
+        warnings.append(
+            PalletCalculationIssue(
+                code="ZERO_VOLUME_WITH_CARTONS",
+                message=f"{destination} 体积为0的有{item.totalCartons}箱，已按0.01 CBM参与托盘计算。",
+                destinationCode=item.destinationCode,
+            )
+        )
         volume = MIN_VOLUME_CBM
 
     calculated_pallets = _calculated_pallet_count(

@@ -129,10 +129,23 @@ export interface ContainerDetailResponse {
 }
 
 export interface UpdateContainerDestinationRequest {
+  cartons?: number;
+  correctionNote?: string | null;
   destinationCode?: string;
   destinationType?: string | null;
   manualPallets?: number | null;
+  note?: string | null;
+  volume?: number;
+}
+
+export interface CreateContainerDestinationRequest {
+  cartons: number;
   correctionNote?: string | null;
+  destinationCode: string;
+  destinationType?: string | null;
+  manualPallets?: number | null;
+  note?: string | null;
+  volume: number;
 }
 
 export interface CorrectionFeedbackResponse {
@@ -378,6 +391,17 @@ export function updateContainerDestination(
 ): Promise<ContainerDestinationCorrectionResponse> {
   return createApiClient(options).patch<ContainerDestinationCorrectionResponse>(
     `/container-destinations/${encodeURIComponent(id)}`,
+    { ...body },
+  );
+}
+
+export function createContainerDestination(
+  containerId: string,
+  body: CreateContainerDestinationRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerDestinationCorrectionResponse> {
+  return createApiClient(options).post<ContainerDestinationCorrectionResponse>(
+    `/containers/${encodeURIComponent(containerId)}/destinations`,
     { ...body },
   );
 }

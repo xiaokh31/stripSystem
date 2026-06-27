@@ -54,7 +54,13 @@ interface GeneratedFileCreateArgs {
 }
 
 interface GeneratedFileFindFirstArgs {
-  where: { id: string; containerId: string };
+  orderBy?: { updatedAt: string };
+  where: { containerId: string; fileType?: string; id?: string };
+}
+
+interface GeneratedFileUpdateArgs {
+  where: { id: string };
+  data: GeneratedFileData;
 }
 
 interface GeneratedFileRecord extends GeneratedFileData {
@@ -81,6 +87,7 @@ interface ReportsPrismaMock {
       Promise<GeneratedFileRecord | null>,
       [GeneratedFileFindFirstArgs]
     >;
+    update: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>;
     findMany: jest.Mock<Promise<GeneratedFileRecord[]>, []>;
   };
 }
@@ -232,6 +239,15 @@ describe('ReportsService', () => {
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
+  it('updates the existing Excel report record when regenerating', async () => {
+    const first = await service.generateReport('container-1');
+    const second = await service.generateReport('container-1');
+
+    expect(second.generatedFile.id).toBe(first.generatedFile.id);
+    expect(prisma.generatedFile.create).toHaveBeenCalledTimes(1);
+    expect(prisma.generatedFile.update).toHaveBeenCalledTimes(1);
+  });
+
   function createPrismaMock(): ReportsPrismaMock {
     const generatedFiles: GeneratedFileRecord[] = [];
     const containerRecord: ContainerRecord = {
@@ -293,9 +309,24 @@ describe('ReportsService', () => {
         Promise.resolve(
           generatedFiles.find(
             (record) =>
-              record.id === where.id && record.containerId === where.containerId,
+              record.containerId === where.containerId &&
+              (where.id === undefined || record.id === where.id) &&
+              (where.fileType === undefined ||
+                record.fileType === where.fileType),
           ) ?? null,
         ),
+      ),
+      update: jest.fn<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>(
+        ({ where, data }) => {
+          const record = generatedFiles.find((item) => item.id === where.id);
+          if (!record) {
+            throw new Error(`Generated file not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          });
+          return Promise.resolve(record);
+        },
       ),
       findMany: jest
         .fn<Promise<GeneratedFileRecord[]>, []>()

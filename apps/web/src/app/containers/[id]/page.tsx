@@ -163,6 +163,7 @@ export default async function ContainerDetailPage({
       )}
 
       <ContainerDestinationCorrections
+        containerId={state.container.id}
         destinations={state.container.destinations}
       />
     </main>

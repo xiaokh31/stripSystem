@@ -275,6 +275,14 @@ def _parse_line(
             )
         )
     elif cartons_int is not None and cartons_int > 0 and volume_float == 0:
+        warnings.append(
+            ParseIssue(
+                code="ZERO_VOLUME_WITH_CARTONS",
+                message=f"第{row_number}行体积为0，共{cartons_int}箱，已按0.01 CBM参与托盘计算。",
+                row_number=row_number,
+                field="volumeCbm",
+            )
+        )
         volume_float = MIN_VOLUME_CBM
 
     destination_code, destination_warning = _destination_with_waybill(

@@ -11,18 +11,22 @@ test("destination correction payload includes changed fields and note", () => {
   const destination = destinationRecord();
   const draft = {
     ...draftFromDestination(destination),
+    cartons: "42",
     correctionNote: "Customer confirmed pallet count",
     destinationType: "WAREHOUSE",
     manualPallets: "6",
+    volume: "5.75",
   };
 
   assert.deepEqual(buildDestinationCorrectionRequest(destination, draft), {
     ok: true,
-    changedFields: ["destinationType", "manualPallets"],
+    changedFields: ["destinationType", "cartons", "volume", "manualPallets"],
     payload: {
+      cartons: 42,
       correctionNote: "Customer confirmed pallet count",
       destinationType: "WAREHOUSE",
       manualPallets: 6,
+      volume: 5.75,
     },
   });
 });
@@ -53,7 +57,7 @@ test("correction note alone is not treated as a persisted destination change", (
   assert.deepEqual(buildDestinationCorrectionRequest(destination, draft), {
     ok: false,
     error:
-      "Change destination code, destination type, or manual pallets before saving.",
+      "Change destination, actual cartons, actual CBM, actual pallets, or note before saving.",
   });
 });
 
@@ -66,7 +70,7 @@ test("destination warning lists preserve structured parser issues", () => {
         message: "Volume is 0 but cartons are present.",
       },
     ]),
-    ["ZERO_VOLUME_WITH_CARTONS / volume: Volume is 0 but cartons are present."],
+    ["Volume is 0 but cartons are present."],
   );
 });
 

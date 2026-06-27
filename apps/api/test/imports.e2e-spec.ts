@@ -97,6 +97,8 @@ interface PalletRecord {
   qrPayload: string;
   status: string;
   labelPrintedAt: Date | string | null;
+  loadedAt?: Date | string | null;
+  loadJobId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -624,7 +626,7 @@ describe('ImportsController (e2e)', () => {
         .expect(409)
         .expect((response) => {
           const body = response.body as ErrorBody;
-          expect(body.code).toBe('PALLETS_ALREADY_EXIST');
+          expect(body.code).toBe('PALLETS_ALREADY_IN_USE');
         });
     },
     30_000,
@@ -935,6 +937,16 @@ describe('ImportsController (e2e)', () => {
           generatedFileRecords.push(record);
           return Promise.resolve(record);
         }),
+        findFirst: jest.fn(({ where }) => {
+          const found = generatedFileRecords.find(
+            (record) =>
+              record.containerId === where.containerId &&
+              (where.id === undefined || record.id === where.id) &&
+              (where.fileType === undefined ||
+                record.fileType === where.fileType),
+          );
+          return Promise.resolve(found ?? null);
+        }),
         findMany: jest.fn(({ where, take, skip }) => {
           const found = generatedFileRecords
             .filter((record) => record.containerId === where.containerId)
@@ -945,6 +957,18 @@ describe('ImportsController (e2e)', () => {
           const start = skip ?? 0;
           const end = take === undefined ? undefined : start + take;
           return Promise.resolve(found.slice(start, end));
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = generatedFileRecords.find(
+            (item) => item.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Generated file record not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:03:00.000Z'),
+          });
+          return Promise.resolve(record);
         }),
       },
       pallet: {
@@ -958,11 +982,25 @@ describe('ImportsController (e2e)', () => {
             qrPayload: data.qrPayload,
             status: data.status,
             labelPrintedAt: data.labelPrintedAt,
+            loadedAt: data.loadedAt ?? null,
+            loadJobId: data.loadJobId ?? null,
             createdAt: now,
             updatedAt: now,
           };
           palletRecords.push(record);
           return Promise.resolve(record);
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          const destinationIds = new Set(where.containerDestinationId.in);
+          const originalLength = palletRecords.length;
+          for (let index = palletRecords.length - 1; index >= 0; index -= 1) {
+            if (destinationIds.has(palletRecords[index].containerDestinationId)) {
+              palletRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({
+            count: originalLength - palletRecords.length,
+          });
         }),
         updateMany: jest.fn(({ where, data }) => {
           const ids = new Set<string>(where.id.in);

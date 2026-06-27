@@ -81,7 +81,7 @@ def test_parse_standard_cn_uses_filename_container_and_keeps_raw_json(
     assert summaries["YYC4"].lineCount == 35
 
 
-def test_parse_standard_cn_normalizes_zero_volume_without_warning(tmp_path: Path) -> None:
+def test_parse_standard_cn_warns_and_normalizes_zero_volume(tmp_path: Path) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(FILENAME_CONTAINER_FIXTURE)
 
     result = parse_unloading_plan_cn(imported.stored_path)
@@ -91,8 +91,9 @@ def test_parse_standard_cn_normalizes_zero_volume_without_warning(tmp_path: Path
         for warning in result.warnings
         if warning.code == "ZERO_VOLUME_WITH_CARTONS"
     ]
+    zero_volume_rows = {warning.row_number for warning in zero_volume_warnings}
     normalized_rows = {
-        line.rowNumber: line.volumeCbm for line in result.lines if line.rowNumber in {13, 14}
+        line.rowNumber: line.volumeCbm for line in result.lines if line.rowNumber in zero_volume_rows
     }
     missing_destination_warnings = [
         warning for warning in result.warnings if warning.code == "MISSING_DESTINATION"
@@ -101,8 +102,10 @@ def test_parse_standard_cn_normalizes_zero_volume_without_warning(tmp_path: Path
         warning for warning in result.warnings if warning.code == "NON_DETAIL_ROW_SKIPPED"
     ]
 
-    assert zero_volume_warnings == []
-    assert normalized_rows == {13: pytest.approx(0.01), 14: pytest.approx(0.01)}
+    assert len(zero_volume_warnings) == 6
+    assert zero_volume_rows >= {13, 14}
+    assert all("体积为0" in warning.message for warning in zero_volume_warnings)
+    assert all(volume == pytest.approx(0.01) for volume in normalized_rows.values())
     assert missing_destination_warnings
     assert {warning.row_number for warning in missing_destination_warnings} >= {59, 60}
     assert skipped_summary_warnings

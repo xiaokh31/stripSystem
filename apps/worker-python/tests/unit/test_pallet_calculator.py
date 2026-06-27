@@ -64,7 +64,7 @@ def test_pallet_calculator_floors_small_positive_volume_to_one_pallet(
     assert plan.calculatedPallets == 1
 
 
-def test_pallet_calculator_treats_zero_volume_as_minimum_volume_without_warning(
+def test_pallet_calculator_treats_parser_normalized_zero_volume_as_minimum_volume(
     tmp_path: Path,
 ) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(ZERO_VOLUME_FIXTURE)
@@ -144,8 +144,7 @@ def test_pallet_calculator_preserves_bestar_missing_destination_warning(
     assert result.plans[0].destinationCode is None
     assert result.plans[0].calculatedPallets == 1
     warning_codes = {warning.code for warning in result.warnings}
-    assert warning_codes >= {"NEED_CONFIRM_DESTINATION_TYPE"}
-    assert "ZERO_VOLUME_WITH_CARTONS" not in warning_codes
+    assert warning_codes >= {"NEED_CONFIRM_DESTINATION_TYPE", "ZERO_VOLUME_WITH_CARTONS"}
 
 
 def _plan(result, destination_code: str):  # noqa: ANN001, ANN202

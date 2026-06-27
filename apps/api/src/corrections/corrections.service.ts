@@ -13,6 +13,7 @@ import {
   CorrectionFeedbackResponseDto,
   CorrectionListResponseDto,
 } from './dto/correction-response.dto';
+import { CreateContainerDestinationDto } from './dto/create-container-destination.dto';
 import { UpdateContainerDestinationDto } from './dto/update-container-destination.dto';
 import { UpdateContainerDto } from './dto/update-container.dto';
 import {
@@ -230,6 +231,105 @@ export class CorrectionsService {
             containerDestinationId: id,
           },
           dto.reason,
+          dto.correctionNote,
+          dto.correctedById,
+        );
+
+        return { containerDestination, corrections };
+      });
+
+      return {
+        containerDestination: this.toContainerDestinationResponse(
+          result.containerDestination,
+        ),
+        corrections: result.corrections.map((record) =>
+          this.toCorrectionResponse(record),
+        ),
+      };
+    } catch (error) {
+      this.throwConflictIfUnique(
+        error,
+        'CONTAINER_DESTINATION_CORRECTION_CONFLICT',
+      );
+      throw error;
+    }
+  }
+
+  async createContainerDestination(
+    containerId: string,
+    dto: CreateContainerDestinationDto,
+  ): Promise<ContainerDestinationCorrectionResponseDto> {
+    const container = (await this.prisma.container.findUnique({
+      where: { id: containerId },
+    })) as ContainerRecord | null;
+
+    if (!container) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${containerId} was not found.`,
+        details: { id: containerId },
+      });
+    }
+
+    const destinationCode = this.stringOrNull(dto.destinationCode);
+    if (!destinationCode) {
+      throw new BadRequestException({
+        code: 'INVALID_DESTINATION_VALUE',
+        message: 'Destination code cannot be empty.',
+        details: { fieldName: 'destinationCode' },
+      });
+    }
+
+    const manualPallets =
+      dto.manualPallets === null || dto.manualPallets === undefined
+        ? null
+        : Number(dto.manualPallets);
+    const volume = this.decimalString(dto.volume);
+    const createData: Prisma.ContainerDestinationUncheckedCreateInput = {
+      containerId,
+      destinationCode,
+      destinationType: this.stringOrNull(dto.destinationType),
+      cartons: Number(dto.cartons),
+      volume,
+      calculatedPallets: 0,
+      manualPallets,
+      finalPallets: manualPallets ?? 0,
+      note: this.stringOrNull(dto.note),
+      warnings: [],
+      errors: [],
+    };
+    const change: Change = {
+      fieldName: 'containerDestination',
+      oldValue: null,
+      newValue: {
+        destinationCode: createData.destinationCode,
+        destinationType: createData.destinationType,
+        cartons: createData.cartons,
+        volume: createData.volume,
+        manualPallets: createData.manualPallets,
+        finalPallets: createData.finalPallets,
+        note: createData.note,
+      },
+    };
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const containerDestination = (await tx.containerDestination.create({
+          data: createData,
+        })) as ContainerDestinationRecord;
+        await tx.container.update({
+          where: { id: containerId },
+          data: { status: ContainerStatus.CORRECTED },
+        });
+        const corrections = await this.createCorrections(
+          tx,
+          [change],
+          {
+            targetType: CorrectionTargetType.CONTAINER_DESTINATION,
+            containerId,
+            containerDestinationId: containerDestination.id,
+          },
+          dto.reason ?? 'Manual actual unloading entry',
           dto.correctionNote,
           dto.correctedById,
         );

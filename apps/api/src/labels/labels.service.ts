@@ -49,7 +49,12 @@ interface ContainerDestinationRecord {
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
-  pallets?: Array<{ id: string }>;
+  pallets?: Array<{
+    id: string;
+    status: string;
+    loadJobId: string | null;
+    loadedAt: Date | string | null;
+  }>;
 }
 
 interface GeneratedFileRecord {
@@ -75,6 +80,8 @@ interface PalletRecord {
   qrPayload: string;
   status: string;
   labelPrintedAt: Date | string | null;
+  loadedAt?: Date | string | null;
+  loadJobId?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   containerDestination?: {
@@ -95,6 +102,11 @@ interface PalletDraft {
   qrPayload: string;
 }
 
+interface PersistedLabels {
+  generatedFile: GeneratedFileRecord;
+  pallets: PalletRecord[];
+}
+
 const PDF_MIME_TYPE = 'application/pdf';
 const MANUAL_DESTINATION = 'NEED_MANUAL_DESTINATION';
 
@@ -112,7 +124,7 @@ export class LabelsService {
 
   async generateLabels(id: string): Promise<GenerateLabelsResponseDto> {
     const container = await this.findContainerOrThrow(id, true);
-    this.assertNoExistingPallets(container);
+    this.assertCanRegeneratePallets(container);
 
     const labelDate = this.labelDate();
     const drafts = this.buildPalletDrafts(container, labelDate);
@@ -124,7 +136,6 @@ export class LabelsService {
       });
     }
 
-    const createdPallets = await this.createPlannedPallets(drafts);
     const outputDir = join(this.storageRoot, 'labels');
     const request = this.toWorkerLabelRequest(container, drafts);
 
@@ -165,16 +176,16 @@ export class LabelsService {
     }
 
     const printedAt = new Date();
-    const generatedFile = await this.recordGeneratedLabels(
+    const persisted = await this.replacePalletsAndRecordGeneratedLabels(
       container,
-      createdPallets,
+      drafts,
       outputPath,
       printedAt,
     );
 
     return {
-      generatedFile: this.toGeneratedFileResponse(generatedFile),
-      pallets: createdPallets.map((pallet, index) =>
+      generatedFile: this.toGeneratedFileResponse(persisted.generatedFile),
+      pallets: persisted.pallets.map((pallet, index) =>
         this.toPalletResponse(pallet, drafts[index], {
           status: PalletStatus.LABEL_PRINTED,
           labelPrintedAt: printedAt,
@@ -218,7 +229,12 @@ export class LabelsService {
           include: includePallets
             ? {
                 pallets: {
-                  select: { id: true },
+                  select: {
+                    id: true,
+                    status: true,
+                    loadJobId: true,
+                    loadedAt: true,
+                  },
                 },
               }
             : undefined,
@@ -237,18 +253,30 @@ export class LabelsService {
     return container;
   }
 
-  private assertNoExistingPallets(container: ContainerRecord): void {
-    const existingCount = (container.destinations ?? []).reduce(
-      (total, destination) => total + (destination.pallets?.length ?? 0),
-      0,
+  private assertCanRegeneratePallets(container: ContainerRecord): void {
+    const reusableStatuses = new Set<string>([
+      PalletStatus.PLANNED,
+      PalletStatus.LABEL_PRINTED,
+    ]);
+    const existingPallets = (container.destinations ?? []).flatMap(
+      (destination) => destination.pallets ?? [],
+    );
+    const blocked = existingPallets.filter(
+      (pallet) =>
+        !reusableStatuses.has(pallet.status) ||
+        Boolean(pallet.loadJobId) ||
+        Boolean(pallet.loadedAt),
     );
 
-    if (existingCount > 0) {
+    if (blocked.length > 0) {
       throw new ConflictException({
-        code: 'PALLETS_ALREADY_EXIST',
+        code: 'PALLETS_ALREADY_IN_USE',
         message:
-          'Pallet labels have already been generated or planned for this container.',
-        details: { containerId: container.id, existingCount },
+          'Existing pallets have already entered loading or exception handling and cannot be replaced by regenerating labels.',
+        details: {
+          containerId: container.id,
+          blockedCount: blocked.length,
+        },
       });
     }
   }
@@ -301,10 +329,20 @@ export class LabelsService {
     return drafts;
   }
 
-  private async createPlannedPallets(
+  private async replacePalletsAndRecordGeneratedLabels(
+    container: ContainerRecord,
     drafts: PalletDraft[],
-  ): Promise<PalletRecord[]> {
+    outputPath: string,
+    printedAt: Date,
+  ): Promise<PersistedLabels> {
     return await this.prisma.$transaction(async (tx) => {
+      const destinationIds = (container.destinations ?? []).map(
+        (destination) => destination.id,
+      );
+      await tx.pallet.deleteMany({
+        where: { containerDestinationId: { in: destinationIds } },
+      });
+
       const created: PalletRecord[] = [];
       for (const draft of drafts) {
         const pallet = (await tx.pallet.create({
@@ -331,7 +369,47 @@ export class LabelsService {
         })),
       });
 
-      return created;
+      const fileBuffer = await readFile(outputPath);
+      const fileStat = await stat(outputPath);
+      const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
+      const generatedFile = await this.upsertGeneratedFile(tx, container, {
+        fileType: GeneratedFileType.PALLET_LABEL_PDF,
+        storagePath: outputPath,
+        fileSha256,
+        mimeType: PDF_MIME_TYPE,
+        fileSizeBytes: BigInt(fileStat.size),
+        status: GeneratedFileStatus.GENERATED,
+        errorMessage: null,
+      });
+      const palletIds = created.map((pallet) => pallet.id);
+
+      await tx.pallet.updateMany({
+        where: { id: { in: palletIds } },
+        data: {
+          status: PalletStatus.LABEL_PRINTED,
+          labelPrintedAt: printedAt,
+        },
+      });
+      await tx.palletEvent.createMany({
+        data: created.map((pallet) => ({
+          palletId: pallet.id,
+          eventType: PalletEventType.LABEL_PRINTED,
+          fromStatus: PalletStatus.PLANNED,
+          toStatus: PalletStatus.LABEL_PRINTED,
+          scanPayload: pallet.qrPayload,
+          metadata: {
+            source: 'generate-labels-api',
+            generatedFileId: generatedFile.id,
+            storagePath: outputPath,
+          },
+        })),
+      });
+      await tx.container.update({
+        where: { id: container.id },
+        data: { status: ContainerStatus.LABELS_GENERATED },
+      });
+
+      return { generatedFile, pallets: created };
     });
   }
 
@@ -388,80 +466,55 @@ export class LabelsService {
     };
   }
 
-  private async recordGeneratedLabels(
-    container: ContainerRecord,
-    pallets: PalletRecord[],
-    outputPath: string,
-    printedAt: Date,
-  ): Promise<GeneratedFileRecord> {
-    const fileBuffer = await readFile(outputPath);
-    const fileStat = await stat(outputPath);
-    const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
-    const palletIds = pallets.map((pallet) => pallet.id);
-
-    return await this.prisma.$transaction(async (tx) => {
-      const generatedFile = (await tx.generatedFile.create({
-        data: {
-          importFileId: container.importFileId,
-          containerId: container.id,
-          fileType: GeneratedFileType.PALLET_LABEL_PDF,
-          storagePath: outputPath,
-          fileSha256,
-          mimeType: PDF_MIME_TYPE,
-          fileSizeBytes: BigInt(fileStat.size),
-          status: GeneratedFileStatus.GENERATED,
-          errorMessage: null,
-        },
-      })) as GeneratedFileRecord;
-
-      await tx.pallet.updateMany({
-        where: { id: { in: palletIds } },
-        data: {
-          status: PalletStatus.LABEL_PRINTED,
-          labelPrintedAt: printedAt,
-        },
-      });
-      await tx.palletEvent.createMany({
-        data: pallets.map((pallet) => ({
-          palletId: pallet.id,
-          eventType: PalletEventType.LABEL_PRINTED,
-          fromStatus: PalletStatus.PLANNED,
-          toStatus: PalletStatus.LABEL_PRINTED,
-          scanPayload: pallet.qrPayload,
-          metadata: {
-            source: 'generate-labels-api',
-            generatedFileId: generatedFile.id,
-            storagePath: outputPath,
-          },
-        })),
-      });
-      await tx.container.update({
-        where: { id: container.id },
-        data: { status: ContainerStatus.LABELS_GENERATED },
-      });
-
-      return generatedFile;
-    });
-  }
-
   private async recordFailedGeneratedFile(
     container: ContainerRecord,
     storagePath: string,
     error: unknown,
   ): Promise<GeneratedFileRecord> {
-    return await this.prisma.generatedFile.create({
-      data: {
-        importFileId: container.importFileId,
-        containerId: container.id,
-        fileType: GeneratedFileType.PALLET_LABEL_PDF,
-        storagePath,
-        fileSha256: null,
-        mimeType: PDF_MIME_TYPE,
-        fileSizeBytes: null,
-        status: GeneratedFileStatus.FAILED,
-        errorMessage: this.errorMessage(error),
-      },
+    return await this.upsertGeneratedFile(this.prisma, container, {
+      fileType: GeneratedFileType.PALLET_LABEL_PDF,
+      storagePath,
+      fileSha256: null,
+      mimeType: PDF_MIME_TYPE,
+      fileSizeBytes: null,
+      status: GeneratedFileStatus.FAILED,
+      errorMessage: this.errorMessage(error),
     });
+  }
+
+  private async upsertGeneratedFile(
+    tx: any,
+    container: ContainerRecord,
+    data: {
+      fileType: string;
+      storagePath: string;
+      fileSha256: string | null;
+      mimeType: string;
+      fileSizeBytes: bigint | null;
+      status: string;
+      errorMessage: string | null;
+    },
+  ): Promise<GeneratedFileRecord> {
+    const existing = (await tx.generatedFile.findFirst({
+      where: { containerId: container.id, fileType: data.fileType },
+      orderBy: { updatedAt: 'desc' },
+    })) as GeneratedFileRecord | null;
+    const recordData = {
+      importFileId: container.importFileId,
+      containerId: container.id,
+      ...data,
+    };
+
+    if (existing) {
+      return (await tx.generatedFile.update({
+        where: { id: existing.id },
+        data: recordData,
+      })) as GeneratedFileRecord;
+    }
+
+    return (await tx.generatedFile.create({
+      data: recordData,
+    })) as GeneratedFileRecord;
   }
 
   private labelFailure(

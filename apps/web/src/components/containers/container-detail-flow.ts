@@ -1,13 +1,17 @@
 import type {
+  CreateContainerDestinationRequest,
   ContainerDetailDestinationResponse,
   UpdateContainerDestinationRequest,
 } from "@/lib/api-client";
 
 export interface DestinationCorrectionDraft {
+  cartons: string;
   correctionNote: string;
   destinationCode: string;
   destinationType: string;
   manualPallets: string;
+  note: string;
+  volume: string;
 }
 
 export type CorrectionBuildResult =
@@ -25,11 +29,14 @@ export function draftFromDestination(
   destination: ContainerDetailDestinationResponse,
 ): DestinationCorrectionDraft {
   return {
+    cartons: String(destination.totalCartons),
     correctionNote: "",
     destinationCode: destination.destinationCode,
     destinationType: destination.destinationType ?? "",
     manualPallets:
       destination.manualPallets === null ? "" : String(destination.manualPallets),
+    note: destination.note ?? "",
+    volume: destination.totalVolumeCbm,
   };
 }
 
@@ -47,7 +54,18 @@ export function buildDestinationCorrectionRequest(
     return manualPallets;
   }
 
+  const cartons = parseWholeNumber(draft.cartons, "Actual cartons");
+  if (!cartons.ok) {
+    return cartons;
+  }
+
+  const volume = parseDecimalNumber(draft.volume, "Actual CBM");
+  if (!volume.ok) {
+    return volume;
+  }
+
   const destinationType = nullableTrimmedString(draft.destinationType);
+  const note = nullableTrimmedString(draft.note);
   const payload: UpdateContainerDestinationRequest = {};
   const changedFields: string[] = [];
 
@@ -61,9 +79,24 @@ export function buildDestinationCorrectionRequest(
     changedFields.push("destinationType");
   }
 
+  if (cartons.value !== destination.totalCartons) {
+    payload.cartons = cartons.value;
+    changedFields.push("cartons");
+  }
+
+  if (volume.value !== Number(destination.totalVolumeCbm)) {
+    payload.volume = volume.value;
+    changedFields.push("volume");
+  }
+
   if (manualPallets.value !== destination.manualPallets) {
     payload.manualPallets = manualPallets.value;
     changedFields.push("manualPallets");
+  }
+
+  if (note !== destination.note) {
+    payload.note = note;
+    changedFields.push("note");
   }
 
   const correctionNote = nullableTrimmedString(draft.correctionNote);
@@ -74,11 +107,51 @@ export function buildDestinationCorrectionRequest(
   if (changedFields.length === 0) {
     return {
       ok: false,
-      error: "Change destination code, destination type, or manual pallets before saving.",
+      error:
+        "Change destination, actual cartons, actual CBM, actual pallets, or note before saving.",
     };
   }
 
   return { ok: true, changedFields, payload };
+}
+
+export function buildCreateDestinationRequest(
+  draft: DestinationCorrectionDraft,
+): { ok: true; payload: CreateContainerDestinationRequest } | { ok: false; error: string } {
+  const destinationCode = draft.destinationCode.trim();
+  if (!destinationCode) {
+    return { ok: false, error: "Destination code is required." };
+  }
+
+  const manualPallets = parseManualPallets(draft.manualPallets);
+  if (!manualPallets.ok) {
+    return manualPallets;
+  }
+
+  const cartons = parseWholeNumber(draft.cartons, "Actual cartons");
+  if (!cartons.ok) {
+    return cartons;
+  }
+
+  const volume = parseDecimalNumber(draft.volume, "Actual CBM");
+  if (!volume.ok) {
+    return volume;
+  }
+
+  const payload: CreateContainerDestinationRequest = {
+    cartons: cartons.value,
+    destinationCode,
+    destinationType: nullableTrimmedString(draft.destinationType),
+    manualPallets: manualPallets.value,
+    note: nullableTrimmedString(draft.note),
+    volume: volume.value,
+  };
+  const correctionNote = nullableTrimmedString(draft.correctionNote);
+  if (correctionNote) {
+    payload.correctionNote = correctionNote;
+  }
+
+  return { ok: true, payload };
 }
 
 export function issueList(input: unknown): string[] {
@@ -93,16 +166,7 @@ export function issueList(input: unknown): string[] {
 
     if (item && typeof item === "object") {
       const record = item as Record<string, unknown>;
-      const code = stringValue(record.code);
-      const field = stringValue(record.field);
       const message = stringValue(record.message) ?? JSON.stringify(record);
-
-      if (code && field) {
-        return `${code} / ${field}: ${message}`;
-      }
-      if (code) {
-        return `${code}: ${message}`;
-      }
       return message;
     }
 
@@ -128,6 +192,32 @@ function parseManualPallets(
       ok: false,
       error: "Manual pallets must be a whole number of 0 or greater.",
     };
+  }
+
+  return { ok: true, value: parsed };
+}
+
+function parseWholeNumber(
+  value: string,
+  label: string,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
+  if (!trimmed || !Number.isInteger(parsed) || parsed < 0) {
+    return { ok: false, error: `${label} must be a whole number of 0 or greater.` };
+  }
+
+  return { ok: true, value: parsed };
+}
+
+function parseDecimalNumber(
+  value: string,
+  label: string,
+): { ok: true; value: number } | { ok: false; error: string } {
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
+  if (!trimmed || !Number.isFinite(parsed) || parsed < 0) {
+    return { ok: false, error: `${label} must be 0 or greater.` };
   }
 
   return { ok: true, value: parsed };

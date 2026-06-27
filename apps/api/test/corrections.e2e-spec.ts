@@ -102,6 +102,38 @@ describe('CorrectionsController (e2e)', () => {
     ]);
   });
 
+  it('creates a manual destination for actual unloading data and creates audit feedback', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/containers/container-1/destinations')
+      .send({
+        cartons: 12,
+        correctionNote: 'Entered from returned paper report',
+        destinationCode: 'MANUAL-YYZ',
+        destinationType: 'WAREHOUSE',
+        manualPallets: 2,
+        note: 'Actual unloading note',
+        volume: 1.25,
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      containerDestination: {
+        containerId: 'container-1',
+        destinationCode: 'MANUAL-YYZ',
+        cartons: 12,
+        volume: '1.250',
+        manualPallets: 2,
+        finalPallets: 2,
+      },
+    });
+    expect(response.body.corrections).toHaveLength(1);
+    expect(response.body.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      fieldName: 'containerDestination',
+      targetType: 'CONTAINER_DESTINATION',
+    });
+  });
+
   it('creates and lists standalone correction feedback with target validation', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/corrections')
@@ -205,6 +237,16 @@ describe('CorrectionsController (e2e)', () => {
             ) ?? null,
           ),
         ),
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `destination-${destinations.length + 1}`,
+            ...data,
+            createdAt: new Date('2026-06-26T00:01:00.000Z'),
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          };
+          destinations.push(record);
+          return Promise.resolve(record);
+        }),
         update: jest.fn(({ where, data }) => {
           const record = destinations.find(
             (destination) => destination.id === where.id,

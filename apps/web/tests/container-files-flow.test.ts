@@ -9,7 +9,7 @@ import {
 } from "../src/components/containers/container-files-flow";
 import type { GeneratedFileResponse } from "../src/lib/api-client";
 
-test("generated label PDFs are detected as duplicate generation risk", () => {
+test("generated label PDFs are detected", () => {
   assert.equal(hasGeneratedLabelPdf([fileRecord()]), false);
   assert.equal(
     hasGeneratedLabelPdf([
