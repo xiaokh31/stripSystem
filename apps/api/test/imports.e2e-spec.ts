@@ -189,6 +189,39 @@ interface PalletListBody {
   items: PalletBody[];
 }
 
+interface ContainerSummaryBody {
+  items: Array<{
+    containerId: string;
+    containerNo: string;
+    totalPallets: number;
+    loadedPallets: number;
+    remainingPallets: number;
+  }>;
+}
+
+interface ContainerDetailSummaryBody {
+  containerId: string;
+  containerNo: string;
+  totalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+  destinations: Array<{
+    destinationCode: string;
+    totalPallets: number;
+    loadedPallets: number;
+    remainingPallets: number;
+  }>;
+}
+
+interface InventoryBody {
+  items: Array<{
+    destinationCode: string;
+    totalPallets: number;
+    loadedPallets: number;
+    remainingPallets: number;
+  }>;
+}
+
 interface ImportListBody {
   items: ImportFileBody[];
   limit: number;
@@ -478,7 +511,7 @@ describe('ImportsController (e2e)', () => {
   });
 
   it(
-    'generates pallet labels from a parsed real fixture and blocks duplicate generation',
+    'generates pallet labels, reports inventory summaries, and blocks duplicate generation',
     async () => {
       const uploaded = await request(app.getHttpServer())
         .post('/api/imports')
@@ -537,6 +570,54 @@ describe('ImportsController (e2e)', () => {
         containerId,
         status: 'LABEL_PRINTED',
       });
+
+      const containerSummary = await request(app.getHttpServer())
+        .get('/api/reports/container-summary')
+        .expect(200);
+      const containerSummaryBody =
+        containerSummary.body as ContainerSummaryBody;
+
+      expect(containerSummaryBody.items).toMatchObject([
+        {
+          containerId,
+          containerNo: parsedBody.containers[0].containerNo,
+          totalPallets: expectedPalletCount,
+          loadedPallets: 0,
+          remainingPallets: expectedPalletCount,
+        },
+      ]);
+
+      pallets[0].status = 'LOADED';
+
+      const containerDetail = await request(app.getHttpServer())
+        .get(`/api/containers/${containerId}/summary`)
+        .expect(200);
+      const containerDetailBody =
+        containerDetail.body as ContainerDetailSummaryBody;
+
+      expect(containerDetailBody).toMatchObject({
+        containerId,
+        totalPallets: expectedPalletCount,
+        loadedPallets: 1,
+        remainingPallets: expectedPalletCount - 1,
+      });
+      expect(containerDetailBody.destinations[0]).toMatchObject({
+        loadedPallets: 1,
+      });
+
+      const inventory = await request(app.getHttpServer())
+        .get('/api/reports/inventory?status=LOADED')
+        .expect(200);
+      const inventoryBody = inventory.body as InventoryBody;
+
+      expect(inventoryBody.items).toEqual([
+        {
+          destinationCode: containerDetailBody.destinations[0].destinationCode,
+          totalPallets: 1,
+          loadedPallets: 1,
+          remainingPallets: 0,
+        },
+      ]);
 
       await request(app.getHttpServer())
         .post(`/api/containers/${containerId}/generate-labels`)
@@ -685,7 +766,9 @@ describe('ImportsController (e2e)', () => {
         }),
         findMany: jest.fn(({ where, select, include }) => {
           const found = containerRecords.filter(
-            (container) => container.importFileId === where.importFileId,
+            (container) =>
+              where?.importFileId === undefined ||
+              container.importFileId === where.importFileId,
           );
 
           if (select?.id) {
@@ -705,6 +788,13 @@ describe('ImportsController (e2e)', () => {
                   .filter(
                     (destination) => destination.containerId === container.id,
                   )
+                  .map((destination) => ({
+                    ...destination,
+                    pallets: palletRecords.filter(
+                      (pallet) =>
+                        pallet.containerDestinationId === destination.id,
+                    ),
+                  }))
                   .sort((left, right) =>
                     left.destinationCode.localeCompare(right.destinationCode),
                   ),
