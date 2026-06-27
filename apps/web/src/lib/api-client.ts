@@ -73,7 +73,7 @@ export interface ContainerDestinationResponse {
 
 export interface ContainerResponse {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;
@@ -111,7 +111,7 @@ export interface ContainerDetailDestinationResponse {
 
 export interface ContainerDetailResponse {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   dockNo: string | null;
   company: string | null;
@@ -148,6 +148,25 @@ export interface CreateContainerDestinationRequest {
   volume: number;
 }
 
+export interface CreateManualContainerDestinationRequest {
+  cartons: number;
+  destinationCode: string;
+  destinationType?: string | null;
+  note?: string | null;
+  pallets: number;
+  volume?: number;
+}
+
+export interface CreateManualContainerRequest {
+  company?: string | null;
+  containerNo: string;
+  correctedById?: string | null;
+  correctionNote?: string | null;
+  destinations: CreateManualContainerDestinationRequest[];
+  dockNo?: string | null;
+  reason?: string | null;
+}
+
 export interface CorrectionFeedbackResponse {
   id: string;
   targetType: string;
@@ -181,6 +200,11 @@ export interface ContainerDestinationCorrectionResponse {
     note: string | null;
     updatedAt: string;
   };
+  corrections: CorrectionFeedbackResponse[];
+}
+
+export interface ManualContainerResponse {
+  container: ContainerDetailResponse;
   corrections: CorrectionFeedbackResponse[];
 }
 
@@ -402,6 +426,16 @@ export function createContainerDestination(
 ): Promise<ContainerDestinationCorrectionResponse> {
   return createApiClient(options).post<ContainerDestinationCorrectionResponse>(
     `/containers/${encodeURIComponent(containerId)}/destinations`,
+    { ...body },
+  );
+}
+
+export function createManualContainer(
+  body: CreateManualContainerRequest,
+  options: ApiClientOptions = {},
+): Promise<ManualContainerResponse> {
+  return createApiClient(options).post<ManualContainerResponse>(
+    "/containers/manual",
     { ...body },
   );
 }

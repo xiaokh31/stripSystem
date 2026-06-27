@@ -11,6 +11,7 @@ import {
 import {
   canTriggerParse,
   containerLinks,
+  shouldOfferManualReportEntry,
   toParseResultSummary,
   type ParseResultSummaryData,
 } from "./import-detail-flow";
@@ -24,9 +25,11 @@ interface ParseFailure {
 export function ImportDetailActions({
   importFile,
   initialParseResult,
+  manualReportHref,
 }: {
   importFile: ImportFileResponse;
   initialParseResult: ParseResultSummaryData | null;
+  manualReportHref: string;
 }) {
   const router = useRouter();
   const [parsing, setParsing] = useState(false);
@@ -36,6 +39,13 @@ export function ImportDetailActions({
 
   const currentResult = parseResult ?? initialParseResult;
   const disabled = parsing || !canTriggerParse(importFile.parseStatus);
+  const showManualEntry =
+    parseError !== null ||
+    (parseResult !== null &&
+      shouldOfferManualReportEntry({
+        parseResult,
+        parseStatus: importFile.parseStatus,
+      }));
 
   async function handleParse() {
     if (disabled) {
@@ -93,6 +103,10 @@ export function ImportDetailActions({
       ) : null}
 
       <ParseResultSummary parseResult={currentResult} compact />
+
+      {showManualEntry ? (
+        <ManualReportEntryPanel href={manualReportHref} compact />
+      ) : null}
     </section>
   );
 }
@@ -160,6 +174,38 @@ export function ParseResultSummary({
         Parsed containers
       </h2>
       {content}
+    </section>
+  );
+}
+
+export function ManualReportEntryPanel({
+  compact = false,
+  href,
+}: {
+  compact?: boolean;
+  href: string;
+}) {
+  return (
+    <section
+      className={
+        compact
+          ? "mt-4 border border-amber-200 bg-amber-50 p-3 text-amber-950"
+          : "border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
+      }
+    >
+      <h2 className={compact ? "text-sm font-semibold" : "text-base font-semibold"}>
+        Manual unloading report
+      </h2>
+      <p className="mt-2 text-sm leading-6">
+        Create a manual unloading report when the customer workbook cannot be
+        parsed into container records.
+      </p>
+      <Link
+        className="mt-3 inline-flex min-h-10 items-center border border-amber-700 bg-white px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+        href={href}
+      >
+        Create manual unloading report
+      </Link>
     </section>
   );
 }

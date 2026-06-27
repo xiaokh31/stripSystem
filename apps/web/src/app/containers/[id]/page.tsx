@@ -54,12 +54,14 @@ export default async function ContainerDetailPage({
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link
-              className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-              href={`/imports/${state.container.importFileId}`}
-            >
-              Import detail
-            </Link>
+            {state.container.importFileId ? (
+              <Link
+                className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+                href={`/imports/${state.container.importFileId}`}
+              >
+                Import detail
+              </Link>
+            ) : null}
             <Link
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/containers"

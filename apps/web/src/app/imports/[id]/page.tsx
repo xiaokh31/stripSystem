@@ -8,11 +8,14 @@ import {
 } from "@/lib/api-client";
 import {
   ImportDetailActions,
+  ManualReportEntryPanel,
   ParseResultSummary,
 } from "@/components/imports/import-detail-actions";
 import {
   formatDateTime,
   issueList,
+  manualReportHref,
+  shouldOfferManualReportEntry,
   statusTone,
   toParseResultSummary,
 } from "@/components/imports/import-detail-flow";
@@ -45,6 +48,12 @@ export default async function ImportDetailPage({
 
   const warningIssues = issueList(state.parseResult?.warnings ?? []);
   const errorIssues = issueList(state.parseResult?.errors ?? []);
+  const parseSummary = toParseResultSummary(state.parseResult);
+  const manualHref = manualReportHref(state.importFile.id);
+  const showManualEntry = shouldOfferManualReportEntry({
+    parseResult: parseSummary,
+    parseStatus: state.importFile.parseStatus,
+  });
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
@@ -102,7 +111,8 @@ export default async function ImportDetailPage({
 
         <ImportDetailActions
           importFile={state.importFile}
-          initialParseResult={toParseResultSummary(state.parseResult)}
+          initialParseResult={parseSummary}
+          manualReportHref={manualHref}
         />
       </section>
 
@@ -113,7 +123,9 @@ export default async function ImportDetailPage({
         />
       ) : null}
 
-      <ParseResultSummary parseResult={toParseResultSummary(state.parseResult)} />
+      {showManualEntry ? <ManualReportEntryPanel href={manualHref} /> : null}
+
+      <ParseResultSummary parseResult={parseSummary} />
 
       <IssueSection
         errorCount={state.importFile.errorCount}

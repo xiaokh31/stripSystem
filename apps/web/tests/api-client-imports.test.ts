@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createApiClient, listImportFiles } from "../src/lib/api-client";
+import {
+  createApiClient,
+  createManualContainer,
+  listImportFiles,
+} from "../src/lib/api-client";
 
 test("imports API client sends pagination to the import list endpoint", async () => {
   const requests: string[] = [];
@@ -76,4 +80,77 @@ test("browser API client calls window fetch with the correct binding", async () 
       delete (globalThis as Record<string, unknown>).window;
     }
   }
+});
+
+test("manual container API client posts to the real correction endpoint", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: JSON.parse(String(init?.body ?? "{}")) as unknown,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        container: {
+          id: "container-manual",
+          importFileId: null,
+          containerNo: "MANU1234567",
+          dockNo: "D7",
+          company: "Manual Customer",
+          sourceFormat: "UNKNOWN",
+          parserVersion: "manual-entry-v1",
+          status: "CORRECTED",
+          totalCartons: 36,
+          totalVolumeCbm: "0.000",
+          rawJson: {},
+          warnings: [],
+          errors: [],
+          createdAt: "2026-06-27T00:00:00.000Z",
+          updatedAt: "2026-06-27T00:00:00.000Z",
+          destinations: [],
+        },
+        corrections: [],
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 201,
+      },
+    );
+  };
+
+  const result = await createManualContainer(
+    {
+      containerNo: "MANU1234567",
+      destinations: [
+        {
+          cartons: 36,
+          destinationCode: "YEG1",
+          pallets: 4,
+        },
+      ],
+      reason: "Original workbook could not be parsed.",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.equal(result.container.importFileId, null);
+  assert.deepEqual(requests, [
+    {
+      body: {
+        containerNo: "MANU1234567",
+        destinations: [
+          {
+            cartons: 36,
+            destinationCode: "YEG1",
+            pallets: 4,
+          },
+        ],
+        reason: "Original workbook could not be parsed.",
+      },
+      method: "POST",
+      url: "http://api.local/api/containers/manual",
+    },
+  ]);
 });

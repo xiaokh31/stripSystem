@@ -1,9 +1,13 @@
-import type { ContainerResponse } from "@/lib/api-client";
+import type { ContainerResponse, ImportFileResponse } from "@/lib/api-client";
 
 export type StatusTone = "amber" | "emerald" | "red" | "zinc";
 
 export interface ParseResultSummaryData {
   containers: Array<Pick<ContainerResponse, "id" | "containerNo">>;
+  errorCount?: number;
+  errorMessage?: string | null;
+  parseStatus?: string;
+  warningCount?: number;
 }
 
 export interface ContainerLink {
@@ -31,6 +35,31 @@ export function canTriggerParse(parseStatus: string): boolean {
   return parseStatus !== "PARSING";
 }
 
+export function manualReportHref(importId: string): string {
+  return `/containers/new?fromImport=${encodeURIComponent(importId)}`;
+}
+
+export function shouldOfferManualReportEntry(input: {
+  parseResult: ParseResultSummaryData | null;
+  parseStatus: string;
+}): boolean {
+  const status = input.parseResult?.parseStatus ?? input.parseStatus;
+
+  if (status === "ERROR") {
+    return true;
+  }
+
+  if (
+    (status === "PARSED" || status === "WARNING") &&
+    input.parseResult !== null &&
+    input.parseResult.containers.length === 0
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function containerLinks(
   containers: readonly Pick<ContainerResponse, "id" | "containerNo">[],
 ): ContainerLink[] {
@@ -41,7 +70,15 @@ export function containerLinks(
 }
 
 export function toParseResultSummary(
-  result: { containers: Array<Pick<ContainerResponse, "id" | "containerNo">> } | null,
+  result:
+    | {
+        containers: Array<Pick<ContainerResponse, "id" | "containerNo">>;
+        importFile?: Pick<
+          ImportFileResponse,
+          "errorCount" | "errorMessage" | "parseStatus" | "warningCount"
+        >;
+      }
+    | null,
 ): ParseResultSummaryData | null {
   if (!result) {
     return null;
@@ -52,6 +89,10 @@ export function toParseResultSummary(
       id: container.id,
       containerNo: container.containerNo,
     })),
+    errorCount: result.importFile?.errorCount,
+    errorMessage: result.importFile?.errorMessage,
+    parseStatus: result.importFile?.parseStatus,
+    warningCount: result.importFile?.warningCount,
   };
 }
 

@@ -4,6 +4,8 @@ import {
   canTriggerParse,
   containerLinks,
   issueList,
+  manualReportHref,
+  shouldOfferManualReportEntry,
   statusTone,
 } from "../src/components/imports/import-detail-flow";
 
@@ -35,6 +37,46 @@ test("parsed containers produce detail links", () => {
       label: "CSNU8877228",
     },
   ]);
+});
+
+test("manual report entry appears only after parse failure or empty parsed result", () => {
+  assert.equal(
+    shouldOfferManualReportEntry({
+      parseResult: null,
+      parseStatus: "NOT_PARSED",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldOfferManualReportEntry({
+      parseResult: null,
+      parseStatus: "ERROR",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldOfferManualReportEntry({
+      parseResult: { containers: [] },
+      parseStatus: "WARNING",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldOfferManualReportEntry({
+      parseResult: {
+        containers: [{ id: "container-1", containerNo: "CSNU8877228" }],
+      },
+      parseStatus: "WARNING",
+    }),
+    false,
+  );
+});
+
+test("manual report link carries the source import id", () => {
+  assert.equal(
+    manualReportHref("import 1/2"),
+    "/containers/new?fromImport=import%201%2F2",
+  );
 });
 
 test("issue lists preserve parser warning and error messages", () => {
