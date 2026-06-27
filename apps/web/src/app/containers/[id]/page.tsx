@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
+import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
 import { formatNullable, issueList } from "@/components/containers/container-detail-flow";
 import {
   ApiClientError,
   getContainerDetail,
+  getContainerGeneratedFiles,
   type ContainerDetailResponse,
+  type GeneratedFileResponse,
 } from "@/lib/api-client";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +15,8 @@ export const dynamic = "force-dynamic";
 type ContainerDetailState =
   | {
       container: ContainerDetailResponse;
+      files: GeneratedFileResponse[];
+      filesError: ApiClientError | null;
       ok: true;
     }
   | {
@@ -145,6 +150,18 @@ export default async function ContainerDetailPage({
         </section>
       ) : null}
 
+      {state.filesError ? (
+        <ApiErrorPanel
+          error={state.filesError}
+          title="Generated files could not be loaded"
+        />
+      ) : (
+        <ContainerGeneratedFiles
+          containerId={state.container.id}
+          initialFiles={state.files}
+        />
+      )}
+
       <ContainerDestinationCorrections
         destinations={state.container.destinations}
       />
@@ -154,7 +171,17 @@ export default async function ContainerDetailPage({
 
 async function loadContainerDetail(id: string): Promise<ContainerDetailState> {
   try {
-    return { container: await getContainerDetail(id), ok: true };
+    const container = await getContainerDetail(id);
+    let files: GeneratedFileResponse[] = [];
+    let filesError: ApiClientError | null = null;
+
+    try {
+      files = (await getContainerGeneratedFiles(id)).items;
+    } catch (error) {
+      filesError = toApiClientError(error);
+    }
+
+    return { container, files, filesError, ok: true };
   } catch (error) {
     return { error: toApiClientError(error), ok: false };
   }
@@ -229,6 +256,27 @@ function ContainerDetailError({
         Containers
       </Link>
     </main>
+  );
+}
+
+function ApiErrorPanel({
+  error,
+  title,
+}: {
+  error: ApiClientError;
+  title: string;
+}) {
+  return (
+    <section
+      className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+      role="alert"
+    >
+      <h2 className="text-base font-semibold">{title}</h2>
+      <p className="mt-2 text-sm">
+        {error.code}
+        {error.status ? ` (${error.status})` : ""}: {error.message}
+      </p>
+    </section>
   );
 }
 

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -6,8 +7,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import {
+  GeneratedFileDownloadDto,
   GeneratedFileListResponseDto,
   GeneratedFileResponseDto,
   GenerateReportResponseDto,
@@ -127,6 +129,65 @@ export class ReportsService {
     return {
       items: records.map((record) => this.toGeneratedFileResponse(record)),
     };
+  }
+
+  async downloadFile(
+    containerId: string,
+    fileId: string,
+  ): Promise<GeneratedFileDownloadDto> {
+    await this.findContainerOrThrow(containerId);
+    const record = (await this.prisma.generatedFile.findFirst({
+      where: { id: fileId, containerId },
+    })) as GeneratedFileRecord | null;
+
+    if (!record) {
+      throw new NotFoundException({
+        code: 'GENERATED_FILE_NOT_FOUND',
+        message: `Generated file ${fileId} was not found for container ${containerId}.`,
+        details: { containerId, fileId },
+      });
+    }
+
+    if (record.status !== GeneratedFileStatus.GENERATED) {
+      throw new BadRequestException({
+        code: 'GENERATED_FILE_NOT_DOWNLOADABLE',
+        message: `Generated file ${fileId} is not downloadable because its status is ${record.status}.`,
+        details: {
+          containerId,
+          fileId,
+          status: record.status,
+          errorMessage: record.errorMessage,
+        },
+      });
+    }
+
+    this.assertStoragePathAllowed(record.storagePath, record);
+
+    try {
+      const fileStat = await stat(record.storagePath);
+      if (!fileStat.isFile()) {
+        throw new Error('Generated path is not a file.');
+      }
+
+      return {
+        buffer: await readFile(record.storagePath),
+        filename: basename(record.storagePath),
+        fileSizeBytes: fileStat.size,
+        mimeType: record.mimeType ?? 'application/octet-stream',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        code: 'GENERATED_FILE_STORAGE_MISSING',
+        message:
+          'The generated file record exists, but the file cannot be read.',
+        details: {
+          containerId,
+          fileId,
+          storagePath: record.storagePath,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
   }
 
   private async findContainerOrThrow(id: string): Promise<ContainerRecord> {
@@ -281,6 +342,26 @@ export class ReportsService {
       'reports',
       `${this.safeFilename(container.containerNo)}卸柜报告-En.xlsx`,
     );
+  }
+
+  private assertStoragePathAllowed(
+    storagePath: string,
+    record: GeneratedFileRecord,
+  ): void {
+    const root = resolve(this.storageRoot);
+    const resolvedPath = resolve(storagePath);
+    if (resolvedPath === root || resolvedPath.startsWith(`${root}${sep}`)) {
+      return;
+    }
+
+    throw new InternalServerErrorException({
+      code: 'GENERATED_FILE_STORAGE_PATH_INVALID',
+      message: 'The generated file path is outside the configured storage root.',
+      details: {
+        generatedFileId: record.id,
+        storagePath,
+      },
+    });
   }
 
   private toGeneratedFileResponse(

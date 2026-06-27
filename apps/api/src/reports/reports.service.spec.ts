@@ -53,6 +53,10 @@ interface GeneratedFileCreateArgs {
   data: GeneratedFileData;
 }
 
+interface GeneratedFileFindFirstArgs {
+  where: { id: string; containerId: string };
+}
+
 interface GeneratedFileRecord extends GeneratedFileData {
   id: string;
   createdAt: Date;
@@ -73,6 +77,10 @@ interface ReportsPrismaMock {
   };
   generatedFile: {
     create: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileCreateArgs]>;
+    findFirst: jest.Mock<
+      Promise<GeneratedFileRecord | null>,
+      [GeneratedFileFindFirstArgs]
+    >;
     findMany: jest.Mock<Promise<GeneratedFileRecord[]>, []>;
   };
 }
@@ -174,6 +182,25 @@ describe('ReportsService', () => {
     });
   });
 
+  it('downloads a generated file for the owning container', async () => {
+    const generated = await service.generateReport('container-1');
+    const download = await service.downloadFile(
+      'container-1',
+      generated.generatedFile.id,
+    );
+
+    expect(download).toMatchObject({
+      filename: 'CSNU8877228卸柜报告-En.xlsx',
+      fileSizeBytes: 10,
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    expect(download.buffer.toString()).toBe('xlsx bytes');
+    expect(prisma.generatedFile.findFirst).toHaveBeenCalledWith({
+      where: { id: generated.generatedFile.id, containerId: 'container-1' },
+    });
+  });
+
   it('records a failed generated_file when the worker reports an error', async () => {
     workerReport.writeReport.mockResolvedValueOnce({
       task_status: 'ERROR',
@@ -258,6 +285,17 @@ describe('ReportsService', () => {
           generatedFiles.push(record);
           return Promise.resolve(record);
         },
+      ),
+      findFirst: jest.fn<
+        Promise<GeneratedFileRecord | null>,
+        [GeneratedFileFindFirstArgs]
+      >(({ where }) =>
+        Promise.resolve(
+          generatedFiles.find(
+            (record) =>
+              record.id === where.id && record.containerId === where.containerId,
+          ) ?? null,
+        ),
       ),
       findMany: jest
         .fn<Promise<GeneratedFileRecord[]>, []>()

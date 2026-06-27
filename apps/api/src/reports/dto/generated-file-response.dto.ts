@@ -22,3 +22,10 @@ export interface GenerateReportResponseDto {
 export interface GeneratedFileListResponseDto {
   items: GeneratedFileResponseDto[];
 }
+
+export interface GeneratedFileDownloadDto {
+  buffer: Buffer;
+  filename: string;
+  fileSizeBytes: number;
+  mimeType: string;
+}

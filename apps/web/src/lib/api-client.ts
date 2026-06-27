@@ -160,6 +160,53 @@ export interface ContainerDestinationCorrectionResponse {
   corrections: CorrectionFeedbackResponse[];
 }
 
+export interface GeneratedFileResponse {
+  id: string;
+  importFileId: string | null;
+  containerId: string | null;
+  fileType: string;
+  storagePath: string;
+  fileSha256: string | null;
+  mimeType: string | null;
+  fileSizeBytes: string | null;
+  status: string;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GeneratedFileListResponse {
+  items: GeneratedFileResponse[];
+}
+
+export interface GenerateReportResponse {
+  generatedFile: GeneratedFileResponse;
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+export interface PalletResponse {
+  id: string;
+  containerId: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  palletNo: number;
+  palletId: string;
+  qrPayload: string;
+  status: string;
+  labelPrintedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GenerateLabelsResponse {
+  generatedFile: GeneratedFileResponse;
+  pallets: PalletResponse[];
+  warnings: unknown[];
+  errors: unknown[];
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
@@ -270,6 +317,47 @@ export function updateContainerDestination(
   return createApiClient(options).patch<ContainerDestinationCorrectionResponse>(
     `/container-destinations/${encodeURIComponent(id)}`,
     { ...body },
+  );
+}
+
+export function getContainerGeneratedFiles(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<GeneratedFileListResponse> {
+  return createApiClient(options).get<GeneratedFileListResponse>(
+    `/containers/${encodeURIComponent(id)}/files`,
+  );
+}
+
+export function generateContainerReport(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<GenerateReportResponse> {
+  return createApiClient(options).post<GenerateReportResponse>(
+    `/containers/${encodeURIComponent(id)}/generate-report`,
+  );
+}
+
+export function generateContainerLabels(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<GenerateLabelsResponse> {
+  return createApiClient(options).post<GenerateLabelsResponse>(
+    `/containers/${encodeURIComponent(id)}/generate-labels`,
+  );
+}
+
+export function getGeneratedFileDownloadUrl(
+  containerId: string,
+  fileId: string,
+  baseUrl = getApiBaseUrl(),
+): string {
+  const encodedContainerId = encodeURIComponent(containerId);
+  const encodedFileId = encodeURIComponent(fileId);
+
+  return buildApiUrl(
+    `/containers/${encodedContainerId}/files/${encodedFileId}/download`,
+    baseUrl,
   );
 }
 
