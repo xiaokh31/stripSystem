@@ -35,6 +35,39 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('reads full container detail with destination correction fields', async () => {
+    const result = await service.getContainer('container-1');
+
+    expect(result).toMatchObject({
+      id: 'container-1',
+      containerNo: 'CSNU8877228',
+      company: 'BESTAR',
+      status: 'PARSED',
+      totalCartons: 40,
+      totalVolumeCbm: '5.250',
+      destinations: [
+        {
+          id: 'destination-1',
+          destinationCode: 'YYZ',
+          destinationType: 'AMAZON_FBA',
+          totalCartons: 40,
+          totalVolumeCbm: '5.250',
+          calculatedPallets: 4,
+          manualPallets: null,
+          finalPallets: 4,
+        },
+      ],
+    });
+    expect(prisma.container.findUnique).toHaveBeenCalledWith({
+      where: { id: 'container-1' },
+      include: {
+        destinations: {
+          orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+        },
+      },
+    });
+  });
+
   it('rejects corrections when no value changes', async () => {
     await expect(
       service.updateContainerDestination('destination-1', {
@@ -56,6 +89,9 @@ describe('CorrectionsService', () => {
       manualPallets: null,
       finalPallets: 4,
       note: null,
+      warnings: [],
+      errors: [],
+      createdAt: new Date('2026-06-26T00:00:00.000Z'),
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     };
     const corrections: any[] = [];
@@ -63,6 +99,22 @@ describe('CorrectionsService', () => {
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
       container: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'container-1',
+          importFileId: 'import-1',
+          containerNo: 'CSNU8877228',
+          dockNo: null,
+          company: 'BESTAR',
+          sourceFormat: 'UNLOADING_PLAN_CN',
+          parserVersion: 'unloading-plan-cn-v1',
+          status: 'PARSED',
+          rawJson: {},
+          warnings: [],
+          errors: [],
+          destinations: [destination],
+          createdAt: new Date('2026-06-26T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+        }),
         update: jest.fn().mockResolvedValue({
           id: 'container-1',
           status: 'CORRECTED',

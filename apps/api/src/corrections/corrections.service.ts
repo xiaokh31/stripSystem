@@ -8,6 +8,7 @@ import { CreateCorrectionDto } from './dto/create-correction.dto';
 import { ListCorrectionsQueryDto } from './dto/list-corrections-query.dto';
 import {
   ContainerCorrectionResponseDto,
+  ContainerDetailResponseDto,
   ContainerDestinationCorrectionResponseDto,
   CorrectionFeedbackResponseDto,
   CorrectionListResponseDto,
@@ -39,7 +40,14 @@ interface ContainerRecord {
   containerNo: string;
   dockNo: string | null;
   company: string | null;
+  sourceFormat?: string;
+  parserVersion?: string | null;
   status: string;
+  rawJson?: unknown;
+  warnings?: unknown;
+  errors?: unknown;
+  destinations?: ContainerDestinationRecord[];
+  createdAt?: Date | string;
   updatedAt: Date | string;
 }
 
@@ -54,6 +62,9 @@ interface ContainerDestinationRecord {
   manualPallets: number | null;
   finalPallets: number;
   note: string | null;
+  warnings?: unknown;
+  errors?: unknown;
+  createdAt?: Date | string;
   updatedAt: Date | string;
 }
 
@@ -88,6 +99,27 @@ const TARGET_ID_FIELDS = [
 @Injectable()
 export class CorrectionsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getContainer(id: string): Promise<ContainerDetailResponseDto> {
+    const container = (await this.prisma.container.findUnique({
+      where: { id },
+      include: {
+        destinations: {
+          orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+        },
+      },
+    })) as ContainerRecord | null;
+
+    if (!container) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${id} was not found.`,
+        details: { id },
+      });
+    }
+
+    return this.toContainerDetailResponse(container);
+  }
 
   async updateContainer(
     id: string,
@@ -181,11 +213,10 @@ export class CorrectionsService {
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        const containerDestination =
-          (await tx.containerDestination.update({
-            where: { id },
-            data,
-          })) as ContainerDestinationRecord;
+        const containerDestination = (await tx.containerDestination.update({
+          where: { id },
+          data,
+        })) as ContainerDestinationRecord;
         await tx.container.update({
           where: { id: existing.containerId },
           data: { status: ContainerStatus.CORRECTED },
@@ -232,7 +263,7 @@ export class CorrectionsService {
 
     const record = await this.prisma.$transaction(async (tx) => {
       await this.assertTargetExists(tx, targetType, target);
-      return (await tx.correctionFeedback.create({
+      return await tx.correctionFeedback.create({
         data: {
           ...target,
           targetType,
@@ -243,7 +274,7 @@ export class CorrectionsService {
           note: this.stringOrNull(dto.note),
           correctedById: this.stringOrNull(dto.correctedById),
         },
-      })) as CorrectionFeedbackRecord;
+      });
     });
 
     return this.toCorrectionResponse(record);
@@ -316,13 +347,17 @@ export class CorrectionsService {
   }
 
   private assertCorrectionValuesProvided(dto: CreateCorrectionDto): void {
-    if (this.hasProvided(dto, 'oldValue') && this.hasProvided(dto, 'newValue')) {
+    if (
+      this.hasProvided(dto, 'oldValue') &&
+      this.hasProvided(dto, 'newValue')
+    ) {
       return;
     }
 
     throw new BadRequestException({
       code: 'CORRECTION_VALUES_REQUIRED',
-      message: 'oldValue and newValue must be provided for correction feedback.',
+      message:
+        'oldValue and newValue must be provided for correction feedback.',
       details: {},
     });
   }
@@ -578,6 +613,59 @@ export class CorrectionsService {
     };
   }
 
+  private toContainerDetailResponse(
+    record: ContainerRecord,
+  ): ContainerDetailResponseDto {
+    const destinations = record.destinations ?? [];
+
+    return {
+      id: record.id,
+      importFileId: record.importFileId,
+      containerNo: record.containerNo,
+      dockNo: record.dockNo,
+      company: record.company,
+      sourceFormat: record.sourceFormat ?? 'UNKNOWN',
+      parserVersion: record.parserVersion ?? null,
+      status: record.status,
+      totalCartons: destinations.reduce(
+        (total, destination) => total + destination.cartons,
+        0,
+      ),
+      totalVolumeCbm: this.volumeTotal(destinations),
+      rawJson: record.rawJson ?? null,
+      warnings: record.warnings ?? null,
+      errors: record.errors ?? null,
+      createdAt: this.toIsoString(record.createdAt ?? record.updatedAt),
+      updatedAt: this.toIsoString(record.updatedAt),
+      destinations: destinations.map((destination) => ({
+        id: destination.id,
+        containerId: destination.containerId,
+        destinationCode: destination.destinationCode,
+        destinationType: destination.destinationType,
+        totalCartons: destination.cartons,
+        totalVolumeCbm: destination.volume.toString(),
+        calculatedPallets: destination.calculatedPallets,
+        manualPallets: destination.manualPallets,
+        finalPallets: destination.finalPallets,
+        note: destination.note,
+        warnings: destination.warnings ?? null,
+        errors: destination.errors ?? null,
+        createdAt: this.toIsoString(
+          destination.createdAt ?? destination.updatedAt,
+        ),
+        updatedAt: this.toIsoString(destination.updatedAt),
+      })),
+    };
+  }
+
+  private volumeTotal(destinations: ContainerDestinationRecord[]): string {
+    const total = destinations.reduce(
+      (sum, destination) => sum + Number(destination.volume.toString()),
+      0,
+    );
+    return total.toFixed(3);
+  }
+
   private toCorrectionResponse(
     record: CorrectionFeedbackRecord,
   ): CorrectionFeedbackResponseDto {
@@ -613,7 +701,12 @@ export class CorrectionsService {
   }
 
   private sameValue(left: unknown, right: unknown): boolean {
-    if (left === null || left === undefined || right === null || right === undefined) {
+    if (
+      left === null ||
+      left === undefined ||
+      right === null ||
+      right === undefined
+    ) {
       return left === right;
     }
 
@@ -627,7 +720,9 @@ export class CorrectionsService {
   private isNumberLike(value: unknown): boolean {
     return (
       typeof value === 'number' ||
-      (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) ||
+      (typeof value === 'string' &&
+        value.trim() !== '' &&
+        !Number.isNaN(Number(value))) ||
       (typeof value === 'object' &&
         value !== null &&
         'toString' in value &&
@@ -650,12 +745,12 @@ export class CorrectionsService {
 
   private nullableJsonValue(value: unknown): NullableJsonInput {
     if (value === undefined || value === null) {
-      return (Prisma?.JsonNull ?? null) as NullableJsonInput;
+      return Prisma?.JsonNull ?? null;
     }
 
     const serialized = JSON.stringify(value);
     if (serialized === undefined || serialized === 'null') {
-      return (Prisma?.JsonNull ?? null) as NullableJsonInput;
+      return Prisma?.JsonNull ?? null;
     }
 
     return JSON.parse(serialized) as Prisma.InputJsonValue;

@@ -47,6 +47,42 @@ export interface ContainerDestinationCorrectionResponseDto {
   corrections: CorrectionFeedbackResponseDto[];
 }
 
+export interface ContainerDetailDestinationResponseDto {
+  id: string;
+  containerId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  totalCartons: number;
+  totalVolumeCbm: string;
+  calculatedPallets: number;
+  manualPallets: number | null;
+  finalPallets: number;
+  note: string | null;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContainerDetailResponseDto {
+  id: string;
+  importFileId: string;
+  containerNo: string;
+  dockNo: string | null;
+  company: string | null;
+  sourceFormat: string;
+  parserVersion: string | null;
+  status: string;
+  totalCartons: number;
+  totalVolumeCbm: string;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: string;
+  updatedAt: string;
+  destinations: ContainerDetailDestinationResponseDto[];
+}
+
 export interface CorrectionListResponseDto {
   items: CorrectionFeedbackResponseDto[];
   limit: number;

@@ -81,6 +81,85 @@ export interface ImportParseResultResponse {
   errors: unknown[];
 }
 
+export interface ContainerDetailDestinationResponse {
+  id: string;
+  containerId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  totalCartons: number;
+  totalVolumeCbm: string;
+  calculatedPallets: number;
+  manualPallets: number | null;
+  finalPallets: number;
+  note: string | null;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContainerDetailResponse {
+  id: string;
+  importFileId: string;
+  containerNo: string;
+  dockNo: string | null;
+  company: string | null;
+  sourceFormat: string;
+  parserVersion: string | null;
+  status: string;
+  totalCartons: number;
+  totalVolumeCbm: string;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: string;
+  updatedAt: string;
+  destinations: ContainerDetailDestinationResponse[];
+}
+
+export interface UpdateContainerDestinationRequest {
+  destinationCode?: string;
+  destinationType?: string | null;
+  manualPallets?: number | null;
+  correctionNote?: string | null;
+}
+
+export interface CorrectionFeedbackResponse {
+  id: string;
+  targetType: string;
+  importFileId: string | null;
+  containerId: string | null;
+  containerLineId: string | null;
+  containerDestinationId: string | null;
+  palletId: string | null;
+  generatedFileId: string | null;
+  fieldName: string;
+  oldValue: unknown;
+  newValue: unknown;
+  reason: string | null;
+  note: string | null;
+  correctedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContainerDestinationCorrectionResponse {
+  containerDestination: {
+    id: string;
+    containerId: string;
+    destinationCode: string;
+    destinationType: string | null;
+    cartons: number;
+    volume: string;
+    calculatedPallets: number;
+    manualPallets: number | null;
+    finalPallets: number;
+    note: string | null;
+    updatedAt: string;
+  };
+  corrections: CorrectionFeedbackResponse[];
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
@@ -171,6 +250,26 @@ export function parseImportFile(
 ): Promise<ImportParseResultResponse> {
   return createApiClient(options).post<ImportParseResultResponse>(
     `/imports/${encodeURIComponent(id)}/parse`,
+  );
+}
+
+export function getContainerDetail(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ContainerDetailResponse> {
+  return createApiClient(options).get<ContainerDetailResponse>(
+    `/containers/${encodeURIComponent(id)}`,
+  );
+}
+
+export function updateContainerDestination(
+  id: string,
+  body: UpdateContainerDestinationRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerDestinationCorrectionResponse> {
+  return createApiClient(options).patch<ContainerDestinationCorrectionResponse>(
+    `/container-destinations/${encodeURIComponent(id)}`,
+    { ...body },
   );
 }
 
