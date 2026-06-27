@@ -171,6 +171,23 @@ interface GeneratedFilesBody {
   items: GenerateReportBody['generatedFile'][];
 }
 
+interface ManualContainerBody {
+  container: {
+    id: string;
+    destinations: Array<{
+      id: string;
+    }>;
+  };
+}
+
+interface ContainerDestinationCorrectionBody {
+  containerDestination: {
+    id: string;
+    manualPallets: number | null;
+    finalPallets: number;
+  };
+}
+
 interface PalletBody {
   id: string;
   containerId: string;
@@ -599,6 +616,123 @@ describe('ImportsController (e2e)', () => {
     ]);
   });
 
+  it('generates pallet labels for a manual container and rebuilds unused pallets from corrected finalPallets', async () => {
+    const manual = await request(app.getHttpServer())
+      .post('/api/containers/manual')
+      .send({
+        containerNo: 'MANU1234567',
+        company: 'Manual Customer',
+        dockNo: 'D7',
+        reason: 'Original manifest could not be parsed',
+        destinations: [
+          {
+            destinationCode: 'YEG1',
+            destinationType: 'WAREHOUSE',
+            cartons: 36,
+            pallets: 4,
+            volume: 0,
+            note: 'Manual report line',
+          },
+          {
+            destinationCode: 'YVR2',
+            cartons: 12,
+            pallets: 2,
+            volume: 1.5,
+          },
+        ],
+      })
+      .expect(201);
+    const manualBody = manual.body as ManualContainerBody;
+    const containerId = manualBody.container.id;
+    const destinationId = manualBody.container.destinations[0].id;
+
+    const labels = await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-labels`)
+      .expect(201);
+    const labelsBody = labels.body as GenerateLabelsBody;
+
+    expect(labelsBody.generatedFile).toMatchObject({
+      importFileId: null,
+      containerId,
+      fileType: 'PALLET_LABEL_PDF',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(labelsBody.generatedFile.storagePath).toContain('labels');
+    expect(labelsBody.generatedFile.storagePath).toContain('MANU1234567');
+    await expect(
+      stat(labelsBody.generatedFile.storagePath),
+    ).resolves.toBeDefined();
+    expect(labelsBody.pallets).toHaveLength(6);
+    expect(pallets).toHaveLength(6);
+    expect(generatedFiles).toHaveLength(1);
+    expect(
+      labelsBody.pallets.every(
+        (pallet) =>
+          pallet.status === 'LABEL_PRINTED' &&
+          pallet.qrPayload.startsWith('SSP1|PALLET|') &&
+          pallet.qrPayload.includes(pallet.palletId),
+      ),
+    ).toBe(true);
+    expect(
+      new Set(labelsBody.pallets.map((pallet) => pallet.qrPayload)).size,
+    ).toBe(6);
+
+    const firstGeneratedFileId = labelsBody.generatedFile.id;
+    const firstStoragePath = labelsBody.generatedFile.storagePath;
+    const firstPalletRecordIds = new Set(
+      labelsBody.pallets.map((pallet) => pallet.id),
+    );
+
+    await request(app.getHttpServer())
+      .patch(`/api/container-destinations/${destinationId}`)
+      .send({
+        manualPallets: 3,
+        reason: 'Office corrected final pallet count before loading',
+        correctionNote: 'Rebuild labels from corrected manual count',
+      })
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as ContainerDestinationCorrectionBody;
+        expect(body.containerDestination).toMatchObject({
+          id: destinationId,
+          manualPallets: 3,
+          finalPallets: 3,
+        });
+      });
+
+    const regenerated = await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-labels`)
+      .expect(201);
+    const regeneratedBody = regenerated.body as GenerateLabelsBody;
+
+    expect(regeneratedBody.generatedFile).toMatchObject({
+      id: firstGeneratedFileId,
+      importFileId: null,
+      containerId,
+      fileType: 'PALLET_LABEL_PDF',
+      status: 'GENERATED',
+      storagePath: firstStoragePath,
+    });
+    expect(regeneratedBody.pallets).toHaveLength(5);
+    expect(pallets).toHaveLength(5);
+    expect(generatedFiles).toHaveLength(1);
+    expect(
+      regeneratedBody.pallets.some((pallet) =>
+        firstPalletRecordIds.has(pallet.id),
+      ),
+    ).toBe(false);
+    expect(
+      new Set(regeneratedBody.pallets.map((pallet) => pallet.qrPayload)).size,
+    ).toBe(5);
+    expect(
+      regeneratedBody.pallets.every((pallet) =>
+        pallet.qrPayload.includes(pallet.palletId),
+      ),
+    ).toBe(true);
+    expect(palletEvents).toHaveLength(22);
+  }, 30_000);
+
   it('generates pallet labels, reports inventory summaries, and blocks duplicate generation', async () => {
     const uploaded = await request(app.getHttpServer())
       .post('/api/imports')
@@ -777,6 +911,7 @@ describe('ImportsController (e2e)', () => {
     palletRecords: PalletRecord[],
     palletEventRecords: PalletEventRecord[],
   ) {
+    let palletSequence = 0;
     const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       importFile: {
@@ -967,6 +1102,13 @@ describe('ImportsController (e2e)', () => {
         }),
       },
       containerDestination: {
+        findUnique: jest.fn(({ where }) => {
+          const found =
+            destinationRecords.find(
+              (destination) => destination.id === where.id,
+            ) ?? null;
+          return Promise.resolve(found);
+        }),
         create: jest.fn(({ data }) => {
           const now = new Date('2026-06-26T00:01:00.000Z');
           const record: DestinationRecord = {
@@ -1020,6 +1162,18 @@ describe('ImportsController (e2e)', () => {
           return Promise.resolve({
             count: originalLength - destinationRecords.length,
           });
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = destinationRecords.find(
+            (destination) => destination.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Destination record not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:02:00.000Z'),
+          });
+          return Promise.resolve(record);
         }),
       },
       correctionFeedback: {
@@ -1096,9 +1250,10 @@ describe('ImportsController (e2e)', () => {
       },
       pallet: {
         create: jest.fn(({ data }) => {
+          palletSequence += 1;
           const now = new Date('2026-06-26T00:03:00.000Z');
           const record: PalletRecord = {
-            id: `pallet-${palletRecords.length + 1}`,
+            id: `pallet-${palletSequence}`,
             containerDestinationId: data.containerDestinationId,
             palletNo: data.palletNo,
             palletId: data.palletId,
