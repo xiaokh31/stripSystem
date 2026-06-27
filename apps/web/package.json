@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"web tests pending\""
+    "test": "tsc -p tsconfig.test.json && node --test .test-output/tests/*.test.js"
   },
   "dependencies": {
     "next": "16.2.9",

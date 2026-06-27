@@ -16,10 +16,40 @@ export interface ApiHealthResponse {
   timestamp: string;
 }
 
+export interface ImportFileResponse {
+  id: string;
+  originalFilename: string;
+  storedPath: string;
+  fileSha256: string;
+  mimeType: string | null;
+  fileSizeBytes: string | null;
+  format: string;
+  importStatus: string;
+  parseStatus: string;
+  parserVersion: string | null;
+  warningCount: number;
+  errorCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
   fetcher?: typeof fetch;
+}
+
+export interface UploadProgress {
+  loaded: number;
+  percent: number | null;
+  total: number | null;
+}
+
+export interface UploadImportFileOptions {
+  authToken?: string | null;
+  baseUrl?: string;
+  onProgress?: (progress: UploadProgress) => void;
 }
 
 export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
@@ -68,6 +98,16 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
 export async function getApiHealth(): Promise<ApiHealthResponse> {
   return createApiClient().get<ApiHealthResponse>("/health");
+}
+
+export function uploadImportFile(
+  file: File,
+  options: UploadImportFileOptions = {},
+): Promise<ImportFileResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return uploadFormData<ImportFileResponse>("/imports", formData, options);
 }
 
 export class ApiClient {
@@ -152,15 +192,22 @@ export class ApiClient {
   }
 
   private urlFor(path: string): string {
-    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-    if (this.baseUrl.startsWith("/")) {
-      return `${this.baseUrl}${normalizedPath}`;
-    }
-
-    return new URL(normalizedPath.replace(/^\//, ""), `${this.baseUrl}/`)
-      .toString();
+    return buildApiUrl(path, this.baseUrl);
   }
+}
+
+export function buildApiUrl(path: string, baseUrl = getApiBaseUrl()): string {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (normalizedBaseUrl.startsWith("/")) {
+    return `${normalizedBaseUrl}${normalizedPath}`;
+  }
+
+  return new URL(
+    normalizedPath.replace(/^\//, ""),
+    `${normalizedBaseUrl}/`,
+  ).toString();
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -201,6 +248,120 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 
   return response.text();
+}
+
+function uploadFormData<TResponse>(
+  path: string,
+  body: FormData,
+  options: UploadImportFileOptions,
+): Promise<TResponse> {
+  if (typeof XMLHttpRequest === "undefined") {
+    return Promise.reject(
+      new ApiClientError({
+        code: "UPLOAD_UNAVAILABLE",
+        message: "File uploads must be started from a browser session.",
+        status: 0,
+      }),
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", buildApiUrl(path, options.baseUrl));
+    xhr.responseType = "text";
+
+    if (options.authToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${options.authToken}`);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      options.onProgress?.({
+        loaded: event.loaded,
+        percent: event.lengthComputable
+          ? (event.loaded / event.total) * 100
+          : null,
+        total: event.lengthComputable ? event.total : null,
+      });
+    };
+
+    xhr.onerror = () => {
+      reject(
+        new ApiClientError({
+          code: "API_NETWORK_ERROR",
+          message: "The API request could not be sent.",
+          status: 0,
+          details: { path },
+        }),
+      );
+    };
+
+    xhr.onload = () => {
+      const responseText =
+        typeof xhr.response === "string" ? xhr.response : xhr.responseText;
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(
+          toApiClientErrorFromPayload(
+            xhr.status,
+            xhr.statusText,
+            xhr.getResponseHeader("content-type") ?? "",
+            responseText,
+          ),
+        );
+        return;
+      }
+
+      resolve(parseXhrSuccess<TResponse>(responseText));
+    };
+
+    xhr.send(body);
+  });
+}
+
+function parseXhrSuccess<TResponse>(responseText: string): TResponse {
+  if (!responseText) {
+    return undefined as TResponse;
+  }
+
+  return JSON.parse(responseText) as TResponse;
+}
+
+function toApiClientErrorFromPayload(
+  status: number,
+  statusText: string,
+  contentType: string,
+  responseText: string,
+): ApiClientError {
+  const body = parseErrorPayload(status, statusText, contentType, responseText);
+
+  return new ApiClientError({
+    code: body.code,
+    message: body.message,
+    status,
+    details: body.details,
+    path: body.path,
+    timestamp: body.timestamp,
+  });
+}
+
+function parseErrorPayload(
+  status: number,
+  statusText: string,
+  contentType: string,
+  responseText: string,
+): ApiErrorResponse {
+  if (contentType.includes("application/json") && responseText) {
+    const parsed = JSON.parse(responseText) as unknown;
+    if (isApiErrorResponse(parsed)) {
+      return parsed;
+    }
+  }
+
+  return {
+    code: `HTTP_${status}`,
+    message: statusText || `API request failed with HTTP status ${status}.`,
+    details: responseText ? { bodyPreview: responseText.slice(0, 500) } : {},
+  };
 }
 
 async function toApiClientError(response: Response): Promise<ApiClientError> {
