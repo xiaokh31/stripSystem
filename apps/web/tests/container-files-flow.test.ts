@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   formatFileSizeBytes,
+  generationActionNotice,
+  generationFailureMessage,
   generatedFileTypeLabel,
   hasGeneratedLabelPdf,
   isDownloadableGeneratedFile,
@@ -43,6 +45,28 @@ test("generated file labels and sizes are stable", () => {
   assert.equal(generatedFileTypeLabel("PALLET_LABEL_PDF"), "Label PDF");
   assert.equal(formatFileSizeBytes("1536"), "1.5 KB");
   assert.equal(formatFileSizeBytes(null), "-");
+});
+
+test("generation notices describe report overwrite and label rebuild behavior", () => {
+  assert.match(generationActionNotice("report"), /latest saved database values/);
+  assert.match(generationActionNotice("report"), /overwrites/);
+  assert.match(generationActionNotice("labels"), /creates pallet records/);
+  assert.match(generationActionNotice("labels"), /blocks overwrite/);
+});
+
+test("label in-use conflicts explain why regeneration cannot overwrite", () => {
+  assert.equal(
+    generationFailureMessage(
+      "labels",
+      "PALLETS_ALREADY_IN_USE",
+      "Existing pallets cannot be replaced.",
+    ),
+    "Existing pallets cannot be replaced. Existing pallets have already been assigned, loaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.",
+  );
+  assert.equal(
+    generationFailureMessage("report", "REPORT_FAILED", "Report failed."),
+    "Report failed.",
+  );
 });
 
 test("generated files sort newest first", () => {

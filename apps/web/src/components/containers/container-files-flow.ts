@@ -31,6 +31,26 @@ export function generationActionLabel(action: GenerationAction): string {
   return action === "report" ? "Generate Excel Report" : "Generate Label PDF";
 }
 
+export function generationActionNotice(action: GenerationAction): string {
+  if (action === "report") {
+    return "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.";
+  }
+
+  return "Label PDF generation creates pallet records before QR payloads; regeneration replaces unused planned or label-printed pallets, but the API blocks overwrite after pallets are assigned or loaded.";
+}
+
+export function generationFailureMessage(
+  action: GenerationAction,
+  code: string | null,
+  message: string,
+): string {
+  if (action === "labels" && code === "PALLETS_ALREADY_IN_USE") {
+    return `${message} Existing pallets have already been assigned, loaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.`;
+  }
+
+  return message;
+}
+
 export function formatFileSizeBytes(value: string | null): string {
   if (!value) {
     return "-";

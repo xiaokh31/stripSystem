@@ -11,8 +11,10 @@ import {
 } from "@/lib/api-client";
 import {
   formatFileSizeBytes,
+  generationActionNotice,
   generatedFileTypeLabel,
   generationActionLabel,
+  generationFailureMessage,
   isDownloadableGeneratedFile,
   newestGeneratedFiles,
   type GenerationAction,
@@ -88,9 +90,12 @@ export function ContainerGeneratedFiles({
             Reports and labels
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Regeneration uses the latest saved destination data and overwrites
-            the current file record for the same container.
+            Generate downloadable files from the current container data.
           </p>
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-zinc-500">
+            <li>{generationActionNotice("report")}</li>
+            <li>{generationActionNotice("labels")}</li>
+          </ul>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -215,6 +220,11 @@ function GenerationStatus({
       <p className="font-semibold">
         {generation.message}
       </p>
+      {generation.code ? (
+        <p className="mt-1 text-xs font-semibold uppercase">
+          {generation.code}
+        </p>
+      ) : null}
       {generation.file && isDownloadableGeneratedFile(generation.file) ? (
         <a
           className="mt-2 inline-flex min-h-10 items-center border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
@@ -253,7 +263,7 @@ function toGenerationError(
       action,
       code: error.code,
       file: generatedFileFromError(error.details),
-      message: error.message,
+      message: generationFailureMessage(action, error.code, error.message),
       status: "error",
     };
   }

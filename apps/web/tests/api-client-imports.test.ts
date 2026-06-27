@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   createApiClient,
   createManualContainer,
+  generateContainerLabels,
+  generateContainerReport,
   listImportFiles,
 } from "../src/lib/api-client";
 
@@ -151,6 +153,69 @@ test("manual container API client posts to the real correction endpoint", async 
       },
       method: "POST",
       url: "http://api.local/api/containers/manual",
+    },
+  ]);
+});
+
+test("container generation API client posts to report and label endpoints", async () => {
+  const requests: Array<{ method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    requests.push({
+      method: init?.method ?? "GET",
+      url,
+    });
+
+    return new Response(
+      JSON.stringify({
+        generatedFile: {
+          id: url.endsWith("/generate-report") ? "report-file" : "label-file",
+          importFileId: null,
+          containerId: "container manual/1",
+          fileType: url.endsWith("/generate-report")
+            ? "EXCEL_REPORT"
+            : "PALLET_LABEL_PDF",
+          storagePath: "/storage/generated-file",
+          fileSha256: "sha",
+          mimeType: url.endsWith("/generate-report")
+            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            : "application/pdf",
+          fileSizeBytes: "100",
+          status: "GENERATED",
+          errorMessage: null,
+          createdAt: "2026-06-27T00:00:00.000Z",
+          updatedAt: "2026-06-27T00:00:00.000Z",
+        },
+        pallets: [],
+        warnings: [],
+        errors: [],
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 201,
+      },
+    );
+  };
+
+  const report = await generateContainerReport("container manual/1", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+  const labels = await generateContainerLabels("container manual/1", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+
+  assert.equal(report.generatedFile.fileType, "EXCEL_REPORT");
+  assert.equal(labels.generatedFile.fileType, "PALLET_LABEL_PDF");
+  assert.deepEqual(requests, [
+    {
+      method: "POST",
+      url: "http://api.local/api/containers/container%20manual%2F1/generate-report",
+    },
+    {
+      method: "POST",
+      url: "http://api.local/api/containers/container%20manual%2F1/generate-labels",
     },
   ]);
 });
