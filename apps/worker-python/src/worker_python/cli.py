@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import typer
 
@@ -17,6 +19,7 @@ from worker_python.batch import (
 from worker_python.imports import compute_sha256
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import FormatType, detect_excel_format
+from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 
 
@@ -178,6 +181,98 @@ def _parse_payload(
         "errors": _json_ready(errors),
         "exception": _exception_payload(exception),
     }
+
+
+@app.command("write-report")
+def write_report(
+    payload: Path = typer.Option(
+        ...,
+        "--payload",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="JSON payload containing parsed_result and pallet_result for report generation.",
+    ),
+    template: Path = typer.Option(
+        ...,
+        "--template",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Excel unloading report template path.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Report output directory.",
+    ),
+) -> None:
+    generated_at = datetime.now()
+    try:
+        report_payload = json.loads(payload.read_text(encoding="utf-8"))
+        parsed_result = _namespace_from_json(report_payload["parsed_result"])
+        pallet_result = _namespace_from_json(report_payload["pallet_result"])
+        company = str(report_payload.get("company") or "Bestar")
+        result = write_excel_report(
+            parsed_result=parsed_result,
+            pallet_result=pallet_result,
+            output_dir=output_dir.resolve(),
+            template_path=template.resolve(),
+            report_datetime=generated_at,
+            company=company,
+        )
+        task_status = (
+            "ERROR" if result.errors else "WARNING" if result.warnings else "SUCCESS"
+        )
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": task_status,
+                    "report_result": _json_ready(result),
+                    "warnings": _json_ready(result.warnings),
+                    "errors": _json_ready(result.errors),
+                    "exception": None,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    except Exception as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": "ERROR",
+                    "report_result": None,
+                    "warnings": [],
+                    "errors": [
+                        {
+                            "code": "REPORT_GENERATION_FAILED",
+                            "message": f"{type(exc).__name__}: {exc}",
+                        }
+                    ],
+                    "exception": _exception_payload(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+
+
+def _namespace_from_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        return SimpleNamespace(
+            **{str(key): _namespace_from_json(item) for key, item in value.items()}
+        )
+    if isinstance(value, list):
+        return tuple(_namespace_from_json(item) for item in value)
+    return value
 
 
 def main() -> None:

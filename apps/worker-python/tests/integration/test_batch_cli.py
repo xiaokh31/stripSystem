@@ -109,3 +109,50 @@ def test_unloading_worker_parse_file_cli_outputs_parser_only_json() -> None:
     assert payload["pallet_result"]["plans"]
     assert payload["report_result"] is None
     assert payload["label_result"] is None
+
+
+def test_unloading_worker_write_report_cli_generates_excel_only(tmp_path: Path) -> None:
+    runner = CliRunner()
+    parsed = runner.invoke(
+        app,
+        [
+            "parse-file",
+            "--input-file",
+            str(REAL_FIXTURE),
+        ],
+    )
+    assert parsed.exit_code == 0
+    parsed_payload = json.loads(parsed.output)
+    report_payload_path = tmp_path / "report-payload.json"
+    report_payload_path.write_text(
+        json.dumps(
+            {
+                "company": "Bestar",
+                "parsed_result": parsed_payload["parsed_result"],
+                "pallet_result": parsed_payload["pallet_result"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "reports"
+
+    result = runner.invoke(
+        app,
+        [
+            "write-report",
+            "--payload",
+            str(report_payload_path),
+            "--template",
+            str(TEMPLATE_PATH),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["task_status"] in {"SUCCESS", "WARNING"}
+    assert payload["report_result"]["outputPath"].endswith(".xlsx")
+    assert Path(payload["report_result"]["outputPath"]).is_file()
+    assert not list(tmp_path.glob("*.pdf"))

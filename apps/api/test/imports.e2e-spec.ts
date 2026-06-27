@@ -74,6 +74,21 @@ interface DestinationRecord {
   updatedAt: Date;
 }
 
+interface GeneratedFileRecord {
+  id: string;
+  importFileId: string | null;
+  containerId: string | null;
+  fileType: string;
+  storagePath: string;
+  fileSha256: string | null;
+  mimeType: string | null;
+  fileSizeBytes: bigint | number | string | null;
+  status: string;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface ImportFileBody {
   id: string;
   originalFilename: string;
@@ -106,6 +121,25 @@ interface ParseResultBody {
   }>;
   warnings: unknown[];
   errors: unknown[];
+}
+
+interface GenerateReportBody {
+  generatedFile: {
+    id: string;
+    containerId: string;
+    fileType: string;
+    storagePath: string;
+    fileSha256: string;
+    fileSizeBytes: string;
+    status: string;
+    errorMessage: string | null;
+  };
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+interface GeneratedFilesBody {
+  items: GenerateReportBody['generatedFile'][];
 }
 
 interface ImportListBody {
@@ -171,6 +205,7 @@ describe('ImportsController (e2e)', () => {
   let containers: ContainerRecord[];
   let lines: LineRecord[];
   let destinations: DestinationRecord[];
+  let generatedFiles: GeneratedFileRecord[];
   let prisma: any;
   let originalStorageRoot: string | undefined;
 
@@ -182,7 +217,14 @@ describe('ImportsController (e2e)', () => {
     containers = [];
     lines = [];
     destinations = [];
-    prisma = createPrismaMock(records, containers, lines, destinations);
+    generatedFiles = [];
+    prisma = createPrismaMock(
+      records,
+      containers,
+      lines,
+      destinations,
+      generatedFiles,
+    );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -333,6 +375,55 @@ describe('ImportsController (e2e)', () => {
       });
   });
 
+  it('generates an Excel unloading report from a parsed real fixture and records generated_files', async () => {
+    const uploaded = await request(app.getHttpServer())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+
+    const parsed = await request(app.getHttpServer())
+      .post(`/api/imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as ParseResultBody;
+    const containerId = parsedBody.containers[0].id;
+
+    const report = await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-report`)
+      .expect(201);
+    const reportBody = report.body as GenerateReportBody;
+
+    expect(reportBody.generatedFile).toMatchObject({
+      containerId,
+      fileType: 'EXCEL_REPORT',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(reportBody.generatedFile.storagePath).toContain('reports');
+    expect(reportBody.generatedFile.storagePath).toMatch(/\.xlsx$/);
+    expect(reportBody.generatedFile.fileSha256).toEqual(expect.any(String));
+    await expect(
+      stat(reportBody.generatedFile.storagePath),
+    ).resolves.toBeDefined();
+    expect(generatedFiles).toHaveLength(1);
+    expect(generatedFiles[0].storagePath).toBe(
+      reportBody.generatedFile.storagePath,
+    );
+
+    const files = await request(app.getHttpServer())
+      .get(`/api/containers/${containerId}/files`)
+      .expect(200);
+    const filesBody = files.body as GeneratedFilesBody;
+
+    expect(filesBody.items).toMatchObject([
+      {
+        id: reportBody.generatedFile.id,
+        fileType: 'EXCEL_REPORT',
+        status: 'GENERATED',
+      },
+    ]);
+  });
+
   it('records worker parse errors without creating a successful container', async () => {
     const corruptPath = join(storageRoot, 'corrupt.xlsx');
     await writeFile(corruptPath, 'not a real Excel workbook');
@@ -392,6 +483,7 @@ describe('ImportsController (e2e)', () => {
     containerRecords: ContainerRecord[],
     lineRecords: LineRecord[],
     destinationRecords: DestinationRecord[],
+    generatedFileRecords: GeneratedFileRecord[],
   ) {
     const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
@@ -442,6 +534,22 @@ describe('ImportsController (e2e)', () => {
         ),
       },
       container: {
+        findUnique: jest.fn(({ where, include }) => {
+          const container =
+            containerRecords.find((record) => record.id === where.id) ?? null;
+          if (!container || !include) {
+            return Promise.resolve(container);
+          }
+
+          return Promise.resolve({
+            ...container,
+            destinations: destinationRecords
+              .filter((destination) => destination.containerId === container.id)
+              .sort((left, right) =>
+                left.destinationCode.localeCompare(right.destinationCode),
+              ),
+          });
+        }),
         findMany: jest.fn(({ where, select, include }) => {
           const found = containerRecords.filter(
             (container) => container.importFileId === where.importFileId,
@@ -462,19 +570,28 @@ describe('ImportsController (e2e)', () => {
                   .sort((left, right) => left.lineNo - right.lineNo),
                 destinations: destinationRecords
                   .filter(
-                    (destination) =>
-                      destination.containerId === container.id,
+                    (destination) => destination.containerId === container.id,
                   )
                   .sort((left, right) =>
-                    left.destinationCode.localeCompare(
-                      right.destinationCode,
-                    ),
+                    left.destinationCode.localeCompare(right.destinationCode),
                   ),
               })),
             );
           }
 
           return Promise.resolve(found);
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = containerRecords.find(
+            (container) => container.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Container record not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:02:00.000Z'),
+          });
+          return Promise.resolve(record);
         }),
         create: jest.fn(({ data }) => {
           const now = new Date('2026-06-26T00:01:00.000Z');
@@ -535,7 +652,9 @@ describe('ImportsController (e2e)', () => {
               lineRecords.splice(index, 1);
             }
           }
-          return Promise.resolve({ count: originalLength - lineRecords.length });
+          return Promise.resolve({
+            count: originalLength - lineRecords.length,
+          });
         }),
       },
       containerDestination: {
@@ -563,11 +682,7 @@ describe('ImportsController (e2e)', () => {
         deleteMany: jest.fn(({ where }) => {
           const ids = new Set<string>(where.containerId.in);
           const originalLength = destinationRecords.length;
-          for (
-            let index = destinationRecords.length - 1;
-            index >= 0;
-            index--
-          ) {
+          for (let index = destinationRecords.length - 1; index >= 0; index--) {
             if (ids.has(destinationRecords[index].containerId)) {
               destinationRecords.splice(index, 1);
             }
@@ -575,6 +690,38 @@ describe('ImportsController (e2e)', () => {
           return Promise.resolve({
             count: originalLength - destinationRecords.length,
           });
+        }),
+      },
+      generatedFile: {
+        create: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:02:00.000Z');
+          const record: GeneratedFileRecord = {
+            id: `generated-file-${generatedFileRecords.length + 1}`,
+            importFileId: data.importFileId,
+            containerId: data.containerId,
+            fileType: data.fileType,
+            storagePath: data.storagePath,
+            fileSha256: data.fileSha256,
+            mimeType: data.mimeType,
+            fileSizeBytes: data.fileSizeBytes,
+            status: data.status,
+            errorMessage: data.errorMessage,
+            createdAt: now,
+            updatedAt: now,
+          };
+          generatedFileRecords.push(record);
+          return Promise.resolve(record);
+        }),
+        findMany: jest.fn(({ where, take, skip }) => {
+          const found = generatedFileRecords
+            .filter((record) => record.containerId === where.containerId)
+            .sort(
+              (left, right) =>
+                right.createdAt.getTime() - left.createdAt.getTime(),
+            );
+          const start = skip ?? 0;
+          const end = take === undefined ? undefined : start + take;
+          return Promise.resolve(found.slice(start, end));
         }),
       },
     };

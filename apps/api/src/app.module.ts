@@ -7,6 +7,7 @@ import { CorrectionsModule } from './corrections/corrections.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     ImportsModule,
     CorrectionsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

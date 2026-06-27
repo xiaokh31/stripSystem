@@ -9,6 +9,7 @@ export interface AppConfiguration {
   databaseUrl: string;
   storageRoot: string;
   workerPythonDir: string;
+  reportTemplatePath: string;
 }
 
 export const appConfig = (): { app: AppConfiguration } => ({
@@ -18,6 +19,8 @@ export const appConfig = (): { app: AppConfiguration } => ({
     databaseUrl: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
     storageRoot: process.env.STORAGE_ROOT ?? defaultStorageRoot(),
     workerPythonDir: process.env.WORKER_PYTHON_DIR ?? defaultWorkerPythonDir(),
+    reportTemplatePath:
+      process.env.REPORT_TEMPLATE_PATH ?? defaultReportTemplatePath(),
   },
 });
 
@@ -27,6 +30,10 @@ function defaultStorageRoot(): string {
 
 function defaultWorkerPythonDir(): string {
   return resolve(defaultRepoRoot(), 'apps', 'worker-python');
+}
+
+function defaultReportTemplatePath(): string {
+  return resolve(defaultRepoRoot(), 'samples', 'templates', '卸柜报告-En.xlsx');
 }
 
 function defaultRepoRoot(): string {
