@@ -207,6 +207,36 @@ export interface GenerateLabelsResponse {
   errors: unknown[];
 }
 
+export interface PalletStatsResponse {
+  totalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+}
+
+export interface ContainerSummaryItemResponse extends PalletStatsResponse {
+  containerId: string;
+  containerNo: string;
+  status: string;
+}
+
+export interface ContainerSummaryListResponse {
+  items: ContainerSummaryItemResponse[];
+}
+
+export interface DestinationInventoryItemResponse extends PalletStatsResponse {
+  destinationCode: string;
+}
+
+export interface InventoryListResponse {
+  items: DestinationInventoryItemResponse[];
+}
+
+export interface InventoryReportFilters {
+  containerNo?: string;
+  destinationCode?: string;
+  status?: string;
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
@@ -347,6 +377,24 @@ export function generateContainerLabels(
   );
 }
 
+export function getContainerInventorySummary(
+  filters: InventoryReportFilters = {},
+  options: ApiClientOptions = {},
+): Promise<ContainerSummaryListResponse> {
+  return createApiClient(options).get<ContainerSummaryListResponse>(
+    `/reports/container-summary${toInventoryQueryString(filters)}`,
+  );
+}
+
+export function getDestinationInventory(
+  filters: InventoryReportFilters = {},
+  options: ApiClientOptions = {},
+): Promise<InventoryListResponse> {
+  return createApiClient(options).get<InventoryListResponse>(
+    `/reports/inventory${toInventoryQueryString(filters)}`,
+  );
+}
+
 export function getGeneratedFileDownloadUrl(
   containerId: string,
   fileId: string,
@@ -474,6 +522,28 @@ export function buildApiUrl(path: string, baseUrl = getApiBaseUrl()): string {
 function normalizeBaseUrl(value: string): string {
   const trimmed = value.trim();
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+function toInventoryQueryString(filters: InventoryReportFilters): string {
+  const params = new URLSearchParams();
+
+  appendQueryParam(params, "containerNo", filters.containerNo);
+  appendQueryParam(params, "destinationCode", filters.destinationCode);
+  appendQueryParam(params, "status", filters.status);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function appendQueryParam(
+  params: URLSearchParams,
+  key: string,
+  value: string | undefined,
+) {
+  const trimmed = value?.trim();
+  if (trimmed) {
+    params.set(key, trimmed);
+  }
 }
 
 function serializeBody(
