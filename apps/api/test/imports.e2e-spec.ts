@@ -32,6 +32,8 @@ interface ContainerRecord {
   id: string;
   importFileId: string | null;
   containerNo: string;
+  dockNo?: string | null;
+  company?: string | null;
   sourceFormat: string;
   parserVersion: string | null;
   status: string;
@@ -152,6 +154,7 @@ interface ParseResultBody {
 interface GenerateReportBody {
   generatedFile: {
     id: string;
+    importFileId: string | null;
     containerId: string;
     fileType: string;
     storagePath: string;
@@ -512,6 +515,90 @@ describe('ImportsController (e2e)', () => {
     ]);
   });
 
+  it('generates an Excel unloading report for a manual container without an import file', async () => {
+    const manual = await request(app.getHttpServer())
+      .post('/api/containers/manual')
+      .send({
+        containerNo: 'MANU1234567',
+        company: 'Manual Customer',
+        dockNo: 'D7',
+        reason: 'Original manifest could not be parsed',
+        destinations: [
+          {
+            destinationCode: 'YEG1',
+            destinationType: 'WAREHOUSE',
+            cartons: 36,
+            pallets: 4,
+            volume: 0,
+            note: 'Manual report line',
+          },
+          {
+            destinationCode: 'YVR2',
+            cartons: 12,
+            pallets: 2,
+            volume: 1.5,
+          },
+        ],
+      })
+      .expect(201);
+    const containerId = manual.body.container.id as string;
+
+    expect(manual.body.container).toMatchObject({
+      id: containerId,
+      importFileId: null,
+      containerNo: 'MANU1234567',
+      sourceFormat: 'UNKNOWN',
+      parserVersion: 'manual-entry-v1',
+      destinations: [
+        expect.objectContaining({
+          destinationCode: 'YEG1',
+          calculatedPallets: 0,
+          manualPallets: 4,
+          finalPallets: 4,
+        }),
+        expect.objectContaining({
+          destinationCode: 'YVR2',
+          calculatedPallets: 0,
+          manualPallets: 2,
+          finalPallets: 2,
+        }),
+      ],
+    });
+
+    const report = await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-report`)
+      .expect(201);
+    const reportBody = report.body as GenerateReportBody;
+
+    expect(reportBody.generatedFile).toMatchObject({
+      importFileId: null,
+      containerId,
+      fileType: 'EXCEL_REPORT',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(reportBody.generatedFile.storagePath).toContain('reports');
+    expect(reportBody.generatedFile.storagePath).toContain('MANU1234567');
+    await expect(
+      stat(reportBody.generatedFile.storagePath),
+    ).resolves.toBeDefined();
+
+    const files = await request(app.getHttpServer())
+      .get(`/api/containers/${containerId}/files`)
+      .expect(200);
+    const filesBody = files.body as GeneratedFilesBody;
+
+    expect(filesBody.items).toMatchObject([
+      {
+        id: reportBody.generatedFile.id,
+        importFileId: null,
+        containerId,
+        fileType: 'EXCEL_REPORT',
+        status: 'GENERATED',
+      },
+    ]);
+  });
+
   it('generates pallet labels, reports inventory summaries, and blocks duplicate generation', async () => {
     const uploaded = await request(app.getHttpServer())
       .post('/api/imports')
@@ -817,8 +904,10 @@ describe('ImportsController (e2e)', () => {
           const now = new Date('2026-06-26T00:01:00.000Z');
           const record: ContainerRecord = {
             id: `container-${containerRecords.length + 1}`,
-            importFileId: data.importFileId,
+            importFileId: data.importFileId ?? null,
             containerNo: data.containerNo,
+            dockNo: data.dockNo ?? null,
+            company: data.company ?? null,
             sourceFormat: data.sourceFormat,
             parserVersion: data.parserVersion,
             status: data.status,
@@ -878,6 +967,27 @@ describe('ImportsController (e2e)', () => {
         }),
       },
       containerDestination: {
+        create: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:01:00.000Z');
+          const record: DestinationRecord = {
+            id: `destination-${destinationRecords.length + 1}`,
+            containerId: data.containerId,
+            destinationCode: data.destinationCode,
+            destinationType: data.destinationType,
+            cartons: data.cartons,
+            volume: data.volume,
+            calculatedPallets: data.calculatedPallets,
+            manualPallets: data.manualPallets,
+            finalPallets: data.finalPallets,
+            note: data.note,
+            warnings: data.warnings,
+            errors: data.errors,
+            createdAt: now,
+            updatedAt: now,
+          };
+          destinationRecords.push(record);
+          return Promise.resolve(record);
+        }),
         createMany: jest.fn(({ data }) => {
           const now = new Date('2026-06-26T00:01:00.000Z');
           const rows: DestinationRecord[] = data.map((row, index) => ({
@@ -911,6 +1021,24 @@ describe('ImportsController (e2e)', () => {
             count: originalLength - destinationRecords.length,
           });
         }),
+      },
+      correctionFeedback: {
+        create: jest.fn(({ data }) =>
+          Promise.resolve({
+            id: `correction-${Date.now()}`,
+            importFileId: null,
+            containerId: null,
+            containerLineId: null,
+            containerDestinationId: null,
+            palletId: null,
+            generatedFileId: null,
+            correctedById: null,
+            note: null,
+            ...data,
+            createdAt: new Date('2026-06-26T00:01:00.000Z'),
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          }),
+        ),
       },
       generatedFile: {
         create: jest.fn(({ data }) => {
