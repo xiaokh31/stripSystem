@@ -156,3 +156,52 @@ def test_unloading_worker_write_report_cli_generates_excel_only(tmp_path: Path) 
     assert payload["report_result"]["outputPath"].endswith(".xlsx")
     assert Path(payload["report_result"]["outputPath"]).is_file()
     assert not list(tmp_path.glob("*.pdf"))
+
+
+def test_unloading_worker_write_labels_cli_generates_pdf_only(tmp_path: Path) -> None:
+    runner = CliRunner()
+    parsed = runner.invoke(
+        app,
+        [
+            "parse-file",
+            "--input-file",
+            str(REAL_FIXTURE),
+        ],
+    )
+    assert parsed.exit_code == 0
+    parsed_payload = json.loads(parsed.output)
+    label_payload_path = tmp_path / "label-payload.json"
+    label_payload_path.write_text(
+        json.dumps(
+            {
+                "parsed_result": parsed_payload["parsed_result"],
+                "pallet_result": parsed_payload["pallet_result"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "labels"
+
+    result = runner.invoke(
+        app,
+        [
+            "write-labels",
+            "--payload",
+            str(label_payload_path),
+            "--output-dir",
+            str(output_dir),
+            "--label-date",
+            "2026-06-26",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["task_status"] in {"SUCCESS", "WARNING"}
+    assert payload["label_result"]["outputPath"].endswith(".pdf")
+    assert Path(payload["label_result"]["outputPath"]).is_file()
+    assert payload["label_result"]["labelCount"] > 0
+    assert payload["label_result"]["palletIds"]
+    assert payload["label_result"]["qrPayloads"][0].startswith("SSP1|PALLET|")
+    assert not list(tmp_path.glob("*.xlsx"))

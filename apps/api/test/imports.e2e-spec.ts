@@ -89,6 +89,30 @@ interface GeneratedFileRecord {
   updatedAt: Date;
 }
 
+interface PalletRecord {
+  id: string;
+  containerDestinationId: string;
+  palletNo: number;
+  palletId: string;
+  qrPayload: string;
+  status: string;
+  labelPrintedAt: Date | string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PalletEventRecord {
+  id: string;
+  palletId: string | null;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  scanPayload: string | null;
+  metadata: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface ImportFileBody {
   id: string;
   originalFilename: string;
@@ -140,6 +164,29 @@ interface GenerateReportBody {
 
 interface GeneratedFilesBody {
   items: GenerateReportBody['generatedFile'][];
+}
+
+interface PalletBody {
+  id: string;
+  containerId: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  palletNo: number;
+  palletId: string;
+  qrPayload: string;
+  status: string;
+  labelPrintedAt: string | null;
+}
+
+interface GenerateLabelsBody {
+  generatedFile: GenerateReportBody['generatedFile'];
+  pallets: PalletBody[];
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+interface PalletListBody {
+  items: PalletBody[];
 }
 
 interface ImportListBody {
@@ -206,6 +253,8 @@ describe('ImportsController (e2e)', () => {
   let lines: LineRecord[];
   let destinations: DestinationRecord[];
   let generatedFiles: GeneratedFileRecord[];
+  let pallets: PalletRecord[];
+  let palletEvents: PalletEventRecord[];
   let prisma: any;
   let originalStorageRoot: string | undefined;
 
@@ -218,12 +267,16 @@ describe('ImportsController (e2e)', () => {
     lines = [];
     destinations = [];
     generatedFiles = [];
+    pallets = [];
+    palletEvents = [];
     prisma = createPrismaMock(
       records,
       containers,
       lines,
       destinations,
       generatedFiles,
+      pallets,
+      palletEvents,
     );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -424,6 +477,78 @@ describe('ImportsController (e2e)', () => {
     ]);
   });
 
+  it(
+    'generates pallet labels from a parsed real fixture and blocks duplicate generation',
+    async () => {
+      const uploaded = await request(app.getHttpServer())
+        .post('/api/imports')
+        .attach('file', fixturePath)
+        .expect(201);
+      const uploadedBody = uploaded.body as ImportFileBody;
+
+      const parsed = await request(app.getHttpServer())
+        .post(`/api/imports/${uploadedBody.id}/parse`)
+        .expect(201);
+      const parsedBody = parsed.body as ParseResultBody;
+      const containerId = parsedBody.containers[0].id;
+      const expectedPalletCount = parsedBody.containers[0].destinations.reduce(
+        (total, destination) => total + destination.finalPallets,
+        0,
+      );
+
+      const labels = await request(app.getHttpServer())
+        .post(`/api/containers/${containerId}/generate-labels`)
+        .expect(201);
+      const labelsBody = labels.body as GenerateLabelsBody;
+
+      expect(labelsBody.generatedFile).toMatchObject({
+        containerId,
+        fileType: 'PALLET_LABEL_PDF',
+        status: 'GENERATED',
+        errorMessage: null,
+      });
+      expect(labelsBody.generatedFile.storagePath).toContain('labels');
+      expect(labelsBody.generatedFile.storagePath).toMatch(/\.pdf$/);
+      await expect(
+        stat(labelsBody.generatedFile.storagePath),
+      ).resolves.toBeDefined();
+      expect(labelsBody.pallets).toHaveLength(expectedPalletCount);
+      expect(pallets).toHaveLength(expectedPalletCount);
+      expect(palletEvents.length).toBe(expectedPalletCount * 2);
+      expect(
+        new Set(labelsBody.pallets.map((pallet) => pallet.palletId)).size,
+      ).toBe(expectedPalletCount);
+      expect(
+        labelsBody.pallets.every(
+          (pallet) =>
+            pallet.status === 'LABEL_PRINTED' &&
+            pallet.qrPayload.startsWith('SSP1|PALLET|') &&
+            pallet.qrPayload.includes(pallet.palletId),
+        ),
+      ).toBe(true);
+
+      const list = await request(app.getHttpServer())
+        .get(`/api/pallets?containerId=${containerId}`)
+        .expect(200);
+      const listBody = list.body as PalletListBody;
+
+      expect(listBody.items).toHaveLength(expectedPalletCount);
+      expect(listBody.items[0]).toMatchObject({
+        containerId,
+        status: 'LABEL_PRINTED',
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/containers/${containerId}/generate-labels`)
+        .expect(409)
+        .expect((response) => {
+          const body = response.body as ErrorBody;
+          expect(body.code).toBe('PALLETS_ALREADY_EXIST');
+        });
+    },
+    30_000,
+  );
+
   it('records worker parse errors without creating a successful container', async () => {
     const corruptPath = join(storageRoot, 'corrupt.xlsx');
     await writeFile(corruptPath, 'not a real Excel workbook');
@@ -484,6 +609,8 @@ describe('ImportsController (e2e)', () => {
     lineRecords: LineRecord[],
     destinationRecords: DestinationRecord[],
     generatedFileRecords: GeneratedFileRecord[],
+    palletRecords: PalletRecord[],
+    palletEventRecords: PalletEventRecord[],
   ) {
     const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
@@ -545,6 +672,12 @@ describe('ImportsController (e2e)', () => {
             ...container,
             destinations: destinationRecords
               .filter((destination) => destination.containerId === container.id)
+              .map((destination) => ({
+                ...destination,
+                pallets: palletRecords.filter(
+                  (pallet) => pallet.containerDestinationId === destination.id,
+                ),
+              }))
               .sort((left, right) =>
                 left.destinationCode.localeCompare(right.destinationCode),
               ),
@@ -722,6 +855,88 @@ describe('ImportsController (e2e)', () => {
           const start = skip ?? 0;
           const end = take === undefined ? undefined : start + take;
           return Promise.resolve(found.slice(start, end));
+        }),
+      },
+      pallet: {
+        create: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:03:00.000Z');
+          const record: PalletRecord = {
+            id: `pallet-${palletRecords.length + 1}`,
+            containerDestinationId: data.containerDestinationId,
+            palletNo: data.palletNo,
+            palletId: data.palletId,
+            qrPayload: data.qrPayload,
+            status: data.status,
+            labelPrintedAt: data.labelPrintedAt,
+            createdAt: now,
+            updatedAt: now,
+          };
+          palletRecords.push(record);
+          return Promise.resolve(record);
+        }),
+        updateMany: jest.fn(({ where, data }) => {
+          const ids = new Set<string>(where.id.in);
+          let count = 0;
+          palletRecords.forEach((record) => {
+            if (ids.has(record.id)) {
+              Object.assign(record, data, {
+                updatedAt: new Date('2026-06-26T00:04:00.000Z'),
+              });
+              count += 1;
+            }
+          });
+          return Promise.resolve({ count });
+        }),
+        findMany: jest.fn(({ where }) => {
+          const found = palletRecords
+            .filter((pallet) => {
+              const destination = destinationRecords.find(
+                (record) => record.id === pallet.containerDestinationId,
+              );
+              return (
+                destination?.containerId ===
+                where.containerDestination.containerId
+              );
+            })
+            .map((pallet) => {
+              const destination = destinationRecords.find(
+                (record) => record.id === pallet.containerDestinationId,
+              );
+              return {
+                ...pallet,
+                containerDestination: {
+                  containerId: destination?.containerId ?? '',
+                  destinationCode: destination?.destinationCode ?? '',
+                  destinationType: destination?.destinationType ?? null,
+                },
+              };
+            })
+            .sort((left, right) =>
+              left.containerDestinationId === right.containerDestinationId
+                ? left.palletNo - right.palletNo
+                : left.containerDestinationId.localeCompare(
+                    right.containerDestinationId,
+                  ),
+            );
+          return Promise.resolve(found);
+        }),
+      },
+      palletEvent: {
+        createMany: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:04:00.000Z');
+          const rows: PalletEventRecord[] = data.map((row, index) => ({
+            id: `pallet-event-${palletEventRecords.length + index + 1}`,
+            palletId: row.palletId,
+            eventType: row.eventType,
+            fromStatus: row.fromStatus,
+            toStatus: row.toStatus,
+            scanPayload: row.scanPayload,
+            metadata: row.metadata,
+            createdAt: now,
+            updatedAt: now,
+          }));
+          palletEventRecords.push(...rows);
+          return Promise.resolve({ count: rows.length });
         }),
       },
     };

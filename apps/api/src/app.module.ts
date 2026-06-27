@@ -6,6 +6,7 @@ import { appConfig } from './config/app.config';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
+import { LabelsModule } from './labels/labels.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 
@@ -21,6 +22,7 @@ import { ReportsModule } from './reports/reports.module';
     ImportsModule,
     CorrectionsModule,
     ReportsModule,
+    LabelsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

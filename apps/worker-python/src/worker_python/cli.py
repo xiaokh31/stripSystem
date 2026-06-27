@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -17,6 +17,7 @@ from worker_python.batch import (
     run_batch,
 )
 from worker_python.imports import compute_sha256
+from worker_python.labels import generate_pallet_label_pdf
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
@@ -254,6 +255,85 @@ def write_report(
                     "errors": [
                         {
                             "code": "REPORT_GENERATION_FAILED",
+                            "message": f"{type(exc).__name__}: {exc}",
+                        }
+                    ],
+                    "exception": _exception_payload(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+
+
+@app.command("write-labels")
+def write_labels(
+    payload: Path = typer.Option(
+        ...,
+        "--payload",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="JSON payload containing parsed_result and pallet_result for label generation.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Label PDF output directory.",
+    ),
+    label_date: str | None = typer.Option(
+        None,
+        "--label-date",
+        help="Label date in YYYY-MM-DD format. Defaults to today.",
+    ),
+) -> None:
+    generated_at = datetime.now()
+    try:
+        label_payload = json.loads(payload.read_text(encoding="utf-8"))
+        parsed_result = _namespace_from_json(label_payload["parsed_result"])
+        pallet_result = _namespace_from_json(label_payload["pallet_result"])
+        label_day = (
+            date.fromisoformat(label_date) if label_date else generated_at.date()
+        )
+        result = generate_pallet_label_pdf(
+            parsed_result=parsed_result,
+            pallet_result=pallet_result,
+            output_dir=output_dir.resolve(),
+            label_date=label_day,
+        )
+        task_status = (
+            "ERROR" if result.errors else "WARNING" if result.warnings else "SUCCESS"
+        )
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": task_status,
+                    "label_result": _json_ready(result),
+                    "warnings": _json_ready(result.warnings),
+                    "errors": _json_ready(result.errors),
+                    "exception": None,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    except Exception as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": "ERROR",
+                    "label_result": None,
+                    "warnings": [],
+                    "errors": [
+                        {
+                            "code": "LABEL_GENERATION_FAILED",
                             "message": f"{type(exc).__name__}: {exc}",
                         }
                     ],
