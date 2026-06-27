@@ -6,6 +6,7 @@ const navItems: OfficeNavItem[] = [
   { href: "/imports", label: "Imports" },
   { href: "/containers", label: "Containers" },
   { href: "/reports", label: "Reports" },
+  { href: "/mobile/load-jobs", label: "Mobile Scan" },
   { href: "/settings", label: "Settings" },
 ];
 

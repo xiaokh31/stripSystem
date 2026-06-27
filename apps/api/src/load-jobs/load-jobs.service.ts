@@ -86,6 +86,7 @@ interface LoadJobLineRecord {
 interface ContainerDestinationRecord {
   id: string;
   containerId: string;
+  container?: ContainerRecord | null;
   destinationCode: string;
   destinationType: string | null;
 }
@@ -203,6 +204,12 @@ const PALLET_INCLUDE = {
     select: {
       id: true,
       containerId: true,
+      container: {
+        select: {
+          id: true,
+          containerNo: true,
+        },
+      },
       destinationCode: true,
       destinationType: true,
     },
@@ -1345,6 +1352,8 @@ export class LoadJobsService {
   ): ScannedPalletResponseDto {
     return {
       id: pallet.id,
+      containerId: pallet.containerDestination?.containerId ?? '',
+      containerNo: pallet.containerDestination?.container?.containerNo ?? '',
       containerDestinationId: pallet.containerDestinationId,
       destinationCode: pallet.containerDestination?.destinationCode ?? '',
       destinationType: pallet.containerDestination?.destinationType ?? null,

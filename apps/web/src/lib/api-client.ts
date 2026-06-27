@@ -285,6 +285,100 @@ export interface InventoryReportFilters {
   status?: string;
 }
 
+export interface LoadJobContainerResponse {
+  id: string;
+  containerNo: string;
+}
+
+export interface LoadJobLineResponse {
+  id: string;
+  sequence: number;
+  sourceText: string | null;
+  containerNo: string | null;
+  containerId: string | null;
+  container: LoadJobContainerResponse | null;
+  containerDestinationId: string | null;
+  destinationCode: string | null;
+  plannedPallets: number;
+  externalTransfer: boolean;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoadJobResponse {
+  id: string;
+  containerId: string | null;
+  container: LoadJobContainerResponse | null;
+  loadNo: string | null;
+  truckNo: string | null;
+  carrier: string | null;
+  destinationRegion: string | null;
+  status: string;
+  canScan: boolean;
+  createdById: string | null;
+  startedAt: string | null;
+  scheduledDepartureAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines: LoadJobLineResponse[];
+  plannedPalletCount: number;
+  externalPalletCount: number;
+  palletCount: number;
+  eventCount: number;
+}
+
+export interface LoadJobListResponse {
+  items: LoadJobResponse[];
+  limit: number;
+  offset: number;
+}
+
+export interface LoadJobListFilters {
+  containerId?: string;
+  destinationRegion?: string;
+  limit?: number;
+  loadNo?: string;
+  offset?: number;
+  status?: string;
+}
+
+export interface LoadJobProgressResponse {
+  totalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+}
+
+export interface ScannedPalletResponse {
+  id: string;
+  containerId: string;
+  containerNo: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  palletNo: number;
+  palletId: string;
+  qrPayload: string;
+  status: string;
+  loadedAt: string | null;
+  loadJobId: string | null;
+}
+
+export interface ScanPalletRequest {
+  deviceId?: string;
+  operatorId?: string;
+  qrPayload: string;
+}
+
+export interface LoadJobScanResponse {
+  result: "LOADED" | "DUPLICATE";
+  loadJob: LoadJobResponse;
+  pallet: ScannedPalletResponse;
+  progress: LoadJobProgressResponse;
+  eventId: string | null;
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
@@ -485,6 +579,35 @@ export function getDestinationInventory(
   );
 }
 
+export function listLoadJobs(
+  filters: LoadJobListFilters = {},
+  options: ApiClientOptions = {},
+): Promise<LoadJobListResponse> {
+  return createApiClient(options).get<LoadJobListResponse>(
+    `/load-jobs${toLoadJobListQueryString(filters)}`,
+  );
+}
+
+export function getLoadJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<LoadJobResponse> {
+  return createApiClient(options).get<LoadJobResponse>(
+    `/load-jobs/${encodeURIComponent(id)}`,
+  );
+}
+
+export function scanLoadJobPallet(
+  id: string,
+  body: ScanPalletRequest,
+  options: ApiClientOptions = {},
+): Promise<LoadJobScanResponse> {
+  return createApiClient(options).post<LoadJobScanResponse>(
+    `/load-jobs/${encodeURIComponent(id)}/scan`,
+    { ...body },
+  );
+}
+
 export function getGeneratedFileDownloadUrl(
   containerId: string,
   fileId: string,
@@ -642,6 +765,20 @@ function toImportListQueryString(filters: ImportListFilters): string {
 
   appendNumberQueryParam(params, "limit", filters.limit);
   appendNumberQueryParam(params, "offset", filters.offset);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toLoadJobListQueryString(filters: LoadJobListFilters): string {
+  const params = new URLSearchParams();
+
+  appendQueryParam(params, "containerId", filters.containerId);
+  appendQueryParam(params, "destinationRegion", filters.destinationRegion);
+  appendNumberQueryParam(params, "limit", filters.limit);
+  appendQueryParam(params, "loadNo", filters.loadNo);
+  appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "status", filters.status);
 
   const query = params.toString();
   return query ? `?${query}` : "";

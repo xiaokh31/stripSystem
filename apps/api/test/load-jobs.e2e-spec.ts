@@ -232,6 +232,8 @@ describe('LoadJobsController (e2e)', () => {
       result: 'LOADED',
       pallet: {
         id: 'pallet-1',
+        containerId: 'container-1',
+        containerNo: 'CSNU8877228',
         palletId: 'PALLET-001',
         status: 'LOADED',
         loadJobId: 'load-job-1',
@@ -557,10 +559,23 @@ describe('LoadJobsController (e2e)', () => {
     });
     const hydratePallet = (record: any) => ({
       ...record,
-      containerDestination:
-        destinations.find(
-          (destination) => destination.id === record.containerDestinationId,
-        ) ?? null,
+      containerDestination: (() => {
+        const destination =
+          destinations.find(
+            (item) => item.id === record.containerDestinationId,
+          ) ?? null;
+        if (!destination) {
+          return null;
+        }
+
+        return {
+          ...destination,
+          container:
+            containers.find(
+              (container) => container.id === destination.containerId,
+            ) ?? null,
+        };
+      })(),
     });
     const matchesLoadJobWhere = (record: any, where: any) => {
       if (!where) {

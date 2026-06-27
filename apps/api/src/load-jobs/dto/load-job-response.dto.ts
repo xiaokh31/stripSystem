@@ -64,6 +64,8 @@ export interface LoadJobProgressDto {
 
 export interface ScannedPalletResponseDto {
   id: string;
+  containerId: string;
+  containerNo: string;
   containerDestinationId: string;
   destinationCode: string;
   destinationType: string | null;
