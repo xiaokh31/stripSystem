@@ -67,12 +67,20 @@ export default async function ImportDetailPage({
               {state.importFile.originalFilename}
             </h1>
           </div>
-          <Link
-            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-            href="/imports/new"
-          >
-            Upload another file
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+              href={manualHref}
+            >
+              Create manual report
+            </Link>
+            <Link
+              className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+              href="/imports/new"
+            >
+              Upload another file
+            </Link>
+          </div>
         </div>
       </section>
 

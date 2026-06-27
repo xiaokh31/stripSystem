@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ApiClientError,
   createContainerDestination,
@@ -54,10 +54,6 @@ export function ContainerDestinationCorrections({
   );
   const [createState, setCreateState] =
     useState<DestinationSaveState>(idleSaveState);
-
-  useEffect(() => {
-    setDrafts(initialDrafts);
-  }, [initialDrafts]);
 
   function updateDraft(
     destinationId: string,

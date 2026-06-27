@@ -167,6 +167,7 @@ export default async function ContainerDetailPage({
       <ContainerDestinationCorrections
         containerId={state.container.id}
         destinations={state.container.destinations}
+        key={destinationsVersion(state.container.destinations)}
       />
     </main>
   );
@@ -228,6 +229,17 @@ function statusBadgeStyles(status: string): string {
     return "border-red-200 bg-red-50 text-red-800";
   }
   return "border-zinc-200 bg-zinc-50 text-zinc-700";
+}
+
+function destinationsVersion(
+  destinations: ContainerDetailResponse["destinations"],
+): string {
+  return destinations
+    .map(
+      (destination) =>
+        `${destination.id}:${destination.updatedAt}:${destination.destinationCode}:${destination.destinationType ?? ""}:${destination.manualPallets ?? ""}:${destination.totalCartons}:${destination.totalVolumeCbm}`,
+    )
+    .join("|");
 }
 
 function ContainerDetailError({

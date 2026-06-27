@@ -39,7 +39,7 @@ test("parsed containers produce detail links", () => {
   ]);
 });
 
-test("manual report entry appears only after parse failure or empty parsed result", () => {
+test("manual report fallback panel appears after parse failure or empty parsed result", () => {
   assert.equal(
     shouldOfferManualReportEntry({
       parseResult: null,
