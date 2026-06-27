@@ -68,6 +68,95 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('creates a manual unloading container with destinations and audit rows', async () => {
+    const result = await service.createManualContainer({
+      containerNo: 'MANU1234567',
+      company: 'Manual Customer',
+      dockNo: 'D7',
+      reason: 'Original manifest could not be parsed',
+      correctionNote: 'Created from office manual entry',
+      destinations: [
+        {
+          destinationCode: 'YEG1',
+          destinationType: 'WAREHOUSE',
+          cartons: 36,
+          pallets: 4,
+          note: 'Manual report line',
+        },
+        {
+          destinationCode: 'YVR2',
+          cartons: 12,
+          pallets: 2,
+          volume: 1.5,
+        },
+      ],
+    });
+
+    expect(result.container).toMatchObject({
+      importFileId: null,
+      containerNo: 'MANU1234567',
+      dockNo: 'D7',
+      company: 'Manual Customer',
+      sourceFormat: 'UNKNOWN',
+      parserVersion: 'manual-entry-v1',
+      status: 'CORRECTED',
+      totalCartons: 48,
+      totalVolumeCbm: '1.500',
+      destinations: [
+        expect.objectContaining({
+          destinationCode: 'YEG1',
+          totalCartons: 36,
+          totalVolumeCbm: '0.000',
+          manualPallets: 4,
+          finalPallets: 4,
+        }),
+        expect.objectContaining({
+          destinationCode: 'YVR2',
+          totalCartons: 12,
+          totalVolumeCbm: '1.500',
+          manualPallets: 2,
+          finalPallets: 2,
+        }),
+      ],
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'manualContainer',
+      'manualContainerDestination',
+      'manualContainerDestination',
+    ]);
+    expect(prisma.container.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        containerNo: 'MANU1234567',
+        sourceFormat: 'UNKNOWN',
+        parserVersion: 'manual-entry-v1',
+        status: 'CORRECTED',
+      }),
+    });
+    expect(prisma.containerDestination.create).toHaveBeenCalledTimes(2);
+    expect(prisma.containerDestination.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        containerId: result.container.id,
+        destinationCode: 'YEG1',
+        cartons: 36,
+        calculatedPallets: 0,
+        manualPallets: 4,
+        finalPallets: 4,
+      }),
+    });
+    expect(prisma.containerDestination.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        containerId: result.container.id,
+        destinationCode: 'YVR2',
+        cartons: 12,
+        volume: '1.500',
+        calculatedPallets: 0,
+        manualPallets: 2,
+        finalPallets: 2,
+      }),
+    });
+    expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(3);
+  });
+
   it('creates a manual actual unloading destination and writes audit rows', async () => {
     const result = await service.createContainerDestination('container-1', {
       cartons: 12,
@@ -105,6 +194,24 @@ describe('CorrectionsService', () => {
   });
 
   function createPrismaMock() {
+    const containers = [
+      {
+        id: 'container-1',
+        importFileId: 'import-1',
+        containerNo: 'CSNU8877228',
+        dockNo: null,
+        company: 'BESTAR',
+        sourceFormat: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        status: 'PARSED',
+        rawJson: {},
+        warnings: [],
+        errors: [],
+        destinations: [] as any[],
+        createdAt: new Date('2026-06-26T00:00:00.000Z'),
+        updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+      },
+    ];
     const destination = {
       id: 'destination-1',
       containerId: 'container-1',
@@ -122,26 +229,29 @@ describe('CorrectionsService', () => {
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     };
     const corrections: any[] = [];
+    let manualDestinationCount = 0;
+    containers[0].destinations = [destination];
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
       container: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'container-1',
-          importFileId: 'import-1',
-          containerNo: 'CSNU8877228',
-          dockNo: null,
-          company: 'BESTAR',
-          sourceFormat: 'UNLOADING_PLAN_CN',
-          parserVersion: 'unloading-plan-cn-v1',
-          status: 'PARSED',
-          rawJson: {},
-          warnings: [],
-          errors: [],
-          destinations: [destination],
-          createdAt: new Date('2026-06-26T00:00:00.000Z'),
-          updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+        create: jest.fn(({ data }) => {
+          const created = {
+            id: `container-${containers.length + 1}`,
+            importFileId: null,
+            ...data,
+            destinations: [],
+            createdAt: new Date('2026-06-26T00:01:00.000Z'),
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          };
+          containers.push(created);
+          return Promise.resolve(created);
         }),
+        findUnique: jest.fn(({ where }) =>
+          Promise.resolve(
+            containers.find((container) => container.id === where.id) ?? null,
+          ),
+        ),
         update: jest.fn().mockResolvedValue({
           id: 'container-1',
           status: 'CORRECTED',
@@ -150,12 +260,17 @@ describe('CorrectionsService', () => {
       containerDestination: {
         findUnique: jest.fn().mockResolvedValue(destination),
         create: jest.fn(({ data }) => {
+          manualDestinationCount += 1;
           const created = {
-            id: 'destination-created',
+            id: `destination-created-${manualDestinationCount}`,
             ...data,
             createdAt: new Date('2026-06-26T00:01:00.000Z'),
             updatedAt: new Date('2026-06-26T00:01:00.000Z'),
           };
+          const container = containers.find(
+            (record) => record.id === data.containerId,
+          );
+          container?.destinations.push(created);
           return Promise.resolve(created);
         }),
         update: jest.fn(({ data }) => {

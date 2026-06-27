@@ -31,7 +31,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;

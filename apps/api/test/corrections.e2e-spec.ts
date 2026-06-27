@@ -102,6 +102,108 @@ describe('CorrectionsController (e2e)', () => {
     ]);
   });
 
+  it('creates a manual unloading report container with destinations and audit feedback', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/containers/manual')
+      .send({
+        containerNo: 'MANU1234567',
+        company: 'Manual Customer',
+        dockNo: 'D7',
+        reason: 'Original manifest could not be parsed',
+        correctionNote: 'Created from office manual entry',
+        destinations: [
+          {
+            destinationCode: 'YEG1',
+            destinationType: 'WAREHOUSE',
+            cartons: 36,
+            pallets: 4,
+            note: 'Manual report line',
+          },
+          {
+            destinationCode: 'YVR2',
+            cartons: 12,
+            pallets: 2,
+            volume: 1.5,
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      container: {
+        importFileId: null,
+        containerNo: 'MANU1234567',
+        dockNo: 'D7',
+        company: 'Manual Customer',
+        sourceFormat: 'UNKNOWN',
+        parserVersion: 'manual-entry-v1',
+        status: 'CORRECTED',
+        totalCartons: 48,
+        totalVolumeCbm: '1.500',
+        destinations: [
+          expect.objectContaining({
+            destinationCode: 'YEG1',
+            totalCartons: 36,
+            manualPallets: 4,
+            finalPallets: 4,
+          }),
+          expect.objectContaining({
+            destinationCode: 'YVR2',
+            totalCartons: 12,
+            manualPallets: 2,
+            finalPallets: 2,
+          }),
+        ],
+      },
+    });
+    expect(response.body.corrections.map((item) => item.fieldName)).toEqual([
+      'manualContainer',
+      'manualContainerDestination',
+      'manualContainerDestination',
+    ]);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/containers/${response.body.container.id}`)
+      .expect(200);
+
+    expect(detail.body).toMatchObject({
+      id: response.body.container.id,
+      importFileId: null,
+      containerNo: 'MANU1234567',
+      parserVersion: 'manual-entry-v1',
+      destinations: [
+        expect.objectContaining({
+          destinationCode: 'YEG1',
+          calculatedPallets: 0,
+          manualPallets: 4,
+          finalPallets: 4,
+        }),
+        expect.objectContaining({
+          destinationCode: 'YVR2',
+          calculatedPallets: 0,
+          manualPallets: 2,
+          finalPallets: 2,
+        }),
+      ],
+    });
+
+    const corrections = await request(app.getHttpServer())
+      .get(`/api/corrections?containerId=${response.body.container.id}`)
+      .expect(200);
+    const correctionsBody = corrections.body as CorrectionListBody;
+
+    expect(correctionsBody.items.map((item) => item.fieldName)).toEqual([
+      'manualContainerDestination',
+      'manualContainerDestination',
+      'manualContainer',
+    ]);
+    expect(
+      correctionsBody.items.every(
+        (item) => item.containerId === response.body.container.id,
+      ),
+    ).toBe(true);
+  });
+
   it('creates a manual destination for actual unloading data and creates audit feedback', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/containers/container-1/destinations')
@@ -174,7 +276,14 @@ describe('CorrectionsController (e2e)', () => {
         containerNo: 'CSNU8877228',
         dockNo: null,
         company: null,
+        sourceFormat: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
         status: 'PARSED',
+        rawJson: {},
+        warnings: [],
+        errors: [],
+        destinations: [] as any[],
+        createdAt: new Date('2026-06-26T00:00:00.000Z'),
         updatedAt: new Date('2026-06-26T00:00:00.000Z'),
       },
     ];
@@ -194,6 +303,8 @@ describe('CorrectionsController (e2e)', () => {
       },
     ];
     const corrections: any[] = [];
+    let manualDestinationCount = 0;
+    containers[0].destinations = [destinations[0]];
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
@@ -211,6 +322,18 @@ describe('CorrectionsController (e2e)', () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
       container: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `container-${containers.length + 1}`,
+            importFileId: null,
+            ...data,
+            destinations: [],
+            createdAt: new Date('2026-06-26T00:01:00.000Z'),
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          };
+          containers.push(record);
+          return Promise.resolve(record);
+        }),
         findUnique: jest.fn(({ where }) =>
           Promise.resolve(
             containers.find((container) => container.id === where.id) ?? null,
@@ -232,19 +355,23 @@ describe('CorrectionsController (e2e)', () => {
       containerDestination: {
         findUnique: jest.fn(({ where }) =>
           Promise.resolve(
-            destinations.find(
-              (destination) => destination.id === where.id,
-            ) ?? null,
+            destinations.find((destination) => destination.id === where.id) ??
+              null,
           ),
         ),
         create: jest.fn(({ data }) => {
+          manualDestinationCount += 1;
           const record = {
-            id: `destination-${destinations.length + 1}`,
+            id: `destination-created-${manualDestinationCount}`,
             ...data,
             createdAt: new Date('2026-06-26T00:01:00.000Z'),
             updatedAt: new Date('2026-06-26T00:01:00.000Z'),
           };
           destinations.push(record);
+          const container = containers.find(
+            (item) => item.id === data.containerId,
+          );
+          container?.destinations.push(record);
           return Promise.resolve(record);
         }),
         update: jest.fn(({ where, data }) => {
@@ -295,8 +422,7 @@ describe('CorrectionsController (e2e)', () => {
             )
             .filter((record) =>
               where?.containerDestinationId
-                ? record.containerDestinationId ===
-                  where.containerDestinationId
+                ? record.containerDestinationId === where.containerDestinationId
                 : true,
             )
             .sort(

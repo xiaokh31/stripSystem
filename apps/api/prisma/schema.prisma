@@ -145,8 +145,8 @@ model ImportFile {
 
 model Container {
   id                 String               @id @default(cuid())
-  importFileId       String               @map("import_file_id")
-  importFile         ImportFile           @relation(fields: [importFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  importFileId       String?              @map("import_file_id")
+  importFile         ImportFile?          @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   containerNo        String               @unique @map("container_no")
   sourceFormat       FileFormat           @default(UNKNOWN) @map("source_format")
   parserVersion      String?              @map("parser_version")
@@ -160,6 +160,7 @@ model Container {
   destinations       ContainerDestination[]
   generatedFiles     GeneratedFile[]
   loadJobs           LoadJob[]
+  loadJobLines       LoadJobLine[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -224,6 +225,7 @@ model ContainerDestination {
   destinationRuleId  String?              @map("destination_rule_id")
   destinationRule    DestinationRule?     @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   pallets            Pallet[]
+  loadJobLines       LoadJobLine[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -288,17 +290,19 @@ model GeneratedFile {
 
 model LoadJob {
   id                String          @id @default(cuid())
-  containerId       String          @map("container_id")
-  container         Container       @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  containerId       String?         @map("container_id")
+  container         Container?      @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   jobNo             String?         @unique @map("job_no")
   truckNo           String?         @map("truck_no")
   carrier           String?
   destinationRegion String?         @map("destination_region")
   status            LoadJobStatus   @default(PLANNED)
   startedAt         DateTime?       @map("started_at")
+  scheduledDepartureAt DateTime?    @map("scheduled_departure_at")
   closedAt          DateTime?       @map("completed_at")
   createdById       String?         @map("created_by_id")
   createdBy         User?           @relation("LoadJobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  lines             LoadJobLine[]
   pallets           Pallet[]
   events            PalletEvent[]
   createdAt         DateTime        @default(now()) @map("created_at")
@@ -308,6 +312,33 @@ model LoadJob {
   @@index([status])
   @@index([createdAt])
   @@map("load_jobs")
+}
+
+model LoadJobLine {
+  id                     String                @id @default(cuid())
+  loadJobId              String                @map("load_job_id")
+  loadJob                LoadJob               @relation(fields: [loadJobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sequence               Int                   @default(0)
+  sourceText             String?               @map("source_text")
+  containerNo            String?               @map("container_no")
+  containerId            String?               @map("container_id")
+  container              Container?            @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerDestinationId String?               @map("container_destination_id")
+  containerDestination   ContainerDestination? @relation(fields: [containerDestinationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  destinationCode        String?               @map("destination_code")
+  plannedPallets         Int                   @default(0) @map("planned_pallets")
+  externalTransfer       Boolean               @default(false) @map("external_transfer")
+  note                   String?
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  @@unique([loadJobId, sequence])
+  @@index([loadJobId])
+  @@index([containerId])
+  @@index([containerDestinationId])
+  @@index([destinationCode])
+  @@index([externalTransfer])
+  @@map("load_job_lines")
 }
 
 model PalletEvent {

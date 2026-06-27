@@ -30,7 +30,7 @@ interface ContainerDestinationRecord {
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string;
@@ -81,7 +81,7 @@ interface PalletEventCreateManyArgs {
 }
 
 interface GeneratedFileData {
-  importFileId: string;
+  importFileId: string | null;
   containerId: string;
   fileType: string;
   storagePath: string;
@@ -259,6 +259,47 @@ describe('LabelsService', () => {
       where: { id: 'container-1' },
       data: { status: 'LABELS_GENERATED' },
     });
+  });
+
+  it('generates labels for a manual container without an import file', async () => {
+    const manualContainer = containerRecord();
+    manualContainer.id = 'container-manual';
+    manualContainer.importFileId = null;
+    manualContainer.containerNo = 'MANU1234567';
+    manualContainer.sourceFormat = 'UNKNOWN';
+    manualContainer.parserVersion = 'manual-entry-v1';
+    manualContainer.company = 'Manual Customer';
+    manualContainer.destinations = [
+      {
+        id: 'destination-manual-1',
+        containerId: 'container-manual',
+        destinationCode: 'YEG1',
+        destinationType: 'WAREHOUSE',
+        cartons: 36,
+        volume: '0.000',
+        calculatedPallets: 0,
+        manualPallets: 4,
+        finalPallets: 4,
+        pallets: [],
+      },
+    ];
+    prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
+
+    const result = await service.generateLabels('container-manual');
+
+    expect(result.generatedFile).toMatchObject({
+      importFileId: null,
+      containerId: 'container-manual',
+      fileType: 'PALLET_LABEL_PDF',
+      status: 'GENERATED',
+    });
+    expect(result.pallets).toHaveLength(4);
+    expect(result.pallets[0]).toMatchObject({
+      containerId: 'container-manual',
+      destinationCode: 'YEG1',
+    });
+    expect(result.pallets[0].qrPayload).toContain('MANU1234567');
+    expect(result.pallets[0].qrPayload).toContain(result.pallets[0].palletId);
   });
 
   it('replaces existing reusable label pallets when regenerating labels', async () => {

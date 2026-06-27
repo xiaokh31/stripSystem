@@ -28,7 +28,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;
@@ -383,7 +383,8 @@ export class ReportsService {
 
     throw new InternalServerErrorException({
       code: 'GENERATED_FILE_STORAGE_PATH_INVALID',
-      message: 'The generated file path is outside the configured storage root.',
+      message:
+        'The generated file path is outside the configured storage root.',
       details: {
         generatedFileId: record.id,
         storagePath,

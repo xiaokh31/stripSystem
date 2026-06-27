@@ -8,7 +8,7 @@ import { PrismaService } from './../src/prisma/prisma.service';
 
 interface LoadJobBody {
   id: string;
-  containerId: string;
+  containerId: string | null;
   container: {
     id: string;
     containerNo: string;
@@ -19,14 +19,39 @@ interface LoadJobBody {
   destinationRegion: string | null;
   status: string;
   canScan: boolean;
+  scheduledDepartureAt: string | null;
   closedAt: string | null;
+  plannedPalletCount: number;
+  externalPalletCount: number;
   eventCount: number;
+  lines: Array<{
+    id: string;
+    sequence: number;
+    containerId: string | null;
+    plannedPallets: number;
+    externalTransfer: boolean;
+  }>;
 }
 
 interface LoadJobListBody {
   items: LoadJobBody[];
   limit: number;
   offset: number;
+}
+
+interface ScanBody {
+  result: string;
+  pallet: {
+    id: string;
+    palletId: string;
+    status: string;
+    loadJobId: string | null;
+  };
+  progress: {
+    totalPallets: number;
+    loadedPallets: number;
+    remainingPallets: number;
+  };
 }
 
 describe('LoadJobsController (e2e)', () => {
@@ -52,17 +77,22 @@ describe('LoadJobsController (e2e)', () => {
     await app.close();
   });
 
-  it('creates, queries, and closes a load job', async () => {
+  it('creates, queries, and closes a mixed load job', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/load-jobs')
       .send({
-        containerId: 'container-1',
         loadNo: 'LOAD-2026-001',
         truckNo: 'TRK-18',
         carrier: 'Bestar CCA',
-        destinationRegion: 'YYZ',
+        destinationRegion: 'YEG2',
         createdById: 'user-1',
         startedAt: '2026-06-27T10:00:00.000Z',
+        scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+          { sourceText: 'EITU9315039-1P' },
+        ],
       })
       .expect(201);
 
@@ -72,12 +102,31 @@ describe('LoadJobsController (e2e)', () => {
       loadNo: 'LOAD-2026-001',
       status: 'IN_PROGRESS',
       canScan: true,
+      scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
       closedAt: null,
+      plannedPalletCount: 2,
+      externalPalletCount: 12,
       eventCount: 0,
+      lines: [
+        expect.objectContaining({
+          externalTransfer: true,
+          plannedPallets: 12,
+        }),
+        expect.objectContaining({
+          containerId: 'container-1',
+          plannedPallets: 1,
+          externalTransfer: false,
+        }),
+        expect.objectContaining({
+          containerId: 'container-2',
+          plannedPallets: 1,
+          externalTransfer: false,
+        }),
+      ],
     });
 
     const list = await request(app.getHttpServer())
-      .get('/api/load-jobs?status=IN_PROGRESS')
+      .get('/api/load-jobs?status=IN_PROGRESS&containerId=container-2')
       .expect(200);
     const listBody = list.body as LoadJobListBody;
 
@@ -85,6 +134,8 @@ describe('LoadJobsController (e2e)', () => {
     expect(listBody.items[0]).toMatchObject({
       id: 'load-job-1',
       loadNo: 'LOAD-2026-001',
+      plannedPalletCount: 2,
+      externalPalletCount: 12,
       canScan: true,
     });
 
@@ -96,7 +147,8 @@ describe('LoadJobsController (e2e)', () => {
       id: 'load-job-1',
       truckNo: 'TRK-18',
       carrier: 'Bestar CCA',
-      destinationRegion: 'YYZ',
+      destinationRegion: 'YEG2',
+      lines: expect.any(Array),
     });
 
     const closed = await request(app.getHttpServer())
@@ -121,25 +173,286 @@ describe('LoadJobsController (e2e)', () => {
       .expect(409);
   });
 
-  it('validates create body and returns explicit missing container errors', async () => {
+  it('validates create body, required plan lines, and missing internal containers', async () => {
     await request(app.getHttpServer())
       .post('/api/load-jobs')
       .send({
-        containerId: 'container-1',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
       })
       .expect(400);
 
-    const response = await request(app.getHttpServer())
+    const emptyPlan = await request(app.getHttpServer())
       .post('/api/load-jobs')
       .send({
-        containerId: 'missing-container',
+        loadNo: 'LOAD-2026-EMPTY',
+      })
+      .expect(400);
+    expect(emptyPlan.body).toMatchObject({
+      code: 'LOAD_JOB_LINES_REQUIRED',
+    });
+
+    const missingContainer = await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
         loadNo: 'LOAD-2026-404',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'MISSING0000-1P' }],
       })
       .expect(404);
 
-    expect(response.body).toMatchObject({
-      code: 'LOAD_JOB_CONTAINER_NOT_FOUND',
+    expect(missingContainer.body).toMatchObject({
+      code: 'LOAD_JOB_LINE_CONTAINER_NOT_FOUND',
     });
+  });
+
+  it('scans mixed-plan pallets, returns duplicates, and rejects pallets beyond a line count', async () => {
+    await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+          { sourceText: 'EITU9315039-1P' },
+        ],
+      })
+      .expect(201);
+
+    const first = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        deviceId: 'scanner-1',
+      })
+      .expect(201);
+    const firstBody = first.body as ScanBody;
+
+    expect(firstBody).toMatchObject({
+      result: 'LOADED',
+      pallet: {
+        id: 'pallet-1',
+        palletId: 'PALLET-001',
+        status: 'LOADED',
+        loadJobId: 'load-job-1',
+      },
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 1,
+        remainingPallets: 1,
+      },
+    });
+
+    const duplicate = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(201);
+
+    expect(duplicate.body).toMatchObject({
+      result: 'DUPLICATE',
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 1,
+        remainingPallets: 1,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
+      })
+      .expect(201);
+
+    const overPlan = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      })
+      .expect(409);
+
+    expect(overPlan.body).toMatchObject({
+      code: 'LOAD_JOB_LINE_PALLET_LIMIT_REACHED',
+    });
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.eventType,
+      ),
+    ).toEqual(['LOADED', 'DUPLICATE_SCAN', 'LOADED', 'INVALID_SCAN']);
+  });
+
+  it('splits one container destination across multiple load jobs with part suffixes', async () => {
+    const firstJob = await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-PART-1',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P-part1' }],
+      })
+      .expect(201);
+    const secondJob = await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-PART-2',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P-part2' }],
+      })
+      .expect(201);
+
+    expect(firstJob.body).toMatchObject({
+      id: 'load-job-1',
+      plannedPalletCount: 1,
+      lines: [
+        expect.objectContaining({
+          containerId: 'container-1',
+          plannedPallets: 1,
+          externalTransfer: false,
+        }),
+      ],
+    });
+    expect(secondJob.body).toMatchObject({
+      id: 'load-job-2',
+      plannedPalletCount: 1,
+      lines: [
+        expect.objectContaining({
+          containerId: 'container-1',
+          plannedPallets: 1,
+          externalTransfer: false,
+        }),
+      ],
+    });
+
+    const firstScan = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(201);
+    const secondScan = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-2/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      })
+      .expect(201);
+
+    expect(firstScan.body).toMatchObject({
+      result: 'LOADED',
+      pallet: {
+        id: 'pallet-1',
+        loadJobId: 'load-job-1',
+      },
+      progress: {
+        totalPallets: 1,
+        loadedPallets: 1,
+        remainingPallets: 0,
+      },
+    });
+    expect(secondScan.body).toMatchObject({
+      result: 'LOADED',
+      pallet: {
+        id: 'pallet-2',
+        loadJobId: 'load-job-2',
+      },
+      progress: {
+        totalPallets: 1,
+        loadedPallets: 1,
+        remainingPallets: 0,
+      },
+    });
+  });
+
+  it('allows a pure external transfer job but rejects system pallets as not in plan', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-XFER',
+        destinationRegion: 'YEG2',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'ZCSU9025231B转运 -2P' },
+        ],
+      })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      containerId: null,
+      plannedPalletCount: 0,
+      externalPalletCount: 14,
+    });
+
+    const rejected = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(409);
+
+    expect(rejected.body).toMatchObject({
+      code: 'PALLET_NOT_IN_LOAD_PLAN',
+    });
+  });
+
+  it('records invalid QR scans, blocks pallets loaded by another job, and rejects closed jobs', async () => {
+    await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-002',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      })
+      .expect(201);
+
+    const invalid = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP0|PALLET|old-version|PALLET-001',
+        deviceId: 'scanner-1',
+      })
+      .expect(400);
+
+    expect(invalid.body).toMatchObject({
+      code: 'INVALID_QR_PAYLOAD',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(201);
+
+    const conflict = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-2/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(409);
+
+    expect(conflict.body).toMatchObject({
+      code: 'PALLET_ALREADY_LOADED',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/close')
+      .send({})
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      })
+      .expect(409);
   });
 
   function createPrismaMock() {
@@ -147,6 +460,10 @@ describe('LoadJobsController (e2e)', () => {
       {
         id: 'container-1',
         containerNo: 'CSNU8877228',
+      },
+      {
+        id: 'container-2',
+        containerNo: 'EITU9315039',
       },
     ];
     const users = [
@@ -157,28 +474,198 @@ describe('LoadJobsController (e2e)', () => {
         role: 'OFFICE',
       },
     ];
+    const destinations = [
+      {
+        id: 'destination-1',
+        containerId: 'container-1',
+        destinationCode: 'YEG2',
+        destinationType: 'AMAZON_FBA',
+      },
+      {
+        id: 'destination-2',
+        containerId: 'container-2',
+        destinationCode: 'YEG2',
+        destinationType: 'AMAZON_FBA',
+      },
+    ];
+    const pallets = [
+      {
+        id: 'pallet-1',
+        containerDestinationId: 'destination-1',
+        palletNo: 1,
+        palletId: 'PALLET-001',
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        status: 'LABEL_PRINTED',
+        labelPrintedAt: new Date('2026-06-27T09:00:00.000Z'),
+        loadedAt: null,
+        loadJobId: null,
+        createdAt: new Date('2026-06-27T09:00:00.000Z'),
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
+      },
+      {
+        id: 'pallet-2',
+        containerDestinationId: 'destination-1',
+        palletNo: 2,
+        palletId: 'PALLET-002',
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+        status: 'LABEL_PRINTED',
+        labelPrintedAt: new Date('2026-06-27T09:00:00.000Z'),
+        loadedAt: null,
+        loadJobId: null,
+        createdAt: new Date('2026-06-27T09:00:00.000Z'),
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
+      },
+      {
+        id: 'pallet-3',
+        containerDestinationId: 'destination-2',
+        palletNo: 1,
+        palletId: 'PALLET-003',
+        qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
+        status: 'LABEL_PRINTED',
+        labelPrintedAt: new Date('2026-06-27T09:00:00.000Z'),
+        loadedAt: null,
+        loadJobId: null,
+        createdAt: new Date('2026-06-27T09:00:00.000Z'),
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
+      },
+    ];
     const loadJobs: any[] = [];
+    const loadJobLines: any[] = [];
     const events: any[] = [];
 
+    const hydrateLine = (record: any) => ({
+      ...record,
+      container:
+        containers.find((container) => container.id === record.containerId) ??
+        null,
+    });
     const hydrate = (record: any) => ({
       ...record,
       container:
         containers.find((container) => container.id === record.containerId) ??
         null,
       createdBy: users.find((user) => user.id === record.createdById) ?? null,
+      lines: loadJobLines
+        .filter((line) => line.loadJobId === record.id)
+        .sort((left, right) => left.sequence - right.sequence)
+        .map(hydrateLine),
       _count: {
-        pallets: 0,
+        pallets: pallets.filter((pallet) => pallet.loadJobId === record.id)
+          .length,
         events: events.filter((event) => event.loadJobId === record.id).length,
       },
     });
+    const hydratePallet = (record: any) => ({
+      ...record,
+      containerDestination:
+        destinations.find(
+          (destination) => destination.id === record.containerDestinationId,
+        ) ?? null,
+    });
+    const matchesLoadJobWhere = (record: any, where: any) => {
+      if (!where) {
+        return true;
+      }
+      if (where.OR) {
+        const matchesOr = where.OR.some((condition: any) => {
+          if (condition.containerId) {
+            return record.containerId === condition.containerId;
+          }
+          const lineContainerId = condition.lines?.some?.containerId;
+          return lineContainerId
+            ? loadJobLines.some(
+                (line) =>
+                  line.loadJobId === record.id &&
+                  line.containerId === lineContainerId,
+              )
+            : false;
+        });
+        if (!matchesOr) {
+          return false;
+        }
+      }
+      if (where.jobNo && record.jobNo !== where.jobNo) {
+        return false;
+      }
+      if (
+        where.destinationRegion &&
+        record.destinationRegion !== where.destinationRegion
+      ) {
+        return false;
+      }
+      if (where.status && record.status !== where.status) {
+        return false;
+      }
+      return true;
+    };
+    const matchesPalletWhere = (pallet: any, where: any) => {
+      const destination = destinations.find(
+        (item) => item.id === pallet.containerDestinationId,
+      );
+
+      if (where.status?.not && pallet.status === where.status.not) {
+        return false;
+      }
+      if (where.status && !where.status.not && pallet.status !== where.status) {
+        return false;
+      }
+      if (where.loadJobId && pallet.loadJobId !== where.loadJobId) {
+        return false;
+      }
+      if (
+        where.containerDestinationId &&
+        pallet.containerDestinationId !== where.containerDestinationId
+      ) {
+        return false;
+      }
+
+      const destinationFilter =
+        where.containerDestination?.is ?? where.containerDestination;
+      if (destinationFilter?.containerId) {
+        if (destination?.containerId !== destinationFilter.containerId) {
+          return false;
+        }
+      }
+      if (destinationFilter?.destinationCode) {
+        if (
+          destination?.destinationCode !== destinationFilter.destinationCode
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    };
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'pallet-1' }]),
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       container: {
         findUnique: jest.fn(({ where }) =>
           Promise.resolve(
-            containers.find((container) => container.id === where.id) ?? null,
+            containers.find((container) =>
+              where.id
+                ? container.id === where.id
+                : container.containerNo === where.containerNo,
+            ) ?? null,
+          ),
+        ),
+      },
+      containerDestination: {
+        findUnique: jest.fn(({ where }) =>
+          Promise.resolve(
+            destinations.find((destination) => destination.id === where.id) ??
+              null,
+          ),
+        ),
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            destinations.find(
+              (destination) =>
+                destination.containerId === where.containerId &&
+                destination.destinationCode === where.destinationCode,
+            ) ?? null,
           ),
         ),
       },
@@ -194,39 +681,42 @@ describe('LoadJobsController (e2e)', () => {
           );
           const record = {
             id: `load-job-${loadJobs.length + 1}`,
-            containerId: data.containerId,
+            containerId: data.containerId ?? null,
             jobNo: data.jobNo ?? null,
             truckNo: data.truckNo ?? null,
             carrier: data.carrier ?? null,
             destinationRegion: data.destinationRegion ?? null,
             status: data.status,
             startedAt: data.startedAt ?? null,
+            scheduledDepartureAt: data.scheduledDepartureAt ?? null,
             closedAt: data.closedAt ?? null,
             createdById: data.createdById ?? null,
             createdAt,
             updatedAt: createdAt,
           };
           loadJobs.push(record);
+          for (const line of data.lines?.create ?? []) {
+            loadJobLines.push({
+              id: `line-${loadJobLines.length + 1}`,
+              loadJobId: record.id,
+              sequence: line.sequence,
+              sourceText: line.sourceText ?? null,
+              containerNo: line.containerNo ?? null,
+              containerId: line.containerId ?? null,
+              containerDestinationId: line.containerDestinationId ?? null,
+              destinationCode: line.destinationCode ?? null,
+              plannedPallets: line.plannedPallets ?? 0,
+              externalTransfer: line.externalTransfer ?? false,
+              note: line.note ?? null,
+              createdAt,
+              updatedAt: createdAt,
+            });
+          }
           return Promise.resolve(hydrate(record));
         }),
         findMany: jest.fn(({ where, take, skip }) => {
           const filtered = loadJobs
-            .filter((record) =>
-              where?.containerId
-                ? record.containerId === where.containerId
-                : true,
-            )
-            .filter((record) =>
-              where?.jobNo ? record.jobNo === where.jobNo : true,
-            )
-            .filter((record) =>
-              where?.destinationRegion
-                ? record.destinationRegion === where.destinationRegion
-                : true,
-            )
-            .filter((record) =>
-              where?.status ? record.status === where.status : true,
-            )
+            .filter((record) => matchesLoadJobWhere(record, where))
             .sort(
               (left, right) =>
                 right.createdAt.getTime() - left.createdAt.getTime(),
@@ -251,14 +741,49 @@ describe('LoadJobsController (e2e)', () => {
           return Promise.resolve(hydrate(record));
         }),
       },
+      pallet: {
+        findFirst: jest.fn(({ where }) => {
+          const record = pallets.find((pallet) =>
+            where.OR.some(
+              (condition: any) =>
+                condition.qrPayload === pallet.qrPayload ||
+                condition.palletId === pallet.palletId,
+            ),
+          );
+          return Promise.resolve(record ? hydratePallet(record) : null);
+        }),
+        findUnique: jest.fn(({ where }) => {
+          const record = pallets.find((pallet) => pallet.id === where.id);
+          return Promise.resolve(record ? hydratePallet(record) : null);
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = pallets.find((pallet) => pallet.id === where.id);
+          if (!record) {
+            throw new Error(`Pallet not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-27T11:00:00.000Z'),
+          });
+          return Promise.resolve(hydratePallet(record));
+        }),
+        count: jest.fn(({ where }) =>
+          Promise.resolve(
+            pallets.filter((pallet) => matchesPalletWhere(pallet, where))
+              .length,
+          ),
+        ),
+      },
       palletEvent: {
         create: jest.fn(({ data }) => {
+          const occurredAt =
+            data.occurredAt ?? new Date('2026-06-27T11:00:00.000Z');
           const record = {
             id: `event-${events.length + 1}`,
             palletId: null,
             ...data,
-            createdAt: data.occurredAt,
-            updatedAt: data.occurredAt,
+            occurredAt,
+            createdAt: occurredAt,
+            updatedAt: occurredAt,
           };
           events.push(record);
           return Promise.resolve(record);

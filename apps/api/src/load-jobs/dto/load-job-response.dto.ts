@@ -10,9 +10,25 @@ export interface LoadJobContainerResponseDto {
   containerNo: string;
 }
 
+export interface LoadJobLineResponseDto {
+  id: string;
+  sequence: number;
+  sourceText: string | null;
+  containerNo: string | null;
+  containerId: string | null;
+  container: LoadJobContainerResponseDto | null;
+  containerDestinationId: string | null;
+  destinationCode: string | null;
+  plannedPallets: number;
+  externalTransfer: boolean;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LoadJobResponseDto {
   id: string;
-  containerId: string;
+  containerId: string | null;
   container: LoadJobContainerResponseDto | null;
   loadNo: string | null;
   truckNo: string | null;
@@ -23,9 +39,13 @@ export interface LoadJobResponseDto {
   createdById: string | null;
   createdBy: LoadJobUserResponseDto | null;
   startedAt: string | null;
+  scheduledDepartureAt: string | null;
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  lines: LoadJobLineResponseDto[];
+  plannedPalletCount: number;
+  externalPalletCount: number;
   palletCount: number;
   eventCount: number;
 }
@@ -34,4 +54,31 @@ export interface LoadJobListResponseDto {
   items: LoadJobResponseDto[];
   limit: number;
   offset: number;
+}
+
+export interface LoadJobProgressDto {
+  totalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+}
+
+export interface ScannedPalletResponseDto {
+  id: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  palletNo: number;
+  palletId: string;
+  qrPayload: string;
+  status: string;
+  loadedAt: string | null;
+  loadJobId: string | null;
+}
+
+export interface LoadJobScanResponseDto {
+  result: 'LOADED' | 'DUPLICATE';
+  loadJob: LoadJobResponseDto;
+  pallet: ScannedPalletResponseDto;
+  progress: LoadJobProgressDto;
+  eventId: string | null;
 }

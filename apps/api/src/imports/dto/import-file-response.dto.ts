@@ -50,7 +50,7 @@ export interface ContainerDestinationResponseDto {
 
 export interface ContainerResponseDto {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;

@@ -30,7 +30,7 @@ interface ImportRecord {
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;
@@ -512,125 +512,120 @@ describe('ImportsController (e2e)', () => {
     ]);
   });
 
-  it(
-    'generates pallet labels, reports inventory summaries, and blocks duplicate generation',
-    async () => {
-      const uploaded = await request(app.getHttpServer())
-        .post('/api/imports')
-        .attach('file', fixturePath)
-        .expect(201);
-      const uploadedBody = uploaded.body as ImportFileBody;
+  it('generates pallet labels, reports inventory summaries, and blocks duplicate generation', async () => {
+    const uploaded = await request(app.getHttpServer())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
 
-      const parsed = await request(app.getHttpServer())
-        .post(`/api/imports/${uploadedBody.id}/parse`)
-        .expect(201);
-      const parsedBody = parsed.body as ParseResultBody;
-      const containerId = parsedBody.containers[0].id;
-      const expectedPalletCount = parsedBody.containers[0].destinations.reduce(
-        (total, destination) => total + destination.finalPallets,
-        0,
-      );
+    const parsed = await request(app.getHttpServer())
+      .post(`/api/imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as ParseResultBody;
+    const containerId = parsedBody.containers[0].id;
+    const expectedPalletCount = parsedBody.containers[0].destinations.reduce(
+      (total, destination) => total + destination.finalPallets,
+      0,
+    );
 
-      const labels = await request(app.getHttpServer())
-        .post(`/api/containers/${containerId}/generate-labels`)
-        .expect(201);
-      const labelsBody = labels.body as GenerateLabelsBody;
+    const labels = await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-labels`)
+      .expect(201);
+    const labelsBody = labels.body as GenerateLabelsBody;
 
-      expect(labelsBody.generatedFile).toMatchObject({
+    expect(labelsBody.generatedFile).toMatchObject({
+      containerId,
+      fileType: 'PALLET_LABEL_PDF',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(labelsBody.generatedFile.storagePath).toContain('labels');
+    expect(labelsBody.generatedFile.storagePath).toMatch(/\.pdf$/);
+    await expect(
+      stat(labelsBody.generatedFile.storagePath),
+    ).resolves.toBeDefined();
+    expect(labelsBody.pallets).toHaveLength(expectedPalletCount);
+    expect(pallets).toHaveLength(expectedPalletCount);
+    expect(palletEvents.length).toBe(expectedPalletCount * 2);
+    expect(
+      new Set(labelsBody.pallets.map((pallet) => pallet.palletId)).size,
+    ).toBe(expectedPalletCount);
+    expect(
+      labelsBody.pallets.every(
+        (pallet) =>
+          pallet.status === 'LABEL_PRINTED' &&
+          pallet.qrPayload.startsWith('SSP1|PALLET|') &&
+          pallet.qrPayload.includes(pallet.palletId),
+      ),
+    ).toBe(true);
+
+    const list = await request(app.getHttpServer())
+      .get(`/api/pallets?containerId=${containerId}`)
+      .expect(200);
+    const listBody = list.body as PalletListBody;
+
+    expect(listBody.items).toHaveLength(expectedPalletCount);
+    expect(listBody.items[0]).toMatchObject({
+      containerId,
+      status: 'LABEL_PRINTED',
+    });
+
+    const containerSummary = await request(app.getHttpServer())
+      .get('/api/reports/container-summary')
+      .expect(200);
+    const containerSummaryBody = containerSummary.body as ContainerSummaryBody;
+
+    expect(containerSummaryBody.items).toMatchObject([
+      {
         containerId,
-        fileType: 'PALLET_LABEL_PDF',
-        status: 'GENERATED',
-        errorMessage: null,
-      });
-      expect(labelsBody.generatedFile.storagePath).toContain('labels');
-      expect(labelsBody.generatedFile.storagePath).toMatch(/\.pdf$/);
-      await expect(
-        stat(labelsBody.generatedFile.storagePath),
-      ).resolves.toBeDefined();
-      expect(labelsBody.pallets).toHaveLength(expectedPalletCount);
-      expect(pallets).toHaveLength(expectedPalletCount);
-      expect(palletEvents.length).toBe(expectedPalletCount * 2);
-      expect(
-        new Set(labelsBody.pallets.map((pallet) => pallet.palletId)).size,
-      ).toBe(expectedPalletCount);
-      expect(
-        labelsBody.pallets.every(
-          (pallet) =>
-            pallet.status === 'LABEL_PRINTED' &&
-            pallet.qrPayload.startsWith('SSP1|PALLET|') &&
-            pallet.qrPayload.includes(pallet.palletId),
-        ),
-      ).toBe(true);
-
-      const list = await request(app.getHttpServer())
-        .get(`/api/pallets?containerId=${containerId}`)
-        .expect(200);
-      const listBody = list.body as PalletListBody;
-
-      expect(listBody.items).toHaveLength(expectedPalletCount);
-      expect(listBody.items[0]).toMatchObject({
-        containerId,
-        status: 'LABEL_PRINTED',
-      });
-
-      const containerSummary = await request(app.getHttpServer())
-        .get('/api/reports/container-summary')
-        .expect(200);
-      const containerSummaryBody =
-        containerSummary.body as ContainerSummaryBody;
-
-      expect(containerSummaryBody.items).toMatchObject([
-        {
-          containerId,
-          containerNo: parsedBody.containers[0].containerNo,
-          totalPallets: expectedPalletCount,
-          loadedPallets: 0,
-          remainingPallets: expectedPalletCount,
-        },
-      ]);
-
-      pallets[0].status = 'LOADED';
-
-      const containerDetail = await request(app.getHttpServer())
-        .get(`/api/containers/${containerId}/summary`)
-        .expect(200);
-      const containerDetailBody =
-        containerDetail.body as ContainerDetailSummaryBody;
-
-      expect(containerDetailBody).toMatchObject({
-        containerId,
+        containerNo: parsedBody.containers[0].containerNo,
         totalPallets: expectedPalletCount,
+        loadedPallets: 0,
+        remainingPallets: expectedPalletCount,
+      },
+    ]);
+
+    pallets[0].status = 'LOADED';
+
+    const containerDetail = await request(app.getHttpServer())
+      .get(`/api/containers/${containerId}/summary`)
+      .expect(200);
+    const containerDetailBody =
+      containerDetail.body as ContainerDetailSummaryBody;
+
+    expect(containerDetailBody).toMatchObject({
+      containerId,
+      totalPallets: expectedPalletCount,
+      loadedPallets: 1,
+      remainingPallets: expectedPalletCount - 1,
+    });
+    expect(containerDetailBody.destinations[0]).toMatchObject({
+      loadedPallets: 1,
+    });
+
+    const inventory = await request(app.getHttpServer())
+      .get('/api/reports/inventory?status=LOADED')
+      .expect(200);
+    const inventoryBody = inventory.body as InventoryBody;
+
+    expect(inventoryBody.items).toEqual([
+      {
+        destinationCode: containerDetailBody.destinations[0].destinationCode,
+        totalPallets: 1,
         loadedPallets: 1,
-        remainingPallets: expectedPalletCount - 1,
+        remainingPallets: 0,
+      },
+    ]);
+
+    await request(app.getHttpServer())
+      .post(`/api/containers/${containerId}/generate-labels`)
+      .expect(409)
+      .expect((response) => {
+        const body = response.body as ErrorBody;
+        expect(body.code).toBe('PALLETS_ALREADY_IN_USE');
       });
-      expect(containerDetailBody.destinations[0]).toMatchObject({
-        loadedPallets: 1,
-      });
-
-      const inventory = await request(app.getHttpServer())
-        .get('/api/reports/inventory?status=LOADED')
-        .expect(200);
-      const inventoryBody = inventory.body as InventoryBody;
-
-      expect(inventoryBody.items).toEqual([
-        {
-          destinationCode: containerDetailBody.destinations[0].destinationCode,
-          totalPallets: 1,
-          loadedPallets: 1,
-          remainingPallets: 0,
-        },
-      ]);
-
-      await request(app.getHttpServer())
-        .post(`/api/containers/${containerId}/generate-labels`)
-        .expect(409)
-        .expect((response) => {
-          const body = response.body as ErrorBody;
-          expect(body.code).toBe('PALLETS_ALREADY_IN_USE');
-        });
-    },
-    30_000,
-  );
+  }, 30_000);
 
   it('records worker parse errors without creating a successful container', async () => {
     const corruptPath = join(storageRoot, 'corrupt.xlsx');
@@ -994,7 +989,9 @@ describe('ImportsController (e2e)', () => {
           const destinationIds = new Set(where.containerDestinationId.in);
           const originalLength = palletRecords.length;
           for (let index = palletRecords.length - 1; index >= 0; index -= 1) {
-            if (destinationIds.has(palletRecords[index].containerDestinationId)) {
+            if (
+              destinationIds.has(palletRecords[index].containerDestinationId)
+            ) {
               palletRecords.splice(index, 1);
             }
           }

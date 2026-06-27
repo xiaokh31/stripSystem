@@ -20,7 +20,7 @@ export interface CorrectionFeedbackResponseDto {
 export interface ContainerCorrectionResponseDto {
   container: {
     id: string;
-    importFileId: string;
+    importFileId: string | null;
     containerNo: string;
     dockNo: string | null;
     company: string | null;
@@ -66,7 +66,7 @@ export interface ContainerDetailDestinationResponseDto {
 
 export interface ContainerDetailResponseDto {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   dockNo: string | null;
   company: string | null;
@@ -81,6 +81,11 @@ export interface ContainerDetailResponseDto {
   createdAt: string;
   updatedAt: string;
   destinations: ContainerDetailDestinationResponseDto[];
+}
+
+export interface ManualContainerResponseDto {
+  container: ContainerDetailResponseDto;
+  corrections: CorrectionFeedbackResponseDto[];
 }
 
 export interface CorrectionListResponseDto {

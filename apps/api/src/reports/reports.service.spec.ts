@@ -23,7 +23,7 @@ interface ContainerDestinationRecord {
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string;
@@ -38,7 +38,7 @@ interface ContainerUpdateArgs {
 }
 
 interface GeneratedFileData {
-  importFileId: string;
+  importFileId: string | null;
   containerId: string;
   fileType: string;
   storagePath: string;
@@ -189,6 +189,48 @@ describe('ReportsService', () => {
     });
   });
 
+  it('generates an Excel report for a manual container without an import file', async () => {
+    const manualContainer = defaultContainerRecord();
+    manualContainer.id = 'container-manual';
+    manualContainer.importFileId = null;
+    manualContainer.containerNo = 'MANU1234567';
+    manualContainer.sourceFormat = 'UNKNOWN';
+    manualContainer.parserVersion = 'manual-entry-v1';
+    manualContainer.company = 'Manual Customer';
+    manualContainer.destinations = [
+      {
+        id: 'destination-manual-1',
+        destinationCode: 'YEG1',
+        destinationType: 'WAREHOUSE',
+        cartons: 36,
+        volume: '0.000',
+        calculatedPallets: 0,
+        manualPallets: 4,
+        finalPallets: 4,
+      },
+    ];
+    prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
+
+    const result = await service.generateReport('container-manual');
+
+    const [request] = workerReport.writeReport.mock.calls[0];
+    const palletResult =
+      request.pallet_result as unknown as PalletReportPayload;
+    expect(request.company).toBe('Manual Customer');
+    expect(request.parsed_result).toMatchObject({
+      containerNo: 'MANU1234567',
+      formatType: 'UNKNOWN',
+      parserVersion: 'manual-entry-v1',
+    });
+    expect(palletResult.plans[0]).toMatchObject({
+      destinationCode: 'YEG1',
+      calculatedPallets: 0,
+      manualPallets: 4,
+      finalPallets: 4,
+    });
+    expect(result.generatedFile.importFileId).toBeNull();
+  });
+
   it('downloads a generated file for the owning container', async () => {
     const generated = await service.generateReport('container-1');
     const download = await service.downloadFile(
@@ -248,9 +290,8 @@ describe('ReportsService', () => {
     expect(prisma.generatedFile.update).toHaveBeenCalledTimes(1);
   });
 
-  function createPrismaMock(): ReportsPrismaMock {
-    const generatedFiles: GeneratedFileRecord[] = [];
-    const containerRecord: ContainerRecord = {
+  function defaultContainerRecord(): ContainerRecord {
+    return {
       id: 'container-1',
       importFileId: 'import-1',
       containerNo: 'CSNU8877228',
@@ -271,6 +312,10 @@ describe('ReportsService', () => {
         },
       ],
     };
+  }
+
+  function createPrismaMock(): ReportsPrismaMock {
+    const generatedFiles: GeneratedFileRecord[] = [];
     const mock = {} as ReportsPrismaMock;
 
     mock.$transaction = jest.fn<
@@ -280,7 +325,7 @@ describe('ReportsService', () => {
     mock.container = {
       findUnique: jest
         .fn<Promise<ContainerRecord>, []>()
-        .mockResolvedValue(containerRecord),
+        .mockResolvedValue(defaultContainerRecord()),
       update: jest
         .fn<Promise<{ id: string; status: string }>, [ContainerUpdateArgs]>()
         .mockResolvedValue({

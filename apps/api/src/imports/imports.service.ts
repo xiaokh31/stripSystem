@@ -56,7 +56,7 @@ interface ImportFileRecord {
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   sourceFormat: string;
   parserVersion: string | null;
@@ -275,7 +275,9 @@ export class ImportsService {
     return record as ImportFileRecord;
   }
 
-  private async assertStoredFileExists(record: ImportFileRecord): Promise<void> {
+  private async assertStoredFileExists(
+    record: ImportFileRecord,
+  ): Promise<void> {
     try {
       const storedFile = await stat(record.storedPath);
       if (!storedFile.isFile()) {
@@ -496,10 +498,7 @@ export class ImportsService {
         '0.000',
       );
       const calculatedPallets = this.intValue(plan?.calculatedPallets, 0);
-      const finalPallets = this.intValue(
-        plan?.finalPallets,
-        calculatedPallets,
-      );
+      const finalPallets = this.intValue(plan?.finalPallets, calculatedPallets);
 
       return {
         containerId,
@@ -553,9 +552,7 @@ export class ImportsService {
       data: {
         format: this.formatFromPayload(payload),
         parseStatus: 'ERROR',
-        parserVersion: this.stringOrNull(
-          payload.parsed_result?.parserVersion,
-        ),
+        parserVersion: this.stringOrNull(payload.parsed_result?.parserVersion),
         warningCount: this.issueArray(payload.warnings).length,
         errorCount: Math.max(this.issueArray(payload.errors).length, 1),
         errorMessage: this.errorMessage(error),
@@ -564,7 +561,10 @@ export class ImportsService {
           workerSourceFile: payload.source_file,
           detection: payload.detection,
           warnings: this.issueArray(payload.warnings),
-          errors: this.ensureParseError(this.issueArray(payload.errors), payload),
+          errors: this.ensureParseError(
+            this.issueArray(payload.errors),
+            payload,
+          ),
           persistenceError: this.errorMessage(error),
         }),
       },
@@ -678,15 +678,12 @@ export class ImportsService {
     return {
       importFile: this.toResponse(result.importFile),
       containers,
-      warnings:
-        importWarnings.length > 0 ? importWarnings : containerWarnings,
+      warnings: importWarnings.length > 0 ? importWarnings : containerWarnings,
       errors: importErrors.length > 0 ? importErrors : containerErrors,
     };
   }
 
-  private toContainerResponse(
-    record: ContainerRecord,
-  ): ContainerResponseDto {
+  private toContainerResponse(record: ContainerRecord): ContainerResponseDto {
     return {
       id: record.id,
       importFileId: record.importFileId,

@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateCorrectionDto } from './dto/create-correction.dto';
+import {
+  CreateManualContainerDestinationDto,
+  CreateManualContainerDto,
+} from './dto/create-manual-container.dto';
 import { ListCorrectionsQueryDto } from './dto/list-corrections-query.dto';
 import {
   ContainerCorrectionResponseDto,
@@ -12,6 +16,7 @@ import {
   ContainerDestinationCorrectionResponseDto,
   CorrectionFeedbackResponseDto,
   CorrectionListResponseDto,
+  ManualContainerResponseDto,
 } from './dto/correction-response.dto';
 import { CreateContainerDestinationDto } from './dto/create-container-destination.dto';
 import { UpdateContainerDestinationDto } from './dto/update-container-destination.dto';
@@ -19,6 +24,7 @@ import { UpdateContainerDto } from './dto/update-container.dto';
 import {
   ContainerStatus,
   CorrectionTargetType,
+  FileFormat,
 } from '../generated/prisma/enums';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,7 +43,7 @@ interface Change {
 
 interface ContainerRecord {
   id: string;
-  importFileId: string;
+  importFileId: string | null;
   containerNo: string;
   dockNo: string | null;
   company: string | null;
@@ -120,6 +126,121 @@ export class CorrectionsService {
     }
 
     return this.toContainerDetailResponse(container);
+  }
+
+  async createManualContainer(
+    dto: CreateManualContainerDto,
+  ): Promise<ManualContainerResponseDto> {
+    const containerNo = this.requiredString(dto.containerNo, 'containerNo');
+    const destinationInputs = dto.destinations.map((destination, index) =>
+      this.toManualDestinationCreateInput(destination, index + 1),
+    );
+    const createdAt = new Date();
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const container = (await tx.container.create({
+          data: {
+            containerNo,
+            sourceFormat: FileFormat.UNKNOWN,
+            parserVersion: 'manual-entry-v1',
+            dockNo: this.stringOrNull(dto.dockNo),
+            company: this.stringOrNull(dto.company),
+            status: ContainerStatus.CORRECTED,
+            rawJson: {
+              source: 'manual-unloading-report',
+              createdAt: createdAt.toISOString(),
+            },
+            warnings: [],
+            errors: [],
+          },
+        })) as ContainerRecord;
+
+        const destinations: ContainerDestinationRecord[] = [];
+        for (const input of destinationInputs) {
+          destinations.push(
+            (await tx.containerDestination.create({
+              data: {
+                containerId: container.id,
+                ...input,
+              },
+            })) as ContainerDestinationRecord,
+          );
+        }
+
+        const corrections = await this.createCorrections(
+          tx,
+          [
+            {
+              fieldName: 'manualContainer',
+              oldValue: null,
+              newValue: {
+                containerNo,
+                dockNo: this.stringOrNull(dto.dockNo),
+                company: this.stringOrNull(dto.company),
+                destinationCount: destinations.length,
+              },
+            },
+          ],
+          {
+            targetType: CorrectionTargetType.CONTAINER,
+            containerId: container.id,
+          },
+          dto.reason ?? 'Manual unloading report created',
+          dto.correctionNote,
+          dto.correctedById,
+        );
+
+        for (const destination of destinations) {
+          corrections.push(
+            ...(await this.createCorrections(
+              tx,
+              [
+                {
+                  fieldName: 'manualContainerDestination',
+                  oldValue: null,
+                  newValue: {
+                    destinationCode: destination.destinationCode,
+                    destinationType: destination.destinationType,
+                    cartons: destination.cartons,
+                    volume: destination.volume.toString(),
+                    manualPallets: destination.manualPallets,
+                    finalPallets: destination.finalPallets,
+                    note: destination.note,
+                  },
+                },
+              ],
+              {
+                targetType: CorrectionTargetType.CONTAINER_DESTINATION,
+                containerId: container.id,
+                containerDestinationId: destination.id,
+              },
+              dto.reason ?? 'Manual unloading destination created',
+              dto.correctionNote,
+              dto.correctedById,
+            )),
+          );
+        }
+
+        return {
+          container: {
+            ...container,
+            destinations,
+          },
+          corrections,
+        };
+      });
+
+      return {
+        container: this.toContainerDetailResponse(result.container),
+        corrections: result.corrections.map((record) =>
+          this.toCorrectionResponse(record),
+        ),
+      };
+    } catch (error) {
+      this.throwConflictIfUnique(error, 'MANUAL_CONTAINER_CREATE_CONFLICT');
+      throw error;
+    }
   }
 
   async updateContainer(
@@ -444,6 +565,34 @@ export class CorrectionsService {
     }
 
     return records;
+  }
+
+  private toManualDestinationCreateInput(
+    dto: CreateManualContainerDestinationDto,
+    sequence: number,
+  ): Omit<Prisma.ContainerDestinationUncheckedCreateInput, 'containerId'> {
+    const destinationCode = this.requiredString(
+      dto.destinationCode,
+      `destinations[${sequence}].destinationCode`,
+    );
+    const cartons = Number(dto.cartons);
+    const pallets = Number(dto.pallets);
+
+    return {
+      destinationCode,
+      destinationType: this.stringOrNull(dto.destinationType),
+      cartons,
+      volume:
+        dto.volume === undefined || dto.volume === null
+          ? '0.000'
+          : this.decimalString(dto.volume),
+      calculatedPallets: 0,
+      manualPallets: pallets,
+      finalPallets: pallets,
+      note: this.stringOrNull(dto.note),
+      warnings: [],
+      errors: [],
+    };
   }
 
   private assertCorrectionValuesProvided(dto: CreateCorrectionDto): void {
@@ -832,6 +981,19 @@ export class CorrectionsService {
 
   private decimalString(value: unknown): string {
     return Number(value).toFixed(3);
+  }
+
+  private requiredString(value: unknown, fieldName: string): string {
+    const result = this.stringOrNull(value);
+    if (result) {
+      return result;
+    }
+
+    throw new BadRequestException({
+      code: 'INVALID_MANUAL_CONTAINER_VALUE',
+      message: `${fieldName} cannot be empty.`,
+      details: { fieldName },
+    });
   }
 
   private stringOrNull(value: unknown): string | null {

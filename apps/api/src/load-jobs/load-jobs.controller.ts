@@ -5,7 +5,9 @@ import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
   LoadJobListResponseDto,
   LoadJobResponseDto,
+  LoadJobScanResponseDto,
 } from './dto/load-job-response.dto';
+import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { LoadJobsService } from './load-jobs.service';
 
 @Controller('load-jobs')
@@ -33,5 +35,13 @@ export class LoadJobsController {
     @Body() dto: CloseLoadJobDto = {},
   ): Promise<LoadJobResponseDto> {
     return this.loadJobsService.close(id, dto);
+  }
+
+  @Post(':id/scan')
+  scan(
+    @Param('id') id: string,
+    @Body() dto: ScanPalletDto,
+  ): Promise<LoadJobScanResponseDto> {
+    return this.loadJobsService.scan(id, dto);
   }
 }
