@@ -19,9 +19,57 @@ interface ImportRecord {
   format: string;
   importStatus: string;
   parseStatus: string;
+  parserVersion: string | null;
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  rawMetadata: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ContainerRecord {
+  id: string;
+  importFileId: string;
+  containerNo: string;
+  sourceFormat: string;
+  parserVersion: string | null;
+  status: string;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface LineRecord {
+  id: string;
+  containerId: string;
+  lineNo: number;
+  destinationCode: string | null;
+  destinationType: string | null;
+  cartons: number | null;
+  volume: string | null;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface DestinationRecord {
+  id: string;
+  containerId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  cartons: number;
+  volume: string;
+  calculatedPallets: number;
+  manualPallets: number | null;
+  finalPallets: number;
+  note: string | null;
+  warnings: unknown;
+  errors: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,7 +82,30 @@ interface ImportFileBody {
   format: string;
   importStatus: string;
   parseStatus: string;
+  parserVersion: string | null;
+  warningCount: number;
+  errorCount: number;
   errorMessage: string | null;
+}
+
+interface ParseResultBody {
+  importFile: ImportFileBody;
+  containers: Array<{
+    id: string;
+    containerNo: string;
+    sourceFormat: string;
+    parserVersion: string | null;
+    status: string;
+    lines: unknown[];
+    destinations: Array<{
+      destinationCode: string;
+      cartons: number;
+      calculatedPallets: number;
+      finalPallets: number;
+    }>;
+  }>;
+  warnings: unknown[];
+  errors: unknown[];
 }
 
 interface ImportListBody {
@@ -73,6 +144,8 @@ interface CreateImportArgs {
     warningCount: number;
     errorCount: number;
     errorMessage: string | null;
+    parserVersion?: string | null;
+    rawMetadata?: unknown;
   };
 }
 
@@ -95,14 +168,10 @@ describe('ImportsController (e2e)', () => {
   let app: INestApplication<App>;
   let storageRoot: string;
   let records: ImportRecord[];
-  let prisma: {
-    checkConnection: jest.Mock;
-    importFile: {
-      findUnique: jest.Mock;
-      create: jest.Mock;
-      findMany: jest.Mock;
-    };
-  };
+  let containers: ContainerRecord[];
+  let lines: LineRecord[];
+  let destinations: DestinationRecord[];
+  let prisma: any;
   let originalStorageRoot: string | undefined;
 
   beforeEach(async () => {
@@ -110,7 +179,10 @@ describe('ImportsController (e2e)', () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'p1-03-imports-e2e-'));
     process.env.STORAGE_ROOT = storageRoot;
     records = [];
-    prisma = createPrismaMock(records);
+    containers = [];
+    lines = [];
+    destinations = [];
+    prisma = createPrismaMock(records, containers, lines, destinations);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -214,6 +286,89 @@ describe('ImportsController (e2e)', () => {
       });
   });
 
+  it('parses an uploaded real xlsx fixture through the Python worker and persists parse output', async () => {
+    const uploaded = await request(app.getHttpServer())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+    const originalStoredPath = uploadedBody.storedPath;
+
+    const parsed = await request(app.getHttpServer())
+      .post(`/api/imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as ParseResultBody;
+
+    expect(parsedBody.importFile).toMatchObject({
+      id: uploadedBody.id,
+      storedPath: originalStoredPath,
+      format: 'UNLOADING_PLAN_CN',
+      parserVersion: 'unloading-plan-cn-v1',
+      errorCount: 0,
+    });
+    expect(parsedBody.importFile.parseStatus).toMatch(/^(PARSED|WARNING)$/);
+    expect(parsedBody.containers).toHaveLength(1);
+    expect(parsedBody.containers[0]).toMatchObject({
+      containerNo: 'CSNU8877228',
+      sourceFormat: 'UNLOADING_PLAN_CN',
+      parserVersion: 'unloading-plan-cn-v1',
+      status: 'PARSED',
+    });
+    expect(parsedBody.containers[0].lines.length).toBeGreaterThan(0);
+    expect(parsedBody.containers[0].destinations.length).toBeGreaterThan(0);
+    expect(
+      parsedBody.containers[0].destinations.some(
+        (destination) => destination.finalPallets > 0,
+      ),
+    ).toBe(true);
+    expect(records[0].storedPath).toBe(originalStoredPath);
+
+    await request(app.getHttpServer())
+      .get(`/api/imports/${uploadedBody.id}/parse-result`)
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as ParseResultBody;
+        expect(body.containers[0].lines.length).toBeGreaterThan(0);
+        expect(body.containers[0].destinations.length).toBeGreaterThan(0);
+      });
+  });
+
+  it('records worker parse errors without creating a successful container', async () => {
+    const corruptPath = join(storageRoot, 'corrupt.xlsx');
+    await writeFile(corruptPath, 'not a real Excel workbook');
+
+    const uploaded = await request(app.getHttpServer())
+      .post('/api/imports')
+      .attach('file', corruptPath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+
+    const parsed = await request(app.getHttpServer())
+      .post(`/api/imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as ParseResultBody;
+
+    expect(parsedBody.importFile).toMatchObject({
+      id: uploadedBody.id,
+      format: 'UNKNOWN',
+      parseStatus: 'ERROR',
+      parserVersion: null,
+    });
+    expect(parsedBody.importFile.errorCount).toBeGreaterThan(0);
+    expect(parsedBody.importFile.errorMessage).toEqual(expect.any(String));
+    expect(parsedBody.containers).toEqual([]);
+    expect(parsedBody.errors.length).toBeGreaterThan(0);
+
+    await request(app.getHttpServer())
+      .get(`/api/imports/${uploadedBody.id}/parse-result`)
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as ParseResultBody;
+        expect(body.importFile.parseStatus).toBe('ERROR');
+        expect(body.containers).toEqual([]);
+      });
+  });
+
   it('rejects non-xlsx uploads and invalid list query DTOs', async () => {
     const textPath = join(storageRoot, 'not-a-plan.txt');
     await writeFile(textPath, 'not a real Excel file');
@@ -232,8 +387,13 @@ describe('ImportsController (e2e)', () => {
       .expect(400);
   });
 
-  function createPrismaMock(importRecords: ImportRecord[]) {
-    return {
+  function createPrismaMock(
+    importRecords: ImportRecord[],
+    containerRecords: ContainerRecord[],
+    lineRecords: LineRecord[],
+    destinationRecords: DestinationRecord[],
+  ) {
+    const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       importFile: {
         findUnique: jest.fn(({ where }: FindUniqueArgs) => {
@@ -256,19 +416,171 @@ describe('ImportsController (e2e)', () => {
             format: data.format,
             importStatus: data.importStatus,
             parseStatus: data.parseStatus,
+            parserVersion: data.parserVersion ?? null,
             warningCount: data.warningCount,
             errorCount: data.errorCount,
             errorMessage: data.errorMessage,
+            rawMetadata: data.rawMetadata ?? null,
             createdAt: now,
             updatedAt: now,
           };
           importRecords.push(record);
           return Promise.resolve(record);
         }),
+        update: jest.fn(({ where, data }) => {
+          const record = importRecords.find((item) => item.id === where.id);
+          if (!record) {
+            throw new Error(`Import record not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          });
+          return Promise.resolve(record);
+        }),
         findMany: jest.fn(({ take, skip }: FindManyArgs) =>
           Promise.resolve(importRecords.slice(skip, skip + take).reverse()),
         ),
       },
+      container: {
+        findMany: jest.fn(({ where, select, include }) => {
+          const found = containerRecords.filter(
+            (container) => container.importFileId === where.importFileId,
+          );
+
+          if (select?.id) {
+            return Promise.resolve(
+              found.map((container) => ({ id: container.id })),
+            );
+          }
+
+          if (include) {
+            return Promise.resolve(
+              found.map((container) => ({
+                ...container,
+                lines: lineRecords
+                  .filter((line) => line.containerId === container.id)
+                  .sort((left, right) => left.lineNo - right.lineNo),
+                destinations: destinationRecords
+                  .filter(
+                    (destination) =>
+                      destination.containerId === container.id,
+                  )
+                  .sort((left, right) =>
+                    left.destinationCode.localeCompare(
+                      right.destinationCode,
+                    ),
+                  ),
+              })),
+            );
+          }
+
+          return Promise.resolve(found);
+        }),
+        create: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:01:00.000Z');
+          const record: ContainerRecord = {
+            id: `container-${containerRecords.length + 1}`,
+            importFileId: data.importFileId,
+            containerNo: data.containerNo,
+            sourceFormat: data.sourceFormat,
+            parserVersion: data.parserVersion,
+            status: data.status,
+            rawJson: data.rawJson,
+            warnings: data.warnings,
+            errors: data.errors,
+            createdAt: now,
+            updatedAt: now,
+          };
+          containerRecords.push(record);
+          return Promise.resolve(record);
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          const ids = new Set<string>(where.id.in);
+          const originalLength = containerRecords.length;
+          for (let index = containerRecords.length - 1; index >= 0; index--) {
+            if (ids.has(containerRecords[index].id)) {
+              containerRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({
+            count: originalLength - containerRecords.length,
+          });
+        }),
+      },
+      containerLine: {
+        createMany: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:01:00.000Z');
+          const rows: LineRecord[] = data.map((row, index) => ({
+            id: `line-${lineRecords.length + index + 1}`,
+            containerId: row.containerId,
+            lineNo: row.lineNo,
+            destinationCode: row.destinationCode,
+            destinationType: row.destinationType,
+            cartons: row.cartons,
+            volume: row.volume,
+            rawJson: row.rawJson,
+            warnings: row.warnings,
+            errors: row.errors,
+            createdAt: now,
+            updatedAt: now,
+          }));
+          lineRecords.push(...rows);
+          return Promise.resolve({ count: rows.length });
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          const ids = new Set<string>(where.containerId.in);
+          const originalLength = lineRecords.length;
+          for (let index = lineRecords.length - 1; index >= 0; index--) {
+            if (ids.has(lineRecords[index].containerId)) {
+              lineRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: originalLength - lineRecords.length });
+        }),
+      },
+      containerDestination: {
+        createMany: jest.fn(({ data }) => {
+          const now = new Date('2026-06-26T00:01:00.000Z');
+          const rows: DestinationRecord[] = data.map((row, index) => ({
+            id: `destination-${destinationRecords.length + index + 1}`,
+            containerId: row.containerId,
+            destinationCode: row.destinationCode,
+            destinationType: row.destinationType,
+            cartons: row.cartons,
+            volume: row.volume,
+            calculatedPallets: row.calculatedPallets,
+            manualPallets: row.manualPallets,
+            finalPallets: row.finalPallets,
+            note: row.note,
+            warnings: row.warnings,
+            errors: row.errors,
+            createdAt: now,
+            updatedAt: now,
+          }));
+          destinationRecords.push(...rows);
+          return Promise.resolve({ count: rows.length });
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          const ids = new Set<string>(where.containerId.in);
+          const originalLength = destinationRecords.length;
+          for (
+            let index = destinationRecords.length - 1;
+            index >= 0;
+            index--
+          ) {
+            if (ids.has(destinationRecords[index].containerId)) {
+              destinationRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({
+            count: originalLength - destinationRecords.length,
+          });
+        }),
+      },
     };
+
+    prisma.$transaction = jest.fn((callback) => callback(prisma));
+
+    return prisma;
   }
 });

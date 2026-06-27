@@ -8,6 +8,7 @@ export interface AppConfiguration {
   version: string;
   databaseUrl: string;
   storageRoot: string;
+  workerPythonDir: string;
 }
 
 export const appConfig = (): { app: AppConfiguration } => ({
@@ -16,16 +17,25 @@ export const appConfig = (): { app: AppConfiguration } => ({
     version: process.env.npm_package_version ?? '0.0.1',
     databaseUrl: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
     storageRoot: process.env.STORAGE_ROOT ?? defaultStorageRoot(),
+    workerPythonDir: process.env.WORKER_PYTHON_DIR ?? defaultWorkerPythonDir(),
   },
 });
 
 function defaultStorageRoot(): string {
+  return resolve(defaultRepoRoot(), 'storage');
+}
+
+function defaultWorkerPythonDir(): string {
+  return resolve(defaultRepoRoot(), 'apps', 'worker-python');
+}
+
+function defaultRepoRoot(): string {
   const cwd = process.cwd();
   const apiSuffix = `${sep}apps${sep}api`;
 
   if (cwd.endsWith(apiSuffix)) {
-    return resolve(cwd, '..', '..', 'storage');
+    return resolve(cwd, '..', '..');
   }
 
-  return resolve(cwd, 'storage');
+  return cwd;
 }

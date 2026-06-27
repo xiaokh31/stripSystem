@@ -13,6 +13,7 @@ import { ListImportsQueryDto } from './dto/list-imports-query.dto';
 import {
   ImportFileListResponseDto,
   ImportFileResponseDto,
+  ImportParseResultResponseDto,
 } from './dto/import-file-response.dto';
 import { ImportsService } from './imports.service';
 
@@ -52,5 +53,17 @@ export class ImportsController {
   @Get(':id')
   getById(@Param('id') id: string): Promise<ImportFileResponseDto> {
     return this.importsService.getById(id);
+  }
+
+  @Post(':id/parse')
+  parse(@Param('id') id: string): Promise<ImportParseResultResponseDto> {
+    return this.importsService.parse(id);
+  }
+
+  @Get(':id/parse-result')
+  getParseResult(
+    @Param('id') id: string,
+  ): Promise<ImportParseResultResponseDto> {
+    return this.importsService.getParseResult(id);
   }
 }

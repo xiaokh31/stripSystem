@@ -85,3 +85,27 @@ def test_unloading_worker_batch_cli_prints_summary(tmp_path: Path) -> None:
     assert list((output_dir / "parsed_json").glob("*.json"))
     assert list((output_dir / "reports").glob("*.xlsx"))
     assert list((output_dir / "labels").glob("*.pdf"))
+
+
+def test_unloading_worker_parse_file_cli_outputs_parser_only_json() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "parse-file",
+            "--input-file",
+            str(REAL_FIXTURE),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["parse_scope"] == "parser-only"
+    assert payload["source_file"] == str(REAL_FIXTURE.resolve())
+    assert payload["task_status"] in {"SUCCESS", "WARNING"}
+    assert payload["parsed_result"]["containerNo"] == "CAAU8011090"
+    assert payload["parsed_result"]["parserVersion"] == "unloading-plan-cn-v1"
+    assert payload["parsed_result"]["lines"]
+    assert payload["pallet_result"]["plans"]
+    assert payload["report_result"] is None
+    assert payload["label_result"] is None

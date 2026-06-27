@@ -1,7 +1,7 @@
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { ImportsService } from './imports.service';
@@ -17,9 +17,11 @@ interface ImportRecord {
   format: string;
   importStatus: string;
   parseStatus: string;
+  parserVersion: string | null;
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  rawMetadata: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,13 +37,8 @@ describe('ImportsService', () => {
   );
 
   let storageRoot: string;
-  let prisma: {
-    importFile: {
-      findUnique: jest.Mock;
-      create: jest.Mock;
-      findMany: jest.Mock;
-    };
-  };
+  let prisma: any;
+  let workerParser: { parseFile: jest.Mock };
   let createdImportData:
     | {
         storedPath: string;
@@ -54,12 +51,28 @@ describe('ImportsService', () => {
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'p1-03-imports-service-'));
     prisma = {
+      $transaction: jest.fn((callback) => callback(prisma)),
       importFile: {
         findUnique: jest.fn(),
         create: jest.fn(),
         findMany: jest.fn(),
+        update: jest.fn(),
+      },
+      container: {
+        findMany: jest.fn(),
+        create: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      containerLine: {
+        createMany: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      containerDestination: {
+        createMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
     };
+    workerParser = { parseFile: jest.fn() };
     service = new ImportsService(
       prisma as unknown as PrismaService,
       {
@@ -70,6 +83,7 @@ describe('ImportsService', () => {
           throw new Error(`Unexpected config key ${key}`);
         }),
       } as unknown as ConfigService,
+      workerParser as never,
     );
   });
 
@@ -99,6 +113,7 @@ describe('ImportsService', () => {
       format: 'UNKNOWN',
       importStatus: 'UPLOADED',
       parseStatus: 'NOT_PARSED',
+      parserVersion: null,
       errorMessage: null,
     });
     expect(response.storedPath).toContain(
@@ -132,9 +147,11 @@ describe('ImportsService', () => {
       format: 'UNKNOWN',
       importStatus: 'UPLOADED',
       parseStatus: 'NOT_PARSED',
+      parserVersion: null,
       warningCount: 0,
       errorCount: 0,
       errorMessage: null,
+      rawMetadata: null,
       createdAt: new Date('2026-06-26T00:00:00.000Z'),
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     } satisfies ImportRecord);
@@ -160,6 +177,158 @@ describe('ImportsService', () => {
     expect(prisma.importFile.create).not.toHaveBeenCalled();
   });
 
+  it('calls the worker parser for a stored real fixture and persists parsed rows', async () => {
+    const file = await loadFixtureFile();
+    const storedPath = join(storageRoot, 'Unloading Plan CSNU8877228.xlsx');
+    await writeFile(storedPath, file.buffer);
+    const record = importRecord({
+      id: 'import-parse',
+      originalFilename: file.originalname,
+      storedPath,
+      fileSha256: createHash('sha256').update(file.buffer).digest('hex'),
+    });
+    const containers: any[] = [];
+    const lines: any[] = [];
+    const destinations: any[] = [];
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.importFile.update.mockImplementation(({ data }) => {
+      Object.assign(record, data, {
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      });
+      return Promise.resolve(record);
+    });
+    prisma.container.findMany.mockImplementation(({ where, include }) => {
+      const found = containers.filter(
+        (container) => container.importFileId === where.importFileId,
+      );
+      if (!include) {
+        return Promise.resolve(found.map((container) => ({ id: container.id })));
+      }
+
+      return Promise.resolve(
+        found.map((container) => ({
+          ...container,
+          lines: lines.filter((line) => line.containerId === container.id),
+          destinations: destinations.filter(
+            (destination) => destination.containerId === container.id,
+          ),
+        })),
+      );
+    });
+    prisma.container.create.mockImplementation(({ data }) => {
+      const container = {
+        id: 'container-1',
+        ...data,
+        createdAt: new Date('2026-06-26T00:01:00.000Z'),
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      };
+      containers.push(container);
+      return Promise.resolve(container);
+    });
+    prisma.containerLine.createMany.mockImplementation(({ data }) => {
+      lines.push(
+        ...data.map((line, index) => ({
+          id: `line-${index + 1}`,
+          ...line,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    prisma.containerDestination.createMany.mockImplementation(({ data }) => {
+      destinations.push(
+        ...data.map((destination, index) => ({
+          id: `destination-${index + 1}`,
+          ...destination,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    workerParser.parseFile.mockResolvedValue({
+      task_status: 'WARNING',
+      source_file: storedPath,
+      sha256: record.fileSha256,
+      detection: { format_type: 'UNLOADING_PLAN_CN' },
+      parsed_result: {
+        containerNo: 'CSNU8877228',
+        formatType: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        lines: [
+          {
+            rowNumber: 2,
+            destinationCode: 'YYZ',
+            deliveryMethod: 'LTL',
+            cartons: 12,
+            volumeCbm: 1.25,
+            raw_json: { '仓库代码': 'YYZ', 件数: 12 },
+          },
+        ],
+        destinationSummaries: [
+          {
+            destinationCode: 'YYZ',
+            totalCartons: 12,
+            totalVolumeCbm: 1.25,
+            lineCount: 1,
+          },
+        ],
+        warnings: [],
+        errors: [],
+        rawMetadata: { matchedSheet: 'Sheet1' },
+      },
+      pallet_result: {
+        plans: [
+          {
+            destinationCode: 'YYZ',
+            destinationType: 'UNKNOWN',
+            totalCartons: 12,
+            totalVolumeCbm: 1.25,
+            calculatedPallets: 1,
+            manualPallets: null,
+            finalPallets: 1,
+            warnings: [],
+          },
+        ],
+        warnings: [{ code: 'NEED_CONFIRM_DESTINATION_TYPE', message: 'Check' }],
+        errors: [],
+      },
+      warnings: [{ code: 'NEED_CONFIRM_DESTINATION_TYPE', message: 'Check' }],
+      errors: [],
+      exception: null,
+    });
+
+    const result = await service.parse(record.id);
+
+    expect(workerParser.parseFile).toHaveBeenCalledWith(storedPath);
+    expect(result.importFile).toMatchObject({
+      id: record.id,
+      storedPath,
+      parseStatus: 'WARNING',
+      parserVersion: 'unloading-plan-cn-v1',
+      warningCount: 1,
+      errorCount: 0,
+    });
+    expect(result.containers).toHaveLength(1);
+    expect(result.containers[0]).toMatchObject({
+      containerNo: 'CSNU8877228',
+      sourceFormat: 'UNLOADING_PLAN_CN',
+      parserVersion: 'unloading-plan-cn-v1',
+      status: 'PARSED',
+    });
+    expect(result.containers[0].lines).toHaveLength(1);
+    expect(result.containers[0].destinations).toMatchObject([
+      {
+        destinationCode: 'YYZ',
+        cartons: 12,
+        calculatedPallets: 1,
+        finalPallets: 1,
+      },
+    ]);
+  });
+
   async function loadFixtureFile(): Promise<Express.Multer.File> {
     const buffer = await readFile(fixturePath);
 
@@ -170,5 +339,28 @@ describe('ImportsService', () => {
       size: buffer.length,
       buffer,
     } as Express.Multer.File;
+  }
+
+  function importRecord(overrides: Partial<ImportRecord>): ImportRecord {
+    return {
+      id: 'import-1',
+      originalFilename: 'Unloading Plan CSNU8877228.xlsx',
+      storedPath: join(storageRoot, 'original.xlsx'),
+      fileSha256: 'sha256',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fileSizeBytes: BigInt(100),
+      format: 'UNKNOWN',
+      importStatus: 'UPLOADED',
+      parseStatus: 'NOT_PARSED',
+      parserVersion: null,
+      warningCount: 0,
+      errorCount: 0,
+      errorMessage: null,
+      rawMetadata: null,
+      createdAt: new Date('2026-06-26T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+      ...overrides,
+    };
   }
 });

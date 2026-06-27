@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from pathlib import Path
 
 import typer
 
-from worker_python.batch import run_batch
+from worker_python.batch import (
+    BATCH_VERSION,
+    _exception_payload,
+    _exception_record,
+    _json_ready,
+    _parse_detected_file,
+    run_batch,
+)
+from worker_python.imports import compute_sha256
+from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
+from worker_python.parser import FormatType, detect_excel_format
+from worker_python.task_reports import record_from_detection, record_from_parsed_result
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -57,6 +70,114 @@ def batch(
     typer.echo(f"Labels: {result.labelDir}")
     typer.echo(f"Task report: {result.taskReport.htmlPath}")
     typer.echo(f"Corrections JSON: {result.taskReport.correctionsPath}")
+
+
+@app.command("parse-file")
+def parse_file(
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Single .xlsx unloading file to parse without generating reports or labels.",
+    ),
+) -> None:
+    generated_at = datetime.now()
+    source_path = input_file.resolve()
+    sha256 = compute_sha256(source_path) if source_path.is_file() else None
+    detection = None
+    parsed_result = None
+    pallet_result = None
+
+    try:
+        detection = detect_excel_format(source_path)
+
+        if detection.format_type == FormatType.UNKNOWN:
+            task_record = record_from_detection(source_path, detection)
+        else:
+            parsed_result = _parse_detected_file(source_path, detection)
+            pallet_result = calculate_pallets(
+                inputs_from_destination_summaries(parsed_result.destinationSummaries),
+                container_no=parsed_result.containerNo,
+                pallet_id_namespace=sha256[:12] if sha256 else None,
+            )
+            task_record = record_from_parsed_result(
+                original_file=source_path,
+                parsed_result=parsed_result,
+                pallet_result=pallet_result,
+            )
+
+        typer.echo(
+            json.dumps(
+                _parse_payload(
+                    source_path=source_path,
+                    sha256=sha256,
+                    generated_at=generated_at,
+                    detection=detection,
+                    parsed_result=parsed_result,
+                    pallet_result=pallet_result,
+                    task_status=task_record.parseStatus,
+                    warnings=task_record.warnings,
+                    errors=task_record.errors,
+                ),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    except Exception as exc:
+        task_record = _exception_record(source_path, detection, exc)
+        typer.echo(
+            json.dumps(
+                _parse_payload(
+                    source_path=source_path,
+                    sha256=sha256,
+                    generated_at=generated_at,
+                    detection=detection,
+                    parsed_result=parsed_result,
+                    pallet_result=pallet_result,
+                    task_status=task_record.parseStatus,
+                    warnings=task_record.warnings,
+                    errors=task_record.errors,
+                    exception=exc,
+                ),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+
+
+def _parse_payload(
+    *,
+    source_path: Path,
+    sha256: str | None,
+    generated_at: datetime,
+    detection: object | None,
+    parsed_result: object | None,
+    pallet_result: object | None,
+    task_status: str,
+    warnings: object,
+    errors: object,
+    exception: Exception | None = None,
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "batch_version": BATCH_VERSION,
+        "generated_at": generated_at.isoformat(),
+        "source_file": str(source_path),
+        "original_filename": source_path.name,
+        "sha256": sha256,
+        "parse_scope": "parser-only",
+        "detection": _json_ready(detection),
+        "parsed_result": _json_ready(parsed_result),
+        "pallet_result": _json_ready(pallet_result),
+        "report_result": None,
+        "label_result": None,
+        "task_status": task_status,
+        "warnings": _json_ready(warnings),
+        "errors": _json_ready(errors),
+        "exception": _exception_payload(exception),
+    }
 
 
 def main() -> None:
