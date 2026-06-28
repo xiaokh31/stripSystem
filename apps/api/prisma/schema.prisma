@@ -85,6 +85,7 @@ enum PalletEventType {
   INVALID_SCAN
   STATUS_CHANGED
   CANCELLED
+  REPRINTED
 }
 
 enum CorrectionTargetType {

@@ -25,3 +25,25 @@ export interface GenerateLabelsResponseDto {
 export interface PalletListResponseDto {
   items: PalletResponseDto[];
 }
+
+export interface ReprintAuditEventDto {
+  id: string;
+  palletRecordId: string;
+  businessPalletId: string;
+  userId: string;
+  printedAt: string;
+  reason: string;
+  palletStatus: string;
+  supervisorOverride: boolean;
+}
+
+export interface PalletReprintResponseDto {
+  event: ReprintAuditEventDto;
+  pallet: PalletResponseDto;
+}
+
+export interface ContainerLabelReprintResponseDto {
+  containerId: string;
+  eventCount: number;
+  events: ReprintAuditEventDto[];
+}

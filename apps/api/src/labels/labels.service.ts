@@ -10,15 +10,19 @@ import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  ContainerLabelReprintResponseDto,
   GenerateLabelsResponseDto,
   PalletListResponseDto,
+  PalletReprintResponseDto,
   PalletResponseDto,
+  ReprintAuditEventDto,
 } from './dto/label-response.dto';
 import {
   WorkerLabelPayload,
   WorkerLabelRequest,
   WorkerLabelService,
 } from './worker-label.service';
+import { ReprintLabelDto } from './dto/reprint-label.dto';
 import {
   ContainerStatus,
   GeneratedFileStatus,
@@ -89,6 +93,20 @@ interface PalletRecord {
     destinationCode: string;
     destinationType: string | null;
   };
+}
+
+interface PalletEventRecord {
+  id: string;
+  palletId: string | null;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  scanPayload: string | null;
+  metadata: unknown;
+  operatorId: string | null;
+  occurredAt: Date | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 interface PalletDraft {
@@ -217,6 +235,105 @@ export class LabelsService {
     };
   }
 
+  async reprintPalletLabel(
+    id: string,
+    dto: ReprintLabelDto,
+  ): Promise<PalletReprintResponseDto> {
+    const occurredAt = new Date();
+    const supervisorOverride = dto.supervisorOverride === true;
+
+    const { pallet, event } = (await this.prisma.$transaction(async (tx) => {
+      await this.assertUserExists(
+        tx,
+        dto.operatorId,
+        'REPRINT_OPERATOR_NOT_FOUND',
+      );
+      const pallet = await this.findPalletOrThrow(tx, id);
+      this.assertPalletsCanBeReprinted([pallet], supervisorOverride);
+      const event = await this.createReprintEvent(tx, {
+        pallet,
+        operatorId: dto.operatorId,
+        reason: dto.reason,
+        occurredAt,
+        supervisorOverride,
+        scope: 'PALLET',
+      });
+
+      return { pallet, event };
+    })) as { pallet: PalletRecord; event: PalletEventRecord };
+
+    return {
+      event: this.toReprintAuditEventResponse({
+        event,
+        pallet,
+        reason: dto.reason,
+        supervisorOverride,
+      }),
+      pallet: this.toPalletResponse(pallet),
+    };
+  }
+
+  async reprintContainerLabels(
+    id: string,
+    dto: ReprintLabelDto,
+  ): Promise<ContainerLabelReprintResponseDto> {
+    const occurredAt = new Date();
+    const supervisorOverride = dto.supervisorOverride === true;
+
+    const events = (await this.prisma.$transaction(async (tx) => {
+      await this.assertUserExists(
+        tx,
+        dto.operatorId,
+        'REPRINT_OPERATOR_NOT_FOUND',
+      );
+      await this.findContainerForReprintOrThrow(tx, id);
+      const pallets = await this.findContainerPallets(tx, id);
+      if (pallets.length === 0) {
+        throw new BadRequestException({
+          code: 'NO_PALLETS_TO_REPRINT',
+          message: `Container ${id} has no pallet labels to reprint.`,
+          details: { containerId: id },
+        });
+      }
+
+      this.assertPalletsCanBeReprinted(pallets, supervisorOverride);
+
+      const records: Array<{
+        pallet: PalletRecord;
+        event: PalletEventRecord;
+      }> = [];
+      for (const pallet of pallets) {
+        records.push({
+          pallet,
+          event: await this.createReprintEvent(tx, {
+            pallet,
+            operatorId: dto.operatorId,
+            reason: dto.reason,
+            occurredAt,
+            supervisorOverride,
+            scope: 'CONTAINER',
+            containerId: id,
+          }),
+        });
+      }
+
+      return records;
+    })) as Array<{ pallet: PalletRecord; event: PalletEventRecord }>;
+
+    return {
+      containerId: id,
+      eventCount: events.length,
+      events: events.map(({ event, pallet }) =>
+        this.toReprintAuditEventResponse({
+          event,
+          pallet,
+          reason: dto.reason,
+          supervisorOverride,
+        }),
+      ),
+    };
+  }
+
   private async findContainerOrThrow(
     id: string,
     includePallets: boolean,
@@ -253,6 +370,87 @@ export class LabelsService {
     return container;
   }
 
+  private async findContainerForReprintOrThrow(
+    tx: any,
+    id: string,
+  ): Promise<void> {
+    const container = await tx.container.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!container) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${id} was not found.`,
+        details: { id },
+      });
+    }
+  }
+
+  private async findPalletOrThrow(tx: any, id: string): Promise<PalletRecord> {
+    const pallet = (await tx.pallet.findUnique({
+      where: { id },
+      include: {
+        containerDestination: {
+          select: {
+            containerId: true,
+            destinationCode: true,
+            destinationType: true,
+          },
+        },
+      },
+    })) as PalletRecord | null;
+
+    if (!pallet) {
+      throw new NotFoundException({
+        code: 'PALLET_NOT_FOUND',
+        message: `Pallet ${id} was not found.`,
+        details: { id },
+      });
+    }
+
+    return pallet;
+  }
+
+  private async findContainerPallets(
+    tx: any,
+    containerId: string,
+  ): Promise<PalletRecord[]> {
+    return (await tx.pallet.findMany({
+      where: { containerDestination: { containerId } },
+      include: {
+        containerDestination: {
+          select: {
+            containerId: true,
+            destinationCode: true,
+            destinationType: true,
+          },
+        },
+      },
+      orderBy: [{ containerDestinationId: 'asc' }, { palletNo: 'asc' }],
+    })) as PalletRecord[];
+  }
+
+  private async assertUserExists(
+    tx: any,
+    userId: string,
+    code: string,
+  ): Promise<void> {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException({
+        code,
+        message: `User ${userId} was not found.`,
+        details: { userId },
+      });
+    }
+  }
+
   private assertCanRegeneratePallets(container: ContainerRecord): void {
     const reusableStatuses = new Set<string>([
       PalletStatus.PLANNED,
@@ -279,6 +477,63 @@ export class LabelsService {
         },
       });
     }
+  }
+
+  private assertPalletsCanBeReprinted(
+    pallets: PalletRecord[],
+    supervisorOverride: boolean,
+  ): void {
+    const blocked = pallets.filter(
+      (pallet) => pallet.status === PalletStatus.CANCELLED,
+    );
+    if (blocked.length > 0 && !supervisorOverride) {
+      throw new ConflictException({
+        code: 'REPRINT_REQUIRES_SUPERVISOR_OVERRIDE',
+        message:
+          'Cancelled pallets cannot be reprinted without supervisor override.',
+        details: {
+          blockedCount: blocked.length,
+          palletIds: blocked.map((pallet) => pallet.id),
+        },
+      });
+    }
+  }
+
+  private async createReprintEvent(
+    tx: any,
+    input: {
+      pallet: PalletRecord;
+      operatorId: string;
+      reason: string;
+      occurredAt: Date;
+      supervisorOverride: boolean;
+      scope: 'PALLET' | 'CONTAINER';
+      containerId?: string;
+    },
+  ): Promise<PalletEventRecord> {
+    return (await tx.palletEvent.create({
+      data: {
+        palletId: input.pallet.id,
+        eventType: PalletEventType.REPRINTED,
+        fromStatus: input.pallet.status,
+        toStatus: input.pallet.status,
+        scanPayload: input.pallet.qrPayload,
+        operatorId: input.operatorId,
+        occurredAt: input.occurredAt,
+        metadata: {
+          action: 'PALLET_LABEL_REPRINT',
+          scope: input.scope,
+          reason: input.reason,
+          printedAt: input.occurredAt.toISOString(),
+          supervisorOverride: input.supervisorOverride,
+          businessPalletId: input.pallet.palletId,
+          containerId:
+            input.containerId ??
+            input.pallet.containerDestination?.containerId ??
+            null,
+        },
+      },
+    })) as PalletEventRecord;
   }
 
   private buildPalletDrafts(
@@ -605,6 +860,24 @@ export class LabelsService {
         : this.toIsoStringOrNull(pallet.labelPrintedAt),
       createdAt: this.toIsoString(pallet.createdAt),
       updatedAt: this.toIsoString(pallet.updatedAt),
+    };
+  }
+
+  private toReprintAuditEventResponse(input: {
+    event: PalletEventRecord;
+    pallet: PalletRecord;
+    reason: string;
+    supervisorOverride: boolean;
+  }): ReprintAuditEventDto {
+    return {
+      id: input.event.id,
+      palletRecordId: input.pallet.id,
+      businessPalletId: input.pallet.palletId,
+      userId: input.event.operatorId ?? '',
+      printedAt: this.toIsoString(input.event.occurredAt),
+      reason: input.reason,
+      palletStatus: input.pallet.status,
+      supervisorOverride: input.supervisorOverride,
     };
   }
 

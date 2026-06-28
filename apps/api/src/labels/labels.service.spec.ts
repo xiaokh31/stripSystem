@@ -45,12 +45,19 @@ interface PalletData {
   qrPayload: string;
   status: string;
   labelPrintedAt: Date | null;
+  loadedAt?: Date | null;
+  loadJobId?: string | null;
 }
 
 interface PalletRecord extends PalletData {
   id: string;
   createdAt: Date;
   updatedAt: Date;
+  containerDestination?: {
+    containerId: string;
+    destinationCode: string;
+    destinationType: string | null;
+  };
 }
 
 interface PalletCreateArgs {
@@ -74,10 +81,37 @@ interface PalletEventCreateManyArgs {
     palletId: string;
     eventType: string;
     fromStatus: string | null;
-    toStatus: string;
+    toStatus: string | null;
     scanPayload: string;
     metadata: unknown;
   }>;
+}
+
+interface PalletEventCreateArgs {
+  data: {
+    palletId: string;
+    eventType: string;
+    fromStatus: string | null;
+    toStatus: string | null;
+    scanPayload: string;
+    operatorId: string;
+    occurredAt: Date;
+    metadata: unknown;
+  };
+}
+
+interface PalletEventRecord {
+  id: string;
+  palletId: string | null;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  scanPayload: string | null;
+  metadata: unknown;
+  operatorId: string | null;
+  occurredAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface GeneratedFileData {
@@ -121,8 +155,14 @@ type TransactionCallback = (tx: LabelsPrismaMock) => Promise<any>;
 
 interface LabelsPrismaMock {
   $transaction: jest.Mock<Promise<any>, [TransactionCallback]>;
+  user: {
+    findUnique: jest.Mock<Promise<{ id: string } | null>, [unknown?]>;
+  };
   container: {
-    findUnique: jest.Mock<Promise<ContainerRecord>, []>;
+    findUnique: jest.Mock<
+      Promise<ContainerRecord | { id: string } | null>,
+      [unknown?]
+    >;
     update: jest.Mock<
       Promise<{ id: string; status: string }>,
       [ContainerUpdateArgs]
@@ -132,9 +172,11 @@ interface LabelsPrismaMock {
     create: jest.Mock<Promise<PalletRecord>, [PalletCreateArgs]>;
     deleteMany: jest.Mock<Promise<{ count: number }>, [PalletDeleteManyArgs]>;
     updateMany: jest.Mock<Promise<{ count: number }>, [PalletUpdateManyArgs]>;
-    findMany: jest.Mock<Promise<PalletRecord[]>, []>;
+    findMany: jest.Mock<Promise<PalletRecord[]>, [unknown?]>;
+    findUnique: jest.Mock<Promise<PalletRecord | null>, [unknown?]>;
   };
   palletEvent: {
+    create: jest.Mock<Promise<PalletEventRecord>, [PalletEventCreateArgs]>;
     createMany: jest.Mock<
       Promise<{ count: number }>,
       [PalletEventCreateManyArgs]
@@ -352,18 +394,155 @@ describe('LabelsService', () => {
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
 
+  it('records a pallet reprint audit event without changing pallet status', async () => {
+    const loadedPallet = palletRecord({
+      id: 'pallet-loaded',
+      status: 'LOADED',
+      loadedAt: new Date('2026-06-26T01:00:00.000Z'),
+    });
+    prisma.pallet.findUnique.mockResolvedValueOnce(loadedPallet);
+
+    const result = await service.reprintPalletLabel('pallet-loaded', {
+      operatorId: 'user-1',
+      reason: 'Original label was damaged during loading',
+    });
+
+    expect(result.event).toMatchObject({
+      palletRecordId: 'pallet-loaded',
+      businessPalletId: loadedPallet.palletId,
+      userId: 'user-1',
+      reason: 'Original label was damaged during loading',
+      palletStatus: 'LOADED',
+      supervisorOverride: false,
+    });
+    expect(result.pallet.status).toBe('LOADED');
+    expect(prisma.palletEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        palletId: 'pallet-loaded',
+        eventType: 'REPRINTED',
+        fromStatus: 'LOADED',
+        toStatus: 'LOADED',
+        scanPayload: loadedPallet.qrPayload,
+        operatorId: 'user-1',
+        metadata: expect.objectContaining({
+          action: 'PALLET_LABEL_REPRINT',
+          reason: 'Original label was damaged during loading',
+          scope: 'PALLET',
+          supervisorOverride: false,
+          businessPalletId: loadedPallet.palletId,
+        }),
+      }),
+    });
+    expect(prisma.pallet.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('records container reprint audit events for every pallet without status changes', async () => {
+    const first = palletRecord({ id: 'pallet-1', status: 'LABEL_PRINTED' });
+    const second = palletRecord({ id: 'pallet-2', status: 'LOADED' });
+    prisma.pallet.findMany.mockResolvedValueOnce([first, second]);
+
+    const result = await service.reprintContainerLabels('container-1', {
+      operatorId: 'user-1',
+      reason: 'Warehouse requested a full label set reprint',
+    });
+
+    expect(result).toMatchObject({
+      containerId: 'container-1',
+      eventCount: 2,
+      events: [
+        {
+          palletRecordId: 'pallet-1',
+          palletStatus: 'LABEL_PRINTED',
+          userId: 'user-1',
+        },
+        {
+          palletRecordId: 'pallet-2',
+          palletStatus: 'LOADED',
+          userId: 'user-1',
+        },
+      ],
+    });
+    expect(prisma.palletEvent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.palletEvent.create.mock.calls[0][0].data).toMatchObject({
+      palletId: 'pallet-1',
+      eventType: 'REPRINTED',
+      fromStatus: 'LABEL_PRINTED',
+      toStatus: 'LABEL_PRINTED',
+      operatorId: 'user-1',
+      metadata: expect.objectContaining({ scope: 'CONTAINER' }),
+    });
+    expect(prisma.palletEvent.create.mock.calls[1][0].data).toMatchObject({
+      palletId: 'pallet-2',
+      eventType: 'REPRINTED',
+      fromStatus: 'LOADED',
+      toStatus: 'LOADED',
+      operatorId: 'user-1',
+      metadata: expect.objectContaining({ scope: 'CONTAINER' }),
+    });
+    expect(prisma.pallet.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('blocks cancelled pallet reprint unless supervisor override is provided', async () => {
+    const cancelled = palletRecord({
+      id: 'pallet-cancelled',
+      status: 'CANCELLED',
+    });
+    prisma.pallet.findUnique.mockResolvedValueOnce(cancelled);
+
+    await expect(
+      service.reprintPalletLabel('pallet-cancelled', {
+        operatorId: 'user-1',
+        reason: 'Reprint requested after cancellation',
+      }),
+    ).rejects.toHaveProperty(
+      'response.code',
+      'REPRINT_REQUIRES_SUPERVISOR_OVERRIDE',
+    );
+    expect(prisma.palletEvent.create).not.toHaveBeenCalled();
+
+    prisma.pallet.findUnique.mockResolvedValueOnce(cancelled);
+    const result = await service.reprintPalletLabel('pallet-cancelled', {
+      operatorId: 'user-1',
+      reason: 'Supervisor approved one-time reprint',
+      supervisorOverride: true,
+    });
+
+    expect(result.event).toMatchObject({
+      palletRecordId: 'pallet-cancelled',
+      palletStatus: 'CANCELLED',
+      supervisorOverride: true,
+    });
+    expect(prisma.palletEvent.create).toHaveBeenCalledTimes(1);
+  });
+
   function createPrismaMock(): LabelsPrismaMock {
     const pallets: PalletRecord[] = [];
+    const palletEvents: PalletEventRecord[] = [];
     const generatedFiles: GeneratedFileRecord[] = [];
     const mock = {} as LabelsPrismaMock;
 
     mock.$transaction = jest.fn<Promise<any>, [TransactionCallback]>(
       (callback) => callback(mock),
     );
+    mock.user = {
+      findUnique: jest
+        .fn<Promise<{ id: string } | null>, [unknown?]>()
+        .mockResolvedValue({ id: 'user-1' }),
+    };
     mock.container = {
       findUnique: jest
-        .fn<Promise<ContainerRecord>, []>()
-        .mockResolvedValue(containerRecord()),
+        .fn<Promise<ContainerRecord | { id: string } | null>, [unknown?]>()
+        .mockImplementation((args) => {
+          if (
+            args &&
+            typeof args === 'object' &&
+            'select' in args &&
+            (args as { select?: { id?: boolean } }).select?.id
+          ) {
+            return Promise.resolve({ id: 'container-1' });
+          }
+          return Promise.resolve(containerRecord());
+        }),
       update: jest
         .fn<Promise<{ id: string; status: string }>, [ContainerUpdateArgs]>()
         .mockResolvedValue({
@@ -407,10 +586,33 @@ describe('LabelsService', () => {
         },
       ),
       findMany: jest
-        .fn<Promise<PalletRecord[]>, []>()
+        .fn<Promise<PalletRecord[]>, [unknown?]>()
         .mockResolvedValue(pallets),
+      findUnique: jest
+        .fn<Promise<PalletRecord | null>, [unknown?]>()
+        .mockResolvedValue(null),
     };
     mock.palletEvent = {
+      create: jest.fn<Promise<PalletEventRecord>, [PalletEventCreateArgs]>(
+        ({ data }) => {
+          const now = new Date('2026-06-26T00:04:00.000Z');
+          const record: PalletEventRecord = {
+            id: `pallet-event-${palletEvents.length + 1}`,
+            palletId: data.palletId,
+            eventType: data.eventType,
+            fromStatus: data.fromStatus,
+            toStatus: data.toStatus,
+            scanPayload: data.scanPayload,
+            metadata: data.metadata,
+            operatorId: data.operatorId,
+            occurredAt: data.occurredAt,
+            createdAt: now,
+            updatedAt: now,
+          };
+          palletEvents.push(record);
+          return Promise.resolve(record);
+        },
+      ),
       createMany: jest.fn<
         Promise<{ count: number }>,
         [PalletEventCreateManyArgs]
@@ -493,6 +695,30 @@ describe('LabelsService', () => {
           pallets: [],
         },
       ],
+    };
+  }
+
+  function palletRecord(override: Partial<PalletRecord> = {}): PalletRecord {
+    const now = new Date('2026-06-26T00:00:00.000Z');
+    return {
+      id: 'pallet-1',
+      containerDestinationId: 'destination-1',
+      palletNo: 1,
+      palletId: 'CSNU8877228-D001-YYZ-P001',
+      qrPayload:
+        'SSP1|PALLET|2026-06-26|CSNU8877228|YYZ|1/3|CSNU8877228-D001-YYZ-P001',
+      status: 'LABEL_PRINTED',
+      labelPrintedAt: new Date('2026-06-26T00:05:00.000Z'),
+      loadedAt: null,
+      loadJobId: null,
+      createdAt: now,
+      updatedAt: now,
+      containerDestination: {
+        containerId: 'container-1',
+        destinationCode: 'YYZ',
+        destinationType: 'AMAZON_FBA',
+      },
+      ...override,
     };
   }
 
