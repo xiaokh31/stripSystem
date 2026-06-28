@@ -4,6 +4,10 @@ import {
   getApiHealth,
   type ApiHealthResponse,
 } from "@/lib/api-client";
+import {
+  formatOperationalDateTime,
+  OPERATIONAL_TIME_ZONE_DESCRIPTION,
+} from "@/lib/date-time";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +107,7 @@ export default async function Home() {
                 Phase
               </p>
               <p className="mt-1 text-base font-semibold text-zinc-950">
-                P2 Office
+                P5 Pilot Ready
               </p>
             </div>
           </div>
@@ -143,7 +147,13 @@ export default async function Home() {
               <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
                 <dt className="text-zinc-500">Checked at</dt>
                 <dd className="font-medium text-zinc-950">
-                  {health.data.timestamp}
+                  {formatOperationalDateTime(health.data.timestamp)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
+                <dt className="text-zinc-500">Time zone</dt>
+                <dd className="font-medium text-zinc-950">
+                  {OPERATIONAL_TIME_ZONE_DESCRIPTION}
                 </dd>
               </div>
             </dl>

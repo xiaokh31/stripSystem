@@ -9,6 +9,7 @@ import {
   getGeneratedFileDownloadUrl,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
+import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   formatFileSizeBytes,
   generationActionNotice,
@@ -295,8 +296,5 @@ function filenameFromStoragePath(storagePath: string): string {
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatOperationalDateTime(value);
 }

@@ -2,6 +2,7 @@ import type {
   InventoryReportFilters,
   PalletStatsResponse,
 } from "@/lib/api-client";
+import { formatOperationalDateTime } from "../../lib/date-time";
 
 export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
 export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
@@ -87,17 +88,7 @@ export function normalizeInventoryPollingIntervalMs(
 }
 
 export function formatInventoryRefreshTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return [
-    `${date.getUTCFullYear()}-${padDatePart(date.getUTCMonth() + 1)}-${padDatePart(date.getUTCDate())}`,
-    `${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}:${padDatePart(date.getUTCSeconds())}`,
-    "UTC",
-  ].join(" ");
+  return formatOperationalDateTime(value);
 }
 
 function optionalFilter(
@@ -121,8 +112,4 @@ function appendFilter(
   if (trimmed) {
     params.set(key, trimmed);
   }
-}
-
-function padDatePart(value: number): string {
-  return String(value).padStart(2, "0");
 }

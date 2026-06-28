@@ -178,6 +178,15 @@ BACKUP_DIR=/var/backups/bestar-unloading scripts/backup-postgres.sh
 BACKUP_DIR=/var/backups/bestar-unloading scripts/backup-storage.sh
 ```
 
+## Database Migrations
+
+The API service runs committed Prisma migrations automatically during startup.
+When `apps/api/prisma/schema.prisma` changes, create and commit a Prisma
+migration before deployment.
+
+See `docs/runbooks/database-migrations.md` for the full migration workflow,
+drift checks, and recovery rules.
+
 ## Common Faults
 
 | Symptom | Check |
@@ -185,6 +194,7 @@ BACKUP_DIR=/var/backups/bestar-unloading scripts/backup-storage.sh
 | nginx returns 502 | `api` or `web` is not healthy; inspect service logs. |
 | API health is degraded | PostgreSQL credentials, volume, or migration failed. |
 | Web starts but API calls fail | `WEB_API_PROXY_BASE_URL` should be `http://api:4000/api`. |
+| `http://127.0.0.1:3000` shows API degraded | Local Web dev defaults to nginx at `http://127.0.0.1/api`; if overridden, set `API_BASE_URL=http://127.0.0.1/api` and `API_PROXY_BASE_URL=http://127.0.0.1/api`. |
 | Upload succeeds but file disappears | `storage/` bind mount and host permissions. |
 | Worker parse/report/label fails | API image must include Python, uv, and worker dependencies; inspect `api` logs. |
 | Mobile cannot access app | Use the server LAN IP and allow HTTP port through firewall. |

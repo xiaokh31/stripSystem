@@ -1,4 +1,5 @@
 import type { ContainerResponse, ImportFileResponse } from "@/lib/api-client";
+import { formatOperationalDateTime } from "../../lib/date-time";
 
 export type StatusTone = "amber" | "emerald" | "red" | "zinc";
 
@@ -105,15 +106,7 @@ export function issueList(issues: unknown): string[] {
 }
 
 export function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-CA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatOperationalDateTime(value);
 }
 
 function issueText(issue: unknown, index: number): string {

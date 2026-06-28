@@ -59,7 +59,7 @@ test("browser API base defaults to same-origin api path", () => {
   }
 });
 
-test("server API base defaults to local Nest API port", () => {
+test("server API base defaults to local nginx API route", () => {
   const env = preserveApiEnv();
   const windowDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -70,10 +70,10 @@ test("server API base defaults to local Nest API port", () => {
     clearApiEnv();
     delete (globalThis as Record<string, unknown>).window;
 
-    assert.equal(getApiBaseUrl(), "http://127.0.0.1:4000/api");
+    assert.equal(getApiBaseUrl(), "http://127.0.0.1/api");
     assert.equal(
       buildApiUrl("/health"),
-      "http://127.0.0.1:4000/api/health",
+      "http://127.0.0.1/api/health",
     );
   } finally {
     restoreApiEnv(env);

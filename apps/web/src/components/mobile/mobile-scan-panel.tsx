@@ -14,6 +14,7 @@ import {
   type LoadJobResponse,
   type LoadJobScanResponse,
 } from "@/lib/api-client";
+import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   isScanSubmitDisabled,
   loadJobDisplayName,
@@ -372,7 +373,7 @@ function OfflineQueuePanel({
                     {item.loadJobId}
                   </td>
                   <td className="px-3 py-3 text-zinc-700">
-                    {item.scannedAt}
+                    {formatOperationalDateTime(item.scannedAt)}
                   </td>
                   <td className="px-3 py-3 break-all font-mono text-xs text-zinc-700">
                     {item.qrPayload}

@@ -451,7 +451,7 @@ export class ApiClientError extends Error {
 }
 
 const DEFAULT_BROWSER_API_BASE_URL = "/api";
-const DEFAULT_SERVER_API_BASE_URL = "http://127.0.0.1:4000/api";
+const DEFAULT_SERVER_API_BASE_URL = "http://127.0.0.1/api";
 
 export function getApiBaseUrl(): string {
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;

@@ -66,10 +66,10 @@ test("inventory polling interval is constrained to the supported range", () => {
   assert.equal(normalizeInventoryPollingIntervalMs(45_000), 30_000);
 });
 
-test("inventory refresh time is formatted in stable UTC", () => {
+test("inventory refresh time is formatted in dynamic Edmonton daylight time", () => {
   assert.equal(
     formatInventoryRefreshTime("2026-06-27T21:05:09.000Z"),
-    "2026-06-27 21:05:09 UTC",
+    "2026-06-27 15:05:09 MDT",
   );
   assert.equal(formatInventoryRefreshTime("not-a-date"), "not-a-date");
 });

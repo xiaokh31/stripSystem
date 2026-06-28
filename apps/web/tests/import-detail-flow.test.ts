@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   canTriggerParse,
   containerLinks,
+  formatDateTime,
   issueList,
   manualReportHref,
   shouldOfferManualReportEntry,
@@ -77,6 +78,21 @@ test("manual report link carries the source import id", () => {
     manualReportHref("import 1/2"),
     "/containers/new?fromImport=import%201%2F2",
   );
+});
+
+test("import timestamps are formatted in dynamic Edmonton daylight time", () => {
+  assert.equal(
+    formatDateTime("2026-06-27T21:05:09.000Z"),
+    "2026-06-27 15:05:09 MDT",
+  );
+});
+
+test("import timestamps are formatted in dynamic Edmonton standard time", () => {
+  assert.equal(
+    formatDateTime("2026-01-27T21:05:09.000Z"),
+    "2026-01-27 14:05:09 MST",
+  );
+  assert.equal(formatDateTime("not-a-date"), "not-a-date");
 });
 
 test("issue lists preserve parser warning and error messages", () => {

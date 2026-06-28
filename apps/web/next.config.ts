@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const apiProxyBaseUrl = normalizeApiBaseUrl(
   process.env.API_PROXY_BASE_URL ??
     process.env.API_BASE_URL ??
-    "http://127.0.0.1:4000/api",
+    "http://127.0.0.1/api",
 );
 
 const nextConfig: NextConfig = {
