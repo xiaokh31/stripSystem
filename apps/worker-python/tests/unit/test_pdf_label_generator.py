@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from worker_python.imports import ImportRegistry
-from worker_python.labels import generate_pallet_label_pdf
+from worker_python.labels import generate_pallet_label_pdf, generate_print_calibration_pdf
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
 
@@ -27,6 +27,7 @@ LABEL_TEMPLATE = (
     / "templates"
     / "label.html"
 )
+PRINT_CALIBRATION_TEMPLATE = LABEL_TEMPLATE.with_name("print_calibration.html")
 POINTS_PER_MM = 72 / 25.4
 
 
@@ -127,6 +128,36 @@ def test_label_template_keeps_qr_at_25mm_and_wraps_long_destination() -> None:
     assert "width: 25mm;" in template
     assert "height: 25mm;" in template
     assert "overflow-wrap: anywhere;" in template
+
+
+def test_print_calibration_pdf_is_150mm_by_100mm_with_25mm_qr_box(
+    tmp_path: Path,
+) -> None:
+    result = generate_print_calibration_pdf(output_dir=tmp_path / "labels")
+
+    assert result.outputPath.name == "print-calibration.pdf"
+    assert result.outputPath.is_file()
+    assert result.pageWidthMm == 150
+    assert result.pageHeightMm == 100
+    assert result.qrBoxMm == 25
+    assert "Disable automatic print scaling" in result.instruction
+
+    text = result.outputPath.read_bytes().decode("latin1", errors="ignore")
+    assert _page_count(text) == 1
+    width, height = _first_media_box_size(text)
+    assert width == pytest.approx(_mm_points(150), abs=0.01)
+    assert height == pytest.approx(_mm_points(100), abs=0.01)
+
+
+def test_print_calibration_template_documents_scaling_and_measurements() -> None:
+    template = PRINT_CALIBRATION_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "size: 150mm 100mm;" in template
+    assert "width: 25mm;" in template
+    assert "height: 25mm;" in template
+    assert "Disable fit-to-page, shrink-to-fit, and auto scaling." in template
+    assert "Printed outer border must measure 150mm x 100mm." in template
+    assert "Printed QR check box must measure 25mm x 25mm." in template
 
 
 def test_pdf_label_generator_returns_error_when_no_pallet_ids(tmp_path: Path) -> None:

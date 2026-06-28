@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      @page {
+        size: 150mm 100mm;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        color: #111;
+        font-family: Arial, "Noto Sans", sans-serif;
+      }
+
+      .page {
+        position: relative;
+        width: 150mm;
+        height: 100mm;
+        padding: 8mm;
+        overflow: hidden;
+      }
+
+      .outer-frame {
+        position: absolute;
+        inset: 0;
+        border: 0.45mm solid #111;
+      }
+
+      .inner-frame {
+        position: absolute;
+        inset: 5mm;
+        border: 0.25mm dashed #333;
+      }
+
+      .title {
+        font-size: 16pt;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      .subtitle {
+        margin-top: 2mm;
+        max-width: 88mm;
+        font-size: 8.8pt;
+        line-height: 1.35;
+      }
+
+      .ruler-x {
+        position: absolute;
+        right: 8mm;
+        bottom: 8mm;
+        left: 8mm;
+        height: 9mm;
+        border-top: 0.35mm solid #111;
+      }
+
+      .ruler-x::before,
+      .ruler-x::after {
+        position: absolute;
+        top: -2.5mm;
+        width: 0;
+        height: 5mm;
+        border-left: 0.35mm solid #111;
+        content: "";
+      }
+
+      .ruler-x::before {
+        left: 0;
+      }
+
+      .ruler-x::after {
+        right: 0;
+      }
+
+      .ruler-x-label {
+        margin-top: 2mm;
+        text-align: center;
+        font-size: 10pt;
+        font-weight: 700;
+      }
+
+      .ruler-y {
+        position: absolute;
+        top: 8mm;
+        right: 8mm;
+        bottom: 8mm;
+        width: 9mm;
+        border-left: 0.35mm solid #111;
+      }
+
+      .ruler-y::before,
+      .ruler-y::after {
+        position: absolute;
+        left: -2.5mm;
+        width: 5mm;
+        height: 0;
+        border-top: 0.35mm solid #111;
+        content: "";
+      }
+
+      .ruler-y::before {
+        top: 0;
+      }
+
+      .ruler-y::after {
+        bottom: 0;
+      }
+
+      .ruler-y-label {
+        position: absolute;
+        top: 50%;
+        left: -17mm;
+        width: 38mm;
+        transform: rotate(90deg);
+        transform-origin: center;
+        text-align: center;
+        font-size: 10pt;
+        font-weight: 700;
+      }
+
+      .qr-check {
+        position: absolute;
+        top: 36mm;
+        left: 16mm;
+        width: 25mm;
+        height: 25mm;
+        border: 0.45mm solid #111;
+        background:
+          linear-gradient(45deg, transparent 48%, #111 49%, #111 51%, transparent 52%),
+          linear-gradient(135deg, transparent 48%, #111 49%, #111 51%, transparent 52%);
+      }
+
+      .qr-label {
+        position: absolute;
+        top: 63mm;
+        left: 16mm;
+        width: 25mm;
+        text-align: center;
+        font-size: 8pt;
+        font-weight: 700;
+      }
+
+      .instructions {
+        position: absolute;
+        top: 34mm;
+        left: 49mm;
+        width: 82mm;
+        font-size: 9pt;
+        line-height: 1.35;
+      }
+
+      .instructions strong {
+        font-size: 10pt;
+      }
+
+      .checklist {
+        margin: 2.5mm 0 0;
+        padding-left: 4mm;
+      }
+
+      .checklist li {
+        margin-top: 1.2mm;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page">
+      <div class="outer-frame"></div>
+      <div class="inner-frame"></div>
+
+      <div class="title">Print Size Verification</div>
+      <div class="subtitle">
+        Measure the printed outer border and QR check box before using pallet
+        labels in production.
+      </div>
+
+      <div class="qr-check"></div>
+      <div class="qr-label">25mm x 25mm QR box</div>
+
+      <div class="instructions">
+        <strong>{{ instruction }}</strong>
+        <ul class="checklist">
+          <li>Paper size: 150mm x 100mm.</li>
+          <li>Scale: actual size / 100%.</li>
+          <li>Disable fit-to-page, shrink-to-fit, and auto scaling.</li>
+          <li>Printed outer border must measure 150mm x 100mm.</li>
+          <li>Printed QR check box must measure 25mm x 25mm.</li>
+        </ul>
+      </div>
+
+      <div class="ruler-y">
+        <div class="ruler-y-label">100mm outer height</div>
+      </div>
+      <div class="ruler-x">
+        <div class="ruler-x-label">150mm outer width</div>
+      </div>
+    </section>
+  </body>
+</html>

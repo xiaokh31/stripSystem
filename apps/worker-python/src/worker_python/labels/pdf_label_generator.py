@@ -21,6 +21,8 @@ DEFAULT_OUTPUT_DIR = REPO_ROOT / "storage" / "labels"
 LABEL_MANIFEST_FILENAME = "label_manifest.json"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 TEMPLATE_NAME = "label.html"
+PRINT_CALIBRATION_FILENAME = "print-calibration.pdf"
+PRINT_CALIBRATION_TEMPLATE_NAME = "print_calibration.html"
 MANUAL_DESTINATION = "NEED_MANUAL_DESTINATION"
 
 
@@ -40,6 +42,15 @@ class LabelGenerationResult:
     labelCount: int
     palletIds: tuple[str, ...]
     qrPayloads: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PrintCalibrationResult:
+    outputPath: Path
+    pageWidthMm: int
+    pageHeightMm: int
+    qrBoxMm: int
+    instruction: str
 
 
 def generate_pallet_label_pdf(
@@ -104,6 +115,35 @@ def generate_pallet_label_pdf(
         labelCount=len(labels),
         palletIds=tuple(label["pallet_id"] for label in labels),
         qrPayloads=tuple(label["qr_payload"] for label in labels),
+    )
+
+
+def generate_print_calibration_pdf(
+    *,
+    output_dir: Path = DEFAULT_OUTPUT_DIR,
+) -> PrintCalibrationResult:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / PRINT_CALIBRATION_FILENAME
+    instruction = (
+        "Disable automatic print scaling. Print at actual size / 100% on "
+        "150mm x 100mm label stock."
+    )
+    environment = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        autoescape=select_autoescape(("html", "xml")),
+    )
+    template = environment.get_template(PRINT_CALIBRATION_TEMPLATE_NAME)
+    html = template.render(instruction=instruction)
+    HTML(string=html, base_url=str(TEMPLATE_DIR)).write_pdf(
+        output_path,
+        uncompressed_pdf=True,
+    )
+    return PrintCalibrationResult(
+        outputPath=output_path,
+        pageWidthMm=150,
+        pageHeightMm=100,
+        qrBoxMm=25,
+        instruction=instruction,
     )
 
 

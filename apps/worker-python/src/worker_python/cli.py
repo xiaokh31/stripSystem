@@ -17,7 +17,7 @@ from worker_python.batch import (
     run_batch,
 )
 from worker_python.imports import compute_sha256
-from worker_python.labels import generate_pallet_label_pdf
+from worker_python.labels import generate_pallet_label_pdf, generate_print_calibration_pdf
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
@@ -334,6 +334,58 @@ def write_labels(
                     "errors": [
                         {
                             "code": "LABEL_GENERATION_FAILED",
+                            "message": f"{type(exc).__name__}: {exc}",
+                        }
+                    ],
+                    "exception": _exception_payload(exc),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+
+
+@app.command("write-print-calibration")
+def write_print_calibration(
+    output_dir: Path = typer.Option(
+        Path("storage/labels"),
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Label output directory. Defaults to storage/labels.",
+    ),
+) -> None:
+    generated_at = datetime.now()
+    try:
+        result = generate_print_calibration_pdf(output_dir=output_dir.resolve())
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": "SUCCESS",
+                    "print_calibration_result": _json_ready(result),
+                    "warnings": [],
+                    "errors": [],
+                    "exception": None,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+    except Exception as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "generated_at": generated_at.isoformat(),
+                    "task_status": "ERROR",
+                    "print_calibration_result": None,
+                    "warnings": [],
+                    "errors": [
+                        {
+                            "code": "PRINT_CALIBRATION_GENERATION_FAILED",
                             "message": f"{type(exc).__name__}: {exc}",
                         }
                     ],

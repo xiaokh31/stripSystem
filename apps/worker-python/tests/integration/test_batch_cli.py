@@ -205,3 +205,29 @@ def test_unloading_worker_write_labels_cli_generates_pdf_only(tmp_path: Path) ->
     assert payload["label_result"]["palletIds"]
     assert payload["label_result"]["qrPayloads"][0].startswith("SSP1|PALLET|")
     assert not list(tmp_path.glob("*.xlsx"))
+
+
+def test_unloading_worker_write_print_calibration_cli_generates_pdf(
+    tmp_path: Path,
+) -> None:
+    runner = CliRunner()
+    output_dir = tmp_path / "labels"
+
+    result = runner.invoke(
+        app,
+        [
+            "write-print-calibration",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    calibration = payload["print_calibration_result"]
+    assert payload["task_status"] == "SUCCESS"
+    assert calibration["outputPath"].endswith("print-calibration.pdf")
+    assert calibration["pageWidthMm"] == 150
+    assert calibration["pageHeightMm"] == 100
+    assert calibration["qrBoxMm"] == 25
+    assert Path(calibration["outputPath"]).is_file()
