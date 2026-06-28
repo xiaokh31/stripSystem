@@ -10,6 +10,7 @@ docs/runbooks/*
 !docs/runbooks/deploy-linux.md
 !docs/runbooks/deploy-windows.md
 !docs/runbooks/warehouse-operator-manual.md
+!docs/runbooks/pilot-run-checklist.md
 
 # macOS
 .DS_Store
