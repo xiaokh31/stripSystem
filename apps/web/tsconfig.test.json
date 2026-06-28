@@ -15,6 +15,7 @@
     "src/components/containers/container-detail-flow.ts",
     "src/components/imports/import-detail-flow.ts",
     "src/components/imports/import-upload-flow.ts",
+    "src/components/load-jobs/load-job-planning-flow.ts",
     "src/components/mobile/load-job-flow.ts",
     "src/components/reports/inventory-report-flow.ts",
     "tests/**/*.test.ts"

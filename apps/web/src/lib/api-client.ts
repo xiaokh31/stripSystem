@@ -344,6 +344,29 @@ export interface LoadJobListFilters {
   status?: string;
 }
 
+export interface CreateLoadJobLineRequest {
+  containerDestinationId?: string;
+  containerId?: string;
+  containerNo?: string;
+  destinationCode?: string;
+  externalTransfer?: boolean;
+  note?: string;
+  plannedPallets?: number;
+  sourceText?: string;
+}
+
+export interface CreateLoadJobRequest {
+  carrier?: string;
+  containerId?: string;
+  createdById?: string;
+  destinationRegion?: string;
+  lines: CreateLoadJobLineRequest[];
+  loadNo: string;
+  scheduledDepartureAt?: string;
+  startedAt?: string;
+  truckNo?: string;
+}
+
 export interface LoadJobProgressResponse {
   totalPallets: number;
   loadedPallets: number;
@@ -444,9 +467,7 @@ export function getApiBaseUrl(): string {
     );
   }
 
-  return normalizeBaseUrl(
-    publicBaseUrl ?? DEFAULT_BROWSER_API_BASE_URL,
-  );
+  return normalizeBaseUrl(publicBaseUrl ?? DEFAULT_BROWSER_API_BASE_URL);
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
@@ -595,6 +616,15 @@ export function getLoadJob(
   return createApiClient(options).get<LoadJobResponse>(
     `/load-jobs/${encodeURIComponent(id)}`,
   );
+}
+
+export function createLoadJob(
+  body: CreateLoadJobRequest,
+  options: ApiClientOptions = {},
+): Promise<LoadJobResponse> {
+  return createApiClient(options).post<LoadJobResponse>("/load-jobs", {
+    ...body,
+  });
 }
 
 export function scanLoadJobPallet(

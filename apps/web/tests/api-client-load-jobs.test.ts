@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  createLoadJob,
   listLoadJobs,
   scanLoadJobPallet,
   type LoadJobResponse,
@@ -77,6 +78,72 @@ test("load job API client lists open load jobs with API filters", async () => {
   assert.equal(result.items[0]?.loadNo, "LOAD-2026-001");
 });
 
+test("load job API client creates office load plans", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: JSON.parse(String(init?.body ?? "{}")) as unknown,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(JSON.stringify(loadJob), {
+      headers: { "content-type": "application/json" },
+      status: 201,
+    });
+  };
+
+  const result = await createLoadJob(
+    {
+      destinationRegion: "YEG2",
+      lines: [
+        {
+          containerNo: "CSNU8877228",
+          destinationCode: "YEG2",
+          plannedPallets: 1,
+          sourceText: "CSNU8877228-1P",
+        },
+        {
+          externalTransfer: true,
+          plannedPallets: 3,
+          sourceText: "FFAU3143604转运-3P",
+        },
+      ],
+      loadNo: "LOAD-2026-001",
+      scheduledDepartureAt: "2026-06-27T21:00:00.000Z",
+      truckNo: "TRUCK-9",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: {
+        destinationRegion: "YEG2",
+        lines: [
+          {
+            containerNo: "CSNU8877228",
+            destinationCode: "YEG2",
+            plannedPallets: 1,
+            sourceText: "CSNU8877228-1P",
+          },
+          {
+            externalTransfer: true,
+            plannedPallets: 3,
+            sourceText: "FFAU3143604转运-3P",
+          },
+        ],
+        loadNo: "LOAD-2026-001",
+        scheduledDepartureAt: "2026-06-27T21:00:00.000Z",
+        truckNo: "TRUCK-9",
+      },
+      method: "POST",
+      url: "http://api.local/api/load-jobs",
+    },
+  ]);
+  assert.equal(result.loadNo, "LOAD-2026-001");
+});
+
 test("load job API client posts scanner input to the scan endpoint", async () => {
   const requests: Array<{ body: unknown; method: string; url: string }> = [];
   const fetcher: typeof fetch = async (input, init) => {
@@ -99,8 +166,7 @@ test("load job API client posts scanner input to the scan endpoint", async () =>
           destinationType: "AMAZON_FBA",
           palletNo: 1,
           palletId: "PALLET-001",
-          qrPayload:
-            "SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/1|PALLET-001",
+          qrPayload: "SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/1|PALLET-001",
           status: "LOADED",
           loadedAt: "2026-06-27T10:05:00.000Z",
           loadJobId: "load-job 1",
@@ -132,8 +198,7 @@ test("load job API client posts scanner input to the scan endpoint", async () =>
     {
       body: {
         deviceId: "web-mobile-scan",
-        qrPayload:
-          "SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/1|PALLET-001",
+        qrPayload: "SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/1|PALLET-001",
       },
       method: "POST",
       url: "http://api.local/api/load-jobs/load-job%201/scan",

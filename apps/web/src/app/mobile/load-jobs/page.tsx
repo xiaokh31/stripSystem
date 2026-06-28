@@ -87,6 +87,12 @@ function LoadJobList({ loadJobs }: { loadJobs: LoadJobListResponse }) {
         <p className="mt-2 leading-7">
           Ask the office to create or start a load job before scanning pallets.
         </p>
+        <Link
+          className="mt-4 inline-flex min-h-10 items-center border border-teal-700 bg-white px-4 text-sm font-semibold text-teal-900 hover:bg-teal-50"
+          href="/load-jobs"
+        >
+          Open load jobs
+        </Link>
       </section>
     );
   }
@@ -103,7 +109,10 @@ function LoadJobList({ loadJobs }: { loadJobs: LoadJobListResponse }) {
 function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
   const href = mobileLoadJobScanHref(loadJob.id);
   const visibleLines = loadJob.lines.slice(0, 4);
-  const hiddenLineCount = Math.max(0, loadJob.lines.length - visibleLines.length);
+  const hiddenLineCount = Math.max(
+    0,
+    loadJob.lines.length - visibleLines.length,
+  );
 
   return (
     <Link
@@ -167,9 +176,7 @@ function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="border border-zinc-200 bg-zinc-50 p-3">
-      <dt className="text-xs font-semibold uppercase text-zinc-500">
-        {label}
-      </dt>
+      <dt className="text-xs font-semibold uppercase text-zinc-500">{label}</dt>
       <dd className="mt-1 text-2xl font-semibold tabular-nums text-zinc-950">
         {value}
       </dd>
