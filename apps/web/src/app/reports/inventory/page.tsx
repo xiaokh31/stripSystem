@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { InventoryRefreshControls } from "@/components/reports/inventory-refresh-controls";
 import {
+  DEFAULT_INVENTORY_POLLING_INTERVAL_MS,
   activeInventoryFilterCount,
   formatPalletCount,
   inventoryReportHref,
@@ -35,6 +37,7 @@ export default async function InventoryReportPage({
   const state = await loadInventoryReport(filters);
   const totals = sumPalletStats(state.containers);
   const activeFilters = activeInventoryFilterCount(filters);
+  const lastUpdatedAt = new Date().toISOString();
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
@@ -60,6 +63,11 @@ export default async function InventoryReportPage({
       <InventoryFilterForm
         activeFilters={activeFilters}
         filters={filters}
+      />
+
+      <InventoryRefreshControls
+        lastUpdatedAt={lastUpdatedAt}
+        pollingIntervalMs={DEFAULT_INVENTORY_POLLING_INTERVAL_MS}
       />
 
       {state.containerError ? (

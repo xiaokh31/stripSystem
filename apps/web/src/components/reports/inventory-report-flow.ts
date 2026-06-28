@@ -3,6 +3,10 @@ import type {
   PalletStatsResponse,
 } from "@/lib/api-client";
 
+export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
+export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
+export const MIN_INVENTORY_POLLING_INTERVAL_MS = 10_000;
+
 export const PALLET_STATUS_OPTIONS = [
   { label: "All statuses", value: "" },
   { label: "Planned", value: "PLANNED" },
@@ -69,6 +73,33 @@ export function formatPalletCount(value: number): string {
   return new Intl.NumberFormat("en-CA").format(value);
 }
 
+export function normalizeInventoryPollingIntervalMs(
+  value: number | null | undefined,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_INVENTORY_POLLING_INTERVAL_MS;
+  }
+
+  return Math.min(
+    MAX_INVENTORY_POLLING_INTERVAL_MS,
+    Math.max(MIN_INVENTORY_POLLING_INTERVAL_MS, Math.round(value)),
+  );
+}
+
+export function formatInventoryRefreshTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return [
+    `${date.getUTCFullYear()}-${padDatePart(date.getUTCMonth() + 1)}-${padDatePart(date.getUTCDate())}`,
+    `${padDatePart(date.getUTCHours())}:${padDatePart(date.getUTCMinutes())}:${padDatePart(date.getUTCSeconds())}`,
+    "UTC",
+  ].join(" ");
+}
+
 function optionalFilter(
   key: keyof InventoryReportFilters,
   value: string | undefined,
@@ -90,4 +121,8 @@ function appendFilter(
   if (trimmed) {
     params.set(key, trimmed);
   }
+}
+
+function padDatePart(value: number): string {
+  return String(value).padStart(2, "0");
 }

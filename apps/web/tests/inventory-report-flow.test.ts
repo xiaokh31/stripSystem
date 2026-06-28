@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   activeInventoryFilterCount,
+  formatInventoryRefreshTime,
   inventoryReportHref,
   normalizeInventoryFilters,
+  normalizeInventoryPollingIntervalMs,
   sumPalletStats,
 } from "../src/components/reports/inventory-report-flow";
 
@@ -55,4 +57,19 @@ test("pallet summary totals use API supplied remaining counts", () => {
       totalPallets: 7,
     },
   );
+});
+
+test("inventory polling interval is constrained to the supported range", () => {
+  assert.equal(normalizeInventoryPollingIntervalMs(undefined), 15_000);
+  assert.equal(normalizeInventoryPollingIntervalMs(5_000), 10_000);
+  assert.equal(normalizeInventoryPollingIntervalMs(20_250.4), 20_250);
+  assert.equal(normalizeInventoryPollingIntervalMs(45_000), 30_000);
+});
+
+test("inventory refresh time is formatted in stable UTC", () => {
+  assert.equal(
+    formatInventoryRefreshTime("2026-06-27T21:05:09.000Z"),
+    "2026-06-27 21:05:09 UTC",
+  );
+  assert.equal(formatInventoryRefreshTime("not-a-date"), "not-a-date");
 });
