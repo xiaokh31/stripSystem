@@ -12,6 +12,21 @@ API_HEALTH_URL="${API_HEALTH_URL:-http://localhost/api/health}"
 WEB_URL="${WEB_URL:-http://localhost/}"
 STORAGE_ROOT="${STORAGE_ROOT:-$REPO_ROOT/storage}"
 
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  echo "Compose file does not exist: $COMPOSE_FILE" >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required for healthcheck." >&2
+  exit 1
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required for healthcheck." >&2
+  exit 1
+fi
+
 echo "Checking Docker services with $COMPOSE_FILE"
 docker compose -f "$COMPOSE_FILE" ps
 
