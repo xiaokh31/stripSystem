@@ -30,9 +30,26 @@ On Windows, use a separate drive or folder:
 D:\bestar-backups
 ```
 
+Windows WSL example:
+
+```bash
+BACKUP_DIR=/mnt/d/bestar-backups
+```
+
+Windows Git Bash example:
+
+```bash
+BACKUP_DIR=/d/bestar-backups
+```
+
 The scripts default to `./backups` when `BACKUP_DIR` is not set. That default
 is useful for local tests, but warehouse hosts should set `BACKUP_DIR` to a
 separate disk or backup share.
+
+Run these scripts from a shell that supports Bash:
+
+- Linux: terminal on the deployment host.
+- Windows: WSL 2 Ubuntu or Git Bash from the project directory.
 
 All scripts default to the local full-stack compose file:
 
