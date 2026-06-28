@@ -1,6 +1,11 @@
 策划案/
 samples/
 docs/
+!docs/
+docs/*
+!docs/runbooks/
+docs/runbooks/*
+!docs/runbooks/local-deployment.md
 
 # macOS
 .DS_Store
