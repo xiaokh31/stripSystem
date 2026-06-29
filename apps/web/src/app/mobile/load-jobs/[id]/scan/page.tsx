@@ -10,6 +10,7 @@ import {
   getLoadJob,
   type LoadJobResponse,
 } from "@/lib/api-client";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ export default async function MobileLoadJobScanPage({
 async function loadScanPage(id: string): Promise<MobileScanPageState> {
   try {
     return {
-      loadJob: await getLoadJob(id),
+      loadJob: await getLoadJob(id, await getServerApiOptions()),
       ok: true,
     };
   } catch (error) {

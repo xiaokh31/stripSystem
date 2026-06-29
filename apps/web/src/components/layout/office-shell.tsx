@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
+import type { AuthUserResponse } from "@/lib/api-client";
 import { OfficeNavigation, type OfficeNavItem } from "./office-navigation";
 
 const navItems: OfficeNavItem[] = [
@@ -11,7 +13,13 @@ const navItems: OfficeNavItem[] = [
   { href: "/settings", label: "Settings" },
 ];
 
-export function OfficeShell({ children }: { children: ReactNode }) {
+export function OfficeShell({
+  children,
+  currentUser,
+}: {
+  children: ReactNode;
+  currentUser: AuthUserResponse | null;
+}) {
   return (
     <div className="flex min-h-screen flex-col bg-zinc-100 text-zinc-950">
       <header className="border-b border-teal-950 bg-teal-900 text-white shadow-sm">
@@ -23,11 +31,28 @@ export function OfficeShell({ children }: { children: ReactNode }) {
               </p>
               <p className="text-lg font-semibold">Warehouse Office</p>
             </div>
-            <div className="border border-teal-700 bg-teal-800 px-3 py-2 text-xs font-semibold uppercase text-teal-50">
-              Live API
-            </div>
+            {currentUser ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="border border-teal-700 bg-teal-800 px-3 py-2 text-xs text-teal-50">
+                  <p className="font-semibold">
+                    {currentUser.name ?? currentUser.email ?? "Signed in"}
+                  </p>
+                  <p className="mt-1 uppercase">
+                    {currentUser.roles.join(", ")}
+                  </p>
+                </div>
+                <LogoutButton />
+              </div>
+            ) : (
+              <a
+                className="inline-flex min-h-9 items-center border border-teal-700 bg-teal-800 px-3 text-xs font-semibold uppercase text-teal-50 hover:bg-teal-700"
+                href="/login"
+              >
+                Sign in
+              </a>
+            )}
           </div>
-          <OfficeNavigation items={navItems} />
+          {currentUser ? <OfficeNavigation items={navItems} /> : null}
         </div>
       </header>
       {children}

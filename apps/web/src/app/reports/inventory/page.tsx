@@ -18,6 +18,7 @@ import {
   type DestinationInventoryItemResponse,
   type InventoryReportFilters,
 } from "@/lib/api-client";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -104,9 +105,10 @@ export default async function InventoryReportPage({
 async function loadInventoryReport(
   filters: InventoryReportFilters,
 ): Promise<InventoryReportState> {
+  const apiOptions = await getServerApiOptions();
   const [containerResult, destinationResult] = await Promise.allSettled([
-    getContainerInventorySummary(filters),
-    getDestinationInventory(filters),
+    getContainerInventorySummary(filters, apiOptions),
+    getDestinationInventory(filters, apiOptions),
   ]);
 
   return {

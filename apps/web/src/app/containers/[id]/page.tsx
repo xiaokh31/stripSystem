@@ -16,6 +16,7 @@ import {
   type ContainerDetailResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -199,12 +200,13 @@ export default async function ContainerDetailPage({
 
 async function loadContainerDetail(id: string): Promise<ContainerDetailState> {
   try {
-    const container = await getContainerDetail(id);
+    const apiOptions = await getServerApiOptions();
+    const container = await getContainerDetail(id, apiOptions);
     let files: GeneratedFileResponse[] = [];
     let filesError: ApiClientError | null = null;
 
     try {
-      files = (await getContainerGeneratedFiles(id)).items;
+      files = (await getContainerGeneratedFiles(id, apiOptions)).items;
     } catch (error) {
       filesError = toApiClientError(error);
     }

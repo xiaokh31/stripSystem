@@ -5,6 +5,7 @@ import {
   type ContainerSummaryItemResponse,
 } from "@/lib/api-client";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,10 @@ export default async function ContainersPage() {
 
 async function loadContainers(): Promise<ContainersPageState> {
   try {
-    const result = await getContainerInventorySummary();
+    const result = await getContainerInventorySummary(
+      {},
+      await getServerApiOptions(),
+    );
     return { containers: result.items, ok: true };
   } catch (error) {
     return { error: toApiClientError(error), ok: false };

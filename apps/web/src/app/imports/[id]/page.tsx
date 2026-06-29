@@ -19,6 +19,7 @@ import {
   statusTone,
   toParseResultSummary,
 } from "@/components/imports/import-detail-flow";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -147,12 +148,13 @@ export default async function ImportDetailPage({
 
 async function loadImportDetail(id: string): Promise<ImportDetailState> {
   try {
-    const importFile = await getImportFile(id);
+    const apiOptions = await getServerApiOptions();
+    const importFile = await getImportFile(id, apiOptions);
     let parseResult: ImportParseResultResponse | null = null;
     let parseResultError: ApiClientError | null = null;
 
     try {
-      parseResult = await getImportParseResult(id);
+      parseResult = await getImportParseResult(id, apiOptions);
     } catch (error) {
       parseResultError = toApiClientError(error);
     }

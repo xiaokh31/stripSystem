@@ -1,3 +1,5 @@
+import { getBrowserAuthToken } from "./auth-token";
+
 export interface ApiErrorResponse {
   code: string;
   message: string;
@@ -14,6 +16,26 @@ export interface ApiHealthResponse {
     message?: string;
   };
   timestamp: string;
+}
+
+export interface AuthUserResponse {
+  id: string;
+  email: string | null;
+  name: string | null;
+  roles: string[];
+  permissions: string[];
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  expiresIn: number;
+  tokenType: "Bearer";
+  user: AuthUserResponse;
 }
 
 export interface ImportFileResponse {
@@ -559,6 +581,21 @@ export async function getApiHealth(): Promise<ApiHealthResponse> {
   return createApiClient().get<ApiHealthResponse>("/health");
 }
 
+export function login(
+  body: LoginRequest,
+  options: ApiClientOptions = {},
+): Promise<LoginResponse> {
+  return createApiClient(options).post<LoginResponse>("/auth/login", {
+    ...body,
+  });
+}
+
+export function getCurrentUser(
+  options: ApiClientOptions = {},
+): Promise<AuthUserResponse> {
+  return createApiClient(options).get<AuthUserResponse>("/auth/me");
+}
+
 export function getImportFile(
   id: string,
   options: ApiClientOptions = {},
@@ -809,7 +846,8 @@ export class ApiClient {
   private readonly fetcher: typeof fetch;
 
   constructor(options: ApiClientOptions = {}) {
-    this.authToken = options.authToken ?? null;
+    this.authToken =
+      options.authToken === undefined ? getBrowserAuthToken() : options.authToken;
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? getApiBaseUrl());
     this.fetcher = options.fetcher ?? defaultFetcher();
   }
@@ -853,7 +891,8 @@ export class ApiClient {
     options: ApiRequestOptions = {},
   ): Promise<TResponse> {
     const headers = new Headers(options.headers);
-    const authToken = options.authToken ?? this.authToken;
+    const authToken =
+      options.authToken === undefined ? this.authToken : options.authToken;
     const body = serializeBody(options.body, headers);
 
     if (authToken) {
@@ -1056,8 +1095,10 @@ function uploadFormData<TResponse>(
     xhr.open("POST", buildApiUrl(path, options.baseUrl));
     xhr.responseType = "text";
 
-    if (options.authToken) {
-      xhr.setRequestHeader("Authorization", `Bearer ${options.authToken}`);
+    const authToken =
+      options.authToken === undefined ? getBrowserAuthToken() : options.authToken;
+    if (authToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
     }
 
     xhr.upload.onprogress = (event) => {

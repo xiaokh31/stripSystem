@@ -7,6 +7,7 @@ import {
   type CorrectionFeedbackResponse,
 } from "@/lib/api-client";
 import { formatOperationalDateTime } from "@/lib/date-time";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -131,9 +132,10 @@ async function loadCorrectionHistory(
   id: string,
 ): Promise<CorrectionHistoryState> {
   try {
+    const apiOptions = await getServerApiOptions();
     const [container, correctionList] = await Promise.all([
-      getContainerDetail(id),
-      listCorrections({ containerId: id, limit: 100 }),
+      getContainerDetail(id, apiOptions),
+      listCorrections({ containerId: id, limit: 100 }, apiOptions),
     ]);
 
     return {

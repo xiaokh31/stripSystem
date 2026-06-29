@@ -11,6 +11,7 @@ import {
   type LoadJobListResponse,
   type LoadJobResponse,
 } from "@/lib/api-client";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -61,11 +62,14 @@ export default async function MobileLoadJobsPage() {
 
 async function loadOpenLoadJobs(): Promise<MobileLoadJobsState> {
   try {
-    const loadJobs = await listLoadJobs({
-      limit: PAGE_SIZE,
-      offset: 0,
-      status: "IN_PROGRESS",
-    });
+    const loadJobs = await listLoadJobs(
+      {
+        limit: PAGE_SIZE,
+        offset: 0,
+        status: "IN_PROGRESS",
+      },
+      await getServerApiOptions(),
+    );
 
     return { loadJobs, ok: true };
   } catch (error) {

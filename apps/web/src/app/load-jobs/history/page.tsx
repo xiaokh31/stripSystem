@@ -13,6 +13,7 @@ import {
   listLoadJobs,
   type LoadJobListResponse,
 } from "@/lib/api-client";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ async function loadHistory(
   filters: LoadJobHistoryFilters,
 ): Promise<LoadJobHistoryState> {
   try {
-    const loadJobs = await listLoadJobs(filters);
+    const loadJobs = await listLoadJobs(filters, await getServerApiOptions());
     return { loadJobs, ok: true };
   } catch (error) {
     return { error: toApiClientError(error), ok: false };

@@ -11,6 +11,7 @@ import {
   type StatusTone,
 } from "@/components/imports/import-detail-flow";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,11 @@ export default async function ImportsPage() {
 
 async function loadImports(): Promise<ImportsPageState> {
   try {
-    const imports = await listImportFiles({ limit: PAGE_SIZE, offset: 0 });
+    const apiOptions = await getServerApiOptions();
+    const imports = await listImportFiles(
+      { limit: PAGE_SIZE, offset: 0 },
+      apiOptions,
+    );
     return { ok: true, imports };
   } catch (error) {
     return { ok: false, error: toApiClientError(error) };
