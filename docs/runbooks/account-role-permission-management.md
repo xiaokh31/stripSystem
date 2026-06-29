@@ -1,30 +1,52 @@
-# Account, Role, and Permission Management Plan
+# Account, Role, and Permission Management Runbook
 
 ## Current State
 
-The API already stores users in the `users` table with:
+The API stores users in the `users` table with:
+
 - `email`
 - `name`
+- `password_hash`
+- `last_login_at`
 - `role`
 - `is_active`
 
-The current role enum is:
+RBAC data is stored in:
+
+- `roles`
+- `permissions`
+- `role_permissions`
+- `user_roles`
+
+The default role codes are:
+
 - `ADMIN`
 - `OFFICE`
 - `WAREHOUSE`
 - `SYSTEM`
 
-This document is a delivery plan. It does not claim that authentication,
-session management, or permission enforcement is already complete.
+The canonical default role and permission matrix is defined in:
+
+```text
+apps/api/src/auth/default-rbac.ts
+```
+
+The Prisma seed file writes those defaults into the database:
+
+```text
+apps/api/prisma/seed.ts
+```
 
 ## Target Roles
 
 `ADMIN`
+
 - Manage users, roles, and deployment settings.
 - Access all import, correction, reporting, loading, inventory, audit, backup,
   and reprint functions.
 
 `OFFICE`
+
 - Upload and parse import files.
 - Create manual unloading reports.
 - Edit container destinations and correction feedback.
@@ -33,6 +55,7 @@ session management, or permission enforcement is already complete.
 - Review inventory and audit history.
 
 `WAREHOUSE`
+
 - View assigned in-progress load jobs.
 - Scan pallet labels.
 - Reverse a scan with reason and confirmation.
@@ -40,31 +63,133 @@ session management, or permission enforcement is already complete.
 - Cannot edit completed jobs, regenerate labels, or delete load jobs.
 
 `SYSTEM`
+
 - Used by workers, scripts, and scheduled processes.
 - Should not be used for interactive browser login.
 
 ## Permission Matrix
 
-| Area | ADMIN | OFFICE | WAREHOUSE | SYSTEM |
-| --- | --- | --- | --- | --- |
-| Import Excel | yes | yes | no | worker-only |
-| Parse import | yes | yes | no | worker-only |
-| Manual container | yes | yes | no | no |
-| Destination correction | yes | yes | no | no |
-| Generate report | yes | yes | no | worker-only |
-| Generate labels | yes | yes | no | worker-only |
-| Reprint labels | yes | yes | no | no |
-| Create load job | yes | yes | no | no |
-| Edit planned load job | yes | yes | no | no |
-| Edit in-progress load job | yes | yes | limited scan correction | no |
-| Delete planned load job | yes | yes | no | no |
-| Complete load job | yes | yes | no | no |
-| Scan pallet | yes | yes | yes | no |
-| Reverse scan | yes | yes | yes | no |
-| View inventory | yes | yes | yes | no |
-| View audit history | yes | yes | limited own job | no |
-| Manage users/roles | yes | no | no | no |
-| Backup/restore | yes | no | no | scripted |
+| Area                      | ADMIN | OFFICE | WAREHOUSE               | SYSTEM      |
+| ------------------------- | ----- | ------ | ----------------------- | ----------- |
+| Import Excel              | yes   | yes    | no                      | worker-only |
+| Parse import              | yes   | yes    | no                      | worker-only |
+| Manual container          | yes   | yes    | no                      | no          |
+| Destination correction    | yes   | yes    | no                      | no          |
+| Generate report           | yes   | yes    | no                      | worker-only |
+| Generate labels           | yes   | yes    | no                      | worker-only |
+| Reprint labels            | yes   | yes    | no                      | no          |
+| Create load job           | yes   | yes    | no                      | no          |
+| Edit planned load job     | yes   | yes    | no                      | no          |
+| Edit in-progress load job | yes   | yes    | limited scan correction | no          |
+| Delete planned load job   | yes   | yes    | no                      | no          |
+| Complete load job         | yes   | yes    | no                      | no          |
+| Scan pallet               | yes   | yes    | yes                     | no          |
+| Reverse scan              | yes   | yes    | yes                     | no          |
+| View inventory            | yes   | yes    | yes                     | no          |
+| View audit history        | yes   | yes    | limited own job         | no          |
+| Manage users/roles        | yes   | no     | no                      | no          |
+| Backup/restore            | yes   | no     | no                      | scripted    |
+
+## Seed Default Roles And Permissions
+
+Run migrations first, then seed:
+
+```bash
+DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+  pnpm --filter api prisma migrate deploy
+
+DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+  pnpm --filter api prisma db seed
+```
+
+The seed is idempotent:
+
+- It upserts stable permission codes.
+- It upserts the four default roles.
+- It synchronizes default role permissions.
+- It does not create an administrator unless explicit seed variables are set.
+
+## Initial Administrator
+
+Development and test environments may create the first administrator through
+seed variables:
+
+```bash
+SEED_ADMIN_EMAIL='admin@example.com' \
+SEED_ADMIN_PASSWORD='Use-A-Unique-Local-Password-123!' \
+SEED_ADMIN_NAME='Initial Admin' \
+DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+  pnpm --filter api prisma db seed
+```
+
+Production must not use a shared default password. The seed rejects weak
+administrator passwords and requires `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` to be set together.
+
+After the first administrator logs in, create normal users through the API:
+
+```http
+POST /api/users
+```
+
+Assign roles with `roleCodes` such as `OFFICE` or `WAREHOUSE`. Do not manually
+insert users or password hashes in the database.
+
+## Login Verification
+
+Verify the initial administrator:
+
+```bash
+curl -sS -X POST http://127.0.0.1:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"Use-A-Unique-Local-Password-123!"}'
+```
+
+Use the returned Bearer token to verify the current profile and account access:
+
+```bash
+curl -sS http://127.0.0.1:4000/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS http://127.0.0.1:4000/api/users \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS http://127.0.0.1:4000/api/roles \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -sS http://127.0.0.1:4000/api/permissions \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Disable And Reset Accounts
+
+Disable an inactive or departed employee:
+
+```http
+PATCH /api/users/:id/status
+```
+
+Payload:
+
+```json
+{ "isActive": false }
+```
+
+Inactive users cannot log in and cannot use existing Bearer tokens.
+
+Reset a password:
+
+```http
+POST /api/users/:id/reset-password
+```
+
+Payload:
+
+```json
+{ "password": "Use-A-New-Unique-Password-123!" }
+```
+
+Password hashes are never returned by API responses.
 
 ## Enforcement Rules
 
@@ -80,6 +205,7 @@ session management, or permission enforcement is already complete.
 ## Required Skills for Agent Work
 
 Use these skills for implementation and review:
+
 - `.codex/skills/bestar-domain/SKILL.md` for business rules.
 - `.codex/skills/nestjs-prisma-api/SKILL.md` for API, Prisma, migrations, and
   permission enforcement.
@@ -91,29 +217,35 @@ Use these skills for implementation and review:
 ## Vibe Coding Task Plan
 
 `AUTH-01 User and session model`
+
 - Add passwordless or local-login decision ADR.
 - Add session table or token verification strategy.
 - Acceptance: API can identify the current user without trusting a request body
   `createdById`.
 
 `AUTH-02 Permission guard`
+
 - Add NestJS role/permission guard.
 - Map routes to permissions.
 - Acceptance: forbidden users receive `403` and tests cover each role.
 
 `AUTH-03 User management API`
+
 - Add admin-only user create/update/disable/list endpoints.
 - Acceptance: disabled users cannot mutate warehouse data.
 
 `AUTH-04 Role-aware web shell`
+
 - Hide unavailable navigation/actions based on authenticated role.
 - Acceptance: hidden UI is matched by API-side permission tests.
 
 `AUTH-05 Warehouse login mode`
+
 - Add mobile-friendly warehouse login or device pairing.
 - Acceptance: scan events record operator or device identity.
 
 `AUTH-06 Audit report`
+
 - Add user/action filters for correction, generated file, reprint, and scan
   events.
 - Acceptance: office users can review who changed what and when.

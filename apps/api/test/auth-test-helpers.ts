@@ -2,50 +2,21 @@ import { ConfigService } from '@nestjs/config';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AuthTokenService } from './../src/auth/auth-token.service';
-import { PERMISSIONS, ROLE_CODES } from './../src/auth/permissions';
+import { DEFAULT_ROLE_PERMISSION_CODES } from './../src/auth/default-rbac';
+import { ROLE_CODES, RoleCode } from './../src/auth/permissions';
 
 export const TEST_JWT_SECRET = 'e2e-test-secret';
 
 export const authTestUsers = {
-  admin: authUser('auth-admin', 'admin@example.com', ROLE_CODES.admin, []),
-  office: authUser('auth-office', 'office@example.com', ROLE_CODES.office, [
-    PERMISSIONS.imports.read,
-    PERMISSIONS.imports.create,
-    PERMISSIONS.imports.parse,
-    PERMISSIONS.containers.read,
-    PERMISSIONS.containers.create,
-    PERMISSIONS.containers.update,
-    PERMISSIONS.corrections.read,
-    PERMISSIONS.corrections.create,
-    PERMISSIONS.reports.read,
-    PERMISSIONS.reports.generate,
-    PERMISSIONS.labels.generate,
-    PERMISSIONS.labels.reprint,
-    PERMISSIONS.inventory.read,
-    PERMISSIONS.loadJobs.read,
-    PERMISSIONS.loadJobs.create,
-    PERMISSIONS.loadJobs.update,
-    PERMISSIONS.loadJobs.delete,
-    PERMISSIONS.loadJobs.complete,
-    PERMISSIONS.scan.create,
-    PERMISSIONS.scan.reverse,
-  ]),
+  admin: authUser('auth-admin', 'admin@example.com', ROLE_CODES.admin),
+  office: authUser('auth-office', 'office@example.com', ROLE_CODES.office),
   warehouse: authUser(
     'auth-warehouse',
     'warehouse@example.com',
     ROLE_CODES.warehouse,
-    [
-      PERMISSIONS.loadJobs.read,
-      PERMISSIONS.loadJobs.update,
-      PERMISSIONS.scan.create,
-      PERMISSIONS.scan.reverse,
-      PERMISSIONS.inventory.read,
-    ],
   ),
   inactive: {
-    ...authUser('auth-inactive', 'inactive@example.com', ROLE_CODES.office, [
-      PERMISSIONS.imports.read,
-    ]),
+    ...authUser('auth-inactive', 'inactive@example.com', ROLE_CODES.office),
     isActive: false,
   },
 };
@@ -146,8 +117,8 @@ export function authorizedRequest(
 function authUser(
   id: string,
   email: string,
-  roleCode: string,
-  permissions: string[],
+  roleCode: RoleCode,
+  permissions = DEFAULT_ROLE_PERMISSION_CODES[roleCode],
 ): AuthTestUser {
   return {
     id,

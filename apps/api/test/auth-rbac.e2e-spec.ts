@@ -7,12 +7,14 @@ import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
 import {
   adminAuthHeader,
+  authTestUsers,
   configureAuthTestEnv,
   inactiveAuthHeader,
   installAuthMock,
   officeAuthHeader,
   warehouseAuthHeader,
 } from './auth-test-helpers';
+import { createRbacManagementPrismaMock } from './rbac-management-test-fixture';
 
 interface ErrorBody {
   code: string;
@@ -24,9 +26,8 @@ describe('RBAC route guards (e2e)', () => {
 
   beforeEach(async () => {
     configureAuthTestEnv();
-    prisma = {
-      checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
-    };
+    const fixture = await createRbacManagementPrismaMock();
+    prisma = fixture.prisma;
     installAuthMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -96,6 +97,26 @@ describe('RBAC route guards (e2e)', () => {
       });
   });
 
+  it('returns the current user profile for a valid token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', officeAuthHeader())
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: 'auth-office',
+          email: 'office@example.com',
+          roles: ['OFFICE'],
+        });
+        expect(response.body.permissions).toEqual(
+          authTestUsers.office.roleAssignments[0].role.permissions
+            .map((item) => item.permission.code)
+            .sort(),
+        );
+        expect(JSON.stringify(response.body)).not.toContain('passwordHash');
+      });
+  });
+
   it('allows WAREHOUSE scan routes but blocks label generation', async () => {
     await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -119,6 +140,49 @@ describe('RBAC route guards (e2e)', () => {
       .expect(400)
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('IMPORT_FILE_REQUIRED');
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/users')
+      .set('Authorization', adminAuthHeader())
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/roles')
+      .set('Authorization', adminAuthHeader())
+      .expect(200)
+      .expect((response) => {
+        expect(
+          response.body.items.map((role: { code: string }) => role.code),
+        ).toEqual(['ADMIN', 'OFFICE', 'SYSTEM', 'WAREHOUSE']);
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/permissions')
+      .set('Authorization', adminAuthHeader())
+      .expect(200)
+      .expect((response) => {
+        expect(
+          response.body.items.map((item: { code: string }) => item.code),
+        ).toContain('users.manage');
+      });
+  });
+
+  it('blocks OFFICE and WAREHOUSE from account-management APIs', async () => {
+    await request(app.getHttpServer())
+      .get('/api/users')
+      .set('Authorization', officeAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/roles')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
       });
   });
 
