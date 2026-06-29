@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
+import {
+  authorizedRequest,
+  configureAuthTestEnv,
+  installAuthMock,
+} from './auth-test-helpers';
 
 interface CorrectionBody {
   id: string;
@@ -27,7 +31,9 @@ describe('CorrectionsController (e2e)', () => {
   let prisma: any;
 
   beforeEach(async () => {
+    configureAuthTestEnv();
     prisma = createPrismaMock();
+    installAuthMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -46,7 +52,7 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('updates destination manual pallets, recalculates final pallets, and lists audit rows', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .patch('/api/container-destinations/destination-1')
       .send({
         manualPallets: 9,
@@ -64,7 +70,7 @@ describe('CorrectionsController (e2e)', () => {
     });
     expect(response.body.corrections).toHaveLength(2);
 
-    const list = await request(app.getHttpServer())
+    const list = await authorizedRequest(app)
       .get('/api/corrections?containerDestinationId=destination-1')
       .expect(200);
     const body = list.body as CorrectionListBody;
@@ -79,7 +85,7 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('updates container fields and creates correction feedback', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .patch('/api/containers/container-1')
       .send({
         dockNo: 'D12',
@@ -103,7 +109,7 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('creates a manual unloading report container with destinations and audit feedback', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .post('/api/containers/manual')
       .send({
         containerNo: 'MANU1234567',
@@ -162,7 +168,7 @@ describe('CorrectionsController (e2e)', () => {
       'manualContainerDestination',
     ]);
 
-    const detail = await request(app.getHttpServer())
+    const detail = await authorizedRequest(app)
       .get(`/api/containers/${response.body.container.id}`)
       .expect(200);
 
@@ -187,7 +193,7 @@ describe('CorrectionsController (e2e)', () => {
       ],
     });
 
-    const corrections = await request(app.getHttpServer())
+    const corrections = await authorizedRequest(app)
       .get(`/api/corrections?containerId=${response.body.container.id}`)
       .expect(200);
     const correctionsBody = corrections.body as CorrectionListBody;
@@ -205,7 +211,7 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('creates a manual destination for actual unloading data and creates audit feedback', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .post('/api/containers/container-1/destinations')
       .send({
         cartons: 12,
@@ -237,7 +243,7 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('creates and lists standalone correction feedback with target validation', async () => {
-    const created = await request(app.getHttpServer())
+    const created = await authorizedRequest(app)
       .post('/api/corrections')
       .send({
         targetType: 'CONTAINER',
@@ -256,7 +262,7 @@ describe('CorrectionsController (e2e)', () => {
       newValue: 'Bestar CCA',
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/corrections')
       .send({
         targetType: 'CONTAINER',

@@ -6,6 +6,8 @@ import {
 } from './dto/inventory-response.dto';
 import { InventoryQueryDto } from './dto/inventory-query.dto';
 import { InventoryReportsService } from './inventory-reports.service';
+import { RequirePermissions } from '../auth/auth.decorators';
+import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller()
 export class InventoryReportsController {
@@ -14,6 +16,7 @@ export class InventoryReportsController {
   ) {}
 
   @Get('reports/container-summary')
+  @RequirePermissions(...ROUTE_PERMISSIONS.inventory.read)
   containerSummary(
     @Query() query: InventoryQueryDto,
   ): Promise<ContainerSummaryListResponseDto> {
@@ -21,6 +24,7 @@ export class InventoryReportsController {
   }
 
   @Get('reports/inventory')
+  @RequirePermissions(...ROUTE_PERMISSIONS.inventory.read)
   inventory(
     @Query() query: InventoryQueryDto,
   ): Promise<InventoryListResponseDto> {
@@ -28,6 +32,7 @@ export class InventoryReportsController {
   }
 
   @Get('containers/:id/summary')
+  @RequirePermissions(...ROUTE_PERMISSIONS.inventory.read)
   containerDetailSummary(
     @Param('id') id: string,
     @Query() query: InventoryQueryDto,

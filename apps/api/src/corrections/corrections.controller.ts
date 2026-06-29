@@ -6,12 +6,15 @@ import {
   CorrectionListResponseDto,
 } from './dto/correction-response.dto';
 import { ListCorrectionsQueryDto } from './dto/list-corrections-query.dto';
+import { RequirePermissions } from '../auth/auth.decorators';
+import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('corrections')
 export class CorrectionsController {
   constructor(private readonly correctionsService: CorrectionsService) {}
 
   @Post()
+  @RequirePermissions(...ROUTE_PERMISSIONS.corrections.create)
   createCorrection(
     @Body() dto: CreateCorrectionDto,
   ): Promise<CorrectionFeedbackResponseDto> {
@@ -19,6 +22,7 @@ export class CorrectionsController {
   }
 
   @Get()
+  @RequirePermissions(...ROUTE_PERMISSIONS.corrections.list)
   listCorrections(
     @Query() query: ListCorrectionsQueryDto,
   ): Promise<CorrectionListResponseDto> {

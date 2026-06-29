@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
+import {
+  authorizedRequest,
+  configureAuthTestEnv,
+  installAuthMock,
+} from './auth-test-helpers';
 
 interface LoadJobBody {
   id: string;
@@ -60,7 +64,9 @@ describe('LoadJobsController (e2e)', () => {
   let prisma: any;
 
   beforeEach(async () => {
+    configureAuthTestEnv();
     prisma = createPrismaMock();
+    installAuthMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -79,7 +85,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('creates, queries, and closes a mixed load job', async () => {
-    const created = await request(app.getHttpServer())
+    const created = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-001',
@@ -129,7 +135,7 @@ describe('LoadJobsController (e2e)', () => {
     });
     await openLoadJobForScanning('load-job-1');
 
-    const list = await request(app.getHttpServer())
+    const list = await authorizedRequest(app)
       .get('/api/load-jobs?status=IN_PROGRESS&containerId=container-2')
       .expect(200);
     const listBody = list.body as LoadJobListBody;
@@ -143,7 +149,7 @@ describe('LoadJobsController (e2e)', () => {
       canScan: true,
     });
 
-    const detail = await request(app.getHttpServer())
+    const detail = await authorizedRequest(app)
       .get('/api/load-jobs/load-job-1')
       .expect(200);
 
@@ -155,7 +161,7 @@ describe('LoadJobsController (e2e)', () => {
       lines: expect.any(Array),
     });
 
-    const closed = await request(app.getHttpServer())
+    const closed = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/close')
       .send({
         dockNo: 'D3',
@@ -172,21 +178,21 @@ describe('LoadJobsController (e2e)', () => {
     });
     expect(closed.body.closedAt).toEqual(expect.any(String));
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/close')
       .send({})
       .expect(409);
   });
 
   it('validates create body, required plan lines, and missing internal containers', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         lines: [{ sourceText: 'CSNU8877228-1P' }],
       })
       .expect(400);
 
-    const emptyPlan = await request(app.getHttpServer())
+    const emptyPlan = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-EMPTY',
@@ -196,7 +202,7 @@ describe('LoadJobsController (e2e)', () => {
       code: 'LOAD_JOB_LINES_REQUIRED',
     });
 
-    const missingContainer = await request(app.getHttpServer())
+    const missingContainer = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-404',
@@ -211,7 +217,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('scans mixed-plan pallets, returns duplicates, and rejects pallets beyond a line count', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-001',
@@ -225,7 +231,7 @@ describe('LoadJobsController (e2e)', () => {
       .expect(201);
     await openLoadJobForScanning('load-job-1');
 
-    const first = await request(app.getHttpServer())
+    const first = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -251,7 +257,7 @@ describe('LoadJobsController (e2e)', () => {
       },
     });
 
-    const duplicate = await request(app.getHttpServer())
+    const duplicate = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -267,14 +273,14 @@ describe('LoadJobsController (e2e)', () => {
       },
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
       })
       .expect(201);
 
-    const overPlan = await request(app.getHttpServer())
+    const overPlan = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
@@ -292,7 +298,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('reverses a loaded scan with explicit confirmation', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-UNDO',
@@ -302,7 +308,7 @@ describe('LoadJobsController (e2e)', () => {
       .expect(201);
     await openLoadJobForScanning('load-job-1');
 
-    const loaded = await request(app.getHttpServer())
+    const loaded = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -310,7 +316,7 @@ describe('LoadJobsController (e2e)', () => {
       .expect(201);
     const loadedBody = loaded.body as ScanBody;
 
-    const loadedPallets = await request(app.getHttpServer())
+    const loadedPallets = await authorizedRequest(app)
       .get('/api/load-jobs/load-job-1/loaded-pallets')
       .expect(200);
 
@@ -324,7 +330,7 @@ describe('LoadJobsController (e2e)', () => {
       ],
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan/reverse')
       .send({
         confirm: false,
@@ -333,7 +339,7 @@ describe('LoadJobsController (e2e)', () => {
       })
       .expect(400);
 
-    const reversed = await request(app.getHttpServer())
+    const reversed = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan/reverse')
       .send({
         confirm: true,
@@ -356,7 +362,7 @@ describe('LoadJobsController (e2e)', () => {
         remainingPallets: 2,
       },
     });
-    const loadedAfterReverse = await request(app.getHttpServer())
+    const loadedAfterReverse = await authorizedRequest(app)
       .get('/api/load-jobs/load-job-1/loaded-pallets')
       .expect(200);
 
@@ -369,7 +375,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('splits one container destination across multiple load jobs with part suffixes', async () => {
-    const firstJob = await request(app.getHttpServer())
+    const firstJob = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-PART-1',
@@ -377,7 +383,7 @@ describe('LoadJobsController (e2e)', () => {
         lines: [{ sourceText: 'CSNU8877228-1P-part1' }],
       })
       .expect(201);
-    const secondJob = await request(app.getHttpServer())
+    const secondJob = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-PART-2',
@@ -411,13 +417,13 @@ describe('LoadJobsController (e2e)', () => {
     await openLoadJobForScanning('load-job-1');
     await openLoadJobForScanning('load-job-2');
 
-    const firstScan = await request(app.getHttpServer())
+    const firstScan = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
       })
       .expect(201);
-    const secondScan = await request(app.getHttpServer())
+    const secondScan = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-2/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
@@ -451,7 +457,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('allows a pure external transfer job but rejects system pallets as not in plan', async () => {
-    const created = await request(app.getHttpServer())
+    const created = await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-XFER',
@@ -470,7 +476,7 @@ describe('LoadJobsController (e2e)', () => {
     });
     await openLoadJobForScanning('load-job-1');
 
-    const rejected = await request(app.getHttpServer())
+    const rejected = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -483,7 +489,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('records invalid QR scans, blocks pallets loaded by another job, and rejects closed jobs', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-001',
@@ -491,7 +497,7 @@ describe('LoadJobsController (e2e)', () => {
         lines: [{ sourceText: 'CSNU8877228-2P' }],
       })
       .expect(201);
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-002',
@@ -502,7 +508,7 @@ describe('LoadJobsController (e2e)', () => {
     await openLoadJobForScanning('load-job-1');
     await openLoadJobForScanning('load-job-2');
 
-    const invalid = await request(app.getHttpServer())
+    const invalid = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP0|PALLET|old-version|PALLET-001',
@@ -514,14 +520,14 @@ describe('LoadJobsController (e2e)', () => {
       code: 'INVALID_QR_PAYLOAD',
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
       })
       .expect(201);
 
-    const conflict = await request(app.getHttpServer())
+    const conflict = await authorizedRequest(app)
       .post('/api/load-jobs/load-job-2/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -532,12 +538,12 @@ describe('LoadJobsController (e2e)', () => {
       code: 'PALLET_ALREADY_LOADED',
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/close')
       .send({ dockNo: 'D3' })
       .expect(201);
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
@@ -546,7 +552,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   async function openLoadJobForScanning(id: string): Promise<void> {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .patch(`/api/load-jobs/${id}`)
       .send({ status: 'IN_PROGRESS' })
       .expect(200);

@@ -16,12 +16,15 @@ import {
   ImportParseResultResponseDto,
 } from './dto/import-file-response.dto';
 import { ImportsService } from './imports.service';
+import { RequirePermissions } from '../auth/auth.decorators';
+import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('imports')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 
   @Post()
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.upload)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -44,6 +47,7 @@ export class ImportsController {
   }
 
   @Get()
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.list)
   list(
     @Query() query: ListImportsQueryDto,
   ): Promise<ImportFileListResponseDto> {
@@ -51,16 +55,19 @@ export class ImportsController {
   }
 
   @Get(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.getById)
   getById(@Param('id') id: string): Promise<ImportFileResponseDto> {
     return this.importsService.getById(id);
   }
 
   @Post(':id/parse')
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.parse)
   parse(@Param('id') id: string): Promise<ImportParseResultResponseDto> {
     return this.importsService.parse(id);
   }
 
   @Get(':id/parse-result')
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.getParseResult)
   getParseResult(
     @Param('id') id: string,
   ): Promise<ImportParseResultResponseDto> {

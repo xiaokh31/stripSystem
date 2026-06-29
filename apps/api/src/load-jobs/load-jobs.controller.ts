@@ -21,27 +21,33 @@ import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { UpdateLoadJobDto } from './dto/update-load-job.dto';
 import { LoadJobsService } from './load-jobs.service';
+import { RequirePermissions } from '../auth/auth.decorators';
+import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('load-jobs')
 export class LoadJobsController {
   constructor(private readonly loadJobsService: LoadJobsService) {}
 
   @Post()
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.create)
   create(@Body() dto: CreateLoadJobDto): Promise<LoadJobResponseDto> {
     return this.loadJobsService.create(dto);
   }
 
   @Get()
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.read)
   list(@Query() query: ListLoadJobsQueryDto): Promise<LoadJobListResponseDto> {
     return this.loadJobsService.list(query);
   }
 
   @Get(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.read)
   getById(@Param('id') id: string): Promise<LoadJobResponseDto> {
     return this.loadJobsService.getById(id);
   }
 
   @Patch(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.update)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateLoadJobDto,
@@ -50,11 +56,13 @@ export class LoadJobsController {
   }
 
   @Delete(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.delete)
   delete(@Param('id') id: string): Promise<LoadJobResponseDto> {
     return this.loadJobsService.delete(id);
   }
 
   @Get(':id/loaded-pallets')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.read)
   listLoadedPallets(
     @Param('id') id: string,
   ): Promise<LoadJobLoadedPalletsResponseDto> {
@@ -62,6 +70,7 @@ export class LoadJobsController {
   }
 
   @Post(':id/close')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.complete)
   close(
     @Param('id') id: string,
     @Body() dto: CloseLoadJobDto = {},
@@ -70,6 +79,7 @@ export class LoadJobsController {
   }
 
   @Post(':id/scan')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.scan)
   scan(
     @Param('id') id: string,
     @Body() dto: ScanPalletDto,
@@ -78,6 +88,7 @@ export class LoadJobsController {
   }
 
   @Post(':id/scan/reverse')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.reverseScan)
   reverseScan(
     @Param('id') id: string,
     @Body() dto: ReverseScanDto,

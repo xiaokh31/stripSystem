@@ -13,22 +13,27 @@ import {
   GenerateReportResponseDto,
 } from './dto/generated-file-response.dto';
 import { ReportsService } from './reports.service';
+import { RequirePermissions } from '../auth/auth.decorators';
+import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('containers')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post(':id/generate-report')
+  @RequirePermissions(...ROUTE_PERMISSIONS.reports.generate)
   generateReport(@Param('id') id: string): Promise<GenerateReportResponseDto> {
     return this.reportsService.generateReport(id);
   }
 
   @Get(':id/files')
+  @RequirePermissions(...ROUTE_PERMISSIONS.reports.listFiles)
   listFiles(@Param('id') id: string): Promise<GeneratedFileListResponseDto> {
     return this.reportsService.listFiles(id);
   }
 
   @Get(':id/files/:fileId/download')
+  @RequirePermissions(...ROUTE_PERMISSIONS.reports.downloadFile)
   async downloadFile(
     @Param('id') id: string,
     @Param('fileId') fileId: string,

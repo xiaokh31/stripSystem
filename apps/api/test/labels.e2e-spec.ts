@@ -1,10 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
+import {
+  authorizedRequest,
+  configureAuthTestEnv,
+  installAuthMock,
+} from './auth-test-helpers';
 
 interface DestinationRecord {
   id: string;
@@ -48,10 +52,12 @@ describe('LabelsController reprint audit (e2e)', () => {
   let prisma: any;
 
   beforeEach(async () => {
+    configureAuthTestEnv();
     const seeded = seedRecords();
     pallets = seeded.pallets;
     palletEvents = [];
     prisma = createPrismaMock(seeded.destinations, pallets, palletEvents);
+    installAuthMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -72,7 +78,7 @@ describe('LabelsController reprint audit (e2e)', () => {
   it('records pallet and container reprint audits without changing pallet status', async () => {
     const loadedStatus = pallets[1].status;
 
-    const palletResponse = await request(app.getHttpServer())
+    const palletResponse = await authorizedRequest(app)
       .post('/api/pallets/pallet-2/print')
       .send({
         operatorId: 'user-1',
@@ -104,7 +110,7 @@ describe('LabelsController reprint audit (e2e)', () => {
       operatorId: 'user-1',
     });
 
-    const containerResponse = await request(app.getHttpServer())
+    const containerResponse = await authorizedRequest(app)
       .post('/api/containers/container-1/labels/reprint')
       .send({
         operatorId: 'user-1',
@@ -137,7 +143,7 @@ describe('LabelsController reprint audit (e2e)', () => {
   });
 
   it('blocks cancelled pallet reprint unless supervisor override is sent', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/pallets/pallet-cancelled/print')
       .send({
         operatorId: 'user-1',
@@ -149,7 +155,7 @@ describe('LabelsController reprint audit (e2e)', () => {
       });
     expect(palletEvents).toHaveLength(0);
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/pallets/pallet-cancelled/print')
       .send({
         operatorId: 'user-1',

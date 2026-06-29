@@ -6,6 +6,7 @@ import {
 import { LoginDto } from './dto/login.dto';
 import { AuthUserResponseDto, LoginResponseDto } from './dto/auth-response.dto';
 import { AuthTokenService } from './auth-token.service';
+import { AuthenticatedUser } from './auth-user';
 import { PasswordService } from './password.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -87,6 +88,12 @@ export class AuthService {
   async getCurrentUser(
     authorization: string | undefined,
   ): Promise<AuthUserResponseDto> {
+    return this.authenticateBearer(authorization);
+  }
+
+  async authenticateBearer(
+    authorization: string | undefined,
+  ): Promise<AuthenticatedUser> {
     const payload = this.tokenService.verifyBearerHeader(authorization);
     const user = await this.findUserById(payload.sub);
     if (!user) {

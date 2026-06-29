@@ -3,11 +3,15 @@ import { INestApplication } from '@nestjs/common';
 import { mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
+import {
+  authorizedRequest,
+  configureAuthTestEnv,
+  installAuthMock,
+} from './auth-test-helpers';
 
 interface ImportRecord {
   id: string;
@@ -314,6 +318,7 @@ describe('ImportsController (e2e)', () => {
   let originalStorageRoot: string | undefined;
 
   beforeEach(async () => {
+    configureAuthTestEnv();
     originalStorageRoot = process.env.STORAGE_ROOT;
     storageRoot = await mkdtemp(join(tmpdir(), 'p1-03-imports-e2e-'));
     process.env.STORAGE_ROOT = storageRoot;
@@ -333,6 +338,7 @@ describe('ImportsController (e2e)', () => {
       pallets,
       palletEvents,
     );
+    installAuthMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -356,7 +362,7 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('uploads a real xlsx fixture, saves the original file, and writes import_files metadata', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
@@ -378,12 +384,12 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('rejects duplicate uploads by SHA-256', async () => {
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
 
-    const response = await request(app.getHttpServer())
+    const response = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(409);
@@ -402,13 +408,13 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('lists imports and returns import details', async () => {
-    const uploaded = await request(app.getHttpServer())
+    const uploaded = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
 
-    const list = await request(app.getHttpServer())
+    const list = await authorizedRequest(app)
       .get('/api/imports?limit=10&offset=0')
       .expect(200);
     const listBody = list.body as ImportListBody;
@@ -424,7 +430,7 @@ describe('ImportsController (e2e)', () => {
       ],
     });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .get(`/api/imports/${uploadedBody.id}`)
       .expect(200)
       .expect((response) => {
@@ -437,14 +443,14 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('parses an uploaded real xlsx fixture through the Python worker and persists parse output', async () => {
-    const uploaded = await request(app.getHttpServer())
+    const uploaded = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
     const originalStoredPath = uploadedBody.storedPath;
 
-    const parsed = await request(app.getHttpServer())
+    const parsed = await authorizedRequest(app)
       .post(`/api/imports/${uploadedBody.id}/parse`)
       .expect(201);
     const parsedBody = parsed.body as ParseResultBody;
@@ -473,7 +479,7 @@ describe('ImportsController (e2e)', () => {
     ).toBe(true);
     expect(records[0].storedPath).toBe(originalStoredPath);
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .get(`/api/imports/${uploadedBody.id}/parse-result`)
       .expect(200)
       .expect((response) => {
@@ -484,19 +490,19 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('generates an Excel unloading report from a parsed real fixture and records generated_files', async () => {
-    const uploaded = await request(app.getHttpServer())
+    const uploaded = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
 
-    const parsed = await request(app.getHttpServer())
+    const parsed = await authorizedRequest(app)
       .post(`/api/imports/${uploadedBody.id}/parse`)
       .expect(201);
     const parsedBody = parsed.body as ParseResultBody;
     const containerId = parsedBody.containers[0].id;
 
-    const report = await request(app.getHttpServer())
+    const report = await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-report`)
       .expect(201);
     const reportBody = report.body as GenerateReportBody;
@@ -518,7 +524,7 @@ describe('ImportsController (e2e)', () => {
       reportBody.generatedFile.storagePath,
     );
 
-    const files = await request(app.getHttpServer())
+    const files = await authorizedRequest(app)
       .get(`/api/containers/${containerId}/files`)
       .expect(200);
     const filesBody = files.body as GeneratedFilesBody;
@@ -533,7 +539,7 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('generates an Excel unloading report for a manual container without an import file', async () => {
-    const manual = await request(app.getHttpServer())
+    const manual = await authorizedRequest(app)
       .post('/api/containers/manual')
       .send({
         containerNo: 'MANU1234567',
@@ -582,7 +588,7 @@ describe('ImportsController (e2e)', () => {
       ],
     });
 
-    const report = await request(app.getHttpServer())
+    const report = await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-report`)
       .expect(201);
     const reportBody = report.body as GenerateReportBody;
@@ -600,7 +606,7 @@ describe('ImportsController (e2e)', () => {
       stat(reportBody.generatedFile.storagePath),
     ).resolves.toBeDefined();
 
-    const files = await request(app.getHttpServer())
+    const files = await authorizedRequest(app)
       .get(`/api/containers/${containerId}/files`)
       .expect(200);
     const filesBody = files.body as GeneratedFilesBody;
@@ -617,7 +623,7 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('generates pallet labels for a manual container and rebuilds unused pallets from corrected finalPallets', async () => {
-    const manual = await request(app.getHttpServer())
+    const manual = await authorizedRequest(app)
       .post('/api/containers/manual')
       .send({
         containerNo: 'MANU1234567',
@@ -646,7 +652,7 @@ describe('ImportsController (e2e)', () => {
     const containerId = manualBody.container.id;
     const destinationId = manualBody.container.destinations[0].id;
 
-    const labels = await request(app.getHttpServer())
+    const labels = await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(201);
     const labelsBody = labels.body as GenerateLabelsBody;
@@ -684,7 +690,7 @@ describe('ImportsController (e2e)', () => {
       labelsBody.pallets.map((pallet) => pallet.id),
     );
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .patch(`/api/container-destinations/${destinationId}`)
       .send({
         manualPallets: 3,
@@ -701,7 +707,7 @@ describe('ImportsController (e2e)', () => {
         });
       });
 
-    const regenerated = await request(app.getHttpServer())
+    const regenerated = await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(201);
     const regeneratedBody = regenerated.body as GenerateLabelsBody;
@@ -734,13 +740,13 @@ describe('ImportsController (e2e)', () => {
   }, 30_000);
 
   it('generates pallet labels, reports inventory summaries, and blocks duplicate generation', async () => {
-    const uploaded = await request(app.getHttpServer())
+    const uploaded = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
 
-    const parsed = await request(app.getHttpServer())
+    const parsed = await authorizedRequest(app)
       .post(`/api/imports/${uploadedBody.id}/parse`)
       .expect(201);
     const parsedBody = parsed.body as ParseResultBody;
@@ -750,7 +756,7 @@ describe('ImportsController (e2e)', () => {
       0,
     );
 
-    const labels = await request(app.getHttpServer())
+    const labels = await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(201);
     const labelsBody = labels.body as GenerateLabelsBody;
@@ -781,7 +787,7 @@ describe('ImportsController (e2e)', () => {
       ),
     ).toBe(true);
 
-    const list = await request(app.getHttpServer())
+    const list = await authorizedRequest(app)
       .get(`/api/pallets?containerId=${containerId}`)
       .expect(200);
     const listBody = list.body as PalletListBody;
@@ -792,7 +798,7 @@ describe('ImportsController (e2e)', () => {
       status: 'LABEL_PRINTED',
     });
 
-    const containerSummary = await request(app.getHttpServer())
+    const containerSummary = await authorizedRequest(app)
       .get('/api/reports/container-summary')
       .expect(200);
     const containerSummaryBody = containerSummary.body as ContainerSummaryBody;
@@ -809,7 +815,7 @@ describe('ImportsController (e2e)', () => {
 
     pallets[0].status = 'LOADED';
 
-    const containerDetail = await request(app.getHttpServer())
+    const containerDetail = await authorizedRequest(app)
       .get(`/api/containers/${containerId}/summary`)
       .expect(200);
     const containerDetailBody =
@@ -826,7 +832,7 @@ describe('ImportsController (e2e)', () => {
       loadedPallets: 1,
     });
 
-    const inventory = await request(app.getHttpServer())
+    const inventory = await authorizedRequest(app)
       .get('/api/reports/inventory?status=LOADED')
       .expect(200);
     const inventoryBody = inventory.body as InventoryBody;
@@ -840,7 +846,7 @@ describe('ImportsController (e2e)', () => {
       },
     ]);
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(409)
       .expect((response) => {
@@ -853,13 +859,13 @@ describe('ImportsController (e2e)', () => {
     const corruptPath = join(storageRoot, 'corrupt.xlsx');
     await writeFile(corruptPath, 'not a real Excel workbook');
 
-    const uploaded = await request(app.getHttpServer())
+    const uploaded = await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', corruptPath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
 
-    const parsed = await request(app.getHttpServer())
+    const parsed = await authorizedRequest(app)
       .post(`/api/imports/${uploadedBody.id}/parse`)
       .expect(201);
     const parsedBody = parsed.body as ParseResultBody;
@@ -875,7 +881,7 @@ describe('ImportsController (e2e)', () => {
     expect(parsedBody.containers).toEqual([]);
     expect(parsedBody.errors.length).toBeGreaterThan(0);
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .get(`/api/imports/${uploadedBody.id}/parse-result`)
       .expect(200)
       .expect((response) => {
@@ -889,7 +895,7 @@ describe('ImportsController (e2e)', () => {
     const textPath = join(storageRoot, 'not-a-plan.txt');
     await writeFile(textPath, 'not a real Excel file');
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .post('/api/imports')
       .attach('file', textPath)
       .expect(400)
@@ -898,7 +904,7 @@ describe('ImportsController (e2e)', () => {
         expect(body.code).toBe('INVALID_IMPORT_FILE_TYPE');
       });
 
-    await request(app.getHttpServer())
+    await authorizedRequest(app)
       .get('/api/imports?limit=not-a-number')
       .expect(400);
   });
