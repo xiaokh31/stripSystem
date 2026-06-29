@@ -1,8 +1,10 @@
-# Local Deployment Runbook
+# Local Docker Runbook
 
 ## Scope
 
-This runbook starts the local full stack for warehouse pilot use:
+This is the single local runbook for development testing, production rehearsal,
+and warehouse pilot use. It starts the same Docker full stack that Windows and
+Linux deployment use:
 
 - nginx
 - web
@@ -11,8 +13,13 @@ This runbook starts the local full stack for warehouse pilot use:
 - PostgreSQL
 - Redis
 
-It does not add business behavior. It only describes deployment, persistence,
-health checks, and operator access.
+Use this mode by default. Do not run host `pnpm --filter api dev` or
+`pnpm --filter web dev` as the normal local workflow. Keeping local testing on
+Docker prevents route drift between `127.0.0.1:3000`, `127.0.0.1:4000`, and the
+production nginx `/api` route.
+
+It does not add business behavior. It only describes local Docker startup,
+persistence, health checks, and operator access.
 
 ## Files
 
@@ -27,6 +34,7 @@ health checks, and operator access.
 - Docker and Docker Compose are installed.
 - The repository is checked out on the warehouse host.
 - `storage/` exists and is writable by the current user.
+- The report template exists at `samples/templates/卸柜报告-En.xlsx`.
 - Real secrets have been set before pilot use.
 - PostgreSQL and storage backups exist before restore or destructive testing.
 
@@ -53,6 +61,7 @@ WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 JWT_SECRET=replace-with-long-random-secret
 JWT_EXPIRES_IN_SECONDS=28800
+REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
 
 For pilot or production, replace default passwords and `JWT_SECRET` with unique
@@ -77,7 +86,7 @@ PostgreSQL data is stored in the Docker named volume
 
 Node dependency folders, pnpm store, and the worker Python `.venv` are also
 stored in Docker named volumes. This keeps the local compose runtime from
-deleting or rewriting host development dependencies.
+deleting or rewriting host machine dependency directories.
 
 ## Start Full Stack
 
@@ -97,6 +106,27 @@ Expected services:
 The API service runs Prisma generate and migrations before starting. The web
 service waits for API health before starting. nginx waits for web and API
 health.
+
+## Local URLs
+
+Use nginx routes for local testing:
+
+```text
+Office UI: http://127.0.0.1/
+API:       http://127.0.0.1/api
+Mobile:    http://127.0.0.1/mobile/load-jobs
+```
+
+Use the LAN IP for phones and PDA devices:
+
+```text
+Office UI: http://<server-lan-ip>/
+Mobile:    http://<server-lan-ip>/mobile/load-jobs
+```
+
+Do not use `http://127.0.0.1:3000` or `http://127.0.0.1:4000` for the standard
+local workflow. Those are internal service ports in this project and can hide
+nginx or browser routing problems.
 
 ## Initialize Accounts
 
@@ -237,9 +267,10 @@ drift checks, and recovery rules.
 | nginx returns 502 | `api` or `web` is not healthy; inspect service logs. |
 | API health is degraded | PostgreSQL credentials, volume, or migration failed. |
 | Web starts but API calls fail | `WEB_API_PROXY_BASE_URL` should be `http://api:4000/api`. |
-| `http://127.0.0.1:3000` shows old API routes | This is host development mode, not Docker/nginx mode. Stop Docker `api`, `web`, and `nginx`; use `docs/runbooks/local-development.md`. |
+| `http://127.0.0.1:3000` behaves differently from `http://127.0.0.1/` | Use `http://127.0.0.1/` for Docker/nginx testing; `3000` bypasses nginx. |
 | Upload succeeds but file disappears | `storage/` bind mount and host permissions. |
 | Worker parse/report/label fails | API image must include Python, uv, and worker dependencies; inspect `api` logs. |
+| Report generation fails | Confirm `samples/templates/卸柜报告-En.xlsx` exists on the host. |
 | Mobile cannot access app | Use the server LAN IP and allow HTTP port through firewall. |
 | Labels print wrong size | Disable print scaling and verify 150mm x 100mm labels with the calibration PDF. |
 

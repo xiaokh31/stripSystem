@@ -6,7 +6,6 @@ docs/*
 !docs/runbooks/
 docs/runbooks/*
 !docs/runbooks/local-deployment.md
-!docs/runbooks/local-development.md
 !docs/runbooks/backup-restore.md
 !docs/runbooks/database-migrations.md
 !docs/runbooks/account-role-permission-management.md

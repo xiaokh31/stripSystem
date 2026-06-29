@@ -569,7 +569,7 @@ Before warehouse users start real work, verify:
 | API health is degraded | PostgreSQL is unhealthy, migrations failed, or `.env` database values are wrong. |
 | Database status is down | Check `bestar_postgres_local` logs and `POSTGRES_PASSWORD` consistency. |
 | Report generation fails | Confirm `samples/templates/卸柜报告-En.xlsx` exists on the host. |
-| Web opens but API calls fail | Do not mix host development ports with Docker/nginx production routing. Use `/api` through nginx. |
+| Web opens but API calls fail | Use Docker/nginx routing consistently. Browser API calls should go through `/api`. |
 | Phone cannot open the site | Check LAN IP, same Wi-Fi/LAN, firewall port 80, and `HTTP_PORT`. |
 | Backup scripts fail on Windows | Run scripts from WSL Ubuntu or Git Bash, not plain PowerShell. |
 | Printed labels are wrong size | Use 150mm x 100mm paper and disable automatic print scaling. |

@@ -96,17 +96,19 @@ pnpm install
 
 Run dev infra:
 ```bash
-docker compose -f infra/docker/compose.local.yml up -d postgres redis
+docker compose -f infra/docker/compose.local.yml up -d --build
 ```
 
-Local development uses host Web/API plus Docker PostgreSQL/Redis:
-- Web: `127.0.0.1:3000`
-- API: `127.0.0.1:4000`
-- PostgreSQL: `127.0.0.1:15432`
-- Redis: `127.0.0.1:16379`
+Local development and local production rehearsal use one Docker full-stack
+mode:
+- Web through nginx: `http://127.0.0.1/`
+- API through nginx: `http://127.0.0.1/api`
+- PostgreSQL host port: `127.0.0.1:15432`
+- Redis host port: `127.0.0.1:16379`
 
-Do not run Docker `api`, `web`, or `nginx` containers while testing
-`127.0.0.1:3000`; see `docs/runbooks/local-development.md`.
+Do not run host `pnpm --filter api dev` or `pnpm --filter web dev` as the
+default local workflow. Use `docs/runbooks/local-deployment.md` so local
+testing matches Windows/Linux Docker production routing.
 
 Run all checks:
 ```bash

@@ -92,13 +92,11 @@ apps/api/prisma/seed.ts
 
 ## Seed Default Roles And Permissions
 
-Run migrations first, then seed:
+Start the Docker full stack first. The API container runs committed migrations
+during startup. Then seed roles and permissions inside the API container:
 
 ```bash
-DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
-  pnpm --filter api prisma migrate deploy
-
-DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+docker compose -f infra/docker/compose.local.yml exec -T api \
   pnpm --filter api prisma db seed
 ```
 
@@ -109,28 +107,10 @@ The seed is idempotent:
 - It synchronizes default role permissions.
 - It does not create an administrator unless explicit seed variables are set.
 
-For Docker/nginx full-stack deployment, run the same seed inside the API
-container:
-
-```bash
-docker compose -f infra/docker/compose.local.yml exec -T api \
-  pnpm --filter api prisma db seed
-```
-
 ## Initial Administrator
 
 Empty databases create the first administrator through one-time seed variables.
 Replace the email and password before running the command:
-
-```bash
-SEED_ADMIN_EMAIL='<admin-email>' \
-SEED_ADMIN_PASSWORD='<unique-strong-admin-password>' \
-SEED_ADMIN_NAME='Initial Admin' \
-DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
-  pnpm --filter api prisma db seed
-```
-
-For Docker/nginx full-stack deployment:
 
 ```bash
 docker compose -f infra/docker/compose.local.yml exec -T \
@@ -155,18 +135,16 @@ insert users or password hashes in the database.
 
 ## Login Verification
 
-Verify API health first. In host development use port `4000`; in Docker/nginx
-deployment use the same-origin `/api` route on port `80`.
+Verify API health first through Docker/nginx:
 
 ```bash
-curl -sS http://127.0.0.1:4000/api/health
 curl -sS http://localhost/api/health
 ```
 
 Verify the initial administrator:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:4000/api/auth/login \
+curl -sS -X POST http://localhost/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
 ```
@@ -174,16 +152,16 @@ curl -sS -X POST http://127.0.0.1:4000/api/auth/login \
 Use the returned Bearer token to verify the current profile and account access:
 
 ```bash
-curl -sS http://127.0.0.1:4000/api/auth/me \
+curl -sS http://localhost/api/auth/me \
   -H "Authorization: Bearer $TOKEN"
 
-curl -sS http://127.0.0.1:4000/api/users \
+curl -sS http://localhost/api/users \
   -H "Authorization: Bearer $TOKEN"
 
-curl -sS http://127.0.0.1:4000/api/roles \
+curl -sS http://localhost/api/roles \
   -H "Authorization: Bearer $TOKEN"
 
-curl -sS http://127.0.0.1:4000/api/permissions \
+curl -sS http://localhost/api/permissions \
   -H "Authorization: Bearer $TOKEN"
 ```
 
