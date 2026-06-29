@@ -10,6 +10,8 @@ export interface AppConfiguration {
   storageRoot: string;
   workerPythonDir: string;
   reportTemplatePath: string;
+  jwtSecret?: string;
+  jwtExpiresInSeconds: number;
 }
 
 export const appConfig = (): { app: AppConfiguration } => ({
@@ -24,6 +26,11 @@ export const appConfig = (): { app: AppConfiguration } => ({
     workerPythonDir: process.env.WORKER_PYTHON_DIR ?? defaultWorkerPythonDir(),
     reportTemplatePath:
       process.env.REPORT_TEMPLATE_PATH ?? defaultReportTemplatePath(),
+    jwtSecret: process.env.JWT_SECRET,
+    jwtExpiresInSeconds: Number.parseInt(
+      process.env.JWT_EXPIRES_IN_SECONDS ?? '28800',
+      10,
+    ),
   },
 });
 

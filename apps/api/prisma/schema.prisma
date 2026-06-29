@@ -101,8 +101,13 @@ model User {
   id                 String               @id @default(cuid())
   email              String?              @unique
   name               String?
+  passwordHash       String?              @map("password_hash")
+  lastLoginAt        DateTime?            @map("last_login_at")
+  /// Legacy single-role value retained until auth APIs fully read user_roles.
   role               UserRole             @default(OFFICE)
   isActive           Boolean              @default(true) @map("is_active")
+  roleAssignments    UserRoleAssignment[]
+  assignedUserRoles  UserRoleAssignment[] @relation("UserRoleAssignedBy")
   importedFiles      ImportFile[]         @relation("ImportFileImportedBy")
   generatedFiles     GeneratedFile[]      @relation("GeneratedFileGeneratedBy")
   loadJobs           LoadJob[]            @relation("LoadJobCreatedBy")
@@ -112,6 +117,72 @@ model User {
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+model Role {
+  id              String               @id @default(cuid())
+  code            String               @unique
+  displayName     String               @map("display_name")
+  description     String?
+  isSystem        Boolean              @default(false) @map("is_system")
+  isActive        Boolean              @default(true) @map("is_active")
+  userAssignments UserRoleAssignment[]
+  permissions     RolePermission[]
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([isSystem])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  category    String?
+  description String?
+  isSystem    Boolean          @default(true) @map("is_system")
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([isSystem])
+  @@map("permissions")
+}
+
+model UserRoleAssignment {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  roleId       String   @map("role_id")
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedById String?  @map("assigned_by_id")
+  assignedBy   User?    @relation("UserRoleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([assignedById])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String     @map("role_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  permissionId String     @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model ImportFile {
