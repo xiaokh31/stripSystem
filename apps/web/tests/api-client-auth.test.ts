@@ -115,10 +115,10 @@ test("auth redirect targets stay inside the web app", () => {
   assert.equal(safeAuthRedirectTarget(null), "/");
 });
 
-test("generated file download links stay on the browser /api path", () => {
+test("generated file download links stay on the browser web path", () => {
   assert.equal(
     getGeneratedFileDownloadUrl("container 1", "file 2", "/api"),
-    "/api/containers/container%201/files/file%202/download",
+    "/containers/container%201/files/file%202/download",
   );
 });
 

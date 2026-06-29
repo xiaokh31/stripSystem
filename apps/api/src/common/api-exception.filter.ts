@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { operationalDateTime } from './operational-time';
 
 interface ApiErrorBody {
   code: string;
@@ -30,7 +31,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       code: this.errorCode(status, exception),
       message: this.errorMessage(exception),
       details: this.errorDetails(exception),
-      timestamp: new Date().toISOString(),
+      timestamp: operationalDateTime(),
       path: request.url ?? '',
     } satisfies ApiErrorBody);
   }

@@ -1075,9 +1075,9 @@ export function getGeneratedFileDownloadUrl(
   const encodedContainerId = encodeURIComponent(containerId);
   const encodedFileId = encodeURIComponent(fileId);
 
-  return buildApiUrl(
+  return buildWebUrl(
     `/containers/${encodedContainerId}/files/${encodedFileId}/download`,
-    baseUrl,
+    apiBaseToWebBaseUrl(baseUrl),
   );
 }
 
@@ -1198,6 +1198,45 @@ export function buildApiUrl(path: string, baseUrl = getApiBaseUrl()): string {
     normalizedPath.replace(/^\//, ""),
     `${normalizedBaseUrl}/`,
   ).toString();
+}
+
+function buildWebUrl(path: string, baseUrl: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedBaseUrl = baseUrl ? normalizeBaseUrl(baseUrl) : "";
+
+  if (!normalizedBaseUrl) {
+    return normalizedPath;
+  }
+  if (normalizedBaseUrl.startsWith("/")) {
+    return `${normalizedBaseUrl}${normalizedPath}`;
+  }
+
+  return new URL(
+    normalizedPath.replace(/^\//, ""),
+    `${normalizedBaseUrl}/`,
+  ).toString();
+}
+
+function apiBaseToWebBaseUrl(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (normalized === "/api") {
+    return "";
+  }
+  if (normalized.startsWith("/")) {
+    return normalized.endsWith("/api") ? normalized.slice(0, -4) : normalized;
+  }
+
+  try {
+    const url = new URL(normalized);
+    if (url.pathname === "/api") {
+      url.pathname = "/";
+    } else if (url.pathname.endsWith("/api")) {
+      url.pathname = url.pathname.slice(0, -4);
+    }
+    return normalizeBaseUrl(url.toString());
+  } catch {
+    return "";
+  }
 }
 
 function normalizeBaseUrl(value: string): string {

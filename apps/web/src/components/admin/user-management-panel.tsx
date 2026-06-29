@@ -36,6 +36,7 @@ type UserDrafts = Record<
   }
 >;
 
+const ASSIGNABLE_USER_ROLE_CODES = new Set(["ADMIN", "OFFICE", "WAREHOUSE"]);
 const CREATE_USER_ROLE_CODES = new Set(["OFFICE", "WAREHOUSE"]);
 
 export function UserManagementPanel({
@@ -51,7 +52,10 @@ export function UserManagementPanel({
     [roles],
   );
   const assignableRoles = useMemo(
-    () => roles.filter((role) => role.isActive && !role.isSystem),
+    () =>
+      roles.filter(
+        (role) => role.isActive && ASSIGNABLE_USER_ROLE_CODES.has(role.code),
+      ),
     [roles],
   );
   const [createDraft, setCreateDraft] = useState<CreateUserDraft>({

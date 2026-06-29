@@ -347,7 +347,7 @@ function DestinationTable({
 }) {
   return (
     <div className="mt-5 overflow-x-auto">
-      <table className="min-w-[1580px] w-full border-collapse text-left text-sm">
+      <table className="min-w-[1500px] w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <th className="px-3 py-3 font-semibold">Destination</th>
@@ -369,7 +369,6 @@ function DestinationTable({
             <th className="px-3 py-3 font-semibold">Actual note</th>
             <th className="px-3 py-3 font-semibold">Audit note</th>
             <th className="px-3 py-3 font-semibold">Save</th>
-            <th className="px-3 py-3 font-semibold">Delete</th>
           </tr>
         </thead>
         <tbody>
@@ -385,18 +384,32 @@ function DestinationTable({
             return (
               <tr className="border-b border-zinc-100" key={destination.id}>
                 <td className="px-3 py-4 align-top">
-                  <input
-                    aria-label={`Destination code for ${destination.destinationCode}`}
-                    className={inputClass("w-40 font-semibold")}
-                    onChange={(event) =>
-                      onChange(
-                        destination.id,
-                        "destinationCode",
-                        event.target.value,
-                      )
-                    }
-                    value={draft.destinationCode}
-                  />
+                  <div className="flex items-start gap-2">
+                    <input
+                      aria-label={`Destination code for ${destination.destinationCode}`}
+                      className={inputClass("w-40 font-semibold")}
+                      onChange={(event) =>
+                        onChange(
+                          destination.id,
+                          "destinationCode",
+                          event.target.value,
+                        )
+                      }
+                      value={draft.destinationCode}
+                    />
+                    <button
+                      aria-label={`Delete destination ${destination.destinationCode}`}
+                      className="min-h-10 border border-red-700 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-500"
+                      disabled={
+                        saveState.status === "saving" ||
+                        saveState.labelAction === "generating"
+                      }
+                      onClick={() => void onDelete(destination)}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
@@ -520,19 +533,6 @@ function DestinationTable({
                     state={saveState}
                     widthClass="w-44"
                   />
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <button
-                    className="min-h-10 w-28 border border-red-700 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-500"
-                    disabled={
-                      saveState.status === "saving" ||
-                      saveState.labelAction === "generating"
-                    }
-                    onClick={() => void onDelete(destination)}
-                    type="button"
-                  >
-                    Delete
-                  </button>
                 </td>
               </tr>
             );

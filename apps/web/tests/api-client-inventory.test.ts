@@ -83,7 +83,7 @@ test("server API base defaults to local API dev server", () => {
   }
 });
 
-test("generated file download urls use the browser-visible api route during SSR", () => {
+test("generated file download urls use the browser-visible web route during SSR", () => {
   const env = preserveApiEnv();
   const windowDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -97,7 +97,7 @@ test("generated file download urls use the browser-visible api route during SSR"
     assert.equal(getPublicApiBaseUrl(), "/api");
     assert.equal(
       getGeneratedFileDownloadUrl("container manual/1", "report file/1"),
-      "/api/containers/container%20manual%2F1/files/report%20file%2F1/download",
+      "/containers/container%20manual%2F1/files/report%20file%2F1/download",
     );
   } finally {
     restoreApiEnv(env);
@@ -112,7 +112,7 @@ test("generated file download urls honor explicit public api base urls", () => {
       "file-1",
       "http://warehouse.local/api/",
     ),
-    "http://warehouse.local/api/containers/container-1/files/file-1/download",
+    "http://warehouse.local/containers/container-1/files/file-1/download",
   );
 });
 
