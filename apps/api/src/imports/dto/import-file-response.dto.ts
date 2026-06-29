@@ -1,3 +1,9 @@
+export interface ImportFileContainerSummaryDto {
+  id: string;
+  containerNo: string;
+  status: string;
+}
+
 export interface ImportFileResponseDto {
   id: string;
   originalFilename: string;
@@ -12,6 +18,7 @@ export interface ImportFileResponseDto {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  containers: ImportFileContainerSummaryDto[];
   createdAt: string;
   updatedAt: string;
 }

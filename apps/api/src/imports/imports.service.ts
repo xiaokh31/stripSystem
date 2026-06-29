@@ -14,6 +14,7 @@ import {
   ImportFileResponseDto,
   ImportParseResultResponseDto,
   ContainerDestinationResponseDto,
+  ImportFileContainerSummaryDto,
   ContainerLineResponseDto,
   ContainerResponseDto,
 } from './dto/import-file-response.dto';
@@ -26,7 +27,12 @@ import {
   WorkerParsedLine,
   WorkerParserService,
 } from './worker-parser.service';
-import { FileFormat, ContainerStatus } from '../generated/prisma/enums';
+import {
+  ContainerStatus,
+  FileFormat,
+  ParseStatus,
+} from '../generated/prisma/enums';
+import { effectiveContainerStatus } from '../common/container-lifecycle';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -50,8 +56,22 @@ interface ImportFileRecord {
   errorCount: number;
   errorMessage: string | null;
   rawMetadata?: unknown;
+  containers?: ImportFileContainerSummaryRecord[];
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+interface ImportFileContainerSummaryRecord {
+  id: string;
+  containerNo: string;
+  status: string;
+  destinations?: Array<{
+    pallets?: Array<{
+      status: string;
+      loadJobId: string | null;
+      loadedAt: Date | string | null;
+    }>;
+  }>;
 }
 
 interface ContainerRecord {
@@ -92,6 +112,11 @@ interface ContainerDestinationRecord {
   note: string | null;
   warnings: unknown;
   errors: unknown;
+  pallets?: Array<{
+    status: string;
+    loadJobId: string | null;
+    loadedAt: Date | string | null;
+  }>;
 }
 
 interface PersistedParseResult {
@@ -169,6 +194,7 @@ export class ImportsService {
 
   async list(query: ListImportsQueryDto): Promise<ImportFileListResponseDto> {
     const records = await this.prisma.importFile.findMany({
+      include: this.importContainersInclude(),
       orderBy: { createdAt: 'desc' },
       take: query.limit,
       skip: query.offset,
@@ -184,7 +210,7 @@ export class ImportsService {
   }
 
   async getById(id: string): Promise<ImportFileResponseDto> {
-    const record = await this.findImportOrThrow(id);
+    const record = await this.findImportOrThrow(id, true);
 
     return this.toResponse(record);
   }
@@ -212,6 +238,10 @@ export class ImportsService {
     try {
       await this.persistParsePayload(record, payload);
     } catch (error) {
+      if (error instanceof ConflictException) {
+        await this.restoreParseStatusAfterConflict(record, error);
+        throw error;
+      }
       await this.markParsePersistenceFailed(record, payload, error);
       if (this.isUniqueConstraintError(error)) {
         throw new ConflictException({
@@ -248,6 +278,15 @@ export class ImportsService {
       include: {
         lines: { orderBy: { lineNo: 'asc' } },
         destinations: {
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
           orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
         },
       },
@@ -259,9 +298,13 @@ export class ImportsService {
     });
   }
 
-  private async findImportOrThrow(id: string): Promise<ImportFileRecord> {
+  private async findImportOrThrow(
+    id: string,
+    includeContainers = false,
+  ): Promise<ImportFileRecord> {
     const record = await this.prisma.importFile.findUnique({
       where: { id },
+      include: includeContainers ? this.importContainersInclude() : undefined,
     });
 
     if (!record) {
@@ -272,7 +315,7 @@ export class ImportsService {
       });
     }
 
-    return record as ImportFileRecord;
+    return record;
   }
 
   private async assertStoredFileExists(
@@ -315,6 +358,30 @@ export class ImportsService {
         },
       });
     }
+  }
+
+  private importContainersInclude() {
+    return {
+      containers: {
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          containerNo: true,
+          status: true,
+          destinations: {
+            select: {
+              pallets: {
+                select: {
+                  status: true,
+                  loadJobId: true,
+                  loadedAt: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    } as const;
   }
 
   private async persistParsePayload(
@@ -407,7 +474,7 @@ export class ImportsService {
       });
 
       const lineRows = this.containerLineRows(
-        container.id as string,
+        container.id,
         parsedResult.lines ?? [],
       );
       if (lineRows.length > 0) {
@@ -415,7 +482,7 @@ export class ImportsService {
       }
 
       const destinationRows = this.containerDestinationRows(
-        container.id as string,
+        container.id,
         parsedResult.destinationSummaries ?? [],
         payload.pallet_result?.plans ?? [],
       );
@@ -431,17 +498,53 @@ export class ImportsService {
   }
 
   private async deleteExistingParsedContainers(
-    tx: any,
+    tx: Prisma.TransactionClient,
     importFileId: string,
   ): Promise<void> {
     const existingContainers = (await tx.container.findMany({
       where: { importFileId },
-      select: { id: true },
-    })) as Array<{ id: string }>;
+      select: {
+        id: true,
+        containerNo: true,
+        destinations: {
+          select: {
+            _count: {
+              select: {
+                pallets: true,
+              },
+            },
+          },
+        },
+      },
+    })) as Array<{
+      id: string;
+      containerNo: string;
+      destinations: Array<{ _count: { pallets: number } }>;
+    }>;
     const containerIds = existingContainers.map((container) => container.id);
 
     if (containerIds.length === 0) {
       return;
+    }
+
+    const blocked = existingContainers.filter((container) =>
+      container.destinations.some(
+        (destination) => destination._count.pallets > 0,
+      ),
+    );
+    if (blocked.length > 0) {
+      throw new ConflictException({
+        code: 'IMPORT_REPARSE_CONTAINER_IN_USE',
+        message:
+          'This import already has generated pallet records, so parsing cannot replace its container structure. Use container corrections or create a new import.',
+        details: {
+          importFileId,
+          containers: blocked.map((container) => ({
+            id: container.id,
+            containerNo: container.containerNo,
+          })),
+        },
+      });
     }
 
     await tx.containerLine.deleteMany({
@@ -571,6 +674,33 @@ export class ImportsService {
     });
   }
 
+  private async restoreParseStatusAfterConflict(
+    record: ImportFileRecord,
+    error: ConflictException,
+  ): Promise<void> {
+    await this.prisma.importFile.update({
+      where: { id: record.id },
+      data: {
+        parseStatus: this.parseStatusValue(record.parseStatus),
+        errorMessage: this.errorMessage(error),
+      },
+    });
+  }
+
+  private parseStatusValue(value: string): ParseStatus {
+    if (
+      value === ParseStatus.NOT_PARSED ||
+      value === ParseStatus.PARSING ||
+      value === ParseStatus.PARSED ||
+      value === ParseStatus.WARNING ||
+      value === ParseStatus.ERROR
+    ) {
+      return value;
+    }
+
+    return ParseStatus.ERROR;
+  }
+
   private validateXlsx(file: Express.Multer.File): void {
     if (!file.originalname.toLowerCase().endsWith('.xlsx')) {
       throw new BadRequestException({
@@ -649,9 +779,23 @@ export class ImportsService {
       warningCount: record.warningCount,
       errorCount: record.errorCount,
       errorMessage: record.errorMessage,
+      containers: this.importContainerSummaries(record.containers ?? []),
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
     };
+  }
+
+  private importContainerSummaries(
+    containers: ImportFileContainerSummaryRecord[],
+  ): ImportFileContainerSummaryDto[] {
+    return containers.map((container) => ({
+      id: container.id,
+      containerNo: container.containerNo,
+      status: effectiveContainerStatus(
+        container.status,
+        container.destinations ?? [],
+      ),
+    }));
   }
 
   private toParseResult(
@@ -690,7 +834,10 @@ export class ImportsService {
       containerNo: record.containerNo,
       sourceFormat: record.sourceFormat,
       parserVersion: record.parserVersion,
-      status: record.status,
+      status: effectiveContainerStatus(
+        record.status,
+        record.destinations ?? [],
+      ),
       rawJson: record.rawJson,
       warnings: record.warnings,
       errors: record.errors,

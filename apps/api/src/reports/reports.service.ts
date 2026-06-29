@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -24,6 +25,10 @@ import {
   GeneratedFileStatus,
   GeneratedFileType,
 } from '../generated/prisma/enums';
+import {
+  effectiveContainerStatus,
+  isContainerGenerationLocked,
+} from '../common/container-lifecycle';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface ContainerRecord {
@@ -47,6 +52,11 @@ interface ContainerDestinationRecord {
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  pallets?: Array<{
+    status: string;
+    loadJobId: string | null;
+    loadedAt: Date | string | null;
+  }>;
 }
 
 interface GeneratedFileRecord {
@@ -62,6 +72,37 @@ interface GeneratedFileRecord {
   errorMessage: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+interface GeneratedFileUpsertInput {
+  fileType: string;
+  storagePath: string;
+  fileSha256: string | null;
+  mimeType: string;
+  fileSizeBytes: bigint | null;
+  status: string;
+  errorMessage: string | null;
+}
+
+interface GeneratedFileUpsertData extends GeneratedFileUpsertInput {
+  importFileId: string | null;
+  containerId: string;
+}
+
+interface GeneratedFileWriteClient {
+  generatedFile: {
+    findFirst(args: {
+      where: { containerId: string; fileType: string };
+      orderBy: { updatedAt: 'desc' };
+    }): Promise<GeneratedFileRecord | null>;
+    update(args: {
+      where: { id: string };
+      data: GeneratedFileUpsertData;
+    }): Promise<GeneratedFileRecord>;
+    create(args: {
+      data: GeneratedFileUpsertData;
+    }): Promise<GeneratedFileRecord>;
+  };
 }
 
 const EXCEL_REPORT_MIME_TYPE =
@@ -81,6 +122,7 @@ export class ReportsService {
 
   async generateReport(id: string): Promise<GenerateReportResponseDto> {
     const container = await this.findContainerOrThrow(id);
+    this.assertCanGenerateReport(container);
     const outputDir = join(this.storageRoot, 'reports');
     const request = this.toWorkerReportRequest(container);
 
@@ -123,7 +165,7 @@ export class ReportsService {
     await this.findContainerOrThrow(id);
     const records = (await this.prisma.generatedFile.findMany({
       where: { containerId: id },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     })) as GeneratedFileRecord[];
 
     return {
@@ -161,17 +203,17 @@ export class ReportsService {
       });
     }
 
-    this.assertStoragePathAllowed(record.storagePath, record);
+    const storagePath = this.resolveDownloadStoragePath(record);
 
     try {
-      const fileStat = await stat(record.storagePath);
+      const fileStat = await stat(storagePath);
       if (!fileStat.isFile()) {
         throw new Error('Generated path is not a file.');
       }
 
       return {
-        buffer: await readFile(record.storagePath),
-        filename: basename(record.storagePath),
+        buffer: await readFile(storagePath),
+        filename: basename(storagePath),
         fileSizeBytes: fileStat.size,
         mimeType: record.mimeType ?? 'application/octet-stream',
       };
@@ -196,6 +238,15 @@ export class ReportsService {
       include: {
         destinations: {
           orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
         },
       },
     })) as ContainerRecord | null;
@@ -209,6 +260,28 @@ export class ReportsService {
     }
 
     return container;
+  }
+
+  private assertCanGenerateReport(container: ContainerRecord): void {
+    const effectiveStatus = effectiveContainerStatus(
+      container.status,
+      container.destinations ?? [],
+    );
+
+    if (!isContainerGenerationLocked(effectiveStatus)) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'CONTAINER_GENERATION_LOCKED',
+      message:
+        'This container has entered loading or has been loaded, so the unloading report cannot be regenerated.',
+      details: {
+        containerId: container.id,
+        status: effectiveStatus,
+        action: 'generate-report',
+      },
+    });
   }
 
   private toWorkerReportRequest(
@@ -273,15 +346,19 @@ export class ReportsService {
     const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
 
     return await this.prisma.$transaction(async (tx) => {
-      const generatedFile = await this.upsertGeneratedFile(tx, container, {
-        fileType: GeneratedFileType.EXCEL_REPORT,
-        storagePath: outputPath,
-        fileSha256,
-        mimeType: EXCEL_REPORT_MIME_TYPE,
-        fileSizeBytes: BigInt(fileStat.size),
-        status: GeneratedFileStatus.GENERATED,
-        errorMessage: null,
-      });
+      const generatedFile = await this.upsertGeneratedFile(
+        tx as unknown as GeneratedFileWriteClient,
+        container,
+        {
+          fileType: GeneratedFileType.EXCEL_REPORT,
+          storagePath: outputPath,
+          fileSha256,
+          mimeType: EXCEL_REPORT_MIME_TYPE,
+          fileSizeBytes: BigInt(fileStat.size),
+          status: GeneratedFileStatus.GENERATED,
+          errorMessage: null,
+        },
+      );
       await tx.container.update({
         where: { id: container.id },
         data: { status: ContainerStatus.REPORT_GENERATED },
@@ -296,50 +373,46 @@ export class ReportsService {
     storagePath: string,
     error: unknown,
   ): Promise<GeneratedFileRecord> {
-    return await this.upsertGeneratedFile(this.prisma, container, {
-      fileType: GeneratedFileType.EXCEL_REPORT,
-      storagePath,
-      fileSha256: null,
-      mimeType: EXCEL_REPORT_MIME_TYPE,
-      fileSizeBytes: null,
-      status: GeneratedFileStatus.FAILED,
-      errorMessage: this.errorMessage(error),
-    });
+    return await this.upsertGeneratedFile(
+      this.prisma as unknown as GeneratedFileWriteClient,
+      container,
+      {
+        fileType: GeneratedFileType.EXCEL_REPORT,
+        storagePath,
+        fileSha256: null,
+        mimeType: EXCEL_REPORT_MIME_TYPE,
+        fileSizeBytes: null,
+        status: GeneratedFileStatus.FAILED,
+        errorMessage: this.errorMessage(error),
+      },
+    );
   }
 
   private async upsertGeneratedFile(
-    tx: any,
+    tx: GeneratedFileWriteClient,
     container: ContainerRecord,
-    data: {
-      fileType: string;
-      storagePath: string;
-      fileSha256: string | null;
-      mimeType: string;
-      fileSizeBytes: bigint | null;
-      status: string;
-      errorMessage: string | null;
-    },
+    data: GeneratedFileUpsertInput,
   ): Promise<GeneratedFileRecord> {
-    const existing = (await tx.generatedFile.findFirst({
+    const existing = await tx.generatedFile.findFirst({
       where: { containerId: container.id, fileType: data.fileType },
       orderBy: { updatedAt: 'desc' },
-    })) as GeneratedFileRecord | null;
-    const recordData = {
+    });
+    const recordData: GeneratedFileUpsertData = {
       importFileId: container.importFileId,
       containerId: container.id,
       ...data,
     };
 
     if (existing) {
-      return (await tx.generatedFile.update({
+      return await tx.generatedFile.update({
         where: { id: existing.id },
         data: recordData,
-      })) as GeneratedFileRecord;
+      });
     }
 
-    return (await tx.generatedFile.create({
+    return await tx.generatedFile.create({
       data: recordData,
-    })) as GeneratedFileRecord;
+    });
   }
 
   private reportFailure(
@@ -371,17 +444,52 @@ export class ReportsService {
     );
   }
 
-  private assertStoragePathAllowed(
-    storagePath: string,
-    record: GeneratedFileRecord,
-  ): void {
-    const root = resolve(this.storageRoot);
-    const resolvedPath = resolve(storagePath);
-    if (resolvedPath === root || resolvedPath.startsWith(`${root}${sep}`)) {
-      return;
+  private resolveDownloadStoragePath(record: GeneratedFileRecord): string {
+    const resolvedPath = resolve(record.storagePath);
+    if (this.isPathWithinStorageRoot(resolvedPath)) {
+      return resolvedPath;
     }
 
-    throw new InternalServerErrorException({
+    const remappedPath = this.remapLegacyStoragePath(record.storagePath);
+    if (remappedPath && this.isPathWithinStorageRoot(remappedPath)) {
+      return remappedPath;
+    }
+
+    throw this.storagePathInvalidError(record.storagePath, record);
+  }
+
+  private isPathWithinStorageRoot(resolvedPath: string): boolean {
+    const root = resolve(this.storageRoot);
+    return resolvedPath === root || resolvedPath.startsWith(`${root}${sep}`);
+  }
+
+  private remapLegacyStoragePath(storagePath: string): string | null {
+    const normalizedPath = storagePath.replace(/\\/g, '/');
+    const storageMarker = '/storage/';
+    const markerIndex = normalizedPath.lastIndexOf(storageMarker);
+
+    if (markerIndex < 0) {
+      return null;
+    }
+
+    const relativePath = normalizedPath.slice(
+      markerIndex + storageMarker.length,
+    );
+    if (!relativePath || relativePath.includes('\0')) {
+      return null;
+    }
+
+    return resolve(
+      this.storageRoot,
+      ...relativePath.split('/').filter(Boolean),
+    );
+  }
+
+  private storagePathInvalidError(
+    storagePath: string,
+    record: GeneratedFileRecord,
+  ): InternalServerErrorException {
+    return new InternalServerErrorException({
       code: 'GENERATED_FILE_STORAGE_PATH_INVALID',
       message:
         'The generated file path is outside the configured storage root.',

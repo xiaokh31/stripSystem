@@ -229,5 +229,5 @@ def test_unloading_worker_write_print_calibration_cli_generates_pdf(
     assert calibration["outputPath"].endswith("print-calibration.pdf")
     assert calibration["pageWidthMm"] == 150
     assert calibration["pageHeightMm"] == 100
-    assert calibration["qrBoxMm"] == 25
+    assert calibration["qrBoxMm"] == 28
     assert Path(calibration["outputPath"]).is_file()

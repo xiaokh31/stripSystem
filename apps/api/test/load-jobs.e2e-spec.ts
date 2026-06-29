@@ -285,6 +285,82 @@ describe('LoadJobsController (e2e)', () => {
     ).toEqual(['LOADED', 'DUPLICATE_SCAN', 'LOADED', 'INVALID_SCAN']);
   });
 
+  it('reverses a loaded scan with explicit confirmation', async () => {
+    await request(app.getHttpServer())
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-UNDO',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      })
+      .expect(201);
+
+    const loaded = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(201);
+    const loadedBody = loaded.body as ScanBody;
+
+    const loadedPallets = await request(app.getHttpServer())
+      .get('/api/load-jobs/load-job-1/loaded-pallets')
+      .expect(200);
+
+    expect(loadedPallets.body).toMatchObject({
+      items: [
+        {
+          id: loadedBody.pallet.id,
+          status: 'LOADED',
+          loadJobId: 'load-job-1',
+        },
+      ],
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan/reverse')
+      .send({
+        confirm: false,
+        palletRecordId: loadedBody.pallet.id,
+        reason: 'Need to combine pallets',
+      })
+      .expect(400);
+
+    const reversed = await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/scan/reverse')
+      .send({
+        confirm: true,
+        deviceId: 'mobile-camera',
+        palletRecordId: loadedBody.pallet.id,
+        reason: 'Need to combine pallets',
+      })
+      .expect(201);
+
+    expect(reversed.body).toMatchObject({
+      result: 'REMOVED',
+      pallet: {
+        id: 'pallet-1',
+        status: 'LABEL_PRINTED',
+        loadJobId: null,
+      },
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 0,
+        remainingPallets: 2,
+      },
+    });
+    const loadedAfterReverse = await request(app.getHttpServer())
+      .get('/api/load-jobs/load-job-1/loaded-pallets')
+      .expect(200);
+
+    expect(loadedAfterReverse.body).toEqual({ items: [] });
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.eventType,
+      ),
+    ).toEqual(['LOADED', 'STATUS_CHANGED']);
+  });
+
   it('splits one container destination across multiple load jobs with part suffixes', async () => {
     const firstJob = await request(app.getHttpServer())
       .post('/api/load-jobs')
@@ -462,10 +538,14 @@ describe('LoadJobsController (e2e)', () => {
       {
         id: 'container-1',
         containerNo: 'CSNU8877228',
+        status: 'LABELS_GENERATED',
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
       },
       {
         id: 'container-2',
         containerNo: 'EITU9315039',
+        status: 'LABELS_GENERATED',
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
       },
     ];
     const users = [
@@ -651,6 +731,8 @@ describe('LoadJobsController (e2e)', () => {
 
       return true;
     };
+    const timeMs = (value: unknown): number =>
+      value instanceof Date ? value.getTime() : 0;
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
@@ -666,6 +748,18 @@ describe('LoadJobsController (e2e)', () => {
             ) ?? null,
           ),
         ),
+        update: jest.fn(({ where, data }) => {
+          const record = containers.find(
+            (container) => container.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Container not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-27T11:00:00.000Z'),
+          });
+          return Promise.resolve(record);
+        }),
       },
       containerDestination: {
         findUnique: jest.fn(({ where }) =>
@@ -757,6 +851,18 @@ describe('LoadJobsController (e2e)', () => {
         }),
       },
       pallet: {
+        findMany: jest.fn(({ where }) => {
+          const filtered = pallets
+            .filter((pallet) => matchesPalletWhere(pallet, where))
+            .sort((left, right) => {
+              const loadedDelta =
+                timeMs(right.loadedAt) - timeMs(left.loadedAt);
+
+              return loadedDelta || left.palletNo - right.palletNo;
+            });
+
+          return Promise.resolve(filtered.map(hydratePallet));
+        }),
         findFirst: jest.fn(({ where }) => {
           const record = pallets.find((pallet) =>
             where.OR.some(

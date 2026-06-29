@@ -30,6 +30,11 @@ import {
   PalletEventType,
   PalletStatus,
 } from '../generated/prisma/enums';
+import {
+  effectiveContainerStatus,
+  isContainerGenerationLocked,
+  nonReusablePallets,
+} from '../common/container-lifecycle';
 import { GeneratedFileResponseDto } from '../reports/dto/generated-file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -40,6 +45,7 @@ interface ContainerRecord {
   sourceFormat: string;
   parserVersion: string | null;
   company: string | null;
+  status: string;
   destinations?: ContainerDestinationRecord[];
 }
 
@@ -242,7 +248,7 @@ export class LabelsService {
     const occurredAt = new Date();
     const supervisorOverride = dto.supervisorOverride === true;
 
-    const { pallet, event } = (await this.prisma.$transaction(async (tx) => {
+    const { pallet, event } = await this.prisma.$transaction(async (tx) => {
       await this.assertUserExists(
         tx,
         dto.operatorId,
@@ -260,7 +266,7 @@ export class LabelsService {
       });
 
       return { pallet, event };
-    })) as { pallet: PalletRecord; event: PalletEventRecord };
+    });
 
     return {
       event: this.toReprintAuditEventResponse({
@@ -452,31 +458,38 @@ export class LabelsService {
   }
 
   private assertCanRegeneratePallets(container: ContainerRecord): void {
-    const reusableStatuses = new Set<string>([
-      PalletStatus.PLANNED,
-      PalletStatus.LABEL_PRINTED,
-    ]);
-    const existingPallets = (container.destinations ?? []).flatMap(
-      (destination) => destination.pallets ?? [],
-    );
-    const blocked = existingPallets.filter(
-      (pallet) =>
-        !reusableStatuses.has(pallet.status) ||
-        Boolean(pallet.loadJobId) ||
-        Boolean(pallet.loadedAt),
+    const effectiveStatus = effectiveContainerStatus(
+      container.status,
+      container.destinations ?? [],
     );
 
-    if (blocked.length > 0) {
+    if (isContainerGenerationLocked(effectiveStatus)) {
       throw new ConflictException({
-        code: 'PALLETS_ALREADY_IN_USE',
+        code: 'CONTAINER_GENERATION_LOCKED',
         message:
-          'Existing pallets have already entered loading or exception handling and cannot be replaced by regenerating labels.',
+          'This container has entered loading or has been loaded, so pallet labels cannot be regenerated.',
         details: {
           containerId: container.id,
-          blockedCount: blocked.length,
+          status: effectiveStatus,
+          action: 'generate-labels',
         },
       });
     }
+
+    const blocked = nonReusablePallets(container.destinations ?? []);
+    if (blocked.length === 0) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'PALLETS_ALREADY_IN_USE',
+      message:
+        'Existing pallets have already entered loading or exception handling and cannot be replaced by regenerating labels.',
+      details: {
+        containerId: container.id,
+        blockedCount: blocked.length,
+      },
+    });
   }
 
   private assertPalletsCanBeReprinted(

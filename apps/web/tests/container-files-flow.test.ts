@@ -1,11 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  containerOperationLockMessage,
+  containerStatusLabel,
   formatFileSizeBytes,
   generationActionNotice,
   generationFailureMessage,
   generatedFileTypeLabel,
   hasGeneratedLabelPdf,
+  isContainerOperationLocked,
   isDownloadableGeneratedFile,
   newestGeneratedFiles,
 } from "../src/components/containers/container-files-flow";
@@ -50,8 +53,8 @@ test("generated file labels and sizes are stable", () => {
 test("generation notices describe report overwrite and label rebuild behavior", () => {
   assert.match(generationActionNotice("report"), /latest saved database values/);
   assert.match(generationActionNotice("report"), /overwrites/);
-  assert.match(generationActionNotice("labels"), /creates pallet records/);
-  assert.match(generationActionNotice("labels"), /blocks overwrite/);
+  assert.match(generationActionNotice("labels"), /rebuilds unused/);
+  assert.match(generationActionNotice("labels"), /loading or loaded containers are locked/);
 });
 
 test("label in-use conflicts explain why regeneration cannot overwrite", () => {
@@ -67,6 +70,27 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
     generationFailureMessage("report", "REPORT_FAILED", "Report failed."),
     "Report failed.",
   );
+  assert.match(
+    generationFailureMessage(
+      "report",
+      "CONTAINER_GENERATION_LOCKED",
+      "Container is locked.",
+    ),
+    /scan correction workflow/,
+  );
+});
+
+test("container lifecycle labels and operation locks are visible", () => {
+  assert.equal(containerStatusLabel("CORRECTED"), "CORRECTED");
+  assert.equal(containerStatusLabel("LABELS_GENERATED"), "LABELS_GENERATED");
+  assert.equal(
+    containerStatusLabel("LOADING_IN_PROGRESS"),
+    "LOADING_IN_PROGRESS",
+  );
+  assert.equal(containerStatusLabel("LOADED"), "LOADED");
+  assert.equal(isContainerOperationLocked("LABELS_GENERATED"), false);
+  assert.equal(isContainerOperationLocked("LOADING_IN_PROGRESS"), true);
+  assert.match(containerOperationLockMessage("LOADED"), /archived/);
 });
 
 test("generated files sort newest first", () => {

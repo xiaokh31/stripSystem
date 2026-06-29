@@ -6,6 +6,7 @@ import {
   generateContainerLabels,
   generateContainerReport,
   listImportFiles,
+  updateContainer,
 } from "../src/lib/api-client";
 
 test("imports API client sends pagination to the import list endpoint", async () => {
@@ -216,6 +217,57 @@ test("container generation API client posts to report and label endpoints", asyn
     {
       method: "POST",
       url: "http://api.local/api/containers/container%20manual%2F1/generate-labels",
+    },
+  ]);
+});
+
+test("container status API client patches the container endpoint", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: JSON.parse(String(init?.body ?? "{}")) as unknown,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        container: {
+          id: "container-1",
+          importFileId: "import-1",
+          containerNo: "CSNU8877228",
+          dockNo: null,
+          company: null,
+          status: "PARSED",
+          updatedAt: "2026-06-27T00:00:00.000Z",
+        },
+        corrections: [],
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  const result = await updateContainer(
+    "container-1",
+    {
+      correctionNote: "Reset after test generation",
+      status: "PARSED",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.equal(result.container.status, "PARSED");
+  assert.deepEqual(requests, [
+    {
+      body: {
+        correctionNote: "Reset after test generation",
+        status: "PARSED",
+      },
+      method: "PATCH",
+      url: "http://api.local/api/containers/container-1",
     },
   ]);
 });

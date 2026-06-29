@@ -26,6 +26,10 @@ import {
   CorrectionTargetType,
   FileFormat,
 } from '../generated/prisma/enums';
+import {
+  effectiveContainerStatus,
+  isContainerGenerationLocked,
+} from '../common/container-lifecycle';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -71,6 +75,15 @@ interface ContainerDestinationRecord {
   note: string | null;
   warnings?: unknown;
   errors?: unknown;
+  pallets?: Array<{
+    status: string;
+    loadJobId: string | null;
+    loadedAt: Date | string | null;
+  }>;
+  container?: {
+    destinations?: ContainerDestinationRecord[];
+    status: string;
+  } | null;
   createdAt?: Date | string;
   updatedAt: Date | string;
 }
@@ -113,6 +126,15 @@ export class CorrectionsService {
       include: {
         destinations: {
           orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
         },
       },
     })) as ContainerRecord | null;
@@ -159,12 +181,12 @@ export class CorrectionsService {
         const destinations: ContainerDestinationRecord[] = [];
         for (const input of destinationInputs) {
           destinations.push(
-            (await tx.containerDestination.create({
+            await tx.containerDestination.create({
               data: {
                 containerId: container.id,
                 ...input,
               },
-            })) as ContainerDestinationRecord,
+            }),
           );
         }
 
@@ -249,6 +271,19 @@ export class CorrectionsService {
   ): Promise<ContainerCorrectionResponseDto> {
     const existing = (await this.prisma.container.findUnique({
       where: { id },
+      include: {
+        destinations: {
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
+        },
+      },
     })) as ContainerRecord | null;
 
     if (!existing) {
@@ -258,14 +293,17 @@ export class CorrectionsService {
         details: { id },
       });
     }
+    this.assertContainerEditableForStatusUpdate(existing, dto.status);
 
-    const data: Prisma.ContainerUpdateInput = {
-      status: ContainerStatus.CORRECTED,
-    };
+    const data: Prisma.ContainerUpdateInput = {};
     const changes: Change[] = [];
     this.addStringChange(dto, existing, data, changes, 'containerNo');
     this.addNullableStringChange(dto, existing, data, changes, 'dockNo');
     this.addNullableStringChange(dto, existing, data, changes, 'company');
+    this.addStatusChange(dto, existing, data, changes);
+    if (!this.hasProvided(dto, 'status') && changes.length > 0) {
+      data.status = ContainerStatus.CORRECTED;
+    }
     this.assertHasChanges(changes);
 
     try {
@@ -316,6 +354,14 @@ export class CorrectionsService {
         details: { id },
       });
     }
+    const container = await this.findContainerLifecycleOrThrow(
+      this.prisma,
+      existing.containerId,
+    );
+    this.assertContainerEditable(
+      effectiveContainerStatus(container.status, container.destinations ?? []),
+      existing.containerId,
+    );
 
     const data: Prisma.ContainerDestinationUpdateInput = {};
     const changes: Change[] = [];
@@ -382,6 +428,19 @@ export class CorrectionsService {
   ): Promise<ContainerDestinationCorrectionResponseDto> {
     const container = (await this.prisma.container.findUnique({
       where: { id: containerId },
+      include: {
+        destinations: {
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
+        },
+      },
     })) as ContainerRecord | null;
 
     if (!container) {
@@ -391,6 +450,10 @@ export class CorrectionsService {
         details: { id: containerId },
       });
     }
+    this.assertContainerEditable(
+      effectiveContainerStatus(container.status, container.destinations ?? []),
+      containerId,
+    );
 
     const destinationCode = this.stringOrNull(dto.destinationCode);
     if (!destinationCode) {
@@ -533,7 +596,7 @@ export class CorrectionsService {
   }
 
   private async createCorrections(
-    tx: any,
+    tx: Prisma.TransactionClient,
     changes: Change[],
     target: {
       targetType: CorrectionTargetTypeValue;
@@ -548,7 +611,7 @@ export class CorrectionsService {
 
     for (const change of changes) {
       records.push(
-        (await tx.correctionFeedback.create({
+        await tx.correctionFeedback.create({
           data: {
             targetType: target.targetType,
             containerId: target.containerId ?? null,
@@ -560,7 +623,7 @@ export class CorrectionsService {
             note: this.stringOrNull(note),
             correctedById: this.stringOrNull(correctedById),
           },
-        })) as CorrectionFeedbackRecord,
+        }),
       );
     }
 
@@ -714,6 +777,21 @@ export class CorrectionsService {
     }
   }
 
+  private addStatusChange(
+    dto: UpdateContainerDto,
+    existing: ContainerRecord,
+    data: Prisma.ContainerUpdateInput,
+    changes: Change[],
+  ): void {
+    if (!this.hasProvided(dto, 'status')) {
+      return;
+    }
+
+    const status = this.containerStatus(dto.status);
+    this.assertContainerStatusCanBeSet(existing, status);
+    this.addChange(existing, data, changes, 'status', status);
+  }
+
   private addChange(
     existing: object,
     data: object,
@@ -770,12 +848,22 @@ export class CorrectionsService {
   }
 
   private async assertTargetExists(
-    tx: any,
+    tx: Prisma.TransactionClient,
     targetType: CorrectionTargetTypeValue,
     target: Record<string, string | null>,
   ): Promise<void> {
-    const id = Object.values(target)[0];
+    const id = Object.values(target).find(
+      (value): value is string => typeof value === 'string' && value !== '',
+    );
     let record: unknown;
+
+    if (!id) {
+      throw new BadRequestException({
+        code: 'INVALID_CORRECTION_TARGET',
+        message: 'Correction target id must be provided.',
+        details: { targetType },
+      });
+    }
 
     if (targetType === CorrectionTargetType.IMPORT_FILE) {
       record = await tx.importFile.findUnique({ where: { id } });
@@ -834,6 +922,27 @@ export class CorrectionsService {
     });
   }
 
+  private containerStatus(value: string | undefined): string {
+    if (
+      value === ContainerStatus.IMPORTED ||
+      value === ContainerStatus.PARSED ||
+      value === ContainerStatus.CORRECTED ||
+      value === ContainerStatus.REPORT_GENERATED ||
+      value === ContainerStatus.LABELS_GENERATED ||
+      value === ContainerStatus.LOADING_IN_PROGRESS ||
+      value === ContainerStatus.LOADED ||
+      value === ContainerStatus.ERROR
+    ) {
+      return value;
+    }
+
+    throw new BadRequestException({
+      code: 'INVALID_CONTAINER_STATUS',
+      message: `Unsupported container status: ${value ?? ''}`,
+      details: { status: value },
+    });
+  }
+
   private toContainerResponse(record: ContainerRecord) {
     return {
       id: record.id,
@@ -866,6 +975,7 @@ export class CorrectionsService {
     record: ContainerRecord,
   ): ContainerDetailResponseDto {
     const destinations = record.destinations ?? [];
+    const status = effectiveContainerStatus(record.status, destinations);
 
     return {
       id: record.id,
@@ -875,7 +985,7 @@ export class CorrectionsService {
       company: record.company,
       sourceFormat: record.sourceFormat ?? 'UNKNOWN',
       parserVersion: record.parserVersion ?? null,
-      status: record.status,
+      status,
       totalCartons: destinations.reduce(
         (total, destination) => total + destination.cartons,
         0,
@@ -905,6 +1015,130 @@ export class CorrectionsService {
         updatedAt: this.toIsoString(destination.updatedAt),
       })),
     };
+  }
+
+  private assertContainerEditable(status: string, containerId: string): void {
+    if (!isContainerGenerationLocked(status)) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'CONTAINER_NOT_EDITABLE',
+      message:
+        'This container has entered loading or has been loaded, so destination corrections are locked.',
+      details: { containerId, status },
+    });
+  }
+
+  private assertContainerEditableForStatusUpdate(
+    container: ContainerRecord,
+    requestedStatus: string | undefined,
+  ): void {
+    const effectiveStatus = effectiveContainerStatus(
+      container.status,
+      container.destinations ?? [],
+    );
+    if (!isContainerGenerationLocked(effectiveStatus)) {
+      return;
+    }
+
+    if (
+      requestedStatus !== undefined &&
+      !this.hasLoadingEvidence(container) &&
+      effectiveStatus === ContainerStatus.LOADING_IN_PROGRESS
+    ) {
+      return;
+    }
+
+    this.assertContainerEditable(effectiveStatus, container.id);
+  }
+
+  private assertContainerStatusCanBeSet(
+    container: ContainerRecord,
+    status: string,
+  ): void {
+    if (status !== ContainerStatus.LOADED) {
+      return;
+    }
+
+    const activePallets = this.activePallets(container);
+    const loadedPallets = activePallets.filter((pallet) =>
+      this.isLoadedPallet(pallet),
+    );
+    if (
+      activePallets.length > 0 &&
+      loadedPallets.length === activePallets.length
+    ) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'CONTAINER_STATUS_REQUIRES_EMPTY_INVENTORY',
+      message:
+        'Container status can only be set to LOADED when every active pallet has been loaded by scan transactions.',
+      details: {
+        containerId: container.id,
+        activePallets: activePallets.length,
+        loadedPallets: loadedPallets.length,
+        requestedStatus: status,
+      },
+    });
+  }
+
+  private hasLoadingEvidence(container: ContainerRecord): boolean {
+    return this.activePallets(container).some(
+      (pallet) =>
+        pallet.status === 'LOADING' ||
+        pallet.status === 'LOADED' ||
+        Boolean(pallet.loadJobId) ||
+        Boolean(pallet.loadedAt),
+    );
+  }
+
+  private activePallets(
+    container: ContainerRecord,
+  ): NonNullable<ContainerDestinationRecord['pallets']> {
+    return (container.destinations ?? [])
+      .flatMap((destination) => destination.pallets ?? [])
+      .filter((pallet) => pallet.status !== 'CANCELLED');
+  }
+
+  private isLoadedPallet(
+    pallet: NonNullable<ContainerDestinationRecord['pallets']>[number],
+  ): boolean {
+    return pallet.status === 'LOADED' || Boolean(pallet.loadedAt);
+  }
+
+  private async findContainerLifecycleOrThrow(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<ContainerRecord> {
+    const container = (await tx.container.findUnique({
+      where: { id },
+      include: {
+        destinations: {
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
+        },
+      },
+    })) as ContainerRecord | null;
+
+    if (!container) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${id} was not found.`,
+        details: { id },
+      });
+    }
+
+    return container;
   }
 
   private volumeTotal(destinations: ContainerDestinationRecord[]): string {
@@ -939,7 +1173,7 @@ export class CorrectionsService {
   }
 
   private hasOwn(value: object, key: string): boolean {
-    return Object.prototype.hasOwnProperty.call(value, key);
+    return Object.hasOwn(value, key);
   }
 
   private hasProvided(value: object, key: string): boolean {
@@ -959,24 +1193,45 @@ export class CorrectionsService {
       return left === right;
     }
 
-    if (this.isNumberLike(left) || this.isNumberLike(right)) {
-      return Number(left) === Number(right);
+    const leftNumber = this.numberOrNull(left);
+    const rightNumber = this.numberOrNull(right);
+    if (leftNumber !== null || rightNumber !== null) {
+      return leftNumber === rightNumber;
     }
 
     return left === right;
   }
 
-  private isNumberLike(value: unknown): boolean {
-    return (
-      typeof value === 'number' ||
-      (typeof value === 'string' &&
-        value.trim() !== '' &&
-        !Number.isNaN(Number(value))) ||
-      (typeof value === 'object' &&
-        value !== null &&
-        'toString' in value &&
-        !Number.isNaN(Number(value.toString())))
-    );
+  private numberOrNull(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isNaN(value) ? null : value;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '') {
+        return null;
+      }
+      const parsed = Number(trimmed);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      this.hasToNumber(value)
+    ) {
+      const parsed = value.toNumber();
+      return typeof parsed === 'number' && !Number.isNaN(parsed)
+        ? parsed
+        : null;
+    }
+
+    return null;
+  }
+
+  private hasToNumber(value: object): value is { toNumber(): unknown } {
+    return typeof (value as { toNumber?: unknown }).toNumber === 'function';
   }
 
   private decimalString(value: unknown): string {

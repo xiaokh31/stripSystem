@@ -19,6 +19,11 @@ interface ContainerDestinationRecord {
   calculatedPallets: number;
   manualPallets: number;
   finalPallets: number;
+  pallets?: Array<{
+    status: string;
+    loadJobId: string | null;
+    loadedAt: Date | null;
+  }>;
 }
 
 interface ContainerRecord {
@@ -250,6 +255,38 @@ describe('ReportsService', () => {
     });
   });
 
+  it('downloads legacy generated file records stored with a host storage path', async () => {
+    const legacyPath =
+      '/Volumes/xfl/logistics/stripSystem/storage/reports/CSNU8877228卸柜报告-En.xlsx';
+    const generated = await service.generateReport('container-1');
+    prisma.generatedFile.findFirst.mockResolvedValueOnce({
+      id: generated.generatedFile.id,
+      importFileId: generated.generatedFile.importFileId,
+      containerId: generated.generatedFile.containerId ?? 'container-1',
+      fileType: generated.generatedFile.fileType,
+      storagePath: legacyPath,
+      fileSha256: generated.generatedFile.fileSha256,
+      fileSizeBytes: BigInt(10),
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      status: generated.generatedFile.status,
+      errorMessage: null,
+      createdAt: new Date('2026-06-26T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+    });
+
+    const download = await service.downloadFile(
+      'container-1',
+      generated.generatedFile.id,
+    );
+
+    expect(download).toMatchObject({
+      filename: 'CSNU8877228卸柜报告-En.xlsx',
+      fileSizeBytes: 10,
+    });
+    expect(download.buffer.toString()).toBe('xlsx bytes');
+  });
+
   it('records a failed generated_file when the worker reports an error', async () => {
     workerReport.writeReport.mockResolvedValueOnce({
       task_status: 'ERROR',
@@ -281,6 +318,31 @@ describe('ReportsService', () => {
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
+  it('blocks report regeneration after loading has started', async () => {
+    prisma.container.findUnique.mockResolvedValueOnce({
+      ...defaultContainerRecord(),
+      status: 'LABELS_GENERATED',
+      destinations: [
+        {
+          ...defaultContainerRecord().destinations[0],
+          pallets: [
+            {
+              status: 'LOADED',
+              loadJobId: 'load-job-1',
+              loadedAt: new Date('2026-06-27T10:00:00.000Z'),
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(service.generateReport('container-1')).rejects.toHaveProperty(
+      'response.code',
+      'CONTAINER_GENERATION_LOCKED',
+    );
+    expect(workerReport.writeReport).not.toHaveBeenCalled();
+  });
+
   it('updates the existing Excel report record when regenerating', async () => {
     const first = await service.generateReport('container-1');
     const second = await service.generateReport('container-1');
@@ -309,6 +371,7 @@ describe('ReportsService', () => {
           calculatedPallets: 4,
           manualPallets: 7,
           finalPallets: 7,
+          pallets: [],
         },
       ],
     };

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
 import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
+import { ContainerStatusControl } from "@/components/containers/container-status-control";
 import { formatNullable, issueList } from "@/components/containers/container-detail-flow";
+import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import {
   ApiClientError,
   getContainerDetail,
@@ -152,6 +154,11 @@ export default async function ContainerDetailPage({
         </section>
       ) : null}
 
+      <ContainerStatusControl
+        containerId={state.container.id}
+        currentStatus={state.container.status}
+      />
+
       {state.filesError ? (
         <ApiErrorPanel
           error={state.filesError}
@@ -160,12 +167,14 @@ export default async function ContainerDetailPage({
       ) : (
         <ContainerGeneratedFiles
           containerId={state.container.id}
+          containerStatus={state.container.status}
           initialFiles={state.files}
         />
       )}
 
       <ContainerDestinationCorrections
         containerId={state.container.id}
+        containerStatus={state.container.status}
         destinations={state.container.destinations}
         key={destinationsVersion(state.container.destinations)}
       />
@@ -211,9 +220,10 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold ${styles}`}
+      title={status}
     >
-      {status}
+      {containerStatusLabel(status)}
     </span>
   );
 }
@@ -221,6 +231,12 @@ function StatusBadge({ status }: { status: string }) {
 function statusBadgeStyles(status: string): string {
   if (status === "PARSED" || status === "LABELS_GENERATED") {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+  if (status === "LOADING_IN_PROGRESS") {
+    return "border-sky-200 bg-sky-50 text-sky-800";
+  }
+  if (status === "LOADED") {
+    return "border-zinc-300 bg-zinc-100 text-zinc-800";
   }
   if (status === "CORRECTED" || status === "REPORT_GENERATED") {
     return "border-amber-200 bg-amber-50 text-amber-800";

@@ -122,15 +122,18 @@ def test_pdf_label_generator_uses_manual_destination_for_missing_destination(
     assert parsed.containerNo in result.qrPayloads[0]
 
 
-def test_label_template_keeps_qr_at_25mm_and_wraps_long_destination() -> None:
+def test_label_template_uses_large_readable_fields_and_wraps_long_destination() -> None:
     template = LABEL_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "width: 25mm;" in template
-    assert "height: 25mm;" in template
+    assert "font-size: 36pt;" in template
+    assert "font-size: 28pt;" in template
+    assert "font-size: 18pt;" in template
+    assert "width: 28mm;" in template
+    assert "height: 28mm;" in template
     assert "overflow-wrap: anywhere;" in template
 
 
-def test_print_calibration_pdf_is_150mm_by_100mm_with_25mm_qr_box(
+def test_print_calibration_pdf_is_150mm_by_100mm_with_28mm_qr_box(
     tmp_path: Path,
 ) -> None:
     result = generate_print_calibration_pdf(output_dir=tmp_path / "labels")
@@ -139,7 +142,7 @@ def test_print_calibration_pdf_is_150mm_by_100mm_with_25mm_qr_box(
     assert result.outputPath.is_file()
     assert result.pageWidthMm == 150
     assert result.pageHeightMm == 100
-    assert result.qrBoxMm == 25
+    assert result.qrBoxMm == 28
     assert "Disable automatic print scaling" in result.instruction
 
     text = result.outputPath.read_bytes().decode("latin1", errors="ignore")
@@ -153,11 +156,11 @@ def test_print_calibration_template_documents_scaling_and_measurements() -> None
     template = PRINT_CALIBRATION_TEMPLATE.read_text(encoding="utf-8")
 
     assert "size: 150mm 100mm;" in template
-    assert "width: 25mm;" in template
-    assert "height: 25mm;" in template
+    assert "width: 28mm;" in template
+    assert "height: 28mm;" in template
     assert "Disable fit-to-page, shrink-to-fit, and auto scaling." in template
     assert "Printed outer border must measure 150mm x 100mm." in template
-    assert "Printed QR check box must measure 25mm x 25mm." in template
+    assert "Printed QR check box must measure 28mm x 28mm." in template
 
 
 def test_pdf_label_generator_returns_error_when_no_pallet_ids(tmp_path: Path) -> None:

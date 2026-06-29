@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 interface PalletRecord {
   id: string;
+  loadJobId?: string | null;
+  loadedAt?: Date | string | null;
   status: string;
 }
 
@@ -78,7 +80,7 @@ describe('InventoryReportsService', () => {
       {
         containerId: 'container-1',
         containerNo: 'CSNU8877228',
-        status: 'LABELS_GENERATED',
+        status: 'LOADING_IN_PROGRESS',
         totalPallets: 3,
         loadedPallets: 1,
         remainingPallets: 2,
@@ -108,6 +110,7 @@ describe('InventoryReportsService', () => {
     expect(summary.totalPallets).toBe(3);
     expect(summary.loadedPallets).toBe(2);
     expect(summary.remainingPallets).toBe(1);
+    expect(summary.status).toBe('LOADING_IN_PROGRESS');
     expect(summary.destinations).toEqual([
       {
         containerDestinationId: 'destination-1',
@@ -138,7 +141,7 @@ describe('InventoryReportsService', () => {
       {
         containerId: 'container-1',
         containerNo: 'CSNU8877228',
-        status: 'LABELS_GENERATED',
+        status: 'LOADING_IN_PROGRESS',
         totalPallets: 1,
         loadedPallets: 1,
         remainingPallets: 0,

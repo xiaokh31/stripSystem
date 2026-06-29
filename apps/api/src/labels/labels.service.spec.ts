@@ -35,6 +35,7 @@ interface ContainerRecord {
   sourceFormat: string;
   parserVersion: string;
   company: string;
+  status: string;
   destinations: ContainerDestinationRecord[];
 }
 
@@ -389,7 +390,20 @@ describe('LabelsService', () => {
 
     await expect(service.generateLabels('container-1')).rejects.toHaveProperty(
       'response.code',
-      'PALLETS_ALREADY_IN_USE',
+      'CONTAINER_GENERATION_LOCKED',
+    );
+    expect(workerLabel.writeLabels).not.toHaveBeenCalled();
+  });
+
+  it('blocks label regeneration when the container status is loading', async () => {
+    prisma.container.findUnique.mockResolvedValueOnce({
+      ...containerRecord(),
+      status: 'LOADING_IN_PROGRESS',
+    });
+
+    await expect(service.generateLabels('container-1')).rejects.toHaveProperty(
+      'response.code',
+      'CONTAINER_GENERATION_LOCKED',
     );
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
@@ -669,6 +683,7 @@ describe('LabelsService', () => {
       sourceFormat: 'UNLOADING_PLAN_CN',
       parserVersion: 'unloading-plan-cn-v1',
       company: 'Bestar',
+      status: 'CORRECTED',
       destinations: [
         {
           id: 'destination-1',

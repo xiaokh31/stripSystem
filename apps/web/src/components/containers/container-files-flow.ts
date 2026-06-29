@@ -2,6 +2,24 @@ import type { GeneratedFileResponse } from "@/lib/api-client";
 
 export type GenerationAction = "labels" | "report";
 
+export function containerStatusLabel(status: string): string {
+  return status;
+}
+
+export function isContainerOperationLocked(status: string): boolean {
+  return status === "LOADING_IN_PROGRESS" || status === "LOADED";
+}
+
+export function containerOperationLockMessage(status: string): string {
+  if (status === "LOADED") {
+    return "This container is loaded and archived. Reports, labels, and destination corrections are locked.";
+  }
+  if (status === "LOADING_IN_PROGRESS") {
+    return "This container is in loading. Reports, labels, and destination corrections are locked until loading corrections are handled by scan workflow.";
+  }
+  return "";
+}
+
 export function hasGeneratedLabelPdf(
   files: readonly GeneratedFileResponse[],
 ): boolean {
@@ -36,7 +54,7 @@ export function generationActionNotice(action: GenerationAction): string {
     return "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.";
   }
 
-  return "Label PDF generation creates pallet records before QR payloads; regeneration replaces unused planned or label-printed pallets, but the API blocks overwrite after pallets are assigned or loaded.";
+  return "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; loading or loaded containers are locked.";
 }
 
 export function generationFailureMessage(
@@ -46,6 +64,9 @@ export function generationFailureMessage(
 ): string {
   if (action === "labels" && code === "PALLETS_ALREADY_IN_USE") {
     return `${message} Existing pallets have already been assigned, loaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.`;
+  }
+  if (code === "CONTAINER_GENERATION_LOCKED") {
+    return `${message} Use the scan correction workflow for loading changes, or work from a container that has not entered loading.`;
   }
 
   return message;

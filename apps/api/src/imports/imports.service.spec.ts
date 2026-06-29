@@ -74,7 +74,7 @@ describe('ImportsService', () => {
     };
     workerParser = { parseFile: jest.fn() };
     service = new ImportsService(
-      prisma as unknown as PrismaService,
+      prisma,
       {
         getOrThrow: jest.fn((key: string) => {
           if (key === 'app.storageRoot') {
@@ -203,7 +203,9 @@ describe('ImportsService', () => {
         (container) => container.importFileId === where.importFileId,
       );
       if (!include) {
-        return Promise.resolve(found.map((container) => ({ id: container.id })));
+        return Promise.resolve(
+          found.map((container) => ({ id: container.id })),
+        );
       }
 
       return Promise.resolve(
@@ -264,7 +266,7 @@ describe('ImportsService', () => {
             deliveryMethod: 'LTL',
             cartons: 12,
             volumeCbm: 1.25,
-            raw_json: { '仓库代码': 'YYZ', 件数: 12 },
+            raw_json: { 仓库代码: 'YYZ', 件数: 12 },
           },
         ],
         destinationSummaries: [

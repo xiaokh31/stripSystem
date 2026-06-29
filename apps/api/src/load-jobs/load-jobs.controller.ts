@@ -3,10 +3,12 @@ import { CloseLoadJobDto } from './dto/close-load-job.dto';
 import { CreateLoadJobDto } from './dto/create-load-job.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
+  LoadJobLoadedPalletsResponseDto,
   LoadJobListResponseDto,
   LoadJobResponseDto,
   LoadJobScanResponseDto,
 } from './dto/load-job-response.dto';
+import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { LoadJobsService } from './load-jobs.service';
 
@@ -29,6 +31,13 @@ export class LoadJobsController {
     return this.loadJobsService.getById(id);
   }
 
+  @Get(':id/loaded-pallets')
+  listLoadedPallets(
+    @Param('id') id: string,
+  ): Promise<LoadJobLoadedPalletsResponseDto> {
+    return this.loadJobsService.listLoadedPallets(id);
+  }
+
   @Post(':id/close')
   close(
     @Param('id') id: string,
@@ -43,5 +52,13 @@ export class LoadJobsController {
     @Body() dto: ScanPalletDto,
   ): Promise<LoadJobScanResponseDto> {
     return this.loadJobsService.scan(id, dto);
+  }
+
+  @Post(':id/scan/reverse')
+  reverseScan(
+    @Param('id') id: string,
+    @Body() dto: ReverseScanDto,
+  ): Promise<LoadJobScanResponseDto> {
+    return this.loadJobsService.reverseScan(id, dto);
   }
 }

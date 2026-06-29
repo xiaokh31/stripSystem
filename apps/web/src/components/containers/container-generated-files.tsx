@@ -12,10 +12,12 @@ import {
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   formatFileSizeBytes,
+  containerOperationLockMessage,
   generationActionNotice,
   generatedFileTypeLabel,
   generationActionLabel,
   generationFailureMessage,
+  isContainerOperationLocked,
   isDownloadableGeneratedFile,
   newestGeneratedFiles,
   type GenerationAction,
@@ -39,18 +41,22 @@ const idleState: GenerationState = {
 
 export function ContainerGeneratedFiles({
   containerId,
+  containerStatus,
   initialFiles,
 }: {
   containerId: string;
+  containerStatus: string;
   initialFiles: GeneratedFileResponse[];
 }) {
   const router = useRouter();
   const [generation, setGeneration] = useState<GenerationState>(idleState);
   const files = newestGeneratedFiles(initialFiles);
   const runningAction = generation.status === "running" ? generation.action : null;
+  const locked = isContainerOperationLocked(containerStatus);
+  const lockedMessage = containerOperationLockMessage(containerStatus);
 
   async function generate(action: GenerationAction) {
-    if (runningAction) {
+    if (runningAction || locked) {
       return;
     }
 
@@ -97,11 +103,16 @@ export function ContainerGeneratedFiles({
             <li>{generationActionNotice("report")}</li>
             <li>{generationActionNotice("labels")}</li>
           </ul>
+          {lockedMessage ? (
+            <p className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">
+              {lockedMessage}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             className="min-h-11 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-            disabled={Boolean(runningAction)}
+            disabled={Boolean(runningAction) || locked}
             onClick={() => void generate("report")}
             type="button"
           >
@@ -109,7 +120,7 @@ export function ContainerGeneratedFiles({
           </button>
           <button
             className="min-h-11 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-            disabled={Boolean(runningAction)}
+            disabled={Boolean(runningAction) || locked}
             onClick={() => void generate("labels")}
             type="button"
           >

@@ -30,8 +30,15 @@ export interface ImportFileResponse {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  containers: ImportFileContainerSummaryResponse[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ImportFileContainerSummaryResponse {
+  id: string;
+  containerNo: string;
+  status: string;
 }
 
 export interface ImportFileListResponse {
@@ -138,6 +145,16 @@ export interface UpdateContainerDestinationRequest {
   volume?: number;
 }
 
+export interface UpdateContainerRequest {
+  company?: string | null;
+  containerNo?: string;
+  correctedById?: string | null;
+  correctionNote?: string | null;
+  dockNo?: string | null;
+  reason?: string | null;
+  status?: string;
+}
+
 export interface CreateContainerDestinationRequest {
   cartons: number;
   correctionNote?: string | null;
@@ -198,6 +215,19 @@ export interface ContainerDestinationCorrectionResponse {
     manualPallets: number | null;
     finalPallets: number;
     note: string | null;
+    updatedAt: string;
+  };
+  corrections: CorrectionFeedbackResponse[];
+}
+
+export interface ContainerCorrectionResponse {
+  container: {
+    id: string;
+    importFileId: string | null;
+    containerNo: string;
+    dockNo: string | null;
+    company: string | null;
+    status: string;
     updatedAt: string;
   };
   corrections: CorrectionFeedbackResponse[];
@@ -394,12 +424,24 @@ export interface ScanPalletRequest {
   qrPayload: string;
 }
 
+export interface ReverseScanRequest {
+  confirm: boolean;
+  deviceId?: string;
+  operatorId?: string;
+  palletRecordId: string;
+  reason: string;
+}
+
 export interface LoadJobScanResponse {
-  result: "LOADED" | "DUPLICATE";
+  result: "LOADED" | "DUPLICATE" | "REMOVED";
   loadJob: LoadJobResponse;
   pallet: ScannedPalletResponse;
   progress: LoadJobProgressResponse;
   eventId: string | null;
+}
+
+export interface LoadJobLoadedPalletsResponse {
+  items: ScannedPalletResponse[];
 }
 
 export interface ApiClientOptions {
@@ -470,6 +512,12 @@ export function getApiBaseUrl(): string {
   return normalizeBaseUrl(publicBaseUrl ?? DEFAULT_BROWSER_API_BASE_URL);
 }
 
+export function getPublicApiBaseUrl(): string {
+  return normalizeBaseUrl(
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_BROWSER_API_BASE_URL,
+  );
+}
+
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   return new ApiClient(options);
 }
@@ -520,6 +568,17 @@ export function getContainerDetail(
 ): Promise<ContainerDetailResponse> {
   return createApiClient(options).get<ContainerDetailResponse>(
     `/containers/${encodeURIComponent(id)}`,
+  );
+}
+
+export function updateContainer(
+  id: string,
+  body: UpdateContainerRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerCorrectionResponse> {
+  return createApiClient(options).patch<ContainerCorrectionResponse>(
+    `/containers/${encodeURIComponent(id)}`,
+    { ...body },
   );
 }
 
@@ -618,6 +677,15 @@ export function getLoadJob(
   );
 }
 
+export function getLoadJobLoadedPallets(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<LoadJobLoadedPalletsResponse> {
+  return createApiClient(options).get<LoadJobLoadedPalletsResponse>(
+    `/load-jobs/${encodeURIComponent(id)}/loaded-pallets`,
+  );
+}
+
 export function createLoadJob(
   body: CreateLoadJobRequest,
   options: ApiClientOptions = {},
@@ -638,10 +706,21 @@ export function scanLoadJobPallet(
   );
 }
 
+export function reverseLoadJobScan(
+  id: string,
+  body: ReverseScanRequest,
+  options: ApiClientOptions = {},
+): Promise<LoadJobScanResponse> {
+  return createApiClient(options).post<LoadJobScanResponse>(
+    `/load-jobs/${encodeURIComponent(id)}/scan/reverse`,
+    { ...body },
+  );
+}
+
 export function getGeneratedFileDownloadUrl(
   containerId: string,
   fileId: string,
-  baseUrl = getApiBaseUrl(),
+  baseUrl = getPublicApiBaseUrl(),
 ): string {
   const encodedContainerId = encodeURIComponent(containerId);
   const encodedFileId = encodeURIComponent(fileId);

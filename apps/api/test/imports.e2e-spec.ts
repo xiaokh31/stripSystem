@@ -817,6 +817,7 @@ describe('ImportsController (e2e)', () => {
 
     expect(containerDetailBody).toMatchObject({
       containerId,
+      status: 'LOADING_IN_PROGRESS',
       totalPallets: expectedPalletCount,
       loadedPallets: 1,
       remainingPallets: expectedPalletCount - 1,
@@ -844,7 +845,7 @@ describe('ImportsController (e2e)', () => {
       .expect(409)
       .expect((response) => {
         const body = response.body as ErrorBody;
-        expect(body.code).toBe('PALLETS_ALREADY_IN_USE');
+        expect(body.code).toBe('CONTAINER_GENERATION_LOCKED');
       });
   }, 30_000);
 

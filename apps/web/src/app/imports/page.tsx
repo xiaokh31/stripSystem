@@ -10,6 +10,7 @@ import {
   statusTone,
   type StatusTone,
 } from "@/components/imports/import-detail-flow";
+import { containerStatusLabel } from "@/components/containers/container-files-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -120,13 +121,14 @@ function ImportHistory({ imports }: { imports: ImportFileListResponse }) {
         <table className="min-w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
-              <th className="w-[28%] py-2 pr-4 font-semibold">File</th>
-              <th className="w-[18%] py-2 pr-4 font-semibold">Status</th>
-              <th className="w-[12%] py-2 pr-4 font-semibold">Format</th>
-              <th className="w-[14%] py-2 pr-4 font-semibold">
+              <th className="w-[24%] py-2 pr-4 font-semibold">File</th>
+              <th className="w-[15%] py-2 pr-4 font-semibold">Status</th>
+              <th className="w-[14%] py-2 pr-4 font-semibold">Containers</th>
+              <th className="w-[11%] py-2 pr-4 font-semibold">Format</th>
+              <th className="w-[12%] py-2 pr-4 font-semibold">
                 Warnings / errors
               </th>
-              <th className="w-[18%] py-2 pr-4 font-semibold">Uploaded</th>
+              <th className="w-[16%] py-2 pr-4 font-semibold">Uploaded</th>
               <th className="w-[10%] py-2 font-semibold">Action</th>
             </tr>
           </thead>
@@ -164,6 +166,24 @@ function ImportRow({ importFile }: { importFile: ImportFileResponse }) {
           status={importFile.parseStatus}
           tone={statusTone(importFile.parseStatus)}
         />
+      </td>
+      <td className="space-y-2 py-3 pr-4">
+        {importFile.containers.length > 0 ? (
+          importFile.containers.map((container) => (
+            <Link
+              className="block text-xs font-semibold text-teal-700 underline hover:text-teal-900"
+              href={`/containers/${container.id}`}
+              key={container.id}
+            >
+              <span className="block">{container.containerNo}</span>
+              <span className="font-medium text-zinc-600">
+                {containerStatusLabel(container.status)}
+              </span>
+            </Link>
+          ))
+        ) : (
+          <span className="text-sm text-zinc-500">-</span>
+        )}
       </td>
       <td className="py-3 pr-4 font-medium text-zinc-800">
         {importFile.format}

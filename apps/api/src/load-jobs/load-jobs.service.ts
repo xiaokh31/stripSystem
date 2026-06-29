@@ -12,6 +12,7 @@ import {
 } from './dto/create-load-job.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
+  LoadJobLoadedPalletsResponseDto,
   LoadJobListResponseDto,
   LoadJobLineResponseDto,
   LoadJobProgressDto,
@@ -19,12 +20,14 @@ import {
   LoadJobScanResponseDto,
   ScannedPalletResponseDto,
 } from './dto/load-job-response.dto';
+import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import {
   LoadJobStatus,
   PalletEventType,
   PalletStatus,
 } from '../generated/prisma/enums';
+import { containerStatusFromInventoryCounts } from '../common/container-lifecycle';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -132,6 +135,43 @@ interface PalletLockClient {
     ...values: unknown[]
   ): Promise<unknown>;
 }
+
+interface PalletCountClient {
+  pallet: {
+    count(args: unknown): Promise<number>;
+  };
+}
+
+interface ContainerStatusSyncClient extends PalletCountClient {
+  container: {
+    update(args: unknown): Promise<unknown>;
+  };
+}
+
+interface PalletEventCreateClient {
+  palletEvent: {
+    create(args: unknown): Promise<unknown>;
+  };
+}
+
+interface LoadJobReadClient {
+  loadJob: {
+    findUnique(args: unknown): Promise<unknown>;
+  };
+}
+
+type ScanProgressClient = LoadJobReadClient & PalletCountClient;
+
+type ScanTransactionClient = ScanProgressClient &
+  PalletEventCreateClient & {
+    container: {
+      update(args: unknown): Promise<unknown>;
+    };
+    pallet: {
+      count(args: unknown): Promise<number>;
+      update(args: unknown): Promise<unknown>;
+    };
+  };
 
 interface ParsedPalletQrPayload {
   payload: string;
@@ -321,10 +361,29 @@ export class LoadJobsService {
     return this.toResponse(record);
   }
 
+  async listLoadedPallets(
+    id: string,
+  ): Promise<LoadJobLoadedPalletsResponseDto> {
+    await this.findLoadJobOrThrow(this.prisma, id);
+
+    const pallets = (await this.prisma.pallet.findMany({
+      where: {
+        loadJobId: id,
+        status: PalletStatus.LOADED,
+      },
+      include: PALLET_INCLUDE,
+      orderBy: [{ loadedAt: 'desc' }, { palletNo: 'asc' }],
+    })) as PalletRecord[];
+
+    return {
+      items: pallets.map((pallet) => this.toScannedPalletResponse(pallet)),
+    };
+  }
+
   async close(id: string, dto: CloseLoadJobDto): Promise<LoadJobResponseDto> {
     const closedAt = new Date();
 
-    const record = (await this.prisma.$transaction(async (tx) => {
+    const record = await this.prisma.$transaction(async (tx) => {
       const existing = (await tx.loadJob.findUnique({
         where: { id },
         include: LOAD_JOB_INCLUDE,
@@ -367,7 +426,7 @@ export class LoadJobsService {
       })) as LoadJobRecord;
 
       return updated;
-    })) as LoadJobRecord;
+    });
 
     return this.toResponse(record);
   }
@@ -602,6 +661,87 @@ export class LoadJobsService {
         parsed,
         deviceId,
         operatorId,
+      });
+    });
+
+    if (outcome.kind === 'error') {
+      throw outcome.exception;
+    }
+
+    return outcome.response;
+  }
+
+  async reverseScan(
+    id: string,
+    dto: ReverseScanDto,
+  ): Promise<LoadJobScanResponseDto> {
+    if (dto.confirm !== true) {
+      throw new BadRequestException({
+        code: 'LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED',
+        message: 'Reverse scan requires explicit confirmation.',
+        details: { loadJobId: id },
+      });
+    }
+
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const loadJob = await this.findLoadJobOrThrow(tx, id);
+      const deviceId = this.stringOrNull(dto.deviceId);
+      const operatorId = this.stringOrNull(dto.operatorId);
+      const reason = this.requiredString(dto.reason, 'reason');
+
+      if (operatorId) {
+        await this.assertUserExists(
+          tx,
+          operatorId,
+          'LOAD_JOB_REVERSE_SCAN_OPERATOR_NOT_FOUND',
+        );
+      }
+
+      if (!this.canScan(loadJob.status)) {
+        return this.scanError(
+          new ConflictException({
+            code: 'LOAD_JOB_NOT_OPEN',
+            message: `Load job ${id} is not open for scan correction.`,
+            details: { id, status: loadJob.status },
+          }),
+        );
+      }
+
+      await this.lockPalletRow(tx, dto.palletRecordId);
+      const pallet = await this.findPalletById(tx, dto.palletRecordId);
+      if (!pallet) {
+        return this.scanError(
+          new NotFoundException({
+            code: 'PALLET_NOT_FOUND',
+            message: `Pallet ${dto.palletRecordId} was not found.`,
+            details: { palletRecordId: dto.palletRecordId },
+          }),
+        );
+      }
+
+      if (pallet.status !== PalletStatus.LOADED || pallet.loadJobId !== id) {
+        return this.scanError(
+          new ConflictException({
+            code: 'PALLET_NOT_LOADED_IN_LOAD_JOB',
+            message:
+              'Only pallets loaded in the current load job can be removed from progress.',
+            details: {
+              loadJobId: id,
+              palletRecordId: pallet.id,
+              palletId: pallet.palletId,
+              palletStatus: pallet.status,
+              palletLoadJobId: pallet.loadJobId,
+            },
+          }),
+        );
+      }
+
+      return await this.recordReversedScan(tx, {
+        deviceId,
+        loadJob,
+        operatorId,
+        pallet,
+        reason,
       });
     });
 
@@ -977,21 +1117,21 @@ export class LoadJobsService {
   }
 
   private async loadedPalletCountForLine(
-    tx: any,
+    tx: PalletCountClient,
     loadJobId: string,
     line: LoadJobLineRecord,
   ): Promise<number> {
     if (line.containerDestinationId) {
-      return (await tx.pallet.count({
+      return await tx.pallet.count({
         where: {
           status: PalletStatus.LOADED,
           loadJobId,
           containerDestinationId: line.containerDestinationId,
         },
-      })) as number;
+      });
     }
 
-    return (await tx.pallet.count({
+    return await tx.pallet.count({
       where: {
         status: PalletStatus.LOADED,
         loadJobId,
@@ -1004,7 +1144,7 @@ export class LoadJobsService {
           },
         },
       },
-    })) as number;
+    });
   }
 
   private async lockPalletRow(
@@ -1015,7 +1155,7 @@ export class LoadJobsService {
   }
 
   private async recordLoadedScan(
-    tx: any,
+    tx: ScanTransactionClient,
     input: {
       loadJob: LoadJobRecord;
       planLine: LoadJobLineRecord;
@@ -1055,6 +1195,11 @@ export class LoadJobsService {
       include: PALLET_INCLUDE,
     })) as PalletRecord;
 
+    await this.syncContainerStatusAfterPalletChange(
+      tx,
+      updatedPallet.containerDestination?.containerId ?? null,
+    );
+
     return {
       kind: 'response',
       response: await this.toScanResponse(tx, {
@@ -1067,7 +1212,7 @@ export class LoadJobsService {
   }
 
   private async recordDuplicateScan(
-    tx: any,
+    tx: ScanTransactionClient,
     input: {
       loadJob: LoadJobRecord;
       pallet: PalletRecord;
@@ -1105,8 +1250,66 @@ export class LoadJobsService {
     };
   }
 
+  private async recordReversedScan(
+    tx: ScanTransactionClient,
+    input: {
+      loadJob: LoadJobRecord;
+      pallet: PalletRecord;
+      reason: string;
+      deviceId: string | null;
+      operatorId: string | null;
+    },
+  ): Promise<ScanTransactionOutcome> {
+    const occurredAt = new Date();
+    const event = (await tx.palletEvent.create({
+      data: {
+        palletId: input.pallet.id,
+        loadJobId: input.loadJob.id,
+        eventType: PalletEventType.STATUS_CHANGED,
+        fromStatus: input.pallet.status,
+        toStatus: PalletStatus.LABEL_PRINTED,
+        scanPayload: input.pallet.qrPayload,
+        deviceId: input.deviceId,
+        operatorId: input.operatorId,
+        exceptionReason: 'LOAD_JOB_SCAN_REVERSED',
+        metadata: {
+          action: 'PALLET_SCAN_REVERSED',
+          reason: input.reason,
+          previousLoadJobId: input.loadJob.id,
+          businessPalletId: input.pallet.palletId,
+        },
+        occurredAt,
+      },
+    })) as PalletEventRecord;
+
+    const updatedPallet = (await tx.pallet.update({
+      where: { id: input.pallet.id },
+      data: {
+        status: PalletStatus.LABEL_PRINTED,
+        loadedAt: null,
+        loadJobId: null,
+      },
+      include: PALLET_INCLUDE,
+    })) as PalletRecord;
+
+    await this.syncContainerStatusAfterPalletChange(
+      tx,
+      updatedPallet.containerDestination?.containerId ?? null,
+    );
+
+    return {
+      kind: 'response',
+      response: await this.toScanResponse(tx, {
+        result: 'REMOVED',
+        loadJobId: input.loadJob.id,
+        pallet: updatedPallet,
+        eventId: event.id,
+      }),
+    };
+  }
+
   private async createInvalidScanEvent(
-    tx: any,
+    tx: PalletEventCreateClient,
     input: {
       loadJobId: string;
       palletId?: string;
@@ -1136,9 +1339,9 @@ export class LoadJobsService {
   }
 
   private async toScanResponse(
-    tx: any,
+    tx: ScanProgressClient,
     input: {
-      result: 'LOADED' | 'DUPLICATE';
+      result: 'LOADED' | 'DUPLICATE' | 'REMOVED';
       loadJobId: string;
       pallet: PalletRecord;
       eventId: string | null;
@@ -1156,8 +1359,47 @@ export class LoadJobsService {
     };
   }
 
+  private async syncContainerStatusAfterPalletChange(
+    tx: ContainerStatusSyncClient,
+    containerId: string | null,
+  ): Promise<void> {
+    if (!containerId) {
+      return;
+    }
+
+    const activePalletCount = await tx.pallet.count({
+      where: {
+        status: { not: PalletStatus.CANCELLED },
+        containerDestination: {
+          containerId,
+        },
+      },
+    });
+    const loadedPalletCount = await tx.pallet.count({
+      where: {
+        status: PalletStatus.LOADED,
+        containerDestination: {
+          containerId,
+        },
+      },
+    });
+    const nextStatus = containerStatusFromInventoryCounts(
+      activePalletCount,
+      loadedPalletCount,
+    );
+
+    if (!nextStatus) {
+      return;
+    }
+
+    await tx.container.update({
+      where: { id: containerId },
+      data: { status: nextStatus },
+    });
+  }
+
   private async loadJobProgress(
-    tx: any,
+    tx: PalletCountClient,
     loadJob: LoadJobRecord,
   ): Promise<LoadJobProgressDto> {
     const totalPallets = this.systemPlannedPalletCount(loadJob);

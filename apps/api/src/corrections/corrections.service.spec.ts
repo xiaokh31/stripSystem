@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { CorrectionsService } from './corrections.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -62,6 +62,15 @@ describe('CorrectionsService', () => {
       where: { id: 'container-1' },
       include: {
         destinations: {
+          include: {
+            pallets: {
+              select: {
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
           orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
         },
       },
@@ -157,6 +166,42 @@ describe('CorrectionsService', () => {
     expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(3);
   });
 
+  it('updates container lifecycle status and writes audit feedback', async () => {
+    const result = await service.updateContainer('container-1', {
+      correctionNote: 'Reset after test label generation',
+      reason: 'Office lifecycle correction',
+      status: 'LABELS_GENERATED',
+    });
+
+    expect(result.container).toMatchObject({
+      id: 'container-1',
+      status: 'LABELS_GENERATED',
+    });
+    expect(result.corrections).toHaveLength(1);
+    expect(result.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      fieldName: 'status',
+      oldValue: 'PARSED',
+      newValue: 'LABELS_GENERATED',
+    });
+  });
+
+  it('rejects manual LOADED status when pallets remain unloaded', async () => {
+    containersFixture(prisma)[0].destinations[0].pallets = [
+      {
+        loadJobId: null,
+        loadedAt: null,
+        status: 'LABEL_PRINTED',
+      },
+    ];
+
+    await expect(
+      service.updateContainer('container-1', {
+        status: 'LOADED',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('creates a manual actual unloading destination and writes audit rows', async () => {
     const result = await service.createContainerDestination('container-1', {
       cartons: 12,
@@ -190,6 +235,37 @@ describe('CorrectionsService', () => {
         manualPallets: null,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects destination corrections after loading has started', async () => {
+    containersFixture(prisma)[0].status = 'LOADING_IN_PROGRESS';
+    prisma.containerDestination.findUnique.mockResolvedValueOnce({
+      id: 'destination-1',
+      containerId: 'container-1',
+      destinationCode: 'YYZ',
+      destinationType: 'AMAZON_FBA',
+      cartons: 40,
+      volume: '5.250',
+      calculatedPallets: 4,
+      manualPallets: null,
+      finalPallets: 4,
+      note: null,
+      warnings: [],
+      errors: [],
+      createdAt: new Date('2026-06-26T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-26T00:00:00.000Z'),
+      container: {
+        status: 'LOADING_IN_PROGRESS',
+      },
+    });
+
+    await expect(
+      service.updateContainerDestination('destination-1', {
+        manualPallets: 7,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.containerDestination.update).not.toHaveBeenCalled();
     expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
   });
 
@@ -233,6 +309,7 @@ describe('CorrectionsService', () => {
     containers[0].destinations = [destination];
 
     const mock: any = {
+      __containers: containers,
       $transaction: jest.fn((callback) => callback(mock)),
       container: {
         create: jest.fn(({ data }) => {
@@ -252,9 +329,18 @@ describe('CorrectionsService', () => {
             containers.find((container) => container.id === where.id) ?? null,
           ),
         ),
-        update: jest.fn().mockResolvedValue({
-          id: 'container-1',
-          status: 'CORRECTED',
+        update: jest.fn(({ where, data }) => {
+          const container = containers.find((item) => item.id === where.id);
+          if (!container) {
+            throw new Error(`Container not found: ${where.id}`);
+          }
+          Object.assign(container, data, {
+            updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+          });
+          return Promise.resolve({
+            ...container,
+            destinations: undefined,
+          });
         }),
       },
       containerDestination: {
@@ -301,3 +387,7 @@ describe('CorrectionsService', () => {
     return mock;
   }
 });
+
+function containersFixture(prisma: any): any[] {
+  return prisma.__containers as any[];
+}

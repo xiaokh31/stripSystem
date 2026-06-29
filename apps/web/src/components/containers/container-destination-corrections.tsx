@@ -16,6 +16,10 @@ import {
   issueList,
   type DestinationCorrectionDraft,
 } from "./container-detail-flow";
+import {
+  containerOperationLockMessage,
+  isContainerOperationLocked,
+} from "./container-files-flow";
 
 interface DestinationSaveState {
   message: string;
@@ -29,12 +33,16 @@ const idleSaveState: DestinationSaveState = {
 
 export function ContainerDestinationCorrections({
   containerId,
+  containerStatus,
   destinations,
 }: {
   containerId: string;
+  containerStatus: string;
   destinations: ContainerDetailDestinationResponse[];
 }) {
   const router = useRouter();
+  const locked = isContainerOperationLocked(containerStatus);
+  const lockedMessage = containerOperationLockMessage(containerStatus);
   const initialDrafts = useMemo(() => {
     return Object.fromEntries(
       destinations.map((destination) => [
@@ -83,6 +91,10 @@ export function ContainerDestinationCorrections({
   async function saveDestination(
     destination: ContainerDetailDestinationResponse,
   ) {
+    if (locked) {
+      return;
+    }
+
     const draft = drafts[destination.id] ?? draftFromDestination(destination);
     const request = buildDestinationCorrectionRequest(destination, draft);
 
@@ -118,6 +130,10 @@ export function ContainerDestinationCorrections({
   }
 
   async function saveNewDestination() {
+    if (locked) {
+      return;
+    }
+
     const request = buildCreateDestinationRequest(newDraft);
     if (!request.ok) {
       setCreateState({
@@ -170,6 +186,7 @@ export function ContainerDestinationCorrections({
           </span>
           <button
             className="min-h-10 border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-50"
+            disabled={locked}
             onClick={() => setAdding((current) => !current)}
             type="button"
           >
@@ -178,27 +195,37 @@ export function ContainerDestinationCorrections({
         </div>
       </div>
 
+      {lockedMessage ? (
+        <p className="mt-4 border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">
+          {lockedMessage}
+        </p>
+      ) : null}
+
       {destinations.length === 0 ? (
         <p className="mt-4 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
           This container has no parsed destinations.
         </p>
       ) : (
-        <DestinationTable
-          drafts={drafts}
-          destinations={destinations}
-          onChange={updateDraft}
-          onSave={saveDestination}
-          saveStates={saveStates}
-        />
+        <fieldset className="contents" disabled={locked}>
+          <DestinationTable
+            drafts={drafts}
+            destinations={destinations}
+            onChange={updateDraft}
+            onSave={saveDestination}
+            saveStates={saveStates}
+          />
+        </fieldset>
       )}
 
       {adding ? (
-        <NewDestinationForm
-          draft={newDraft}
-          onChange={updateNewDraft}
-          onSave={saveNewDestination}
-          saveState={createState}
-        />
+        <fieldset className="contents" disabled={locked}>
+          <NewDestinationForm
+            draft={newDraft}
+            onChange={updateNewDraft}
+            onSave={saveNewDestination}
+            saveState={createState}
+          />
+        </fieldset>
       ) : null}
     </section>
   );

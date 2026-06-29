@@ -78,9 +78,13 @@ export interface ScannedPalletResponseDto {
 }
 
 export interface LoadJobScanResponseDto {
-  result: 'LOADED' | 'DUPLICATE';
+  result: 'LOADED' | 'DUPLICATE' | 'REMOVED';
   loadJob: LoadJobResponseDto;
   pallet: ScannedPalletResponseDto;
   progress: LoadJobProgressDto;
   eventId: string | null;
+}
+
+export interface LoadJobLoadedPalletsResponseDto {
+  items: ScannedPalletResponseDto[];
 }

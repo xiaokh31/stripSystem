@@ -2,20 +2,25 @@
 
 import { useRouter } from "next/navigation";
 import {
-  FormEvent,
+  type FormEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import {
+  getLoadJobLoadedPallets,
+  reverseLoadJobScan,
   scanLoadJobPallet,
   type LoadJobProgressResponse,
   type LoadJobResponse,
   type LoadJobScanResponse,
+  type ScannedPalletResponse,
 } from "@/lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
+  isReverseScanDisabled,
   isScanSubmitDisabled,
   loadJobDisplayName,
   loadJobProgressSnapshot,
@@ -40,6 +45,23 @@ import {
 
 const DEVICE_ID = "web-mobile-scan";
 
+interface CameraScanState {
+  message: string;
+  status: "error" | "idle" | "scanning" | "starting";
+}
+
+interface DetectedBarcode {
+  rawValue: string;
+}
+
+interface BarcodeDetectorLike {
+  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
+}
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[];
+}) => BarcodeDetectorLike;
+
 export function MobileScanPanel({
   initialLoadJob,
 }: {
@@ -47,13 +69,31 @@ export function MobileScanPanel({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraFrameRef = useRef<number | null>(null);
+  const cameraActiveRef = useRef(false);
   const [loadJob, setLoadJob] = useState(initialLoadJob);
   const [lastScan, setLastScan] = useState<LoadJobScanResponse | null>(null);
+  const [loadedPallets, setLoadedPallets] = useState<ScannedPalletResponse[]>(
+    [],
+  );
+  const [loadedPalletsError, setLoadedPalletsError] = useState<string | null>(
+    null,
+  );
   const [notice, setNotice] = useState<ScanNotice | null>(null);
   const [offlineItems, setOfflineItems] = useState<OfflineScanQueueItem[]>([]);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [qrPayload, setQrPayload] = useState("");
+  const [cameraScan, setCameraScan] = useState<CameraScanState>({
+    message: "",
+    status: "idle",
+  });
+  const [reverseConfirmed, setReverseConfirmed] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
+  const [selectedReversePalletId, setSelectedReversePalletId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [reversingScan, setReversingScan] = useState(false);
   const [syncingQueue, setSyncingQueue] = useState(false);
 
   const progress = lastScan?.progress ?? loadJobProgressSnapshot(loadJob);
@@ -66,6 +106,53 @@ export function MobileScanPanel({
     (item) => item.loadJobId === loadJob.id,
   );
   const syncableCount = syncableOfflineScans(offlineItems).length;
+  const selectedReversePallet =
+    loadedPallets.find((pallet) => pallet.id === selectedReversePalletId) ??
+    null;
+  const reverseDisabled = isReverseScanDisabled({
+    canScan: loadJob.canScan,
+    confirmed: reverseConfirmed,
+    reason: reverseReason,
+    reversing: reversingScan,
+    scan: selectedReversePallet ? { result: "LOADED" } : null,
+  });
+
+  const stopCameraScan = useCallback((message = "") => {
+    cameraActiveRef.current = false;
+
+    if (cameraFrameRef.current !== null) {
+      window.cancelAnimationFrame(cameraFrameRef.current);
+      cameraFrameRef.current = null;
+    }
+
+    if (cameraStreamRef.current) {
+      for (const track of cameraStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      cameraStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraScan({ message, status: "idle" });
+  }, []);
+
+  const refreshLoadedPallets = useCallback(async () => {
+    try {
+      const response = await getLoadJobLoadedPallets(loadJob.id);
+      setLoadedPallets(response.items);
+      setLoadedPalletsError(null);
+      setSelectedReversePalletId((current) =>
+        current && response.items.some((pallet) => pallet.id === current)
+          ? current
+          : (response.items[0]?.id ?? ""),
+      );
+    } catch (error) {
+      setLoadedPalletsError(scanErrorNotice(error).message);
+    }
+  }, [loadJob.id]);
 
   const loadOfflineQueue = useCallback(() => {
     try {
@@ -133,6 +220,14 @@ export function MobileScanPanel({
             setLoadJob(response.loadJob);
             setLastScan(response);
             setNotice(scanSuccessNotice(response));
+            if (response.result === "LOADED") {
+              setLoadedPallets((items) => [
+                response.pallet,
+                ...items.filter((pallet) => pallet.id !== response.pallet.id),
+              ]);
+              setSelectedReversePalletId(response.pallet.id);
+              setLoadedPalletsError(null);
+            }
             refreshedCurrentLoadJob = true;
           }
         } catch (error) {
@@ -167,9 +262,21 @@ export function MobileScanPanel({
   }, []);
 
   useEffect(() => {
+    return () => stopCameraScan();
+  }, [stopCameraScan]);
+
+  useEffect(() => {
     const timeout = window.setTimeout(loadOfflineQueue, 0);
     return () => window.clearTimeout(timeout);
   }, [loadOfflineQueue]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void refreshLoadedPallets();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [refreshLoadedPallets]);
 
   useEffect(() => {
     function handleOnline() {
@@ -180,9 +287,8 @@ export function MobileScanPanel({
     return () => window.removeEventListener("online", handleOnline);
   }, [syncQueuedScans]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedPayload = normalizeScanInput(qrPayload);
+  async function submitPayload(payload: string) {
+    const normalizedPayload = normalizeScanInput(payload);
 
     if (
       isScanSubmitDisabled({
@@ -210,7 +316,17 @@ export function MobileScanPanel({
       setLoadJob(response.loadJob);
       setLastScan(response);
       setNotice(scanSuccessNotice(response));
+      if (response.result === "LOADED") {
+        setLoadedPallets((items) => [
+          response.pallet,
+          ...items.filter((pallet) => pallet.id !== response.pallet.id),
+        ]);
+        setSelectedReversePalletId(response.pallet.id);
+        setLoadedPalletsError(null);
+      }
       setQrPayload("");
+      setReverseConfirmed(false);
+      setReverseReason("");
       router.refresh();
     } catch (error) {
       if (shouldQueueOfflineScan(error)) {
@@ -220,6 +336,135 @@ export function MobileScanPanel({
       }
     } finally {
       setSubmitting(false);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitPayload(qrPayload);
+  }
+
+  async function startCameraScan() {
+    if (!loadJob.canScan || submitting || cameraScan.status === "starting") {
+      return;
+    }
+
+    const BarcodeDetector = barcodeDetectorConstructor();
+
+    if (!BarcodeDetector) {
+      setCameraScan({
+        message:
+          "This browser does not support camera QR scanning. Use a scanner or manual input.",
+        status: "error",
+      });
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraScan({
+        message:
+          "This device cannot open the camera from the browser. Use a scanner or manual input.",
+        status: "error",
+      });
+      return;
+    }
+
+    stopCameraScan();
+    setCameraScan({ message: "Opening camera...", status: "starting" });
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      });
+      cameraStreamRef.current = stream;
+
+      if (!videoRef.current) {
+        stopCameraScan("Camera view is not available.");
+        return;
+      }
+
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      cameraActiveRef.current = true;
+      setCameraScan({
+        message: "Point the camera at a pallet QR label.",
+        status: "scanning",
+      });
+
+      const detectFrame = async () => {
+        if (!cameraActiveRef.current || !videoRef.current) {
+          return;
+        }
+
+        try {
+          const detections = await detector.detect(videoRef.current);
+          const rawValue = detections[0]?.rawValue?.trim();
+
+          if (rawValue) {
+            stopCameraScan("QR captured.");
+            await submitPayload(rawValue);
+            return;
+          }
+        } catch {
+          stopCameraScan(
+            "Camera QR scanning failed. Use a scanner or manual input.",
+          );
+          return;
+        }
+
+        cameraFrameRef.current = window.requestAnimationFrame(detectFrame);
+      };
+
+      cameraFrameRef.current = window.requestAnimationFrame(detectFrame);
+    } catch (error) {
+      stopCameraScan();
+      setCameraScan({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Camera permission was denied or unavailable.",
+        status: "error",
+      });
+    }
+  }
+
+  async function reverseSelectedPallet() {
+    if (reverseDisabled || !selectedReversePallet) {
+      return;
+    }
+
+    setReversingScan(true);
+    setNotice(null);
+
+    try {
+      const response = await reverseLoadJobScan(loadJob.id, {
+        confirm: true,
+        deviceId: DEVICE_ID,
+        palletRecordId: selectedReversePallet.id,
+        reason: reverseReason.trim(),
+      });
+      setLoadJob(response.loadJob);
+      setLastScan(response);
+      setNotice(scanSuccessNotice(response));
+      const nextSelectedPalletId =
+        loadedPallets.find((pallet) => pallet.id !== selectedReversePallet.id)
+          ?.id ?? "";
+      setLoadedPallets((items) =>
+        items.filter((pallet) => pallet.id !== selectedReversePallet.id),
+      );
+      setSelectedReversePalletId(nextSelectedPalletId);
+      setLoadedPalletsError(null);
+      setReverseConfirmed(false);
+      setReverseReason("");
+      router.refresh();
+    } catch (error) {
+      setNotice(scanErrorNotice(error));
+    } finally {
+      setReversingScan(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   }
@@ -245,6 +490,29 @@ export function MobileScanPanel({
               value={qrPayload}
             />
           </label>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              className="min-h-12 border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:border-teal-700 hover:text-teal-900 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
+              disabled={!loadJob.canScan || submitting}
+              onClick={() => {
+                void startCameraScan();
+              }}
+              type="button"
+            >
+              Camera scan
+            </button>
+            <button
+              className="min-h-12 border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:border-zinc-500 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
+              disabled={cameraScan.status === "idle"}
+              onClick={() => stopCameraScan()}
+              type="button"
+            >
+              Stop camera
+            </button>
+          </div>
+
+          <CameraScanPanel cameraScan={cameraScan} videoRef={videoRef} />
 
           <button
             className="min-h-16 w-full border border-teal-800 bg-teal-800 px-5 text-lg font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -272,6 +540,21 @@ export function MobileScanPanel({
         <div className="grid gap-4">
           <ProgressPanel progress={progress} />
           <LastScanPanel scan={lastScan} />
+          <ReverseScanPanel
+            confirmed={reverseConfirmed}
+            disabled={reverseDisabled}
+            error={loadedPalletsError}
+            loadedPallets={loadedPallets}
+            reason={reverseReason}
+            reversing={reversingScan}
+            selectedPalletId={selectedReversePalletId}
+            onConfirmChange={setReverseConfirmed}
+            onReasonChange={setReverseReason}
+            onReverse={() => {
+              void reverseSelectedPallet();
+            }}
+            onSelectedPalletChange={setSelectedReversePalletId}
+          />
         </div>
       </div>
 
@@ -291,6 +574,149 @@ export function MobileScanPanel({
         whole-container inventory.
       </p>
     </section>
+  );
+}
+
+function CameraScanPanel({
+  cameraScan,
+  videoRef,
+}: {
+  cameraScan: CameraScanState;
+  videoRef: RefObject<HTMLVideoElement | null>;
+}) {
+  const isActive =
+    cameraScan.status === "scanning" || cameraScan.status === "starting";
+  const messageStyles =
+    cameraScan.status === "error"
+      ? "border-red-200 bg-red-50 text-red-950"
+      : "border-zinc-200 bg-zinc-50 text-zinc-700";
+
+  return (
+    <div className="grid gap-2">
+      <video
+        ref={videoRef}
+        aria-label="Camera QR scanner"
+        className={[
+          "aspect-[4/3] w-full border border-zinc-300 bg-zinc-950 object-cover",
+          isActive ? "block" : "hidden",
+        ].join(" ")}
+        muted
+        playsInline
+      />
+      {cameraScan.message ? (
+        <div className={`border p-3 text-sm font-medium ${messageStyles}`}>
+          {cameraScan.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReverseScanPanel({
+  confirmed,
+  disabled,
+  error,
+  loadedPallets,
+  onConfirmChange,
+  onReasonChange,
+  onReverse,
+  onSelectedPalletChange,
+  reason,
+  reversing,
+  selectedPalletId,
+}: {
+  confirmed: boolean;
+  disabled: boolean;
+  error: string | null;
+  loadedPallets: ScannedPalletResponse[];
+  onConfirmChange: (value: boolean) => void;
+  onReasonChange: (value: string) => void;
+  onReverse: () => void;
+  onSelectedPalletChange: (value: string) => void;
+  reason: string;
+  reversing: boolean;
+  selectedPalletId: string;
+}) {
+  const selectedPallet =
+    loadedPallets.find((pallet) => pallet.id === selectedPalletId) ?? null;
+
+  return (
+    <div className="border border-amber-200 bg-amber-50 p-4">
+      <h2 className="text-base font-semibold text-amber-950">
+        Adjust current progress
+      </h2>
+      <p className="mt-1 text-sm text-amber-950">
+        Remove a loaded pallet from this load job only when it will not be
+        loaded.
+      </p>
+
+      {error ? (
+        <p
+          className="mt-3 border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-950"
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      {loadedPallets.length === 0 ? (
+        <p className="mt-3 border border-amber-300 bg-white p-3 text-sm font-medium text-amber-950">
+          No loaded pallets are currently attached to this load job.
+        </p>
+      ) : null}
+
+      {loadedPallets.length > 0 ? (
+        <div className="mt-4 grid gap-3">
+          <label className="grid gap-2 text-sm font-semibold text-amber-950">
+            Loaded pallet
+            <select
+              className="min-h-12 w-full border border-amber-300 bg-white px-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
+              disabled={reversing}
+              onChange={(event) => onSelectedPalletChange(event.target.value)}
+              value={selectedPallet?.id ?? ""}
+            >
+              {loadedPallets.map((pallet) => (
+                <option key={pallet.id} value={pallet.id}>
+                  {loadedPalletLabel(pallet)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-2 text-sm font-semibold text-amber-950">
+            Reason
+            <textarea
+              className="min-h-24 w-full border border-amber-300 bg-white p-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
+              disabled={reversing}
+              maxLength={240}
+              onChange={(event) => onReasonChange(event.target.value)}
+              placeholder="Damage, pallet consolidation, short load..."
+              value={reason}
+            />
+          </label>
+
+          <label className="flex items-start gap-3 text-sm font-semibold text-amber-950">
+            <input
+              checked={confirmed}
+              className="mt-1 h-5 w-5"
+              disabled={reversing}
+              onChange={(event) => onConfirmChange(event.target.checked)}
+              type="checkbox"
+            />
+            Confirm this pallet should be removed from current load job progress.
+          </label>
+
+          <button
+            className="min-h-12 border border-amber-800 bg-amber-800 px-4 text-sm font-semibold text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+            disabled={disabled}
+            onClick={onReverse}
+            type="button"
+          >
+            {reversing ? "Updating progress" : "Remove from load job"}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -443,6 +869,26 @@ function ProgressPanel({ progress }: { progress: LoadJobProgressResponse }) {
 
 function isBrowserOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+function barcodeDetectorConstructor(): BarcodeDetectorConstructor | null {
+  const candidate = (globalThis as { BarcodeDetector?: unknown })
+    .BarcodeDetector;
+
+  return typeof candidate === "function"
+    ? (candidate as BarcodeDetectorConstructor)
+    : null;
+}
+
+function loadedPalletLabel(pallet: ScannedPalletResponse): string {
+  return [
+    pallet.containerNo,
+    pallet.destinationCode,
+    `P${pallet.palletNo}`,
+    pallet.palletId,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 }
 
 function Metric({ label, value }: { label: string; value: number }) {

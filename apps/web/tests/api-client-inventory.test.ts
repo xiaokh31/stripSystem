@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildApiUrl,
   getApiBaseUrl,
+  getGeneratedFileDownloadUrl,
+  getPublicApiBaseUrl,
   getContainerInventorySummary,
   getDestinationInventory,
 } from "../src/lib/api-client";
@@ -79,6 +81,39 @@ test("server API base defaults to local nginx API route", () => {
     restoreApiEnv(env);
     restoreWindow(windowDescriptor);
   }
+});
+
+test("generated file download urls use the browser-visible api route during SSR", () => {
+  const env = preserveApiEnv();
+  const windowDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "window",
+  );
+
+  try {
+    clearApiEnv();
+    delete (globalThis as Record<string, unknown>).window;
+
+    assert.equal(getPublicApiBaseUrl(), "/api");
+    assert.equal(
+      getGeneratedFileDownloadUrl("container manual/1", "report file/1"),
+      "/api/containers/container%20manual%2F1/files/report%20file%2F1/download",
+    );
+  } finally {
+    restoreApiEnv(env);
+    restoreWindow(windowDescriptor);
+  }
+});
+
+test("generated file download urls honor explicit public api base urls", () => {
+  assert.equal(
+    getGeneratedFileDownloadUrl(
+      "container-1",
+      "file-1",
+      "http://warehouse.local/api/",
+    ),
+    "http://warehouse.local/api/containers/container-1/files/file-1/download",
+  );
 });
 
 function preserveApiEnv() {

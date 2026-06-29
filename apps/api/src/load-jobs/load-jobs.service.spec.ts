@@ -325,6 +325,14 @@ describe('LoadJobsService', () => {
         (call) => call[0].data.eventType,
       ),
     ).toEqual(['LOADED', 'LOADED', 'INVALID_SCAN']);
+    expect(prisma.container.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'container-1' },
+      data: { status: 'LOADING_IN_PROGRESS' },
+    });
+    expect(prisma.container.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'container-2' },
+      data: { status: 'LOADED' },
+    });
   });
 
   it('splits one container destination across multiple load jobs with part suffixes', async () => {
@@ -427,6 +435,101 @@ describe('LoadJobsService', () => {
         (call) => call[0].data.eventType,
       ),
     ).toEqual(['LOADED', 'DUPLICATE_SCAN']);
+  });
+
+  it('reverses a loaded pallet only with explicit confirmation and audit reason', async () => {
+    await service.create({
+      loadNo: 'LOAD-2026-001',
+      destinationRegion: 'YEG2',
+      lines: [{ sourceText: 'CSNU8877228-2P' }],
+    });
+    const scan = await service.scan('load-job-1', {
+      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      deviceId: 'scanner-1',
+      operatorId: 'user-1',
+    });
+    const loadedBeforeReverse = await service.listLoadedPallets('load-job-1');
+
+    expect(loadedBeforeReverse).toMatchObject({
+      items: [
+        {
+          id: 'pallet-1',
+          palletId: 'PALLET-001',
+          status: 'LOADED',
+          loadJobId: 'load-job-1',
+        },
+      ],
+    });
+
+    await expectHttpErrorCode(
+      service.reverseScan('load-job-1', {
+        confirm: false,
+        palletRecordId: scan.pallet.id,
+        reason: 'Need to combine pallets',
+      }),
+      'LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED',
+    );
+
+    const reversed = await service.reverseScan('load-job-1', {
+      confirm: true,
+      deviceId: 'mobile-camera',
+      operatorId: 'user-1',
+      palletRecordId: scan.pallet.id,
+      reason: 'Need to combine pallets',
+    });
+
+    expect(reversed).toMatchObject({
+      result: 'REMOVED',
+      pallet: {
+        id: 'pallet-1',
+        status: 'LABEL_PRINTED',
+        loadJobId: null,
+        loadedAt: null,
+      },
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 0,
+        remainingPallets: 2,
+      },
+      eventId: 'event-2',
+    });
+    await expect(service.listLoadedPallets('load-job-1')).resolves.toEqual({
+      items: [],
+    });
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.eventType,
+      ),
+    ).toEqual(['LOADED', 'STATUS_CHANGED']);
+    expect(prisma.palletEvent.create.mock.calls[1][0].data).toMatchObject({
+      eventType: 'STATUS_CHANGED',
+      fromStatus: 'LOADED',
+      toStatus: 'LABEL_PRINTED',
+      exceptionReason: 'LOAD_JOB_SCAN_REVERSED',
+      metadata: {
+        action: 'PALLET_SCAN_REVERSED',
+        reason: 'Need to combine pallets',
+        previousLoadJobId: 'load-job-1',
+        businessPalletId: 'PALLET-001',
+      },
+    });
+    expect(prisma.pallet.update).toHaveBeenLastCalledWith({
+      where: { id: 'pallet-1' },
+      data: {
+        status: 'LABEL_PRINTED',
+        loadedAt: null,
+        loadJobId: null,
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.container.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'container-1' },
+      data: { status: 'LOADING_IN_PROGRESS' },
+    });
+    expect(prisma.container.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'container-1' },
+      data: { status: 'LABELS_GENERATED' },
+    });
   });
 
   it('blocks a pallet loaded by a different load job', async () => {
@@ -568,10 +671,12 @@ describe('LoadJobsService', () => {
       {
         id: 'container-1',
         containerNo: 'CSNU8877228',
+        status: 'LABELS_GENERATED',
       },
       {
         id: 'container-2',
         containerNo: 'EITU9315039',
+        status: 'LABELS_GENERATED',
       },
     ];
     const users = [
@@ -757,6 +862,8 @@ describe('LoadJobsService', () => {
 
       return true;
     };
+    const timeMs = (value: unknown): number =>
+      value instanceof Date ? value.getTime() : 0;
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
@@ -771,6 +878,16 @@ describe('LoadJobsService', () => {
             ) ?? null,
           ),
         ),
+        update: jest.fn(({ where, data }) => {
+          const record = containers.find(
+            (container) => container.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Container not found: ${where.id}`);
+          }
+          Object.assign(record, data);
+          return Promise.resolve(record);
+        }),
       },
       containerDestination: {
         findUnique: jest.fn(({ where }) =>
@@ -862,6 +979,18 @@ describe('LoadJobsService', () => {
         }),
       },
       pallet: {
+        findMany: jest.fn(({ where }) => {
+          const filtered = pallets
+            .filter((pallet) => matchesPalletWhere(pallet, where))
+            .sort((left, right) => {
+              const loadedDelta =
+                timeMs(right.loadedAt) - timeMs(left.loadedAt);
+
+              return loadedDelta || left.palletNo - right.palletNo;
+            });
+
+          return Promise.resolve(filtered.map(hydratePallet));
+        }),
         findFirst: jest.fn(({ where }) => {
           const record = pallets.find((pallet) =>
             where.OR.some(

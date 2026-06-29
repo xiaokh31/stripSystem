@@ -29,13 +29,14 @@ test("parsed containers produce detail links", () => {
     {
       id: "container-1",
       containerNo: "CSNU8877228",
+      status: "PARSED",
     },
   ]);
 
   assert.deepEqual(links, [
     {
       href: "/containers/container-1",
-      label: "CSNU8877228",
+      label: "CSNU8877228 · PARSED",
     },
   ]);
 });
@@ -65,7 +66,9 @@ test("manual report fallback panel appears after parse failure or empty parsed r
   assert.equal(
     shouldOfferManualReportEntry({
       parseResult: {
-        containers: [{ id: "container-1", containerNo: "CSNU8877228" }],
+        containers: [
+          { id: "container-1", containerNo: "CSNU8877228", status: "PARSED" },
+        ],
       },
       parseStatus: "WARNING",
     }),

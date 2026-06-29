@@ -9,6 +9,7 @@ import {
   PalletStatsDto,
 } from './dto/inventory-response.dto';
 import { InventoryQueryDto } from './dto/inventory-query.dto';
+import { effectiveContainerStatus } from '../common/container-lifecycle';
 import { PalletStatus } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,6 +29,8 @@ interface ContainerDestinationRecord {
 
 interface PalletRecord {
   id: string;
+  loadJobId?: string | null;
+  loadedAt?: Date | string | null;
   status: string;
 }
 
@@ -168,7 +171,10 @@ export class InventoryReportsService {
     return {
       containerId: container.id,
       containerNo: container.containerNo,
-      status: container.status,
+      status: effectiveContainerStatus(
+        container.status,
+        container.destinations ?? [],
+      ),
       ...stats,
     };
   }

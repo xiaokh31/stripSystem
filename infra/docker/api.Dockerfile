@@ -20,6 +20,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:python3.12-bookworm-slim /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:python3.12-bookworm-slim /usr/local/bin/python3.12 /usr/local/bin/python3.12
+COPY --from=ghcr.io/astral-sh/uv:python3.12-bookworm-slim /usr/local/lib/libpython3.12.so.1.0 /usr/local/lib/libpython3.12.so.1.0
+COPY --from=ghcr.io/astral-sh/uv:python3.12-bookworm-slim /usr/local/lib/python3.12 /usr/local/lib/python3.12
+
+RUN ln -sf /usr/local/bin/python3.12 /usr/local/bin/python
 
 RUN corepack enable
 

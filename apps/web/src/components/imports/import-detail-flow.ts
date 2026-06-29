@@ -4,7 +4,7 @@ import { formatOperationalDateTime } from "../../lib/date-time";
 export type StatusTone = "amber" | "emerald" | "red" | "zinc";
 
 export interface ParseResultSummaryData {
-  containers: Array<Pick<ContainerResponse, "id" | "containerNo">>;
+  containers: Array<Pick<ContainerResponse, "id" | "containerNo" | "status">>;
   errorCount?: number;
   errorMessage?: string | null;
   parseStatus?: string;
@@ -62,18 +62,18 @@ export function shouldOfferManualReportEntry(input: {
 }
 
 export function containerLinks(
-  containers: readonly Pick<ContainerResponse, "id" | "containerNo">[],
+  containers: readonly Pick<ContainerResponse, "id" | "containerNo" | "status">[],
 ): ContainerLink[] {
   return containers.map((container) => ({
     href: `/containers/${container.id}`,
-    label: container.containerNo,
+    label: `${container.containerNo} · ${container.status}`,
   }));
 }
 
 export function toParseResultSummary(
   result:
     | {
-        containers: Array<Pick<ContainerResponse, "id" | "containerNo">>;
+        containers: Array<Pick<ContainerResponse, "id" | "containerNo" | "status">>;
         importFile?: Pick<
           ImportFileResponse,
           "errorCount" | "errorMessage" | "parseStatus" | "warningCount"
@@ -89,6 +89,7 @@ export function toParseResultSummary(
     containers: result.containers.map((container) => ({
       id: container.id,
       containerNo: container.containerNo,
+      status: container.status,
     })),
     errorCount: result.importFile?.errorCount,
     errorMessage: result.importFile?.errorMessage,

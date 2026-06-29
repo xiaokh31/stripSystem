@@ -58,7 +58,33 @@ export function isScanSubmitDisabled(input: {
   );
 }
 
+export function isReverseScanDisabled(input: {
+  canScan: boolean;
+  confirmed: boolean;
+  reason: string;
+  reversing: boolean;
+  scan: Pick<LoadJobScanResponse, "result"> | null;
+}): boolean {
+  return (
+    input.reversing ||
+    !input.canScan ||
+    !input.scan ||
+    input.scan.result !== "LOADED" ||
+    !input.confirmed ||
+    input.reason.trim().length === 0
+  );
+}
+
 export function scanSuccessNotice(response: LoadJobScanResponse): ScanNotice {
+  if (response.result === "REMOVED") {
+    return {
+      code: "REMOVED",
+      message: "Pallet was removed from this load job progress.",
+      title: "Progress adjusted",
+      tone: "amber",
+    };
+  }
+
   if (response.result === "DUPLICATE") {
     return {
       code: "DUPLICATE",
@@ -100,10 +126,14 @@ export function scanErrorMessage(code: string, fallback: string): string {
     INVALID_QR_PAYLOAD: "Invalid label. Scan a Bestar pallet QR label.",
     LOAD_JOB_LINE_PALLET_LIMIT_REACHED: "当前计划行托数已装满",
     LOAD_JOB_NOT_OPEN: "This load job is closed or not open for scanning.",
+    LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED:
+      "Confirm the progress adjustment before removing a pallet from this load job.",
     PALLET_ALREADY_LOADED: "This pallet was already loaded by another load job.",
     PALLET_CANCELLED: "This pallet is cancelled and cannot be loaded.",
     PALLET_NOT_FOUND: "Pallet was not found in system inventory.",
     PALLET_NOT_IN_LOAD_PLAN: "该托盘不在当前发车计划中",
+    PALLET_NOT_LOADED_IN_LOAD_JOB:
+      "This pallet is not currently loaded in the selected load job.",
   };
 
   return messages[code] ?? fallback;
@@ -124,6 +154,13 @@ export function scanErrorTitle(code: string): string {
 
   if (code === "LOAD_JOB_LINE_PALLET_LIMIT_REACHED") {
     return "Plan line full";
+  }
+
+  if (
+    code === "LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED" ||
+    code === "PALLET_NOT_LOADED_IN_LOAD_JOB"
+  ) {
+    return "Progress adjustment rejected";
   }
 
   if (code === "INVALID_QR_PAYLOAD" || code === "PALLET_NOT_FOUND") {

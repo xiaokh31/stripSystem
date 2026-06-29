@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ApiClientError, type LoadJobResponse } from "../src/lib/api-client";
 import {
+  isReverseScanDisabled,
   isScanSubmitDisabled,
   loadJobDisplayName,
   loadJobLineLabel,
@@ -91,6 +92,64 @@ test("scan submit is disabled for empty input, closed jobs, or active submit", (
   );
 });
 
+test("reverse scan requires a loaded scan, reason, and explicit confirmation", () => {
+  const loadedScan = {
+    result: "LOADED" as const,
+    loadJob,
+    pallet: {
+      id: "pallet-1",
+      containerId: "container-1",
+      containerNo: "CSNU8877228",
+      containerDestinationId: "destination-1",
+      destinationCode: "YEG2",
+      destinationType: "AMAZON_FBA",
+      palletNo: 1,
+      palletId: "PALLET-001",
+      qrPayload: "SSP1|PALLET|PALLET-001",
+      status: "LOADED",
+      loadedAt: "2026-06-27T10:00:00.000Z",
+      loadJobId: "load-job 1",
+    },
+    progress: {
+      totalPallets: 5,
+      loadedPallets: 3,
+      remainingPallets: 2,
+    },
+    eventId: "event-1",
+  };
+
+  assert.equal(
+    isReverseScanDisabled({
+      canScan: true,
+      confirmed: false,
+      reason: "Need to combine pallets",
+      reversing: false,
+      scan: loadedScan,
+    }),
+    true,
+  );
+  assert.equal(
+    isReverseScanDisabled({
+      canScan: true,
+      confirmed: true,
+      reason: " ",
+      reversing: false,
+      scan: loadedScan,
+    }),
+    true,
+  );
+  assert.equal(
+    isReverseScanDisabled({
+      canScan: true,
+      confirmed: true,
+      reason: "Need to combine pallets",
+      reversing: false,
+      scan: loadedScan,
+    }),
+    false,
+  );
+});
+
 test("load job progress uses API supplied planned and loaded counts", () => {
   assert.deepEqual(loadJobProgressSnapshot(loadJob), {
     totalPallets: 5,
@@ -148,11 +207,37 @@ test("scan notices distinguish success and duplicate responses", () => {
     },
     eventId: null,
   });
+  const removed = scanSuccessNotice({
+    result: "REMOVED",
+    loadJob,
+    pallet: {
+      id: "pallet-1",
+      containerId: "container-1",
+      containerNo: "CSNU8877228",
+      containerDestinationId: "destination-1",
+      destinationCode: "YEG2",
+      destinationType: "AMAZON_FBA",
+      palletNo: 1,
+      palletId: "PALLET-001",
+      qrPayload: "SSP1|PALLET|PALLET-001",
+      status: "LABEL_PRINTED",
+      loadedAt: null,
+      loadJobId: null,
+    },
+    progress: {
+      totalPallets: 5,
+      loadedPallets: 1,
+      remainingPallets: 4,
+    },
+    eventId: "event-2",
+  });
 
   assert.equal(success.title, "Scan accepted");
   assert.equal(success.tone, "emerald");
   assert.equal(duplicate.title, "Duplicate scan");
   assert.equal(duplicate.tone, "amber");
+  assert.equal(removed.title, "Progress adjusted");
+  assert.equal(removed.tone, "amber");
 });
 
 test("scan API errors map load plan codes to operator-readable messages", () => {
@@ -170,9 +255,21 @@ test("scan API errors map load plan codes to operator-readable messages", () => 
       status: 409,
     }),
   );
+  const reverseRejected = scanErrorNotice(
+    new ApiClientError({
+      code: "PALLET_NOT_LOADED_IN_LOAD_JOB",
+      message: "Pallet is not loaded in this load job.",
+      status: 409,
+    }),
+  );
 
   assert.equal(notInPlan.message, "该托盘不在当前发车计划中");
   assert.equal(notInPlan.title, "Wrong load job");
   assert.equal(lineFull.message, "当前计划行托数已装满");
   assert.equal(lineFull.title, "Plan line full");
+  assert.equal(
+    reverseRejected.message,
+    "This pallet is not currently loaded in the selected load job.",
+  );
+  assert.equal(reverseRejected.title, "Progress adjustment rejected");
 });
