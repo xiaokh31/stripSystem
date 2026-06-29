@@ -49,4 +49,13 @@ export const ROUTE_PERMISSIONS = {
     scan: [PERMISSIONS.scan.create],
     reverseScan: [PERMISSIONS.scan.reverse],
   },
+  users: {
+    manage: [PERMISSIONS.users.manage],
+  },
+  roles: {
+    manage: [PERMISSIONS.roles.manage],
+  },
+  permissions: {
+    manage: [PERMISSIONS.roles.manage],
+  },
 } as const;

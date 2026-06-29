@@ -11,6 +11,8 @@ import { LabelsModule } from './labels/labels.module';
 import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
+import { RolesModule } from './roles/roles.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { ReportsModule } from './reports/reports.module';
     ReportsModule,
     LabelsModule,
     LoadJobsModule,
+    UsersModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
