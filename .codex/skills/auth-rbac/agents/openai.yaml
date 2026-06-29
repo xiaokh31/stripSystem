@@ -1,0 +1,7 @@
+interface:
+  display_name: "Auth RBAC"
+  short_description: "Authentication, roles, permissions, and audit"
+  default_prompt: "Use $auth-rbac to implement authentication, role permissions, guards, and audit user attribution."
+
+policy:
+  allow_implicit_invocation: true
