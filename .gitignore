@@ -60,5 +60,16 @@ storage/corrections/*
 .vscode/settings.json
 .idea/
 
-# prompts/tasks
-prompts/tasks/
+# prompts/tasks auth planning artifacts.
+prompts/tasks/*
+!prompts/tasks/P1-09Auth Schema + Migration.md
+!prompts/tasks/P1-10Auth Login API.md
+!prompts/tasks/P1-11RBAC Guard + Route Permissions.md
+!prompts/tasks/P1-12User Role Permission API.md
+!prompts/tasks/P1-13Audit User Attribution.md
+!prompts/tasks/P1-14Auth Regression + Seed Data.md
+!prompts/tasks/P2-AUTH-01Login UI + Authenticated Shell.md
+!prompts/tasks/P2-AUTH-02User Role Permission Admin UI.md
+!prompts/tasks/P3-AUTH-01Mobile Warehouse Auth + Permission UX.md
+!prompts/tasks/P4-AUTH-01Permissioned Reprint Audit Controls.md
+!prompts/tasks/P5-AUTH-01Auth Deployment Runbook + Initial Admin Setup.md
