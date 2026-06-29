@@ -8,6 +8,8 @@ for a usable system.
 ## What To Back Up
 
 - PostgreSQL database.
+  - includes users, password hashes, roles, permissions, role assignments, and
+    audit records that reference `userId`
 - `storage/` directory, including:
   - original uploaded Excel files
   - parsed JSON
@@ -15,6 +17,10 @@ for a usable system.
   - label PDFs
   - task reports
   - corrections JSON
+
+The `.env` file is not part of the PostgreSQL dump. Preserve deployment
+secrets such as `JWT_SECRET` and database passwords in the warehouse password
+manager or another approved secure location.
 
 ## Backup Location
 
@@ -187,6 +193,8 @@ Do not delete current `storage/` until the backup is confirmed.
 ## Verification After Restore
 
 - `GET /api/health` reports API and database healthy.
+- An administrator can log in and `GET /api/auth/me` returns the expected user.
+- `GET /api/users` works for an administrator and role assignments are present.
 - A known import file exists in storage.
 - A known generated report or label PDF exists.
 - Inventory reports can query pallets from the database.

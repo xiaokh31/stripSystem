@@ -36,6 +36,32 @@ DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unl
   pnpm --filter api prisma migrate deploy
 ```
 
+## Initialize Accounts
+
+Seed the default permissions and the `ADMIN`, `OFFICE`, `WAREHOUSE`, and
+`SYSTEM` roles after migrations:
+
+```bash
+DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+  pnpm --filter api prisma db seed
+```
+
+For an empty development database, create the first administrator with one-time
+seed variables. Replace the email and password before running the command:
+
+```bash
+SEED_ADMIN_EMAIL='<admin-email>' \
+SEED_ADMIN_PASSWORD='<unique-strong-admin-password>' \
+SEED_ADMIN_NAME='Initial Administrator' \
+DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
+  pnpm --filter api prisma db seed
+```
+
+The seed is idempotent. It updates default roles and permissions, and creates
+or updates the first administrator only when both `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` are provided. Do not store production administrator
+passwords in `.env` or commit them.
+
 ## Start API
 
 ```bash
@@ -43,6 +69,8 @@ DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unl
 STORAGE_ROOT="$PWD/storage" \
 WORKER_PYTHON_DIR="$PWD/apps/worker-python" \
 REPORT_TEMPLATE_PATH="$PWD/samples/templates/卸柜报告-En.xlsx" \
+JWT_SECRET='<unique-local-jwt-secret>' \
+JWT_EXPIRES_IN_SECONDS=28800 \
   pnpm --filter api dev
 ```
 
@@ -53,6 +81,20 @@ curl http://127.0.0.1:4000/api/health
 ```
 
 Expected database status is `up`.
+
+Verify login and current-user access after the API is running:
+
+```bash
+curl -sS -X POST http://127.0.0.1:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
+
+TOKEN='<accessToken from login response>'
+curl -sS http://127.0.0.1:4000/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+curl -sS http://127.0.0.1:4000/api/users \
+  -H "Authorization: Bearer $TOKEN"
+```
 
 ## Start Web
 

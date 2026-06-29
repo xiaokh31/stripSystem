@@ -51,12 +51,14 @@ REDIS_URL=redis://redis:6379
 NEXT_PUBLIC_API_BASE_URL=/api
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
-JWT_SECRET=change-this-in-local-env
+JWT_SECRET=replace-with-long-random-secret
+JWT_EXPIRES_IN_SECONDS=28800
 ```
 
-For pilot or production, replace default passwords and `JWT_SECRET`. The
-compose file builds the API `DATABASE_URL` from `POSTGRES_USER`,
-`POSTGRES_PASSWORD`, and `POSTGRES_DB`.
+For pilot or production, replace default passwords and `JWT_SECRET` with unique
+strong values before starting services. The compose file builds the API
+`DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
+Do not use the example values as production credentials.
 
 ## Persistent Storage
 
@@ -96,6 +98,33 @@ The API service runs Prisma generate and migrations before starting. The web
 service waits for API health before starting. nginx waits for web and API
 health.
 
+## Initialize Accounts
+
+After the first start, seed the default permissions and the `ADMIN`, `OFFICE`,
+`WAREHOUSE`, and `SYSTEM` roles:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T api \
+  pnpm --filter api prisma db seed
+```
+
+For an empty database, create the first administrator with one-time seed
+variables. Replace the email and password before running the command:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T \
+  -e SEED_ADMIN_EMAIL='<admin-email>' \
+  -e SEED_ADMIN_PASSWORD='<unique-strong-admin-password>' \
+  -e SEED_ADMIN_NAME='Initial Administrator' \
+  api pnpm --filter api prisma db seed
+```
+
+The seed rejects weak administrator passwords and requires
+`SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` together. After the first
+administrator logs in, create office and warehouse staff accounts through
+`POST /api/users`; do not manually insert users, roles, permissions, or password
+hashes in PostgreSQL.
+
 ## Verify
 
 Container status:
@@ -133,6 +162,20 @@ Full scripted healthcheck:
 
 ```bash
 scripts/healthcheck.sh
+```
+
+Then verify authentication through nginx:
+
+```bash
+curl -sS -X POST http://localhost/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
+
+TOKEN='<accessToken from login response>'
+curl -sS http://localhost/api/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+curl -sS http://localhost/api/users \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Logs

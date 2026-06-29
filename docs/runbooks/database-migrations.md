@@ -63,6 +63,22 @@ docker compose -f infra/docker/compose.local.yml logs --tail=200 api
 docker compose -f infra/docker/compose.local.yml logs --tail=200 postgres
 ```
 
+## Account Data In The Database
+
+The PostgreSQL database stores account and authorization state, including:
+
+- `users` and password hashes
+- `roles`
+- `permissions`
+- `role_permissions`
+- `user_roles`
+- audit records that reference `userId`
+
+Default roles and permissions are seeded from
+`apps/api/src/auth/default-rbac.ts` by `apps/api/prisma/seed.ts`. Do not edit
+these tables manually to create users or bypass permissions. Use the seed for
+system defaults and the user management API for staff accounts.
+
 ## Check Migration Status
 
 Run Prisma status from inside the API container:
@@ -175,8 +191,15 @@ Then verify:
 docker compose -f infra/docker/compose.local.yml exec -T api \
   pnpm --filter api prisma migrate status
 
+docker compose -f infra/docker/compose.local.yml exec -T api \
+  pnpm --filter api prisma db seed
+
 curl http://localhost/api/health
 ```
+
+Run `prisma db seed` after migrations whenever default role or permission codes
+change. The seed is idempotent and keeps the default `ADMIN`, `OFFICE`,
+`WAREHOUSE`, and `SYSTEM` role permissions in sync.
 
 ## What Not To Do
 

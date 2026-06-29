@@ -52,7 +52,27 @@ Record every failure in the issue log.
 | Warehouse Wi-Fi coverage is acceptable at loading area. | | |
 | Staff know who can approve restore or No-Go decision. | | |
 
-## 2. Real XLSX Test
+## 2. Account And Permission Test
+
+Use real pilot accounts. Do not use mock users as evidence of readiness.
+
+| Item | Pass / Fail / N/A | Remarks |
+| --- | --- | --- |
+| Default roles and permissions have been seeded. | | |
+| Initial `ADMIN` account can log in. | | |
+| `ADMIN` can call `GET /api/auth/me`. | | |
+| `ADMIN` can call `GET /api/users`. | | |
+| `OFFICE` account can log in. | | |
+| `OFFICE` can access office import, container, report, and load job workflows. | | |
+| `WAREHOUSE` account can log in on the mobile/PDA page. | | |
+| `WAREHOUSE` can access assigned mobile load job and scan workflows. | | |
+| `WAREHOUSE` is rejected from user management and office-only actions. | | |
+| Disabled employee account cannot log in. | | |
+| Password reset through API works and old password no longer works. | | |
+| A manual correction or scan event records the authenticated `userId`. | | |
+| No operator is instructed to manually edit user, role, or permission tables. | | |
+
+## 3. Real XLSX Test
 
 Use at least three real unloading files:
 
@@ -74,7 +94,7 @@ Use at least three real unloading files:
 | Unknown columns remain traceable in raw JSON. | | |
 | Manual container creation is available when source parsing fails. | | |
 
-## 3. Report Generation Test
+## 4. Report Generation Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -90,7 +110,7 @@ Use at least three real unloading files:
 | Report values match reviewed container detail. | | |
 | Regenerating report uses latest corrected data. | | |
 
-## 4. Pallet Label Printing Test
+## 5. Pallet Label Printing Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -106,7 +126,7 @@ Use at least three real unloading files:
 | Reprinted label scans successfully. | | |
 | Labels are not printed from screenshots. | | |
 
-## 5. QR Scan Test
+## 6. QR Scan Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -119,7 +139,7 @@ Use at least three real unloading files:
 | Inventory report refreshes after scan. | | |
 | Invalid QR is rejected and recorded as an exception. | | |
 
-## 6. Duplicate Scan Test
+## 7. Duplicate Scan Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -131,12 +151,12 @@ Use at least three real unloading files:
 | System prevents incorrect loading or clearly reports the conflict. | | |
 | Historical pallet events are not overwritten. | | |
 
-## 7. Real Load Plan Test
+## 8. Real Load Plan Test
 
 Run the following scenarios with real or supervisor-approved pilot data. Do not
 use mock data as evidence of business readiness.
 
-### 7.1 One Truck, Multiple Containers
+### 8.1 One Truck, Multiple Containers
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -146,7 +166,7 @@ use mock data as evidence of business readiness.
 | Inventory report separates source containers correctly. | | |
 | Closing the load job preserves all scan events. | | |
 
-### 7.2 Single Container, Partial Pallets
+### 8.2 Single Container, Partial Pallets
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -156,7 +176,7 @@ use mock data as evidence of business readiness.
 | Unscanned pallets remain available / not loaded. | | |
 | Remaining inventory equals backend pallet state. | | |
 
-### 7.3 Same Container Split Into Multiple Load Jobs
+### 8.3 Same Container Split Into Multiple Load Jobs
 
 Use a real split such as `part1` and `part2`.
 
@@ -169,7 +189,7 @@ Use a real split such as `part1` and `part2`.
 | Reports show total loaded and remaining correctly. | | |
 | Closing `part1` does not block valid `part2` scans. | | |
 
-### 7.4 External Transfer Freight
+### 8.4 External Transfer Freight
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -179,7 +199,7 @@ Use a real split such as `part1` and `part2`.
 | Scan result is clear to warehouse operator. | | |
 | Inventory report does not mix transfer freight with normal unload freight incorrectly. | | |
 
-### 7.5 Pure Transfer Truck
+### 8.5 Pure Transfer Truck
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -189,7 +209,7 @@ Use a real split such as `part1` and `part2`.
 | Closing the job records all transfer pallet events. | | |
 | Inventory remaining is correct after truck departure. | | |
 
-## 8. Offline Scan Test
+## 9. Offline Scan Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -204,7 +224,7 @@ Use a real split such as `part1` and `part2`.
 | Duplicate retry does not decrement inventory twice. | | |
 | Failed sync item shows actionable error. | | |
 
-## 9. Power Loss / Restart Test
+## 10. Power Loss / Restart Test
 
 | Item | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
@@ -228,7 +248,7 @@ Optional host reboot test:
 | Start services again. | | |
 | Healthcheck and office/mobile access pass. | | |
 
-## 10. Backup Restore Test
+## 11. Backup Restore Test
 
 Do not run confirmed restore against live pilot data unless supervisor and
 local IT approve it. Prefer a non-production restore target.
@@ -247,7 +267,7 @@ local IT approve it. Prefer a non-production restore target.
 | Known generated report or label PDF exists after restore. | | |
 | Inventory query works after restore. | | |
 
-## 11. Issue Log
+## 12. Issue Log
 
 Severity values:
 
@@ -261,7 +281,7 @@ Severity values:
 | | | | | | | | | |
 | | | | | | | | | |
 
-## 12. Go / No-Go Decision
+## 13. Go / No-Go Decision
 
 ### Blockers
 
@@ -269,6 +289,9 @@ Any one of these is an automatic No-Go:
 
 | Blocker | Pass / Fail / N/A | Remarks |
 | --- | --- | --- |
+| Initial `ADMIN` account cannot log in after deployment. | | |
+| Role-based access control allows a user to perform forbidden actions. | | |
+| Manual correction or scan audit records are missing authenticated `userId`. | | |
 | Original uploaded files are not preserved. | | |
 | Duplicate imports are not detected by SHA-256. | | |
 | Parser failures are hidden or silently ignored. | | |
@@ -292,6 +315,7 @@ Any one of these is an automatic No-Go:
 | --- | --- | --- |
 | All blocker rows above are Pass or N/A with supervisor approval. | | |
 | All failed Major issues have owner and workaround. | | |
+| ADMIN, OFFICE, and WAREHOUSE role tests have passed. | | |
 | Office operator can complete upload, parse, correction, report, and labels. | | |
 | Warehouse operator can complete scan workflow on PDA/phone. | | |
 | Supervisor accepts one truck / multiple container workflow. | | |

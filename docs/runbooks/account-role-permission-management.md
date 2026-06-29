@@ -109,20 +109,38 @@ The seed is idempotent:
 - It synchronizes default role permissions.
 - It does not create an administrator unless explicit seed variables are set.
 
-## Initial Administrator
-
-Development and test environments may create the first administrator through
-seed variables:
+For Docker/nginx full-stack deployment, run the same seed inside the API
+container:
 
 ```bash
-SEED_ADMIN_EMAIL='admin@example.com' \
-SEED_ADMIN_PASSWORD='Use-A-Unique-Local-Password-123!' \
+docker compose -f infra/docker/compose.local.yml exec -T api \
+  pnpm --filter api prisma db seed
+```
+
+## Initial Administrator
+
+Empty databases create the first administrator through one-time seed variables.
+Replace the email and password before running the command:
+
+```bash
+SEED_ADMIN_EMAIL='<admin-email>' \
+SEED_ADMIN_PASSWORD='<unique-strong-admin-password>' \
 SEED_ADMIN_NAME='Initial Admin' \
 DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public' \
   pnpm --filter api prisma db seed
 ```
 
-Production must not use a shared default password. The seed rejects weak
+For Docker/nginx full-stack deployment:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T \
+  -e SEED_ADMIN_EMAIL='<admin-email>' \
+  -e SEED_ADMIN_PASSWORD='<unique-strong-admin-password>' \
+  -e SEED_ADMIN_NAME='Initial Admin' \
+  api pnpm --filter api prisma db seed
+```
+
+Production must not use a shared or example password. The seed rejects weak
 administrator passwords and requires `SEED_ADMIN_EMAIL` and
 `SEED_ADMIN_PASSWORD` to be set together.
 
@@ -137,12 +155,20 @@ insert users or password hashes in the database.
 
 ## Login Verification
 
+Verify API health first. In host development use port `4000`; in Docker/nginx
+deployment use the same-origin `/api` route on port `80`.
+
+```bash
+curl -sS http://127.0.0.1:4000/api/health
+curl -sS http://localhost/api/health
+```
+
 Verify the initial administrator:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:4000/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"Use-A-Unique-Local-Password-123!"}'
+  -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
 ```
 
 Use the returned Bearer token to verify the current profile and account access:

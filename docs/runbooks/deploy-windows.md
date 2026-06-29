@@ -121,7 +121,7 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=replace-with-long-random-secret
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN_SECONDS=28800
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
@@ -161,6 +161,35 @@ bestar_nginx_local
 The first start can take several minutes because Docker downloads images and
 Node/Python dependencies.
 
+## Initialize Accounts
+
+The API startup applies committed Prisma migrations. It does not create
+warehouse users automatically. After the first start, seed default permissions
+and roles.
+
+PowerShell:
+
+```powershell
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api prisma db seed
+```
+
+For an empty database, create the first administrator with one-time seed
+variables. Replace the email and password before running the command:
+
+```powershell
+docker compose -f infra/docker/compose.local.yml exec -T `
+  -e SEED_ADMIN_EMAIL="<admin-email>" `
+  -e SEED_ADMIN_PASSWORD="<unique-strong-admin-password>" `
+  -e SEED_ADMIN_NAME="Initial Administrator" `
+  api pnpm --filter api prisma db seed
+```
+
+The seed is idempotent, rejects weak administrator passwords, and only creates
+or updates the administrator when both `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` are provided. Do not write production passwords into the
+repository or manually edit account tables. After the administrator logs in,
+create office and warehouse staff through the user management API.
+
 ## Verify Deployment
 
 PowerShell:
@@ -179,6 +208,20 @@ scripts/healthcheck.sh
 
 The API health response should include `"status":"ok"` and database status
 `"up"`.
+
+Verify administrator login and API access.
+
+PowerShell:
+
+```powershell
+curl.exe -sS -X POST http://localhost/api/auth/login `
+  -H "Content-Type: application/json" `
+  -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
+
+$env:TOKEN = "<accessToken from login response>"
+curl.exe -sS http://localhost/api/auth/me -H "Authorization: Bearer $env:TOKEN"
+curl.exe -sS http://localhost/api/users -H "Authorization: Bearer $env:TOKEN"
+```
 
 ## LAN Access
 
