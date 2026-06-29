@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -122,7 +121,6 @@ export class ReportsService {
 
   async generateReport(id: string): Promise<GenerateReportResponseDto> {
     const container = await this.findContainerOrThrow(id);
-    this.assertCanGenerateReport(container);
     const outputDir = join(this.storageRoot, 'reports');
     const request = this.toWorkerReportRequest(container);
 
@@ -262,28 +260,6 @@ export class ReportsService {
     return container;
   }
 
-  private assertCanGenerateReport(container: ContainerRecord): void {
-    const effectiveStatus = effectiveContainerStatus(
-      container.status,
-      container.destinations ?? [],
-    );
-
-    if (!isContainerGenerationLocked(effectiveStatus)) {
-      return;
-    }
-
-    throw new ConflictException({
-      code: 'CONTAINER_GENERATION_LOCKED',
-      message:
-        'This container has entered loading or has been loaded, so the unloading report cannot be regenerated.',
-      details: {
-        containerId: container.id,
-        status: effectiveStatus,
-        action: 'generate-report',
-      },
-    });
-  }
-
   private toWorkerReportRequest(
     container: ContainerRecord,
   ): WorkerReportRequest {
@@ -359,13 +335,24 @@ export class ReportsService {
           errorMessage: null,
         },
       );
-      await tx.container.update({
-        where: { id: container.id },
-        data: { status: ContainerStatus.REPORT_GENERATED },
-      });
+      if (this.shouldMarkReportGenerated(container)) {
+        await tx.container.update({
+          where: { id: container.id },
+          data: { status: ContainerStatus.REPORT_GENERATED },
+        });
+      }
 
       return generatedFile;
     });
+  }
+
+  private shouldMarkReportGenerated(container: ContainerRecord): boolean {
+    const effectiveStatus = effectiveContainerStatus(
+      container.status,
+      container.destinations ?? [],
+    );
+
+    return !isContainerGenerationLocked(effectiveStatus);
   }
 
   private async recordFailedGeneratedFile(

@@ -2,7 +2,12 @@ import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
 import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
 import { ContainerStatusControl } from "@/components/containers/container-status-control";
-import { formatNullable, issueList } from "@/components/containers/container-detail-flow";
+import {
+  formatIssueSummary,
+  formatNullable,
+  issueList,
+  summarizeIssues,
+} from "@/components/containers/container-detail-flow";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import {
   ApiClientError,
@@ -39,8 +44,8 @@ export default async function ContainerDetailPage({
   }
 
   const containerIssues = [
-    ...issueList(state.container.warnings),
-    ...issueList(state.container.errors),
+    ...summarizeIssues(state.container.warnings),
+    ...summarizeIssues(state.container.errors),
   ];
 
   return (
@@ -106,9 +111,17 @@ export default async function ContainerDetailPage({
         </div>
 
         <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-zinc-950">
-            Destination summary
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-zinc-950">
+              Destination summary
+            </h2>
+            <Link
+              className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+              href={`/containers/${state.container.id}/corrections`}
+            >
+              View modification history
+            </Link>
+          </div>
           <dl className="mt-4 grid gap-3 text-sm">
             <DetailRow
               label="Destinations"
@@ -147,8 +160,10 @@ export default async function ContainerDetailPage({
         <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
           <h2 className="text-base font-semibold">Container warnings</h2>
           <ul className="mt-3 space-y-2 text-sm">
-            {containerIssues.map((issue) => (
-              <li key={issue}>{issue}</li>
+            {containerIssues.map((issue, index) => (
+              <li key={`${issue.message}-${issue.count}-${index}`}>
+                {formatIssueSummary(issue)}
+              </li>
             ))}
           </ul>
         </section>
@@ -176,7 +191,7 @@ export default async function ContainerDetailPage({
         containerId={state.container.id}
         containerStatus={state.container.status}
         destinations={state.container.destinations}
-        key={destinationsVersion(state.container.destinations)}
+        key={destinationIdsVersion(state.container.destinations)}
       />
     </main>
   );
@@ -247,15 +262,10 @@ function statusBadgeStyles(status: string): string {
   return "border-zinc-200 bg-zinc-50 text-zinc-700";
 }
 
-function destinationsVersion(
+function destinationIdsVersion(
   destinations: ContainerDetailResponse["destinations"],
 ): string {
-  return destinations
-    .map(
-      (destination) =>
-        `${destination.id}:${destination.updatedAt}:${destination.destinationCode}:${destination.destinationType ?? ""}:${destination.manualPallets ?? ""}:${destination.totalCartons}:${destination.totalVolumeCbm}`,
-    )
-    .join("|");
+  return destinations.map((destination) => destination.id).join("|");
 }
 
 function ContainerDetailError({

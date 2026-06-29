@@ -318,7 +318,7 @@ describe('ReportsService', () => {
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
-  it('blocks report regeneration after loading has started', async () => {
+  it('allows report regeneration after loading has started without changing pallets', async () => {
     prisma.container.findUnique.mockResolvedValueOnce({
       ...defaultContainerRecord(),
       status: 'LABELS_GENERATED',
@@ -336,11 +336,15 @@ describe('ReportsService', () => {
       ],
     });
 
-    await expect(service.generateReport('container-1')).rejects.toHaveProperty(
-      'response.code',
-      'CONTAINER_GENERATION_LOCKED',
-    );
-    expect(workerReport.writeReport).not.toHaveBeenCalled();
+    const result = await service.generateReport('container-1');
+
+    expect(result.generatedFile).toMatchObject({
+      containerId: 'container-1',
+      fileType: 'EXCEL_REPORT',
+      status: 'GENERATED',
+    });
+    expect(workerReport.writeReport).toHaveBeenCalledTimes(1);
+    expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
   it('updates the existing Excel report record when regenerating', async () => {

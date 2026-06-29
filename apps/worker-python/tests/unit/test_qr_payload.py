@@ -26,12 +26,12 @@ def test_qr_payload_contains_unique_real_pallet_id(tmp_path: Path) -> None:
         label_date=date(2026, 6, 25),
         container_no=parsed.containerNo or "",
         destination=pallet_result.plans[0].destinationCode or "",
-        pallet_no="1/1",
+        pallet_no="1",
         pallet_id=pallet_id,
     )
 
     assert payload == (
         "SSP1|PALLET|2026-06-25|"
-        f"{parsed.containerNo}|{pallet_result.plans[0].destinationCode}|1/1|{pallet_id}"
+        f"{parsed.containerNo}|{pallet_result.plans[0].destinationCode}|1|{pallet_id}"
     )
     assert payload.endswith(pallet_id)

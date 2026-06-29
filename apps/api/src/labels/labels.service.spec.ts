@@ -280,6 +280,11 @@ describe('LabelsService', () => {
     expect(outputDir).toBe(join(storageRoot, 'labels'));
     expect(labelDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(palletResult.totalFinalPallets).toBe(3);
+    expect(result.pallets.map((pallet) => pallet.qrPayload)).toEqual([
+      expect.stringContaining('|YYZ|1|'),
+      expect.stringContaining('|YYZ|2|'),
+      expect.stringContaining('|YVR|1|'),
+    ]);
 
     expect(prisma.pallet.create).toHaveBeenCalledTimes(3);
     const updateManyArgs = prisma.pallet.updateMany.mock.calls[0][0];
@@ -721,7 +726,7 @@ describe('LabelsService', () => {
       palletNo: 1,
       palletId: 'CSNU8877228-D001-YYZ-P001',
       qrPayload:
-        'SSP1|PALLET|2026-06-26|CSNU8877228|YYZ|1/3|CSNU8877228-D001-YYZ-P001',
+        'SSP1|PALLET|2026-06-26|CSNU8877228|YYZ|1|CSNU8877228-D001-YYZ-P001',
       status: 'LABEL_PRINTED',
       labelPrintedAt: new Date('2026-06-26T00:05:00.000Z'),
       loadedAt: null,
@@ -746,18 +751,15 @@ describe('LabelsService', () => {
     labelDate: string,
   ): string[] {
     const containerNo = String(request.parsed_result.containerNo);
-    const totalPallets = Number(request.pallet_result.totalFinalPallets);
-    let globalIndex = 0;
     return plansFromRequest(request).flatMap((plan) =>
-      plan.palletIds.map((palletId) => {
-        globalIndex += 1;
+      plan.palletIds.map((palletId, index) => {
         return [
           'SSP1',
           'PALLET',
           labelDate,
           containerNo,
           plan.destinationCode,
-          `${globalIndex}/${totalPallets}`,
+          `${index + 1}`,
           palletId,
         ].join('|');
       }),

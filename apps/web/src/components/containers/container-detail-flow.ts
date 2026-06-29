@@ -174,6 +174,27 @@ export function issueList(input: unknown): string[] {
   });
 }
 
+export interface IssueSummary {
+  count: number;
+  message: string;
+}
+
+export function summarizeIssues(input: unknown): IssueSummary[] {
+  const counts = new Map<string, number>();
+  for (const issue of issueList(input)) {
+    counts.set(issue, (counts.get(issue) ?? 0) + 1);
+  }
+
+  return Array.from(counts, ([message, count]) => ({
+    count,
+    message,
+  }));
+}
+
+export function formatIssueSummary(issue: IssueSummary): string {
+  return issue.count > 1 ? `${issue.message}  ${issue.count}x` : issue.message;
+}
+
 export function formatNullable(value: string | number | null): string {
   return value === null || value === "" ? "-" : String(value);
 }

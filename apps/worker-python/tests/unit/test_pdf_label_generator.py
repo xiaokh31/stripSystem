@@ -4,6 +4,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -122,14 +123,53 @@ def test_pdf_label_generator_uses_manual_destination_for_missing_destination(
     assert parsed.containerNo in result.qrPayloads[0]
 
 
+def test_pdf_label_generator_uses_pallet_numbers_without_expected_totals(
+    tmp_path: Path,
+) -> None:
+    parsed = SimpleNamespace(containerNo="TEST1234567")
+    pallet_result = SimpleNamespace(
+        totalFinalPallets=3,
+        plans=(
+            SimpleNamespace(
+                destinationCode="DEST-A",
+                palletIds=(
+                    "TEST1234567-D001-DEST-A-P001",
+                    "TEST1234567-D001-DEST-A-P002",
+                ),
+            ),
+            SimpleNamespace(
+                destinationCode="DEST-B",
+                palletIds=("TEST1234567-D002-DEST-B-P001",),
+            ),
+        ),
+    )
+
+    result = generate_pallet_label_pdf(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "labels",
+        label_date=date(2026, 6, 25),
+    )
+
+    assert result.errors == ()
+    assert "|DEST-A|1|" in result.qrPayloads[0]
+    assert "|DEST-A|2|" in result.qrPayloads[1]
+    assert "|DEST-B|1|" in result.qrPayloads[2]
+    assert "/2|" not in result.qrPayloads[0]
+    assert "/1|" not in result.qrPayloads[2]
+
+
 def test_label_template_uses_large_readable_fields_and_wraps_long_destination() -> None:
     template = LABEL_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "font-size: 36pt;" in template
-    assert "font-size: 28pt;" in template
-    assert "font-size: 18pt;" in template
+    assert "font-size: 56pt;" in template
+    assert "font-size: 44pt;" in template
+    assert "font-size: 20pt;" in template
     assert "width: 28mm;" in template
     assert "height: 28mm;" in template
+    assert "label.destination_font_size" in template
+    assert "top-right" in template
+    assert "pallet-no" not in template
     assert "overflow-wrap: anywhere;" in template
 
 

@@ -121,7 +121,7 @@ interface PalletDraft {
   destinationCode: string;
   destinationType: string | null;
   palletNo: number;
-  globalPalletNo: string;
+  displayPalletNo: string;
   palletId: string;
   qrPayload: string;
 }
@@ -129,6 +129,39 @@ interface PalletDraft {
 interface PersistedLabels {
   generatedFile: GeneratedFileRecord;
   pallets: PalletRecord[];
+}
+
+interface ContainerReprintReadClient {
+  container: {
+    findUnique(args: unknown): Promise<{ id: string } | null>;
+  };
+}
+
+interface PalletReprintReadClient {
+  pallet: {
+    findMany(args: unknown): Promise<unknown[]>;
+    findUnique(args: unknown): Promise<unknown>;
+  };
+}
+
+interface UserReadClient {
+  user: {
+    findUnique(args: unknown): Promise<{ id: string } | null>;
+  };
+}
+
+interface PalletEventWriteClient {
+  palletEvent: {
+    create(args: unknown): Promise<unknown>;
+  };
+}
+
+interface GeneratedFileWriteClient {
+  generatedFile: {
+    findFirst(args: unknown): Promise<unknown>;
+    update(args: unknown): Promise<unknown>;
+    create(args: unknown): Promise<unknown>;
+  };
 }
 
 const PDF_MIME_TYPE = 'application/pdf';
@@ -377,7 +410,7 @@ export class LabelsService {
   }
 
   private async findContainerForReprintOrThrow(
-    tx: any,
+    tx: ContainerReprintReadClient,
     id: string,
   ): Promise<void> {
     const container = await tx.container.findUnique({
@@ -394,7 +427,10 @@ export class LabelsService {
     }
   }
 
-  private async findPalletOrThrow(tx: any, id: string): Promise<PalletRecord> {
+  private async findPalletOrThrow(
+    tx: PalletReprintReadClient,
+    id: string,
+  ): Promise<PalletRecord> {
     const pallet = (await tx.pallet.findUnique({
       where: { id },
       include: {
@@ -420,7 +456,7 @@ export class LabelsService {
   }
 
   private async findContainerPallets(
-    tx: any,
+    tx: PalletReprintReadClient,
     containerId: string,
   ): Promise<PalletRecord[]> {
     return (await tx.pallet.findMany({
@@ -439,7 +475,7 @@ export class LabelsService {
   }
 
   private async assertUserExists(
-    tx: any,
+    tx: UserReadClient,
     userId: string,
     code: string,
   ): Promise<void> {
@@ -513,7 +549,7 @@ export class LabelsService {
   }
 
   private async createReprintEvent(
-    tx: any,
+    tx: PalletEventWriteClient,
     input: {
       pallet: PalletRecord;
       operatorId: string;
@@ -554,20 +590,14 @@ export class LabelsService {
     labelDate: string,
   ): PalletDraft[] {
     const destinations = container.destinations ?? [];
-    const totalPallets = destinations.reduce(
-      (total, destination) => total + Math.max(0, destination.finalPallets),
-      0,
-    );
     const drafts: PalletDraft[] = [];
-    let globalIndex = 0;
 
     destinations.forEach((destination, destinationIndex) => {
       const finalPallets = Math.max(0, destination.finalPallets);
       const destinationCode = destination.destinationCode || MANUAL_DESTINATION;
 
       for (let palletNo = 1; palletNo <= finalPallets; palletNo += 1) {
-        globalIndex += 1;
-        const globalPalletNo = `${globalIndex}/${totalPallets}`;
+        const displayPalletNo = String(palletNo);
         const palletId = this.buildPalletId(
           container,
           destination,
@@ -578,7 +608,7 @@ export class LabelsService {
           labelDate,
           containerNo: container.containerNo,
           destination: destinationCode,
-          palletNo: globalPalletNo,
+          palletNo: displayPalletNo,
           palletId,
         });
         drafts.push({
@@ -587,7 +617,7 @@ export class LabelsService {
           destinationCode,
           destinationType: destination.destinationType,
           palletNo,
-          globalPalletNo,
+          displayPalletNo,
           palletId,
           qrPayload,
         });
@@ -751,7 +781,7 @@ export class LabelsService {
   }
 
   private async upsertGeneratedFile(
-    tx: any,
+    tx: GeneratedFileWriteClient,
     container: ContainerRecord,
     data: {
       fileType: string;

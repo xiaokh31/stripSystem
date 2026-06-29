@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   ApiClientError,
   createContainerDestination,
+  generateContainerLabels,
   updateContainerDestination,
   type ContainerDetailDestinationResponse,
 } from "@/lib/api-client";
@@ -12,8 +13,9 @@ import {
   buildCreateDestinationRequest,
   buildDestinationCorrectionRequest,
   draftFromDestination,
+  formatIssueSummary,
   formatNullable,
-  issueList,
+  summarizeIssues,
   type DestinationCorrectionDraft,
 } from "./container-detail-flow";
 import {
@@ -22,8 +24,17 @@ import {
 } from "./container-files-flow";
 
 interface DestinationSaveState {
+  labelAction?: "generated" | "generating" | "idle";
+  labelPrompt?: SupplementalLabelPrompt;
   message: string;
   status: "error" | "idle" | "saved" | "saving";
+}
+
+interface SupplementalLabelPrompt {
+  addedPallets: number;
+  destinationCode: string;
+  fromPallets: number;
+  toPallets: number;
 }
 
 const idleSaveState: DestinationSaveState = {
@@ -116,13 +127,58 @@ export function ContainerDestinationCorrections({
         destination.id,
         request.payload,
       );
+      const labelPrompt = supplementalLabelPrompt(
+        destination,
+        result.containerDestination.finalPallets,
+        request.changedFields,
+      );
       setSaveState(destination.id, {
-        message: `Saved ${result.corrections.length} correction record(s).`,
+        labelAction: labelPrompt ? "idle" : undefined,
+        labelPrompt,
+        message: labelPrompt
+          ? `Saved ${result.corrections.length} correction record(s). Actual pallets increased from ${labelPrompt.fromPallets} to ${labelPrompt.toPallets}; ${labelPrompt.addedPallets} supplemental label(s) are needed. Regenerate labels now?`
+          : `Saved ${result.corrections.length} correction record(s).`,
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setSaveState(destination.id, {
+        message: correctionErrorMessage(error),
+        status: "error",
+      });
+    }
+  }
+
+  async function generateLabelsForSavedDestination(destinationId: string) {
+    if (locked) {
+      return;
+    }
+
+    const current = saveStates[destinationId] ?? idleSaveState;
+    if (!current.labelPrompt) {
+      return;
+    }
+
+    setSaveState(destinationId, {
+      ...current,
+      labelAction: "generating",
+      message: "Regenerating label PDF from latest destination data.",
+      status: "saved",
+    });
+
+    try {
+      await generateContainerLabels(containerId);
+      setSaveState(destinationId, {
+        ...current,
+        labelAction: "generated",
+        message: `Label PDF regenerated. Print supplemental label(s) ${supplementalLabelRange(current.labelPrompt)} for ${current.labelPrompt.destinationCode}.`,
+        status: "saved",
+      });
+      router.refresh();
+    } catch (error) {
+      setSaveState(destinationId, {
+        ...current,
+        labelAction: "idle",
         message: correctionErrorMessage(error),
         status: "error",
       });
@@ -211,6 +267,7 @@ export function ContainerDestinationCorrections({
             drafts={drafts}
             destinations={destinations}
             onChange={updateDraft}
+            onGenerateLabels={generateLabelsForSavedDestination}
             onSave={saveDestination}
             saveStates={saveStates}
           />
@@ -235,6 +292,7 @@ function DestinationTable({
   destinations,
   drafts,
   onChange,
+  onGenerateLabels,
   onSave,
   saveStates,
 }: {
@@ -245,6 +303,7 @@ function DestinationTable({
     field: keyof DestinationCorrectionDraft,
     value: string,
   ) => void;
+  onGenerateLabels: (destinationId: string) => Promise<void>;
   onSave: (destination: ContainerDetailDestinationResponse) => Promise<void>;
   saveStates: Record<string, DestinationSaveState>;
 }) {
@@ -280,8 +339,8 @@ function DestinationTable({
               drafts[destination.id] ?? draftFromDestination(destination);
             const saveState = saveStates[destination.id] ?? idleSaveState;
             const warnings = [
-              ...issueList(destination.warnings),
-              ...issueList(destination.errors),
+              ...summarizeIssues(destination.warnings),
+              ...summarizeIssues(destination.errors),
             ];
 
             return (
@@ -369,8 +428,10 @@ function DestinationTable({
                 <td className="max-w-64 px-3 py-4 align-top text-xs text-zinc-600">
                   {warnings.length > 0 ? (
                     <ul className="space-y-1">
-                      {warnings.map((warning) => (
-                        <li key={warning}>{warning}</li>
+                      {warnings.map((warning, index) => (
+                        <li key={`${warning.message}-${warning.count}-${index}`}>
+                          {formatIssueSummary(warning)}
+                        </li>
                       ))}
                     </ul>
                   ) : (
@@ -406,13 +467,20 @@ function DestinationTable({
                 <td className="px-3 py-4 align-top">
                   <button
                     className="min-h-10 w-32 border border-teal-700 bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-                    disabled={saveState.status === "saving"}
+                    disabled={
+                      saveState.status === "saving" ||
+                      saveState.labelAction === "generating"
+                    }
                     onClick={() => void onSave(destination)}
                     type="button"
                   >
                     {saveState.status === "saving" ? "Saving" : "Save actual"}
                   </button>
-                  <SaveMessage state={saveState} widthClass="w-32" />
+                  <SaveMessage
+                    onGenerateLabels={() => void onGenerateLabels(destination.id)}
+                    state={saveState}
+                    widthClass="w-44"
+                  />
                 </td>
               </tr>
             );
@@ -532,9 +600,11 @@ function Field({
 }
 
 function SaveMessage({
+  onGenerateLabels,
   state,
   widthClass = "",
 }: {
+  onGenerateLabels?: () => void;
   state: DestinationSaveState;
   widthClass?: string;
 }) {
@@ -543,15 +613,57 @@ function SaveMessage({
   }
 
   return (
-    <p
+    <div
       className={`mt-2 text-xs ${
         state.status === "error" ? "text-red-700" : "text-emerald-700"
       } ${widthClass}`}
       role={state.status === "error" ? "alert" : "status"}
     >
-      {state.message}
-    </p>
+      <p>{state.message}</p>
+      {state.labelPrompt &&
+      state.labelAction !== "generated" &&
+      state.status !== "error" &&
+      onGenerateLabels ? (
+        <button
+          className="mt-2 min-h-9 w-full border border-teal-700 bg-white px-2 text-xs font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-500"
+          disabled={state.labelAction === "generating"}
+          onClick={onGenerateLabels}
+          type="button"
+        >
+          {state.labelAction === "generating"
+            ? "Generating labels"
+            : "Regenerate labels"}
+        </button>
+      ) : null}
+    </div>
   );
+}
+
+function supplementalLabelPrompt(
+  destination: ContainerDetailDestinationResponse,
+  nextFinalPallets: number,
+  changedFields: string[],
+): SupplementalLabelPrompt | undefined {
+  const addedPallets = nextFinalPallets - destination.finalPallets;
+  if (addedPallets <= 0 || !changedFields.includes("manualPallets")) {
+    return undefined;
+  }
+
+  return {
+    addedPallets,
+    destinationCode: destination.destinationCode,
+    fromPallets: destination.finalPallets,
+    toPallets: nextFinalPallets,
+  };
+}
+
+function supplementalLabelRange(prompt: SupplementalLabelPrompt): string {
+  const first = prompt.fromPallets + 1;
+  if (first === prompt.toPallets) {
+    return `#${prompt.toPallets}`;
+  }
+
+  return `#${first}-#${prompt.toPallets}`;
 }
 
 function emptyDestinationDraft(): DestinationCorrectionDraft {

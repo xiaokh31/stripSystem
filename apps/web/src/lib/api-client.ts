@@ -203,6 +203,21 @@ export interface CorrectionFeedbackResponse {
   updatedAt: string;
 }
 
+export interface CorrectionListFilters {
+  containerDestinationId?: string;
+  containerId?: string;
+  correctedById?: string;
+  limit?: number;
+  offset?: number;
+  targetType?: string;
+}
+
+export interface CorrectionListResponse {
+  items: CorrectionFeedbackResponse[];
+  limit: number;
+  offset: number;
+}
+
 export interface ContainerDestinationCorrectionResponse {
   containerDestination: {
     id: string;
@@ -614,6 +629,15 @@ export function createManualContainer(
   );
 }
 
+export function listCorrections(
+  filters: CorrectionListFilters = {},
+  options: ApiClientOptions = {},
+): Promise<CorrectionListResponse> {
+  return createApiClient(options).get<CorrectionListResponse>(
+    `/corrections${toCorrectionListQueryString(filters)}`,
+  );
+}
+
 export function getContainerGeneratedFiles(
   id: string,
   options: ApiClientOptions = {},
@@ -888,6 +912,24 @@ function toLoadJobListQueryString(filters: LoadJobListFilters): string {
   appendQueryParam(params, "loadNo", filters.loadNo);
   appendNumberQueryParam(params, "offset", filters.offset);
   appendQueryParam(params, "status", filters.status);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toCorrectionListQueryString(filters: CorrectionListFilters): string {
+  const params = new URLSearchParams();
+
+  appendQueryParam(
+    params,
+    "containerDestinationId",
+    filters.containerDestinationId,
+  );
+  appendQueryParam(params, "containerId", filters.containerId);
+  appendQueryParam(params, "correctedById", filters.correctedById);
+  appendNumberQueryParam(params, "limit", filters.limit);
+  appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "targetType", filters.targetType);
 
   const query = params.toString();
   return query ? `?${query}` : "";

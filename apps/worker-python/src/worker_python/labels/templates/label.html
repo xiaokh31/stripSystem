@@ -40,21 +40,25 @@
         display: flex;
         justify-content: space-between;
         gap: 6mm;
-        font-size: 18pt;
+        font-size: 20pt;
         font-weight: 700;
         line-height: 1.2;
       }
 
+      .top-right {
+        text-align: right;
+      }
+
       .container {
-        margin-top: 3.5mm;
-        font-size: 36pt;
+        margin-top: 5mm;
+        font-size: 44pt;
         font-weight: 700;
-        line-height: 1;
+        line-height: 0.95;
         overflow-wrap: anywhere;
       }
 
       .middle {
-        margin-top: 4mm;
+        margin-top: 5mm;
         display: flex;
         gap: 6mm;
         align-items: flex-start;
@@ -74,10 +78,10 @@
       }
 
       .destination {
-        margin-top: 1.5mm;
-        font-size: 28pt;
+        margin-top: 2mm;
+        font-size: 56pt;
         font-weight: 700;
-        line-height: 1;
+        line-height: 0.92;
         overflow-wrap: anywhere;
       }
 
@@ -95,20 +99,13 @@
 
       .bottom {
         margin-top: auto;
+        padding-top: 5mm;
         display: flex;
-        justify-content: space-between;
-        gap: 6mm;
-        align-items: flex-end;
-      }
-
-      .pallet-no {
-        font-size: 28pt;
-        font-weight: 700;
-        line-height: 1;
+        justify-content: flex-end;
       }
 
       .pallet-id {
-        max-width: 88mm;
+        max-width: 120mm;
         font-size: 9pt;
         line-height: 1.15;
         overflow-wrap: anywhere;
@@ -124,7 +121,7 @@
             <div class="label-title">Date</div>
             <div>{{ label.date }}</div>
           </div>
-          <div>
+          <div class="top-right">
             <div class="label-title">Pallet</div>
             <div>{{ label.pallet_no }}</div>
           </div>
@@ -135,7 +132,7 @@
         <div class="middle">
           <div class="destination-block">
             <div class="label-title">Destination</div>
-            <div class="destination">{{ label.destination }}</div>
+            <div class="destination" style="font-size: {{ label.destination_font_size }}">{{ label.destination }}</div>
           </div>
           <div class="qr">
             <img src="{{ label.qr_data_uri }}" alt="QR">
@@ -143,7 +140,6 @@
         </div>
 
         <div class="bottom">
-          <div class="pallet-no">{{ label.pallet_no }}</div>
           <div class="pallet-id">{{ label.pallet_id }}</div>
         </div>
       </section>

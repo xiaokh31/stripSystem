@@ -261,8 +261,11 @@ function IssueList({
       </div>
       {items.length ? (
         <ul className="mt-4 space-y-2 text-sm text-zinc-700">
-          {items.map((item) => (
-            <li className="border-l-4 border-amber-400 bg-zinc-50 p-3" key={item}>
+          {items.map((item, index) => (
+            <li
+              className="border-l-4 border-amber-400 bg-zinc-50 p-3"
+              key={`${item}-${index}`}
+            >
               {item}
             </li>
           ))}

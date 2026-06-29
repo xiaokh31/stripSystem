@@ -5,6 +5,7 @@ import {
   createManualContainer,
   generateContainerLabels,
   generateContainerReport,
+  listCorrections,
   listImportFiles,
   updateContainer,
 } from "../src/lib/api-client";
@@ -270,4 +271,38 @@ test("container status API client patches the container endpoint", async () => {
       url: "http://api.local/api/containers/container-1",
     },
   ]);
+});
+
+test("correction history API client sends container filters", async () => {
+  const requests: string[] = [];
+  const fetcher: typeof fetch = async (input) => {
+    requests.push(input instanceof Request ? input.url : String(input));
+
+    return new Response(
+      JSON.stringify({
+        items: [],
+        limit: 100,
+        offset: 0,
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  const result = await listCorrections(
+    {
+      containerId: "container 1",
+      limit: 100,
+      offset: 0,
+      targetType: "CONTAINER_DESTINATION",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    "http://api.local/api/corrections?containerId=container+1&limit=100&offset=0&targetType=CONTAINER_DESTINATION",
+  ]);
+  assert.deepEqual(result, { items: [], limit: 100, offset: 0 });
 });

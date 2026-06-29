@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   buildDestinationCorrectionRequest,
   draftFromDestination,
+  formatIssueSummary,
   issueList,
+  summarizeIssues,
 } from "../src/components/containers/container-detail-flow";
 import type { ContainerDetailDestinationResponse } from "../src/lib/api-client";
 
@@ -71,6 +73,25 @@ test("destination warning lists preserve structured parser issues", () => {
       },
     ]),
     ["Volume is 0 but cartons are present."],
+  );
+});
+
+test("destination warning summaries group repeated business issues", () => {
+  const summaries = summarizeIssues([
+    "Destination code is missing.",
+    "Volume is 0 while cartons are greater than 0.",
+    "Destination code is missing.",
+    {
+      message: "Volume is 0 while cartons are greater than 0.",
+    },
+  ]);
+
+  assert.deepEqual(
+    summaries.map((summary) => formatIssueSummary(summary)),
+    [
+      "Destination code is missing.  2x",
+      "Volume is 0 while cartons are greater than 0.  2x",
+    ],
   );
 });
 

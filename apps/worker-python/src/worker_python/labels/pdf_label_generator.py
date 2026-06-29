@@ -155,8 +155,6 @@ def _label_contexts(
     warnings: list[LabelGenerationIssue],
 ) -> list[dict[str, Any]]:
     labels: list[dict[str, Any]] = []
-    global_index = 0
-    total_pallets = int(getattr(pallet_result, "totalFinalPallets", 0) or 0)
 
     for plan in getattr(pallet_result, "plans", ()):
         destination = getattr(plan, "destinationCode", None) or MANUAL_DESTINATION
@@ -179,8 +177,7 @@ def _label_contexts(
                 )
                 continue
 
-            global_index += 1
-            pallet_no = f"{global_index}/{total_pallets}"
+            pallet_no = str(plan_index)
             qr_payload = build_qr_payload(
                 label_date=label_date,
                 container_no=container_no,
@@ -193,6 +190,7 @@ def _label_contexts(
                     "date": label_date.isoformat(),
                     "container_no": container_no,
                     "destination": destination,
+                    "destination_font_size": _destination_font_size(destination),
                     "pallet_no": pallet_no,
                     "pallet_id": pallet_id,
                     "qr_payload": qr_payload,
@@ -201,6 +199,17 @@ def _label_contexts(
             )
 
     return labels
+
+
+def _destination_font_size(destination: str) -> str:
+    length = len(destination.strip())
+    if length > 44:
+        return "28pt"
+    if length > 30:
+        return "34pt"
+    if length > 20:
+        return "44pt"
+    return "56pt"
 
 
 def _render_template(labels: list[dict[str, Any]]) -> str:
