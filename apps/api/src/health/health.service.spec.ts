@@ -5,6 +5,7 @@ import { DatabaseHealth, PrismaService } from '../prisma/prisma.service';
 
 describe('HealthService', () => {
   let prisma: jest.Mocked<Pick<PrismaService, 'checkConnection'>>;
+  const originalOperationalTimeZone = process.env.OPERATIONAL_TIME_ZONE;
 
   async function createService(
     databaseHealth: DatabaseHealth,
@@ -34,6 +35,20 @@ describe('HealthService', () => {
     return module.get(HealthService);
   }
 
+  beforeEach(() => {
+    process.env.OPERATIONAL_TIME_ZONE = 'America/Edmonton';
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-28T05:30:00.000Z'));
+  });
+
+  afterEach(() => {
+    if (originalOperationalTimeZone === undefined) {
+      delete process.env.OPERATIONAL_TIME_ZONE;
+    } else {
+      process.env.OPERATIONAL_TIME_ZONE = originalOperationalTimeZone;
+    }
+    jest.useRealTimers();
+  });
+
   it('returns ok when the database is reachable', async () => {
     const service = await createService({ status: 'up' });
 
@@ -41,6 +56,7 @@ describe('HealthService', () => {
       status: 'ok',
       version: '1.2.3-test',
       database: { status: 'up' },
+      timestamp: '2026-06-27 23:30:00 MDT',
     });
     expect(prisma.checkConnection).toHaveBeenCalledTimes(1);
   });

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   ApiClientError,
   createContainerDestination,
+  deleteContainerDestination,
   generateContainerLabels,
   updateContainerDestination,
   type ContainerDetailDestinationResponse,
@@ -185,6 +186,40 @@ export function ContainerDestinationCorrections({
     }
   }
 
+  async function deleteDestination(
+    destination: ContainerDetailDestinationResponse,
+  ) {
+    if (locked) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete destination ${destination.destinationCode}? This removes the destination from the actual unloading data and records an audit entry.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setSaveState(destination.id, {
+      message: "Deleting destination.",
+      status: "saving",
+    });
+
+    try {
+      const result = await deleteContainerDestination(destination.id);
+      setSaveState(destination.id, {
+        message: `Deleted ${result.containerDestination.destinationCode}.`,
+        status: "saved",
+      });
+      router.refresh();
+    } catch (error) {
+      setSaveState(destination.id, {
+        message: correctionErrorMessage(error),
+        status: "error",
+      });
+    }
+  }
+
   async function saveNewDestination() {
     if (locked) {
       return;
@@ -267,6 +302,7 @@ export function ContainerDestinationCorrections({
             drafts={drafts}
             destinations={destinations}
             onChange={updateDraft}
+            onDelete={deleteDestination}
             onGenerateLabels={generateLabelsForSavedDestination}
             onSave={saveDestination}
             saveStates={saveStates}
@@ -292,6 +328,7 @@ function DestinationTable({
   destinations,
   drafts,
   onChange,
+  onDelete,
   onGenerateLabels,
   onSave,
   saveStates,
@@ -303,13 +340,14 @@ function DestinationTable({
     field: keyof DestinationCorrectionDraft,
     value: string,
   ) => void;
+  onDelete: (destination: ContainerDetailDestinationResponse) => Promise<void>;
   onGenerateLabels: (destinationId: string) => Promise<void>;
   onSave: (destination: ContainerDetailDestinationResponse) => Promise<void>;
   saveStates: Record<string, DestinationSaveState>;
 }) {
   return (
     <div className="mt-5 overflow-x-auto">
-      <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
+      <table className="min-w-[1580px] w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <th className="px-3 py-3 font-semibold">Destination</th>
@@ -331,6 +369,7 @@ function DestinationTable({
             <th className="px-3 py-3 font-semibold">Actual note</th>
             <th className="px-3 py-3 font-semibold">Audit note</th>
             <th className="px-3 py-3 font-semibold">Save</th>
+            <th className="px-3 py-3 font-semibold">Delete</th>
           </tr>
         </thead>
         <tbody>
@@ -481,6 +520,19 @@ function DestinationTable({
                     state={saveState}
                     widthClass="w-44"
                   />
+                </td>
+                <td className="px-3 py-4 align-top">
+                  <button
+                    className="min-h-10 w-28 border border-red-700 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-500"
+                    disabled={
+                      saveState.status === "saving" ||
+                      saveState.labelAction === "generating"
+                    }
+                    onClick={() => void onDelete(destination)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             );

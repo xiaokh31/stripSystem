@@ -266,6 +266,39 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('deletes an editable destination, removes rebuildable planning rows, and writes audit rows', async () => {
+    const result = await service.deleteContainerDestination(
+      'destination-1',
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      id: 'destination-1',
+      containerId: 'container-1',
+      destinationCode: 'YYZ',
+    });
+    expect(result.corrections).toHaveLength(1);
+    expect(result.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      containerDestinationId: 'destination-1',
+      fieldName: 'containerDestination',
+      newValue: null,
+    });
+    expect(prisma.pallet.deleteMany).toHaveBeenCalledWith({
+      where: { containerDestinationId: 'destination-1' },
+    });
+    expect(prisma.loadJobLine.deleteMany).toHaveBeenCalledWith({
+      where: { containerDestinationId: 'destination-1' },
+    });
+    expect(prisma.containerDestination.delete).toHaveBeenCalledWith({
+      where: { id: 'destination-1' },
+    });
+    expect(prisma.container.update).toHaveBeenCalledWith({
+      where: { id: 'container-1' },
+      data: { status: 'CORRECTED' },
+    });
+  });
+
   it('rejects corrections when no value changes', async () => {
     await expect(
       service.updateContainerDestination(
@@ -410,6 +443,23 @@ describe('CorrectionsService', () => {
           });
           return Promise.resolve(destination);
         }),
+        delete: jest.fn(({ where }) => {
+          const container = containers.find(
+            (record) => record.id === destination.containerId,
+          );
+          if (container) {
+            container.destinations = container.destinations.filter(
+              (item: any) => item.id !== where.id,
+            );
+          }
+          return Promise.resolve(destination);
+        }),
+      },
+      loadJobLine: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      pallet: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       correctionFeedback: {
         create: jest.fn(({ data }) => {

@@ -116,7 +116,10 @@ POSTGRES_DB=bestar_unloading
 POSTGRES_PORT=15432
 REDIS_PORT=16379
 CORS_ORIGINS=http://localhost,http://127.0.0.1,http://<server-lan-ip>
+TZ=America/Edmonton
+OPERATIONAL_TIME_ZONE=America/Edmonton
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 REDIS_URL=redis://redis:6379
@@ -135,6 +138,8 @@ Notes:
 - Keep `NEXT_PUBLIC_API_BASE_URL=/api` for LAN phones and PDA devices.
 - Keep `WEB_SERVER_API_BASE_URL=http://api:4000/api` and
   `WEB_API_PROXY_BASE_URL=http://api:4000/api` for Docker network routing.
+- Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
+  automatically switches between MDT and MST.
 - Do not commit `.env`.
 
 ## Start Services

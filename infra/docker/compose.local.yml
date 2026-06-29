@@ -46,6 +46,8 @@ services:
         condition: service_healthy
     environment:
       CI: "true"
+      TZ: ${TZ:-America/Edmonton}
+      OPERATIONAL_TIME_ZONE: ${OPERATIONAL_TIME_ZONE:-America/Edmonton}
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-bestar}:${POSTGRES_PASSWORD:-bestar_dev_password}@postgres:5432/${POSTGRES_DB:-bestar_unloading}?schema=public
       REDIS_URL: redis://redis:6379
@@ -93,6 +95,8 @@ services:
         condition: service_healthy
     environment:
       CI: "true"
+      TZ: ${TZ:-America/Edmonton}
+      NEXT_PUBLIC_OPERATIONAL_TIME_ZONE: ${NEXT_PUBLIC_OPERATIONAL_TIME_ZONE:-America/Edmonton}
       API_BASE_URL: ${WEB_SERVER_API_BASE_URL:-http://api:4000/api}
       API_PROXY_BASE_URL: ${WEB_API_PROXY_BASE_URL:-http://api:4000/api}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
@@ -132,6 +136,8 @@ services:
         condition: service_healthy
     environment:
       STORAGE_ROOT: /workspace/storage
+      TZ: ${TZ:-America/Edmonton}
+      OPERATIONAL_TIME_ZONE: ${OPERATIONAL_TIME_ZONE:-America/Edmonton}
       DATABASE_URL: postgresql://${POSTGRES_USER:-bestar}:${POSTGRES_PASSWORD:-bestar_dev_password}@postgres:5432/${POSTGRES_DB:-bestar_unloading}?schema=public
       REDIS_URL: redis://redis:6379
     volumes:

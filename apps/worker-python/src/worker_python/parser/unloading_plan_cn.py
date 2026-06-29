@@ -16,6 +16,27 @@ from worker_python.parser.workbook_warnings import ignore_openpyxl_conditional_f
 PARSER_VERSION = "unloading-plan-cn-v1"
 CONTAINER_PATTERN = re.compile(r"\b[A-Z]{4}\d{7}[A-Z]?\b")
 MIN_VOLUME_CBM = 0.01
+COURIER_DELIVERY_TERMS = (
+    "快递",
+    "快遞",
+    "快递派送",
+    "快遞派送",
+    "COURIER",
+    "EXPRESS",
+    "PARCEL",
+)
+COURIER_CARRIER_TERMS = (
+    "UPS",
+    "PUROLATOR",
+    "FEDEX",
+    "CANPAR",
+    "DHL",
+    "CANADA POST",
+    "CANADAPOST",
+    "USPS",
+    "INTELCOM",
+    "UNIUNI",
+)
 
 
 @dataclass(frozen=True)
@@ -246,6 +267,8 @@ def _parse_line(
     weight_float = float(weight) if weight is not None else None
     waybill_no = _text(raw_json, field_columns, "waybillNo")
     destination_code = _text(raw_json, field_columns, "destinationCode")
+    delivery_method = _text(raw_json, field_columns, "deliveryMethod")
+    note = _text(raw_json, field_columns, "note")
 
     if destination_code is None:
         warnings.append(
@@ -292,6 +315,13 @@ def _parse_line(
     )
     if destination_warning is not None:
         warnings.append(destination_warning)
+    courier_warning = _courier_delivery_warning(
+        delivery_method=delivery_method,
+        note=note,
+        row_number=row_number,
+    )
+    if courier_warning is not None:
+        warnings.append(courier_warning)
 
     return (
         ParsedLine(
@@ -303,8 +333,8 @@ def _parse_line(
             weight=weight_float,
             volumeCbm=volume_float,
             destinationCode=destination_code,
-            deliveryMethod=_text(raw_json, field_columns, "deliveryMethod"),
-            note=_text(raw_json, field_columns, "note"),
+            deliveryMethod=delivery_method,
+            note=note,
             raw_json=raw_json,
         ),
         warnings,
@@ -469,6 +499,38 @@ def _is_address_destination(destination_code: str) -> bool:
             "商業",
             "商業地址",
         )
+    )
+
+
+def _courier_delivery_warning(
+    *,
+    delivery_method: str | None,
+    note: str | None,
+    row_number: int,
+) -> ParseIssue | None:
+    text = " ".join(value for value in (delivery_method, note) if value).upper()
+    normalized = re.sub(r"[\s/_-]+", "", text)
+    if not text:
+        return None
+
+    is_courier_delivery = any(
+        term in text or term in normalized for term in COURIER_DELIVERY_TERMS
+    )
+    has_carrier = any(
+        term in text or term in normalized for term in COURIER_CARRIER_TERMS
+    )
+    if not is_courier_delivery or has_carrier:
+        return None
+
+    return ParseIssue(
+        code="COURIER_DELIVERY_METHOD_MISSING_CARRIER",
+        message=(
+            "Courier delivery is requested, but the delivery method or note does "
+            "not specify a carrier such as UPS, Purolator, FedEx, Canpar, DHL, "
+            "or Canada Post."
+        ),
+        row_number=row_number,
+        field="deliveryMethod",
     )
 
 

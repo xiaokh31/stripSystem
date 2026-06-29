@@ -56,7 +56,10 @@ POSTGRES_DB=bestar_unloading
 POSTGRES_PORT=15432
 REDIS_PORT=16379
 REDIS_URL=redis://redis:6379
+TZ=America/Edmonton
+OPERATIONAL_TIME_ZONE=America/Edmonton
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 JWT_SECRET=replace-with-long-random-secret
@@ -68,6 +71,10 @@ For pilot or production, replace default passwords and `JWT_SECRET` with unique
 strong values before starting services. The compose file builds the API
 `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
 Do not use the example values as production credentials.
+
+`TZ`, `OPERATIONAL_TIME_ZONE`, and `NEXT_PUBLIC_OPERATIONAL_TIME_ZONE` must use
+an IANA timezone name. `America/Edmonton` is the Calgary/Edmonton warehouse
+timezone and automatically switches between MDT and MST.
 
 ## Persistent Storage
 

@@ -18,6 +18,7 @@ from worker_python.reports.cell_map import (
     TIME_VALUE_CELL,
     TOTAL_CARTONS_CELL,
 )
+from worker_python.time_utils import operational_now
 
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -55,7 +56,7 @@ def write_excel_report(
 ) -> ExcelReportResult:
     warnings: list[ExcelReportIssue] = []
     errors: list[ExcelReportIssue] = []
-    report_datetime = report_datetime or datetime.now()
+    report_datetime = report_datetime or operational_now()
 
     if not template_path.is_file():
         errors.append(

@@ -5,6 +5,7 @@ import warnings
 from pathlib import Path
 
 import pytest
+from openpyxl import Workbook
 
 from worker_python.imports import ImportRegistry
 from worker_python.parser import FormatType, parse_unloading_plan_cn
@@ -109,6 +110,66 @@ def test_parse_standard_cn_warns_and_normalizes_zero_volume(tmp_path: Path) -> N
     assert missing_destination_warnings
     assert {warning.row_number for warning in missing_destination_warnings} >= {59, 60}
     assert skipped_summary_warnings
+
+
+def test_parse_warns_when_courier_delivery_lacks_carrier(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "CAAU8011090 courier delivery.xlsx"
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Plan"
+    worksheet.append(["柜号", "CAAU8011090"])
+    worksheet.append([])
+    worksheet.append(
+        [
+            "运单号",
+            "FBA NO.",
+            "PO#",
+            "箱数/件数",
+            "重量",
+            "体积",
+            "派送目的地",
+            "派送方式",
+            "特殊指令/备注",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-1",
+            "FBA1",
+            "PO1",
+            4,
+            20,
+            0.5,
+            "YYC4",
+            "快递派送",
+            "Amazon warehouse courier delivery",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-2",
+            "FBA2",
+            "PO2",
+            2,
+            10,
+            0.25,
+            "YEG1",
+            "快递派送",
+            "Purolator pickup requested",
+        ]
+    )
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = parse_unloading_plan_cn(workbook_path)
+
+    carrier_warnings = [
+        warning
+        for warning in result.warnings
+        if warning.code == "COURIER_DELIVERY_METHOD_MISSING_CARRIER"
+    ]
+    assert [warning.row_number for warning in carrier_warnings] == [4]
+    assert "UPS" in carrier_warnings[0].message
 
 
 def test_parser_reports_missing_container_when_content_and_filename_have_none(

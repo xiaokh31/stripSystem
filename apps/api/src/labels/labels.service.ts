@@ -39,6 +39,7 @@ import { auditUserId, isAuditUserOverride } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import { GeneratedFileResponseDto } from '../reports/dto/generated-file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { operationalLocalDate } from '../common/operational-time';
 
 interface ContainerRecord {
   id: string;
@@ -990,7 +991,7 @@ export class LabelsService {
   }
 
   private labelDate(): string {
-    return new Date().toISOString().slice(0, 10);
+    return operationalLocalDate();
   }
 
   private issueArray(value: unknown): unknown[] {

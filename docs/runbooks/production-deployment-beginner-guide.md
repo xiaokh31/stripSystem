@@ -190,7 +190,10 @@ POSTGRES_DB=bestar_unloading
 POSTGRES_PORT=15432
 REDIS_PORT=16379
 CORS_ORIGINS=http://localhost,http://127.0.0.1,http://<windows-lan-ip>
+TZ=America/Edmonton
+OPERATIONAL_TIME_ZONE=America/Edmonton
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 REDIS_URL=redis://redis:6379
@@ -208,6 +211,8 @@ Rules:
 - Do not use default passwords in production.
 - Keep `NEXT_PUBLIC_API_BASE_URL=/api` for LAN phones and PDA devices.
 - Keep Docker internal API URLs as `http://api:4000/api`.
+- Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
+  automatically switches between MDT and MST.
 
 ### 5. Create Runtime Folders
 
@@ -403,7 +408,10 @@ POSTGRES_DB=bestar_unloading
 POSTGRES_PORT=15432
 REDIS_PORT=16379
 CORS_ORIGINS=http://localhost,http://127.0.0.1,http://<server-lan-ip>
+TZ=America/Edmonton
+OPERATIONAL_TIME_ZONE=America/Edmonton
 NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 REDIS_URL=redis://redis:6379

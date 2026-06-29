@@ -21,6 +21,7 @@ export const ROUTE_PERMISSIONS = {
     ],
   },
   containerDestinations: {
+    delete: [PERMISSIONS.containers.update, PERMISSIONS.corrections.create],
     update: [PERMISSIONS.containers.update, PERMISSIONS.corrections.create],
   },
   corrections: {

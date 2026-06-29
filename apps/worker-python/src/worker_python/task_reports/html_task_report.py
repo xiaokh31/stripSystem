@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from worker_python.time_utils import operational_now
+
 from worker_python.parser import FormatType
 from worker_python.task_reports.corrections_schema import (
     DEFAULT_CORRECTIONS_DIR,
@@ -67,7 +69,7 @@ def generate_html_task_report(
     corrections_dir: Path = DEFAULT_CORRECTIONS_DIR,
     generated_at: datetime | None = None,
 ) -> TaskReportResult:
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or operational_now()
     output_dir.mkdir(parents=True, exist_ok=True)
     html_path = output_dir / f"task-report-{generated_at.date().isoformat()}.html"
     corrections_path = write_corrections_json(

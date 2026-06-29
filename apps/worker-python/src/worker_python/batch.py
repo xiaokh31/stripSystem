@@ -27,6 +27,7 @@ from worker_python.task_reports import (
     record_from_detection,
     record_from_parsed_result,
 )
+from worker_python.time_utils import operational_now
 
 
 BATCH_VERSION = "phase0-batch-v1"
@@ -82,7 +83,7 @@ def run_batch(
     input_dir = input_dir.resolve()
     template_path = template_path.resolve()
     output_dir = output_dir.resolve()
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or operational_now()
 
     if not input_dir.is_dir():
         raise NotADirectoryError(f"Batch input directory does not exist: {input_dir}")

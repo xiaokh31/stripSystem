@@ -22,6 +22,7 @@ from worker_python.pallets import calculate_pallets, inputs_from_destination_sum
 from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
+from worker_python.time_utils import operational_now
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -87,7 +88,7 @@ def parse_file(
         help="Single .xlsx unloading file to parse without generating reports or labels.",
     ),
 ) -> None:
-    generated_at = datetime.now()
+    generated_at = operational_now()
     source_path = input_file.resolve()
     sha256 = compute_sha256(source_path) if source_path.is_file() else None
     detection = None
@@ -211,7 +212,7 @@ def write_report(
         help="Report output directory.",
     ),
 ) -> None:
-    generated_at = datetime.now()
+    generated_at = operational_now()
     try:
         report_payload = json.loads(payload.read_text(encoding="utf-8"))
         parsed_result = _namespace_from_json(report_payload["parsed_result"])
@@ -290,7 +291,7 @@ def write_labels(
         help="Label date in YYYY-MM-DD format. Defaults to today.",
     ),
 ) -> None:
-    generated_at = datetime.now()
+    generated_at = operational_now()
     try:
         label_payload = json.loads(payload.read_text(encoding="utf-8"))
         parsed_result = _namespace_from_json(label_payload["parsed_result"])
@@ -356,7 +357,7 @@ def write_print_calibration(
         help="Label output directory. Defaults to storage/labels.",
     ),
 ) -> None:
-    generated_at = datetime.now()
+    generated_at = operational_now()
     try:
         result = generate_print_calibration_pdf(output_dir=output_dir.resolve())
         typer.echo(

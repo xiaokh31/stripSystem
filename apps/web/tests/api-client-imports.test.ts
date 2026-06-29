@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createApiClient,
   createManualContainer,
+  deleteContainerDestination,
   generateContainerLabels,
   generateContainerReport,
   listCorrections,
@@ -37,6 +38,52 @@ test("imports API client sends pagination to the import list endpoint", async ()
     "http://api.local/api/imports?limit=25&offset=50",
   ]);
   assert.deepEqual(result, { items: [], limit: 25, offset: 50 });
+});
+
+test("destination API client deletes through the real destination endpoint", async () => {
+  const requests: Array<{ method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        containerDestination: {
+          calculatedPallets: 4,
+          cartons: 40,
+          containerId: "container-1",
+          destinationCode: "YYZ",
+          destinationType: "AMAZON_FBA",
+          finalPallets: 4,
+          id: "destination-1",
+          manualPallets: null,
+          note: null,
+          updatedAt: "2026-06-27T00:00:00.000Z",
+          volume: "5.250",
+        },
+        corrections: [],
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  const result = await deleteContainerDestination("destination-1", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+
+  assert.equal(result.containerDestination.id, "destination-1");
+  assert.deepEqual(requests, [
+    {
+      method: "DELETE",
+      url: "http://api.local/api/container-destinations/destination-1",
+    },
+  ]);
 });
 
 test("browser API client calls window fetch with the correct binding", async () => {

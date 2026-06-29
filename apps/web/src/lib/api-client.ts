@@ -894,6 +894,15 @@ export function createContainerDestination(
   );
 }
 
+export function deleteContainerDestination(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ContainerDestinationCorrectionResponse> {
+  return createApiClient(options).delete<ContainerDestinationCorrectionResponse>(
+    `/container-destinations/${encodeURIComponent(id)}`,
+  );
+}
+
 export function createManualContainer(
   body: CreateManualContainerRequest,
   options: ApiClientOptions = {},

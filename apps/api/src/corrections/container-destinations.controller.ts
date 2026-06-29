@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Patch } from '@nestjs/common';
 import { CorrectionsService } from './corrections.service';
 import { ContainerDestinationCorrectionResponseDto } from './dto/correction-response.dto';
 import { UpdateContainerDestinationDto } from './dto/update-container-destination.dto';
@@ -18,5 +18,14 @@ export class ContainerDestinationsController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ContainerDestinationCorrectionResponseDto> {
     return this.correctionsService.updateContainerDestination(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.containerDestinations.delete)
+  deleteContainerDestination(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<ContainerDestinationCorrectionResponseDto> {
+    return this.correctionsService.deleteContainerDestination(id, actor);
   }
 }

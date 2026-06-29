@@ -12,6 +12,7 @@ import {
   type RoleResponse,
   type UserResponse,
 } from "@/lib/api-client";
+import { formatOperationalDateTime } from "@/lib/date-time";
 
 interface UserManagementPanelProps {
   roles: RoleResponse[];
@@ -477,10 +478,7 @@ function formatDateTime(value: string | null): string {
     return "Never";
   }
 
-  return new Intl.DateTimeFormat("en-CA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatOperationalDateTime(value);
 }
 
 function toErrorMessage(error: unknown): string {

@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -14,6 +14,7 @@ from qrcode.constants import ERROR_CORRECT_M
 from weasyprint import HTML
 
 from worker_python.labels.qr_payload import build_qr_payload
+from worker_python.time_utils import operational_now, operational_today
 
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -60,7 +61,7 @@ def generate_pallet_label_pdf(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     label_date: date | None = None,
 ) -> LabelGenerationResult:
-    label_date = label_date or date.today()
+    label_date = label_date or operational_today()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     container_no = getattr(parsed_result, "containerNo", None) or "UNKNOWN-CONTAINER"
@@ -248,7 +249,7 @@ def _append_manifest_record(
 ) -> None:
     manifest = _load_manifest(manifest_path)
     record = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": operational_now().isoformat(),
         "label_date": label_date.isoformat(),
         "container_no": container_no,
         "output_path": str(output_path),

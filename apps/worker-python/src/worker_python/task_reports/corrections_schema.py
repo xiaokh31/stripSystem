@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from worker_python.time_utils import operational_now
+
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_CORRECTIONS_DIR = REPO_ROOT / "storage" / "corrections"
@@ -41,7 +43,7 @@ def write_corrections_json(
     output_dir: Path = DEFAULT_CORRECTIONS_DIR,
     generated_at: datetime | None = None,
 ) -> Path:
-    generated_at = generated_at or datetime.now()
+    generated_at = generated_at or operational_now()
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"corrections-{generated_at.date().isoformat()}.json"
     draft = correction_draft_from_records(records, generated_at=generated_at)

@@ -253,6 +253,34 @@ describe('CorrectionsController (e2e)', () => {
     });
   });
 
+  it('deletes a destination and creates audit feedback', async () => {
+    const response = await authorizedRequest(app, officeAuthHeader())
+      .delete('/api/container-destinations/destination-1')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      containerDestination: {
+        id: 'destination-1',
+        containerId: 'container-1',
+        destinationCode: 'YYZ',
+      },
+      corrections: [
+        expect.objectContaining({
+          containerId: 'container-1',
+          containerDestinationId: 'destination-1',
+          fieldName: 'containerDestination',
+          newValue: null,
+        }),
+      ],
+    });
+
+    const detail = await authorizedRequest(app)
+      .get('/api/containers/container-1')
+      .expect(200);
+
+    expect(detail.body.destinations).toEqual([]);
+  });
+
   it('creates and lists standalone correction feedback with target validation', async () => {
     const created = await authorizedRequest(app)
       .post('/api/corrections')
@@ -334,6 +362,7 @@ describe('CorrectionsController (e2e)', () => {
       },
       pallet: {
         findUnique: jest.fn().mockResolvedValue(null),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       generatedFile: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -403,6 +432,27 @@ describe('CorrectionsController (e2e)', () => {
           });
           return Promise.resolve(record);
         }),
+        delete: jest.fn(({ where }) => {
+          const index = destinations.findIndex(
+            (destination) => destination.id === where.id,
+          );
+          if (index < 0) {
+            throw new Error(`Destination not found: ${where.id}`);
+          }
+          const [deleted] = destinations.splice(index, 1);
+          const container = containers.find(
+            (item) => item.id === deleted.containerId,
+          );
+          if (container) {
+            container.destinations = container.destinations.filter(
+              (destination: any) => destination.id !== where.id,
+            );
+          }
+          return Promise.resolve(deleted);
+        }),
+      },
+      loadJobLine: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       correctionFeedback: {
         create: jest.fn(({ data }) => {

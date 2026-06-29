@@ -548,6 +548,73 @@ export class CorrectionsService {
     }
   }
 
+  async deleteContainerDestination(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<ContainerDestinationCorrectionResponseDto> {
+    const existing = (await this.prisma.containerDestination.findUnique({
+      where: { id },
+    })) as ContainerDestinationRecord | null;
+
+    if (!existing) {
+      throw new NotFoundException({
+        code: 'CONTAINER_DESTINATION_NOT_FOUND',
+        message: `Container destination ${id} was not found.`,
+        details: { id },
+      });
+    }
+
+    const container = await this.findContainerLifecycleOrThrow(
+      this.prisma,
+      existing.containerId,
+    );
+    this.assertContainerEditable(
+      effectiveContainerStatus(container.status, container.destinations ?? []),
+      existing.containerId,
+    );
+    const correctedById = auditUserId(actor);
+    const change: Change = {
+      fieldName: 'containerDestination',
+      oldValue: this.containerDestinationSnapshot(existing),
+      newValue: null,
+    };
+
+    const corrections = await this.prisma.$transaction(async (tx) => {
+      const records = await this.createCorrections(
+        tx,
+        [change],
+        {
+          targetType: CorrectionTargetType.CONTAINER_DESTINATION,
+          containerId: existing.containerId,
+          containerDestinationId: existing.id,
+        },
+        'Destination removed from actual unloading data',
+        null,
+        correctedById,
+      );
+      await tx.pallet.deleteMany({
+        where: { containerDestinationId: existing.id },
+      });
+      await tx.loadJobLine.deleteMany({
+        where: { containerDestinationId: existing.id },
+      });
+      await tx.containerDestination.delete({
+        where: { id: existing.id },
+      });
+      await tx.container.update({
+        where: { id: existing.containerId },
+        data: { status: ContainerStatus.CORRECTED },
+      });
+
+      return records;
+    });
+
+    return {
+      containerDestination: this.toContainerDestinationResponse(existing),
+      corrections: corrections.map((record) => this.toCorrectionResponse(record)),
+    };
+  }
+
   async createCorrection(
     dto: CreateCorrectionDto,
     actor: AuthenticatedUser,
@@ -980,6 +1047,25 @@ export class CorrectionsService {
       finalPallets: record.finalPallets,
       note: record.note,
       updatedAt: this.toIsoString(record.updatedAt),
+    };
+  }
+
+  private containerDestinationSnapshot(
+    record: ContainerDestinationRecord,
+  ): Record<string, unknown> {
+    return {
+      id: record.id,
+      containerId: record.containerId,
+      destinationCode: record.destinationCode,
+      destinationType: record.destinationType,
+      cartons: record.cartons,
+      volume: record.volume.toString(),
+      calculatedPallets: record.calculatedPallets,
+      manualPallets: record.manualPallets,
+      finalPallets: record.finalPallets,
+      note: record.note,
+      warnings: record.warnings ?? null,
+      errors: record.errors ?? null,
     };
   }
 
