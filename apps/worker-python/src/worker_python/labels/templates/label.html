@@ -40,13 +40,18 @@
         display: flex;
         justify-content: space-between;
         gap: 6mm;
-        font-size: 20pt;
+        font-size: 23pt;
         font-weight: 700;
         line-height: 1.2;
       }
 
       .top-right {
         text-align: right;
+      }
+
+      .top-pallet {
+        text-align: right;
+        font-size: 30pt;
       }
 
       .container {
@@ -86,14 +91,14 @@
       }
 
       .qr {
-        width: 28mm;
-        height: 28mm;
-        flex: 0 0 28mm;
+        width: 30mm;
+        height: 30mm;
+        flex: 0 0 30mm;
       }
 
       .qr img {
-        width: 28mm;
-        height: 28mm;
+        width: 30mm;
+        height: 30mm;
         display: block;
       }
 
@@ -106,7 +111,7 @@
 
       .pallet-id {
         max-width: 120mm;
-        font-size: 9pt;
+        font-size: 7pt;
         line-height: 1.15;
         overflow-wrap: anywhere;
         text-align: right;
@@ -123,7 +128,7 @@
           </div>
           <div class="top-right">
             <div class="label-title">Pallet</div>
-            <div>{{ label.pallet_no }}</div>
+            <div class="top-pallet">{{ label.pallet_no }}</div>
           </div>
         </div>
 
