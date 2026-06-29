@@ -212,26 +212,27 @@
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
-          API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心 pilot
-          流程已完成，可继续现场试运行；账号权限、异步队列、自动打印代理等属于
-          下一阶段或文档化决策，尚未做成完整产品功能。
+          API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心业务闭环
+          和账号权限体系均已完成到当前项目验收范围；可以进入 Windows 11 内网
+          生产部署准备。仍需在目标机器完成 full-stack healthcheck、真实账号、
+          真实打印机、PDA/手机和备份恢复验证后再切换为正式使用。
         </p>
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>92%</dd>
-          </dl>
-          <dl class="metric">
-            <dt>P0-P3 Core</dt>
             <dd>96%</dd>
           </dl>
           <dl class="metric">
-            <dt>P4 Print</dt>
-            <dd>82%</dd>
+            <dt>Account/RBAC</dt>
+            <dd>100%</dd>
+          </dl>
+          <dl class="metric">
+            <dt>P0-P3 Core</dt>
+            <dd>98%</dd>
           </dl>
           <dl class="metric">
             <dt>P5 Deploy</dt>
-            <dd>90%</dd>
+            <dd>97%</dd>
           </dl>
         </div>
       </header>
@@ -241,9 +242,96 @@
         <p class="note">
           项目的主业务闭环已经打通：真实 Excel 导入、解析、人工修正、拆柜报告、
           面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
-          当前未完成项主要是企业级账号权限、真正的异步队列化、自动打印代理实现、
-          Supervisor override 和更完整的浏览器端自动化回归。
+          账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
+          感知 UI、移动端权限和业务审计 userId。当前未完成项主要是真正的异步队列化、
+          自动打印代理实现、Supervisor override、集中监控告警和更完整的浏览器端
+          自动化回归。
         </p>
+      </section>
+
+      <section>
+        <h2>账号功能完成度</h2>
+        <p class="note">
+          账号、角色、权限功能按 P1-AUTH 至 P5-AUTH 当前任务范围评估为 100%。
+          该结论不等同于外部身份提供商、SSO、集中 SIEM 或企业密码策略系统已经接入；
+          这些属于后续企业硬化项，不在当前账号体系交付范围内。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>能力</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>证据</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>账号/RBAC schema 和 migration</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>users、roles、permissions、user_roles、role_permissions；20260629120000_auth_rbac_schema migration。</td>
+              <td>保留 legacy User.role 作为兼容字段；认证逻辑读取 user_roles。</td>
+            </tr>
+            <tr>
+              <td>默认角色和权限 seed</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>apps/api/src/auth/default-rbac.ts；apps/api/prisma/seed.ts。</td>
+              <td>ADMIN、OFFICE、WAREHOUSE、SYSTEM 均可 seed；首个 ADMIN 通过 SEED_ADMIN_* 一次性创建。</td>
+            </tr>
+            <tr>
+              <td>登录、JWT、当前用户</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>POST /api/auth/login；GET /api/auth/me；auth.e2e-spec。</td>
+              <td>禁用用户和 SYSTEM 普通登录会被拒绝；password_hash 不返回前端。</td>
+            </tr>
+            <tr>
+              <td>API Guard 和 route permissions</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>JwtAuthGuard、PermissionGuard、route-permissions.ts；auth-rbac.e2e-spec。</td>
+              <td>health/login 公开；业务 API 需要 Bearer token；权限不足返回 FORBIDDEN。</td>
+            </tr>
+            <tr>
+              <td>Users/Roles/Permissions 管理 API</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>UsersController、RolesController；users.e2e-spec；roles.e2e-spec。</td>
+              <td>ADMIN 可创建、禁用、启用、重置密码、调整角色和权限；OFFICE/WAREHOUSE 被拒绝。</td>
+            </tr>
+            <tr>
+              <td>业务审计 userId</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>imported_by_id、generated_by_id、created_by_id、operator_id、corrected_by_id 测试覆盖。</td>
+              <td>默认使用当前 JWT 用户；只有 ADMIN/SYSTEM 可覆盖指定审计用户。</td>
+            </tr>
+            <tr>
+              <td>Web 登录和权限感知 UI</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>/login、OfficeShell、/admin/users、/admin/roles、permissions tests。</td>
+              <td>导航按权限显示；Admin 页面只允许 ADMIN；错误显示来自真实 API。</td>
+            </tr>
+            <tr>
+              <td>移动端仓库权限</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>/mobile/load-jobs、/mobile/load-jobs/[id]/scan、mobile permission tests。</td>
+              <td>WAREHOUSE 可看 in-progress jobs、保存 dock、扫码和 reverse scan；不能管理账号或重打。</td>
+            </tr>
+            <tr>
+              <td>部署和初始管理员 runbook</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>local-development、local-deployment、deploy-windows、deploy-linux、account-role-permission-management runbooks。</td>
+              <td>文档覆盖 JWT_SECRET 替换、seed、首个 ADMIN、禁用员工、重置密码和登录验证。</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section>
@@ -270,42 +358,42 @@
             </tr>
             <tr>
               <td>P1</td>
-              <td>Prisma schema、API foundation、imports、parse、correction、report/labels、inventory API。</td>
+              <td>Prisma schema、API foundation、imports、parse、correction、report/labels、inventory API、Auth/RBAC API。</td>
               <td><span class="badge done">Done</span></td>
-              <td>96%</td>
-              <td>NestJS modules: imports, corrections, reports, labels, inventory, health；Prisma migrations committed。</td>
-              <td>账号权限模型目前是文档，不是完整鉴权 API。</td>
+              <td>100%</td>
+              <td>NestJS modules: imports, corrections, reports, labels, inventory, health, auth, users, roles；Prisma migrations committed。</td>
+              <td>当前 P1 范围无剩余；继续在真实部署环境验证 migration + seed。</td>
             </tr>
             <tr>
               <td>P2</td>
-              <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表。</td>
+              <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表、登录和账号管理 UI。</td>
               <td><span class="badge done">Done</span></td>
-              <td>95%</td>
-              <td>Next.js routes: imports, containers, reports/inventory, settings；真实 API client。</td>
-              <td>缺少端到端浏览器测试；Settings 仍是配置展示，不是完整可编辑后台。</td>
+              <td>98%</td>
+              <td>Next.js routes: imports, containers, reports/inventory, settings, login, admin/users, admin/roles；真实 API client。</td>
+              <td>缺少完整 Playwright 浏览器 E2E；Settings 仍是配置展示，不是完整可编辑后台。</td>
             </tr>
             <tr>
               <td>P3</td>
               <td>Load Job API、扫码事务、移动扫码页、离线队列、实时库存刷新。</td>
               <td><span class="badge done">Done</span></td>
-              <td>94%</td>
-              <td>load-jobs API/UI、mobile scan、camera scan、offline queue、inventory polling。</td>
+              <td>97%</td>
+              <td>load-jobs API/UI、mobile auth、mobile scan、camera scan、offline queue、inventory polling。</td>
               <td>Supervisor override 未实现；Load Job container suggestion 仍是设计方案。</td>
             </tr>
             <tr>
               <td>P4</td>
               <td>打印尺寸验证、重打审计 API、Tauri/print-agent 决策。</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>82%</td>
-              <td>150mm x 100mm PDF、reprint audit endpoints、printing ADR。</td>
+              <td>88%</td>
+              <td>150mm x 100mm PDF、permissioned reprint audit endpoints/UI、printing ADR。</td>
               <td>本地自动打印代理未实现；仍依赖浏览器/PDF 打印流程。</td>
             </tr>
             <tr>
               <td>P5</td>
               <td>Docker Compose full stack、备份脚本、Windows/Linux 部署文档、pilot checklist。</td>
               <td><span class="badge done">Done</span></td>
-              <td>90%</td>
-              <td>compose.local、nginx、backup/restore scripts、deployment runbooks、pilot checklist。</td>
+              <td>97%</td>
+              <td>compose.local、nginx、backup/restore scripts、deployment runbooks、auth initial admin runbook、pilot checklist。</td>
               <td>现场 secrets、打印机、扫码枪、PDA 和网络环境仍需 pilot 验证。</td>
             </tr>
           </tbody>
@@ -419,10 +507,16 @@
           </thead>
           <tbody>
             <tr>
-              <td>账号、角色、权限管理</td>
+              <td>外部身份集成 / SSO</td>
               <td><span class="badge deferred">Deferred</span></td>
-              <td>当前 pilot 可用，但不能做细粒度权限隔离。</td>
-              <td>下一阶段实现 Users/Roles/Permissions、登录、API guard、审计 userId。</td>
+              <td>当前系统使用本地账号、JWT 和 RBAC；不接入 Microsoft Entra ID/LDAP。</td>
+              <td>如未来需要统一企业账号，再设计 OIDC/Entra ID 集成和账号映射。</td>
+            </tr>
+            <tr>
+              <td>集中审计日志和 SIEM</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>业务审计 userId 已落库；账号/角色管理 API 返回 actorUserId 并写应用日志，但没有独立 audit_log 表。</td>
+              <td>生产硬化阶段可新增 audit_log 表、日志导出和保留策略。</td>
             </tr>
             <tr>
               <td>BullMQ/Redis 异步任务队列</td>
@@ -465,9 +559,57 @@
       </section>
 
       <section>
+        <h2>Windows 11 内部生产部署结论</h2>
+        <p class="note">
+          可以开始 Windows 11 企业内网生产部署准备，但建议按“条件通过”执行：
+          在目标 Windows 11 主机完成 Docker Desktop full stack 启动、数据库 migration、
+          RBAC seed、首个 ADMIN 登录、OFFICE/WAREHOUSE 登录、权限拒绝、备份恢复 dry-run、
+          真实打印机和真实 PDA/手机扫码验证后，再正式切换给仓库使用。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>部署前置项</th>
+              <th>状态</th>
+              <th>要求</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Windows 11 Docker full stack</td>
+              <td><span class="badge partial">Needs Target Verification</span></td>
+              <td>在目标机执行 `docker compose -f infra/docker/compose.local.yml up -d --build` 和 `scripts/healthcheck.sh`。</td>
+            </tr>
+            <tr>
+              <td>生产 secrets</td>
+              <td><span class="badge partial">Needs Target Verification</span></td>
+              <td>替换 `POSTGRES_PASSWORD`、`JWT_SECRET`；不要使用示例值；保存到企业密码管理位置。</td>
+            </tr>
+            <tr>
+              <td>账号初始化</td>
+              <td><span class="badge done">Ready</span></td>
+              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建首个 ADMIN，再通过 API 创建 OFFICE/WAREHOUSE。</td>
+            </tr>
+            <tr>
+              <td>业务 smoke test</td>
+              <td><span class="badge partial">Needs Target Verification</span></td>
+              <td>用真实 Excel 上传、解析、修正、生成报告、生成面单、扫码、重打、查看库存。</td>
+            </tr>
+            <tr>
+              <td>备份和恢复</td>
+              <td><span class="badge partial">Needs Target Verification</span></td>
+              <td>在生产路径外配置 `BACKUP_DIR`，执行 PostgreSQL/storage backup 和 restore dry-run。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>当前验收建议</h2>
         <ul>
           <li>固定使用 `docs/runbooks/local-development.md` 的 Host Web/API 模式做开发测试。</li>
+          <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
+          <li>先创建 ADMIN、OFFICE、WAREHOUSE 三类真实账号，验证权限不足和审计 userId。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
           <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>
