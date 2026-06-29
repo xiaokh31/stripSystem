@@ -12,6 +12,7 @@ export interface LoadJobLineDraft {
 export interface LoadJobDraft {
   carrier: string;
   destinationRegion: string;
+  dockNo: string;
   lines: LoadJobLineDraft[];
   loadNo: string;
   scheduledDepartureAt: string;
@@ -30,10 +31,11 @@ export type LoadJobRequestResult =
 
 export function emptyLoadJobLineDraft(
   externalTransfer = false,
+  destinationCode = "",
 ): LoadJobLineDraft {
   return {
     containerNo: "",
-    destinationCode: "",
+    destinationCode,
     externalTransfer,
     note: "",
     plannedPallets: "",
@@ -45,6 +47,7 @@ export function defaultLoadJobDraft(): LoadJobDraft {
   return {
     carrier: "",
     destinationRegion: "",
+    dockNo: "",
     lines: [emptyLoadJobLineDraft()],
     loadNo: "",
     scheduledDepartureAt: "",
@@ -54,6 +57,7 @@ export function defaultLoadJobDraft(): LoadJobDraft {
 
 export function buildLoadJobRequest(draft: LoadJobDraft): LoadJobRequestResult {
   const loadNo = draft.loadNo.trim();
+  const destinationRegion = nullableString(draft.destinationRegion);
   if (!loadNo) {
     return { error: "Load number is required.", ok: false };
   }
@@ -64,11 +68,22 @@ export function buildLoadJobRequest(draft: LoadJobDraft): LoadJobRequestResult {
 
   const lines = [];
   for (const [index, line] of draft.lines.entries()) {
+    const label = `Plan line ${index + 1}`;
     const sourceText = nullableString(line.sourceText);
     const containerNo = nullableString(line.containerNo);
-    const destinationCode = nullableString(line.destinationCode);
+    const explicitDestinationCode = nullableString(line.destinationCode);
+    if (
+      destinationRegion &&
+      explicitDestinationCode &&
+      explicitDestinationCode !== destinationRegion
+    ) {
+      return {
+        error: `${label} destination must match Destination region ${destinationRegion}.`,
+        ok: false,
+      };
+    }
+    const destinationCode = explicitDestinationCode ?? destinationRegion;
     const note = nullableString(line.note);
-    const label = `Plan line ${index + 1}`;
 
     if (!sourceText && !containerNo) {
       return {
@@ -132,9 +147,8 @@ export function buildLoadJobRequest(draft: LoadJobDraft): LoadJobRequestResult {
       ...(nullableString(draft.carrier)
         ? { carrier: draft.carrier.trim() }
         : {}),
-      ...(nullableString(draft.destinationRegion)
-        ? { destinationRegion: draft.destinationRegion.trim() }
-        : {}),
+      ...(destinationRegion ? { destinationRegion } : {}),
+      ...(nullableString(draft.dockNo) ? { dockNo: draft.dockNo.trim() } : {}),
       lines,
       loadNo,
       ...(scheduledDepartureAt ? { scheduledDepartureAt } : {}),

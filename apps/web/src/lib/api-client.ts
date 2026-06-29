@@ -357,6 +357,7 @@ export interface LoadJobResponse {
   container: LoadJobContainerResponse | null;
   loadNo: string | null;
   truckNo: string | null;
+  dockNo: string | null;
   carrier: string | null;
   destinationRegion: string | null;
   status: string;
@@ -405,10 +406,27 @@ export interface CreateLoadJobRequest {
   containerId?: string;
   createdById?: string;
   destinationRegion?: string;
+  dockNo?: string;
   lines: CreateLoadJobLineRequest[];
   loadNo: string;
   scheduledDepartureAt?: string;
   startedAt?: string;
+  truckNo?: string;
+}
+
+export interface UpdateLoadJobRequest {
+  carrier?: string;
+  createdById?: string;
+  destinationRegion?: string;
+  dockNo?: string;
+  lines?: CreateLoadJobLineRequest[];
+  loadNo?: string;
+  note?: string;
+  operatorId?: string;
+  reason?: string;
+  scheduledDepartureAt?: string;
+  startedAt?: string;
+  status?: "COMPLETED" | "IN_PROGRESS" | "PLANNED";
   truckNo?: string;
 }
 
@@ -508,7 +526,7 @@ export class ApiClientError extends Error {
 }
 
 const DEFAULT_BROWSER_API_BASE_URL = "/api";
-const DEFAULT_SERVER_API_BASE_URL = "http://127.0.0.1/api";
+const DEFAULT_SERVER_API_BASE_URL = "http://127.0.0.1:4000/api";
 
 export function getApiBaseUrl(): string {
   const publicBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -719,6 +737,26 @@ export function createLoadJob(
   });
 }
 
+export function updateLoadJob(
+  id: string,
+  body: UpdateLoadJobRequest,
+  options: ApiClientOptions = {},
+): Promise<LoadJobResponse> {
+  return createApiClient(options).patch<LoadJobResponse>(
+    `/load-jobs/${encodeURIComponent(id)}`,
+    { ...body },
+  );
+}
+
+export function deleteLoadJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<LoadJobResponse> {
+  return createApiClient(options).delete<LoadJobResponse>(
+    `/load-jobs/${encodeURIComponent(id)}`,
+  );
+}
+
 export function scanLoadJobPallet(
   id: string,
   body: ScanPalletRequest,
@@ -801,6 +839,13 @@ export class ApiClient {
       method: "PATCH",
       body,
     });
+  }
+
+  delete<TResponse>(
+    path: string,
+    options: Omit<ApiRequestOptions, "method" | "body"> = {},
+  ): Promise<TResponse> {
+    return this.request<TResponse>(path, { ...options, method: "DELETE" });
   }
 
   async request<TResponse>(

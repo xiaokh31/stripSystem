@@ -19,6 +19,7 @@ describe('LoadJobsService', () => {
     const result = await service.create({
       loadNo: ' LOAD-2026-001 ',
       truckNo: 'TRK-18',
+      dockNo: 'D3',
       carrier: 'Bestar CCA',
       destinationRegion: 'YEG2',
       createdById: 'user-1',
@@ -40,10 +41,11 @@ describe('LoadJobsService', () => {
       },
       loadNo: 'LOAD-2026-001',
       truckNo: 'TRK-18',
+      dockNo: 'D3',
       carrier: 'Bestar CCA',
       destinationRegion: 'YEG2',
-      status: 'IN_PROGRESS',
-      canScan: true,
+      status: 'PLANNED',
+      canScan: false,
       createdById: 'user-1',
       plannedPalletCount: 2,
       externalPalletCount: 12,
@@ -92,9 +94,10 @@ describe('LoadJobsService', () => {
         containerId: 'container-1',
         jobNo: 'LOAD-2026-001',
         truckNo: 'TRK-18',
+        dockNo: 'D3',
         carrier: 'Bestar CCA',
         destinationRegion: 'YEG2',
-        status: 'IN_PROGRESS',
+        status: 'PLANNED',
         scheduledDepartureAt: expect.any(Date),
         closedAt: null,
         createdById: 'user-1',
@@ -136,6 +139,73 @@ describe('LoadJobsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects plan line destinations that do not match the destination region', async () => {
+    await expectHttpErrorCode(
+      service.create({
+        loadNo: 'LOAD-2026-MISMATCH',
+        destinationRegion: 'YEG2',
+        lines: [
+          {
+            containerNo: 'CSNU8877228',
+            destinationCode: 'YYC1',
+            plannedPallets: 1,
+          },
+        ],
+      }),
+      'LOAD_JOB_LINE_DESTINATION_REGION_MISMATCH',
+    );
+  });
+
+  it('updates planned load jobs, starts loading manually, and only deletes planned jobs', async () => {
+    await service.create({
+      loadNo: 'LOAD-2026-001',
+      destinationRegion: 'YEG2',
+      lines: [{ sourceText: 'CSNU8877228-1P' }],
+    });
+
+    const started = await service.update('load-job-1', {
+      dockNo: 'D5',
+      status: 'IN_PROGRESS',
+      truckNo: 'TRK-99',
+    });
+
+    expect(started).toMatchObject({
+      dockNo: 'D5',
+      status: 'IN_PROGRESS',
+      canScan: true,
+      truckNo: 'TRK-99',
+      eventCount: 1,
+    });
+    await expect(service.delete('load-job-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+
+    await service.create({
+      loadNo: 'LOAD-2026-002',
+      destinationRegion: 'YEG2',
+      lines: [{ sourceText: 'EITU9315039-1P' }],
+    });
+    const deleted = await service.delete('load-job-2');
+
+    expect(deleted).toMatchObject({
+      id: 'load-job-2',
+      status: 'PLANNED',
+    });
+  });
+
+  it('requires dock number before completing a load job', async () => {
+    await service.create({
+      loadNo: 'LOAD-2026-001',
+      destinationRegion: 'YEG2',
+      lines: [{ sourceText: 'CSNU8877228-1P' }],
+    });
+
+    await expectHttpErrorCode(
+      service.update('load-job-1', { status: 'COMPLETED' }),
+      'LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED',
+    );
+  });
+
   it('lists load jobs by load number and container lines', async () => {
     await service.create({
       loadNo: 'LOAD-2026-001',
@@ -154,7 +224,7 @@ describe('LoadJobsService', () => {
 
     const result = await service.list({
       containerId: 'container-2',
-      status: 'IN_PROGRESS',
+      status: 'PLANNED',
       limit: 50,
       offset: 0,
     });
@@ -164,8 +234,8 @@ describe('LoadJobsService', () => {
       loadNo: 'LOAD-2026-001',
       plannedPalletCount: 2,
       externalPalletCount: 12,
-      status: 'IN_PROGRESS',
-      canScan: true,
+      status: 'PLANNED',
+      canScan: false,
     });
     expect(prisma.loadJob.findMany).toHaveBeenCalledWith({
       where: {
@@ -173,7 +243,7 @@ describe('LoadJobsService', () => {
           { containerId: 'container-2' },
           { lines: { some: { containerId: 'container-2' } } },
         ],
-        status: 'IN_PROGRESS',
+        status: 'PLANNED',
       },
       include: expect.any(Object),
       orderBy: { createdAt: 'desc' },
@@ -192,8 +262,10 @@ describe('LoadJobsService', () => {
         { sourceText: 'CSNU8877228-1P' },
       ],
     });
+    await openLoadJobForScanning('load-job-1');
 
     const result = await service.close('load-job-1', {
+      dockNo: 'D3',
       operatorId: 'user-1',
       reason: 'Loaded at dock 3',
       note: 'Seal verified',
@@ -234,7 +306,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-1P' }],
     });
-    await service.close('load-job-1', {});
+    await service.close('load-job-1', { dockNo: 'D3' });
 
     await expect(service.close('load-job-1', {})).rejects.toBeInstanceOf(
       ConflictException,
@@ -252,6 +324,7 @@ describe('LoadJobsService', () => {
         { sourceText: 'EITU9315039-1P' },
       ],
     });
+    await openLoadJobForScanning('load-job-1');
 
     const first = await service.scan('load-job-1', {
       qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -363,6 +436,8 @@ describe('LoadJobsService', () => {
       plannedPallets: 1,
       externalTransfer: false,
     });
+    await openLoadJobForScanning('load-job-1');
+    await openLoadJobForScanning('load-job-2');
 
     const firstScan = await service.scan('load-job-1', {
       qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -408,6 +483,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-2P' }],
     });
+    await openLoadJobForScanning('load-job-1');
 
     await service.scan('load-job-1', {
       qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -443,6 +519,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-2P' }],
     });
+    await openLoadJobForScanning('load-job-1');
     const scan = await service.scan('load-job-1', {
       qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
       deviceId: 'scanner-1',
@@ -543,6 +620,8 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-2P' }],
     });
+    await openLoadJobForScanning('load-job-1');
+    await openLoadJobForScanning('load-job-2');
 
     await service.scan('load-job-1', {
       qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
@@ -588,6 +667,7 @@ describe('LoadJobsService', () => {
         }),
       ],
     });
+    await openLoadJobForScanning('load-job-1');
 
     await expectHttpErrorCode(
       service.scan('load-job-1', {
@@ -611,7 +691,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-1P' }],
     });
-    await service.close('load-job-1', {});
+    await service.close('load-job-1', { dockNo: 'D3' });
 
     await expect(
       service.scan('load-job-1', {
@@ -632,6 +712,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       lines: [{ sourceText: 'CSNU8877228-1P' }],
     });
+    await openLoadJobForScanning('load-job-1');
 
     await expect(
       service.scan('load-job-1', {
@@ -664,6 +745,12 @@ describe('LoadJobsService', () => {
       expect(error).toBeInstanceOf(HttpException);
       expect((error as HttpException).getResponse()).toMatchObject({ code });
     }
+  }
+
+  async function openLoadJobForScanning(id: string): Promise<void> {
+    await service.update(id, { status: 'IN_PROGRESS' });
+    prisma.palletEvent.create.mockClear();
+    prisma.__events.length = 0;
   }
 
   function createPrismaMock() {
@@ -921,6 +1008,7 @@ describe('LoadJobsService', () => {
             containerId: data.containerId ?? null,
             jobNo: data.jobNo ?? null,
             truckNo: data.truckNo ?? null,
+            dockNo: data.dockNo ?? null,
             carrier: data.carrier ?? null,
             destinationRegion: data.destinationRegion ?? null,
             status: data.status,
@@ -972,9 +1060,51 @@ describe('LoadJobsService', () => {
           if (!record) {
             throw new Error(`Load job not found: ${where.id}`);
           }
-          Object.assign(record, data, {
+          const { lines, ...recordData } = data;
+          Object.assign(record, recordData, {
             updatedAt: new Date('2026-06-27T11:00:00.000Z'),
           });
+          if (lines?.deleteMany) {
+            for (let index = loadJobLines.length - 1; index >= 0; index -= 1) {
+              if (loadJobLines[index].loadJobId === record.id) {
+                loadJobLines.splice(index, 1);
+              }
+            }
+          }
+          for (const line of lines?.create ?? []) {
+            loadJobLines.push({
+              id: `line-${loadJobLines.length + 1}`,
+              loadJobId: record.id,
+              sequence: line.sequence,
+              sourceText: line.sourceText ?? null,
+              containerNo: line.containerNo ?? null,
+              containerId: line.containerId ?? null,
+              containerDestinationId: line.containerDestinationId ?? null,
+              destinationCode: line.destinationCode ?? null,
+              plannedPallets: line.plannedPallets ?? 0,
+              externalTransfer: line.externalTransfer ?? false,
+              note: line.note ?? null,
+              createdAt: new Date('2026-06-27T11:00:00.000Z'),
+              updatedAt: new Date('2026-06-27T11:00:00.000Z'),
+            });
+          }
+          return Promise.resolve(hydrate(record));
+        }),
+        delete: jest.fn(({ where }) => {
+          const index = loadJobs.findIndex((item) => item.id === where.id);
+          if (index < 0) {
+            throw new Error(`Load job not found: ${where.id}`);
+          }
+          const [record] = loadJobs.splice(index, 1);
+          for (
+            let lineIndex = loadJobLines.length - 1;
+            lineIndex >= 0;
+            lineIndex -= 1
+          ) {
+            if (loadJobLines[lineIndex].loadJobId === record.id) {
+              loadJobLines.splice(lineIndex, 1);
+            }
+          }
           return Promise.resolve(hydrate(record));
         }),
       },
@@ -1039,6 +1169,8 @@ describe('LoadJobsService', () => {
         }),
       },
     };
+
+    mock.__events = events;
 
     return mock;
   }

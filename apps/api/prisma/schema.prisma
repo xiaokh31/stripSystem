@@ -295,6 +295,7 @@ model LoadJob {
   container         Container?      @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   jobNo             String?         @unique @map("job_no")
   truckNo           String?         @map("truck_no")
+  dockNo            String?         @map("dock_no")
   carrier           String?
   destinationRegion String?         @map("destination_region")
   status            LoadJobStatus   @default(PLANNED)

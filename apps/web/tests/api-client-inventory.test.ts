@@ -61,7 +61,7 @@ test("browser API base defaults to same-origin api path", () => {
   }
 });
 
-test("server API base defaults to local nginx API route", () => {
+test("server API base defaults to local API dev server", () => {
   const env = preserveApiEnv();
   const windowDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -72,10 +72,10 @@ test("server API base defaults to local nginx API route", () => {
     clearApiEnv();
     delete (globalThis as Record<string, unknown>).window;
 
-    assert.equal(getApiBaseUrl(), "http://127.0.0.1/api");
+    assert.equal(getApiBaseUrl(), "http://127.0.0.1:4000/api");
     assert.equal(
       buildApiUrl("/health"),
-      "http://127.0.0.1/api/health",
+      "http://127.0.0.1:4000/api/health",
     );
   } finally {
     restoreApiEnv(env);

@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bestar Warehouse Unloading System Completion Status</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f4f5;
+        --card: #ffffff;
+        --ink: #18181b;
+        --muted: #52525b;
+        --line: #d4d4d8;
+        --teal: #0f766e;
+        --done: #047857;
+        --partial: #b45309;
+        --deferred: #6b7280;
+        --risk: #b91c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      header,
+      section {
+        border: 1px solid var(--line);
+        background: var(--card);
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.2;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+
+      h3 {
+        font-size: 16px;
+      }
+
+      p {
+        margin: 8px 0 0;
+        color: var(--muted);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        border-top: 1px solid var(--line);
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      ul {
+        margin: 10px 0 0;
+        padding-left: 20px;
+      }
+
+      li + li {
+        margin-top: 4px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        background: #fafafa;
+        padding: 14px;
+      }
+
+      .metric dt {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .metric dd {
+        margin: 4px 0 0;
+        font-size: 24px;
+        font-weight: 800;
+      }
+
+      .badge {
+        display: inline-block;
+        border: 1px solid currentColor;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .done {
+        color: var(--done);
+      }
+
+      .partial {
+        color: var(--partial);
+      }
+
+      .deferred {
+        color: var(--deferred);
+      }
+
+      .risk {
+        color: var(--risk);
+      }
+
+      .note {
+        border-left: 4px solid var(--teal);
+        background: #f0fdfa;
+        padding: 12px 14px;
+        color: #134e4a;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 820px) {
+        main {
+          padding: 16px 10px 32px;
+        }
+
+        header,
+        section {
+          padding: 16px;
+        }
+
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        table,
+        thead,
+        tbody,
+        tr,
+        th,
+        td {
+          display: block;
+        }
+
+        th {
+          display: none;
+        }
+
+        td {
+          border-top: 0;
+          padding: 6px 0;
+        }
+
+        tr {
+          border-top: 1px solid var(--line);
+          padding: 10px 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="small">Generated: 2026-06-29</p>
+        <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
+        <p>
+          依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
+          API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心 pilot
+          流程已完成，可继续现场试运行；账号权限、异步队列、自动打印代理等属于
+          下一阶段或文档化决策，尚未做成完整产品功能。
+        </p>
+        <div class="grid">
+          <dl class="metric">
+            <dt>Overall</dt>
+            <dd>92%</dd>
+          </dl>
+          <dl class="metric">
+            <dt>P0-P3 Core</dt>
+            <dd>96%</dd>
+          </dl>
+          <dl class="metric">
+            <dt>P4 Print</dt>
+            <dd>82%</dd>
+          </dl>
+          <dl class="metric">
+            <dt>P5 Deploy</dt>
+            <dd>90%</dd>
+          </dl>
+        </div>
+      </header>
+
+      <section>
+        <h2>范围结论</h2>
+        <p class="note">
+          项目的主业务闭环已经打通：真实 Excel 导入、解析、人工修正、拆柜报告、
+          面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
+          当前未完成项主要是企业级账号权限、真正的异步队列化、自动打印代理实现、
+          Supervisor override 和更完整的浏览器端自动化回归。
+        </p>
+      </section>
+
+      <section>
+        <h2>Phase 完成度</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>策划范围</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>证据</th>
+              <th>剩余工作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>P0</td>
+              <td>真实 fixture、格式检测、解析 JSON、托盘计算、Excel 报告、PDF 面单、HTML task report。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>worker-python parser/report/label/task_reports；真实样本在 samples/unloading-plans。</td>
+              <td>持续补充新客户格式 fixture。</td>
+            </tr>
+            <tr>
+              <td>P1</td>
+              <td>Prisma schema、API foundation、imports、parse、correction、report/labels、inventory API。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>96%</td>
+              <td>NestJS modules: imports, corrections, reports, labels, inventory, health；Prisma migrations committed。</td>
+              <td>账号权限模型目前是文档，不是完整鉴权 API。</td>
+            </tr>
+            <tr>
+              <td>P2</td>
+              <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>Next.js routes: imports, containers, reports/inventory, settings；真实 API client。</td>
+              <td>缺少端到端浏览器测试；Settings 仍是配置展示，不是完整可编辑后台。</td>
+            </tr>
+            <tr>
+              <td>P3</td>
+              <td>Load Job API、扫码事务、移动扫码页、离线队列、实时库存刷新。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>94%</td>
+              <td>load-jobs API/UI、mobile scan、camera scan、offline queue、inventory polling。</td>
+              <td>Supervisor override 未实现；Load Job container suggestion 仍是设计方案。</td>
+            </tr>
+            <tr>
+              <td>P4</td>
+              <td>打印尺寸验证、重打审计 API、Tauri/print-agent 决策。</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>82%</td>
+              <td>150mm x 100mm PDF、reprint audit endpoints、printing ADR。</td>
+              <td>本地自动打印代理未实现；仍依赖浏览器/PDF 打印流程。</td>
+            </tr>
+            <tr>
+              <td>P5</td>
+              <td>Docker Compose full stack、备份脚本、Windows/Linux 部署文档、pilot checklist。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>90%</td>
+              <td>compose.local、nginx、backup/restore scripts、deployment runbooks、pilot checklist。</td>
+              <td>现场 secrets、打印机、扫码枪、PDA 和网络环境仍需 pilot 验证。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>核心业务功能清单</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>功能</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>保留原始 Excel 上传文件</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>API 存储 original files，SHA-256 去重，storage 持久化。</td>
+            </tr>
+            <tr>
+              <td>真实 Excel 解析</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>支持中文 Unloading Plan、Bestar Receiving、UNKNOWN，并保留 warnings/errors/raw_json。</td>
+            </tr>
+            <tr>
+              <td>目的仓、箱数、体积、柜号提取和告警</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>缺失 destination、体积为 0 但 cartons 大于 0 等会生成 warning/error。</td>
+            </tr>
+            <tr>
+              <td>托盘计算</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>Worker calculator 和 API final pallets 使用 manual override 优先。</td>
+            </tr>
+            <tr>
+              <td>公司模板拆柜报告</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>Parsed/manual container 均可生成，importFileId 为 null 支持。</td>
+            </tr>
+            <tr>
+              <td>150mm x 100mm 托盘面单和 QR</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>PDF 面单、唯一 palletId、QR payload 已实现；打印缩放仍需现场控制。</td>
+            </tr>
+            <tr>
+              <td>人工创建拆柜报告</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>解析失败可手工创建 container/destinations，并写 correction_feedback。</td>
+            </tr>
+            <tr>
+              <td>人工修正和修改历史</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>容器、目的仓修正落库；correction history 页面可查看修改记录。</td>
+            </tr>
+            <tr>
+              <td>库存报表</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>按容器、目的仓、状态查询；剩余库存来自后端数据库。</td>
+            </tr>
+            <tr>
+              <td>Load Job 计划和状态</td>
+              <td><span class="badge done">Done</span></td>
+              <td>95%</td>
+              <td>PLANNED、IN_PROGRESS、COMPLETED；支持 dockNo、编辑规则、历史页。</td>
+            </tr>
+            <tr>
+              <td>移动扫码</td>
+              <td><span class="badge done">Done</span></td>
+              <td>94%</td>
+              <td>支持扫码枪输入、手机摄像头扫码、重复扫码处理、当前 progress 修正。</td>
+            </tr>
+            <tr>
+              <td>离线扫码队列</td>
+              <td><span class="badge done">Done</span></td>
+              <td>90%</td>
+              <td>本地 pending/synced/failed 队列已实现；库存不在前端伪更新。</td>
+            </tr>
+            <tr>
+              <td>重打审计</td>
+              <td><span class="badge done">Done</span></td>
+              <td>90%</td>
+              <td>pallet/整柜重打 API 记录事件，不改变 loaded inventory。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>未完成或延期项</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>项目</th>
+              <th>状态</th>
+              <th>影响</th>
+              <th>建议</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>账号、角色、权限管理</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>当前 pilot 可用，但不能做细粒度权限隔离。</td>
+              <td>下一阶段实现 Users/Roles/Permissions、登录、API guard、审计 userId。</td>
+            </tr>
+            <tr>
+              <td>BullMQ/Redis 异步任务队列</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>解析/生成目前主要同步执行，超大文件或并发场景需要队列化。</td>
+              <td>把 parse/report/labels 改成 job 状态和 worker 消费。</td>
+            </tr>
+            <tr>
+              <td>自动打印代理或 Tauri 应用</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>目前仍依赖下载 PDF 后人工打印，现场缩放设置需要培训。</td>
+              <td>按 ADR 先验证浏览器打印，再决定 print-agent/Tauri。</td>
+            </tr>
+            <tr>
+              <td>Load Job container suggestion</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>办公室仍需手动查询可装柜号。</td>
+              <td>实现 `/api/load-jobs/container-suggestions` 和 Truck No. 聚焦 combobox。</td>
+            </tr>
+            <tr>
+              <td>Supervisor override</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>跨 job 已装托盘、void pallet 重打等高风险操作不能例外处理。</td>
+              <td>先设计审批权限、原因、审计事件，再开放 override。</td>
+            </tr>
+            <tr>
+              <td>浏览器端 E2E 自动化</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>API/单元覆盖较多，但完整 UI 流程仍主要靠手工验证。</td>
+              <td>补 Playwright：导入、解析失败手工创建、报告/面单、扫码、history。</td>
+            </tr>
+            <tr>
+              <td>生产级监控和告警</td>
+              <td><span class="badge deferred">Deferred</span></td>
+              <td>本地 pilot 能健康检查，但没有集中日志、指标和报警。</td>
+              <td>上线前加入 structured logs、backup alert、disk usage alert。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>当前验收建议</h2>
+        <ul>
+          <li>固定使用 `docs/runbooks/local-development.md` 的 Host Web/API 模式做开发测试。</li>
+          <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
+          <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
+          <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>
+          <li>执行 pilot checklist，并记录缺陷到 runbook/error-fix-log。</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

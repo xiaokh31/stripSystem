@@ -10,6 +10,7 @@ test("load job planning flow builds POST /load-jobs payload", () => {
   const draft = defaultLoadJobDraft();
   draft.loadNo = " 145757024984 ";
   draft.truckNo = " DOCK-2 ";
+  draft.dockNo = " D3 ";
   draft.carrier = " Bestar ";
   draft.destinationRegion = " YEG2 ";
   draft.scheduledDepartureAt = "2026-06-27T21:00";
@@ -42,6 +43,7 @@ test("load job planning flow builds POST /load-jobs payload", () => {
   assert.deepEqual(result.payload, {
     carrier: "Bestar",
     destinationRegion: "YEG2",
+    dockNo: "D3",
     lines: [
       {
         containerNo: "EITU9315039",
@@ -61,6 +63,20 @@ test("load job planning flow builds POST /load-jobs payload", () => {
     loadNo: "145757024984",
     scheduledDepartureAt: new Date("2026-06-27T21:00").toISOString(),
     truckNo: "DOCK-2",
+  });
+});
+
+test("load job planning flow requires line destination to match destination region", () => {
+  const draft = defaultLoadJobDraft();
+  draft.loadNo = "LOAD-1";
+  draft.destinationRegion = "YEG2";
+  draft.lines[0].containerNo = "CSNU5938021";
+  draft.lines[0].destinationCode = "YYC1";
+  draft.lines[0].plannedPallets = "1";
+
+  assert.deepEqual(buildLoadJobRequest(draft), {
+    error: "Plan line 1 destination must match Destination region YEG2.",
+    ok: false,
   });
 });
 

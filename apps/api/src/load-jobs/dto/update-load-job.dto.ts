@@ -1,65 +1,20 @@
 import {
   IsArray,
   IsDateString,
-  IsInt,
-  IsNotEmpty,
-  IsBoolean,
+  IsIn,
   IsOptional,
   IsString,
   MaxLength,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateLoadJobLineDto } from './create-load-job.dto';
 
-export class CreateLoadJobLineDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(256)
-  sourceText?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(64)
-  containerNo?: string;
-
-  @IsOptional()
-  @IsString()
-  containerId?: string;
-
-  @IsOptional()
-  @IsString()
-  containerDestinationId?: string;
-
+export class UpdateLoadJobDto {
   @IsOptional()
   @IsString()
   @MaxLength(128)
-  destinationCode?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  plannedPallets?: number;
-
-  @IsOptional()
-  @IsBoolean()
-  externalTransfer?: boolean;
-
-  @IsOptional()
-  @IsString()
-  note?: string;
-}
-
-export class CreateLoadJobDto {
-  @IsOptional()
-  @IsString()
-  containerId?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(128)
-  loadNo!: string;
+  loadNo?: string;
 
   @IsOptional()
   @IsString()
@@ -92,6 +47,24 @@ export class CreateLoadJobDto {
   @IsOptional()
   @IsDateString()
   scheduledDepartureAt?: string;
+
+  @IsOptional()
+  @IsIn(['PLANNED', 'IN_PROGRESS', 'COMPLETED'])
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  operatorId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 
   @IsOptional()
   @IsArray()

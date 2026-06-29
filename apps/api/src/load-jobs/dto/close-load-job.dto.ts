@@ -7,6 +7,11 @@ export class CloseLoadJobDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
+  dockNo?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(500)
   reason?: string;
 

@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createLoadJob,
+  deleteLoadJob,
   getLoadJobLoadedPallets,
   listLoadJobs,
   reverseLoadJobScan,
   scanLoadJobPallet,
+  updateLoadJob,
   type LoadJobResponse,
 } from "../src/lib/api-client";
 
@@ -15,6 +17,7 @@ const loadJob: LoadJobResponse = {
   container: null,
   loadNo: "LOAD-2026-001",
   truckNo: "TRUCK-9",
+  dockNo: "D3",
   carrier: "Carrier",
   destinationRegion: "YEG2",
   status: "IN_PROGRESS",
@@ -98,6 +101,7 @@ test("load job API client creates office load plans", async () => {
   const result = await createLoadJob(
     {
       destinationRegion: "YEG2",
+      dockNo: "D3",
       lines: [
         {
           containerNo: "CSNU8877228",
@@ -122,6 +126,7 @@ test("load job API client creates office load plans", async () => {
     {
       body: {
         destinationRegion: "YEG2",
+        dockNo: "D3",
         lines: [
           {
             containerNo: "CSNU8877228",
@@ -144,6 +149,53 @@ test("load job API client creates office load plans", async () => {
     },
   ]);
   assert.equal(result.loadNo, "LOAD-2026-001");
+});
+
+test("load job API client updates and deletes load jobs", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(JSON.stringify(loadJob), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+
+  await updateLoadJob(
+    "load-job 1",
+    {
+      dockNo: "D4",
+      status: "IN_PROGRESS",
+      truckNo: "TRUCK-10",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await deleteLoadJob("load-job 1", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+
+  assert.deepEqual(requests, [
+    {
+      body: {
+        dockNo: "D4",
+        status: "IN_PROGRESS",
+        truckNo: "TRUCK-10",
+      },
+      method: "PATCH",
+      url: "http://api.local/api/load-jobs/load-job%201",
+    },
+    {
+      body: null,
+      method: "DELETE",
+      url: "http://api.local/api/load-jobs/load-job%201",
+    },
+  ]);
 });
 
 test("load job API client posts scanner input to the scan endpoint", async () => {

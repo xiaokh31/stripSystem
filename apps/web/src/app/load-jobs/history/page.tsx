@@ -1,0 +1,300 @@
+import Link from "next/link";
+import { LoadJobCard } from "@/components/load-jobs/load-job-card";
+import {
+  LOAD_JOB_HISTORY_STATUS_OPTIONS,
+  activeLoadJobHistoryFilterCount,
+  loadJobHistoryHref,
+  normalizeLoadJobHistoryFilters,
+  type LoadJobHistoryFilters,
+  type LoadJobHistorySearchParams,
+} from "@/components/load-jobs/load-job-history-flow";
+import {
+  ApiClientError,
+  listLoadJobs,
+  type LoadJobListResponse,
+} from "@/lib/api-client";
+
+export const dynamic = "force-dynamic";
+
+type LoadJobHistoryState =
+  | {
+      loadJobs: LoadJobListResponse;
+      ok: true;
+    }
+  | {
+      error: ApiClientError;
+      ok: false;
+    };
+
+export default async function LoadJobHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<LoadJobHistorySearchParams>;
+}) {
+  const filters = normalizeLoadJobHistoryFilters(await searchParams);
+  const state = await loadHistory(filters);
+  const activeFilters = activeLoadJobHistoryFilterCount(filters);
+
+  return (
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase text-teal-700">
+              Load job history
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
+              Historical load jobs
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
+              Review planned, in-progress, and completed truck plans from the
+              live API. Deleted planned jobs are removed from history; completed
+              jobs stay locked for audit and do not show a delete action.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+              href="/load-jobs"
+            >
+              Load Jobs
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+              href={loadJobHistoryHref(filters)}
+            >
+              Refresh
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <HistoryFilterForm activeFilters={activeFilters} filters={filters} />
+
+      {state.ok ? (
+        <HistoryList filters={filters} loadJobs={state.loadJobs} />
+      ) : (
+        <ApiErrorPanel error={state.error} />
+      )}
+    </main>
+  );
+}
+
+async function loadHistory(
+  filters: LoadJobHistoryFilters,
+): Promise<LoadJobHistoryState> {
+  try {
+    const loadJobs = await listLoadJobs(filters);
+    return { loadJobs, ok: true };
+  } catch (error) {
+    return { error: toApiClientError(error), ok: false };
+  }
+}
+
+function HistoryFilterForm({
+  activeFilters,
+  filters,
+}: {
+  activeFilters: number;
+  filters: LoadJobHistoryFilters;
+}) {
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-zinc-950">
+            History filters
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            {activeFilters
+              ? `${activeFilters} active filter${activeFilters === 1 ? "" : "s"}`
+              : "Showing all non-deleted load jobs."}
+          </p>
+        </div>
+        {activeFilters ? (
+          <Link
+            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+            href="/load-jobs/history"
+          >
+            Clear filters
+          </Link>
+        ) : null}
+      </div>
+
+      <form className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_180px_auto]">
+        <label className="grid gap-1 text-sm font-medium text-zinc-700">
+          <span>Load No.</span>
+          <input
+            className="min-h-10 border border-zinc-300 bg-white px-3 text-zinc-950 outline-none focus:border-teal-700"
+            defaultValue={filters.loadNo ?? ""}
+            name="loadNo"
+            type="text"
+          />
+        </label>
+        <label className="grid gap-1 text-sm font-medium text-zinc-700">
+          <span>Destination region</span>
+          <input
+            className="min-h-10 border border-zinc-300 bg-white px-3 text-zinc-950 outline-none focus:border-teal-700"
+            defaultValue={filters.destinationRegion ?? ""}
+            name="destinationRegion"
+            type="text"
+          />
+        </label>
+        <label className="grid gap-1 text-sm font-medium text-zinc-700">
+          <span>Status</span>
+          <select
+            className="min-h-10 border border-zinc-300 bg-white px-3 text-zinc-950 outline-none focus:border-teal-700"
+            defaultValue={filters.status ?? ""}
+            name="status"
+          >
+            {LOAD_JOB_HISTORY_STATUS_OPTIONS.map((option) => (
+              <option key={option.value || "all"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-end">
+          <button
+            className="min-h-10 w-full border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
+            type="submit"
+          >
+            Apply
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function HistoryList({
+  filters,
+  loadJobs,
+}: {
+  filters: LoadJobHistoryFilters;
+  loadJobs: LoadJobListResponse;
+}) {
+  const hasPrevious = loadJobs.offset > 0;
+  const hasNext = loadJobs.items.length === loadJobs.limit;
+
+  if (loadJobs.items.length === 0) {
+    return (
+      <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
+        <h2 className="text-base font-semibold text-zinc-950">
+          No load jobs match these filters
+        </h2>
+        <p className="mt-2 max-w-2xl leading-6">
+          Completed jobs remain visible unless they were never created or a
+          planned job was deleted before loading started.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-zinc-950">
+            History results
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Showing {loadJobs.items.length} load jobs from offset{" "}
+            {loadJobs.offset}.
+          </p>
+        </div>
+        <PaginationControls
+          filters={filters}
+          hasNext={hasNext}
+          hasPrevious={hasPrevious}
+          limit={loadJobs.limit}
+          offset={loadJobs.offset}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {loadJobs.items.map((loadJob) => (
+          <LoadJobCard key={loadJob.id} loadJob={loadJob} />
+        ))}
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <PaginationControls
+          filters={filters}
+          hasNext={hasNext}
+          hasPrevious={hasPrevious}
+          limit={loadJobs.limit}
+          offset={loadJobs.offset}
+        />
+      </div>
+    </section>
+  );
+}
+
+function PaginationControls({
+  filters,
+  hasNext,
+  hasPrevious,
+  limit,
+  offset,
+}: {
+  filters: LoadJobHistoryFilters;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  limit: number;
+  offset: number;
+}) {
+  return (
+    <nav className="flex flex-wrap gap-2" aria-label="Load job history pages">
+      {hasPrevious ? (
+        <Link
+          className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-xs font-semibold uppercase text-zinc-700 hover:border-teal-700 hover:text-teal-900"
+          href={loadJobHistoryHref({
+            ...filters,
+            offset: Math.max(0, offset - limit),
+          })}
+        >
+          Previous
+        </Link>
+      ) : null}
+      {hasNext ? (
+        <Link
+          className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-xs font-semibold uppercase text-zinc-700 hover:border-teal-700 hover:text-teal-900"
+          href={loadJobHistoryHref({ ...filters, offset: offset + limit })}
+        >
+          Next
+        </Link>
+      ) : null}
+    </nav>
+  );
+}
+
+function ApiErrorPanel({ error }: { error: ApiClientError }) {
+  return (
+    <section
+      className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+      role="alert"
+    >
+      <h2 className="text-base font-semibold">
+        Load job history could not be loaded
+      </h2>
+      <p className="mt-2 text-sm">{error.message}</p>
+      <p className="mt-2 text-xs font-semibold uppercase">
+        {error.code}
+        {error.status ? ` (${error.status})` : ""}
+      </p>
+    </section>
+  );
+}
+
+function toApiClientError(error: unknown): ApiClientError {
+  if (error instanceof ApiClientError) {
+    return error;
+  }
+
+  return new ApiClientError({
+    code: "WEB_API_ERROR",
+    message: error instanceof Error ? error.message : "Unknown API error",
+    status: 0,
+  });
+}

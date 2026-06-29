@@ -19,6 +19,7 @@ const loadJob: LoadJobResponse = {
   container: null,
   loadNo: "LOAD-2026-001",
   truckNo: "TRUCK-9",
+  dockNo: "D3",
   carrier: "Carrier",
   destinationRegion: "YEG2",
   status: "IN_PROGRESS",

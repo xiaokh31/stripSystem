@@ -1,7 +1,7 @@
 import { resolve, sep } from 'node:path';
 
 export const DEFAULT_DATABASE_URL =
-  'postgresql://bestar:bestar_dev_password@localhost:5432/bestar_unloading?schema=public';
+  'postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public';
 
 export interface AppConfiguration {
   port: number;

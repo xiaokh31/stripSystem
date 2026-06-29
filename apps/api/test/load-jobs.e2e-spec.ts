@@ -15,6 +15,7 @@ interface LoadJobBody {
   } | null;
   loadNo: string;
   truckNo: string | null;
+  dockNo: string | null;
   carrier: string | null;
   destinationRegion: string | null;
   status: string;
@@ -83,6 +84,7 @@ describe('LoadJobsController (e2e)', () => {
       .send({
         loadNo: 'LOAD-2026-001',
         truckNo: 'TRK-18',
+        dockNo: 'D3',
         carrier: 'Bestar CCA',
         destinationRegion: 'YEG2',
         createdById: 'user-1',
@@ -100,8 +102,9 @@ describe('LoadJobsController (e2e)', () => {
       id: 'load-job-1',
       containerId: 'container-1',
       loadNo: 'LOAD-2026-001',
-      status: 'IN_PROGRESS',
-      canScan: true,
+      dockNo: 'D3',
+      status: 'PLANNED',
+      canScan: false,
       scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
       closedAt: null,
       plannedPalletCount: 2,
@@ -124,6 +127,7 @@ describe('LoadJobsController (e2e)', () => {
         }),
       ],
     });
+    await openLoadJobForScanning('load-job-1');
 
     const list = await request(app.getHttpServer())
       .get('/api/load-jobs?status=IN_PROGRESS&containerId=container-2')
@@ -154,6 +158,7 @@ describe('LoadJobsController (e2e)', () => {
     const closed = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/close')
       .send({
+        dockNo: 'D3',
         operatorId: 'user-1',
         reason: 'Loaded at dock 3',
       })
@@ -218,6 +223,7 @@ describe('LoadJobsController (e2e)', () => {
         ],
       })
       .expect(201);
+    await openLoadJobForScanning('load-job-1');
 
     const first = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -294,6 +300,7 @@ describe('LoadJobsController (e2e)', () => {
         lines: [{ sourceText: 'CSNU8877228-2P' }],
       })
       .expect(201);
+    await openLoadJobForScanning('load-job-1');
 
     const loaded = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -401,6 +408,8 @@ describe('LoadJobsController (e2e)', () => {
         }),
       ],
     });
+    await openLoadJobForScanning('load-job-1');
+    await openLoadJobForScanning('load-job-2');
 
     const firstScan = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -459,6 +468,7 @@ describe('LoadJobsController (e2e)', () => {
       plannedPalletCount: 0,
       externalPalletCount: 14,
     });
+    await openLoadJobForScanning('load-job-1');
 
     const rejected = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -489,6 +499,8 @@ describe('LoadJobsController (e2e)', () => {
         lines: [{ sourceText: 'CSNU8877228-2P' }],
       })
       .expect(201);
+    await openLoadJobForScanning('load-job-1');
+    await openLoadJobForScanning('load-job-2');
 
     const invalid = await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/scan')
@@ -522,7 +534,7 @@ describe('LoadJobsController (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/load-jobs/load-job-1/close')
-      .send({})
+      .send({ dockNo: 'D3' })
       .expect(201);
 
     await request(app.getHttpServer())
@@ -532,6 +544,15 @@ describe('LoadJobsController (e2e)', () => {
       })
       .expect(409);
   });
+
+  async function openLoadJobForScanning(id: string): Promise<void> {
+    await request(app.getHttpServer())
+      .patch(`/api/load-jobs/${id}`)
+      .send({ status: 'IN_PROGRESS' })
+      .expect(200);
+    prisma.palletEvent.create.mockClear();
+    prisma.__events.length = 0;
+  }
 
   function createPrismaMock() {
     const containers = [
@@ -793,6 +814,7 @@ describe('LoadJobsController (e2e)', () => {
             containerId: data.containerId ?? null,
             jobNo: data.jobNo ?? null,
             truckNo: data.truckNo ?? null,
+            dockNo: data.dockNo ?? null,
             carrier: data.carrier ?? null,
             destinationRegion: data.destinationRegion ?? null,
             status: data.status,
@@ -844,9 +866,51 @@ describe('LoadJobsController (e2e)', () => {
           if (!record) {
             throw new Error(`Load job not found: ${where.id}`);
           }
-          Object.assign(record, data, {
+          const { lines, ...recordData } = data;
+          Object.assign(record, recordData, {
             updatedAt: new Date('2026-06-27T11:00:00.000Z'),
           });
+          if (lines?.deleteMany) {
+            for (let index = loadJobLines.length - 1; index >= 0; index -= 1) {
+              if (loadJobLines[index].loadJobId === record.id) {
+                loadJobLines.splice(index, 1);
+              }
+            }
+          }
+          for (const line of lines?.create ?? []) {
+            loadJobLines.push({
+              id: `line-${loadJobLines.length + 1}`,
+              loadJobId: record.id,
+              sequence: line.sequence,
+              sourceText: line.sourceText ?? null,
+              containerNo: line.containerNo ?? null,
+              containerId: line.containerId ?? null,
+              containerDestinationId: line.containerDestinationId ?? null,
+              destinationCode: line.destinationCode ?? null,
+              plannedPallets: line.plannedPallets ?? 0,
+              externalTransfer: line.externalTransfer ?? false,
+              note: line.note ?? null,
+              createdAt: new Date('2026-06-27T11:00:00.000Z'),
+              updatedAt: new Date('2026-06-27T11:00:00.000Z'),
+            });
+          }
+          return Promise.resolve(hydrate(record));
+        }),
+        delete: jest.fn(({ where }) => {
+          const index = loadJobs.findIndex((item) => item.id === where.id);
+          if (index < 0) {
+            throw new Error(`Load job not found: ${where.id}`);
+          }
+          const [record] = loadJobs.splice(index, 1);
+          for (
+            let lineIndex = loadJobLines.length - 1;
+            lineIndex >= 0;
+            lineIndex -= 1
+          ) {
+            if (loadJobLines[lineIndex].loadJobId === record.id) {
+              loadJobLines.splice(lineIndex, 1);
+            }
+          }
           return Promise.resolve(hydrate(record));
         }),
       },
@@ -911,6 +975,8 @@ describe('LoadJobsController (e2e)', () => {
         }),
       },
     };
+
+    mock.__events = events;
 
     return mock;
   }

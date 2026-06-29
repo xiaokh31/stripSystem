@@ -3,7 +3,6 @@ import { formatDateTime } from "@/components/imports/import-detail-flow";
 import {
   loadJobDisplayName,
   loadJobLineLabel,
-  loadJobPlanContext,
   mobileLoadJobScanHref,
 } from "@/components/mobile/load-job-flow";
 import {
@@ -121,11 +120,14 @@ function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="break-all text-xl font-semibold text-zinc-950">
+          <p className="break-all text-2xl font-bold text-zinc-950">
+            {loadJob.destinationRegion?.trim() || "No destination region"}
+          </p>
+          <h2 className="mt-1 break-all text-base font-semibold text-zinc-700">
             {loadJobDisplayName(loadJob)}
           </h2>
           <p className="mt-1 text-sm font-medium text-zinc-600">
-            {loadJobPlanContext(loadJob)}
+            {loadJob.truckNo?.trim() || "No truck"}
           </p>
         </div>
         <span className="inline-flex min-h-8 items-center border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold uppercase text-emerald-800">
@@ -142,12 +144,14 @@ function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
       <div className="mt-4 grid gap-2 text-sm text-zinc-700">
         <DetailRow
           label="Departure"
+          valueClassName="text-lg"
           value={
             loadJob.scheduledDepartureAt
               ? formatDateTime(loadJob.scheduledDepartureAt)
               : "Not scheduled"
           }
         />
+        <DetailRow label="Dock" value={loadJob.dockNo ?? "No dock"} />
         <DetailRow label="Carrier" value={loadJob.carrier ?? "No carrier"} />
       </div>
 
@@ -184,11 +188,21 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  label,
+  value,
+  valueClassName = "",
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
   return (
     <div className="flex flex-wrap justify-between gap-2 border-t border-zinc-100 pt-2">
       <dt className="font-medium text-zinc-500">{label}</dt>
-      <dd className="font-semibold text-zinc-950">{value}</dd>
+      <dd className={`font-semibold text-zinc-950 ${valueClassName}`}>
+        {value}
+      </dd>
     </div>
   );
 }

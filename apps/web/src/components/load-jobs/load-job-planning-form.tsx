@@ -34,7 +34,20 @@ export function LoadJobPlanningForm() {
     field: keyof Omit<LoadJobDraft, "lines">,
     value: string,
   ) {
-    setDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => {
+      if (field !== "destinationRegion") {
+        return { ...current, [field]: value };
+      }
+
+      const destinationCode = value.trim();
+      return {
+        ...current,
+        destinationRegion: value,
+        lines: destinationCode
+          ? current.lines.map((line) => ({ ...line, destinationCode }))
+          : current.lines,
+      };
+    });
   }
 
   function updateLine(
@@ -53,7 +66,13 @@ export function LoadJobPlanningForm() {
   function addLine(externalTransfer = false) {
     setDraft((current) => ({
       ...current,
-      lines: [...current.lines, emptyLoadJobLineDraft(externalTransfer)],
+      lines: [
+        ...current.lines,
+        emptyLoadJobLineDraft(
+          externalTransfer,
+          current.destinationRegion.trim(),
+        ),
+      ],
     }));
   }
 
@@ -128,6 +147,12 @@ export function LoadJobPlanningForm() {
             />
             <TextField
               disabled={saving}
+              label="Dock No."
+              onChange={(value) => updateField("dockNo", value)}
+              value={draft.dockNo}
+            />
+            <TextField
+              disabled={saving}
               label="Carrier"
               onChange={(value) => updateField("carrier", value)}
               value={draft.carrier}
@@ -177,6 +202,7 @@ export function LoadJobPlanningForm() {
             {draft.lines.map((line, index) => (
               <LoadJobLineEditor
                 disabled={saving}
+                destinationRegion={draft.destinationRegion}
                 index={index}
                 key={index}
                 line={line}
@@ -218,6 +244,7 @@ export function LoadJobPlanningForm() {
 
 function LoadJobLineEditor({
   disabled,
+  destinationRegion,
   index,
   line,
   onChange,
@@ -225,6 +252,7 @@ function LoadJobLineEditor({
   removable,
 }: {
   disabled: boolean;
+  destinationRegion: string;
   index: number;
   line: LoadJobLineDraft;
   onChange: (
@@ -279,7 +307,7 @@ function LoadJobLineEditor({
           value={line.containerNo}
         />
         <TextField
-          disabled={disabled}
+          disabled={disabled || Boolean(destinationRegion.trim())}
           label="Destination"
           onChange={(value) => onChange(index, "destinationCode", value)}
           value={line.destinationCode}

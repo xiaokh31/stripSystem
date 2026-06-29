@@ -10,9 +10,11 @@ import {
   useState,
 } from "react";
 import {
+  ApiClientError,
   getLoadJobLoadedPallets,
   reverseLoadJobScan,
   scanLoadJobPallet,
+  updateLoadJob,
   type LoadJobProgressResponse,
   type LoadJobResponse,
   type LoadJobScanResponse,
@@ -44,10 +46,16 @@ import {
 } from "./offline-scan-queue";
 
 const DEVICE_ID = "web-mobile-scan";
+const idleDockSaveState: DockSaveState = { message: "", status: "idle" };
 
 interface CameraScanState {
   message: string;
   status: "error" | "idle" | "scanning" | "starting";
+}
+
+interface DockSaveState {
+  message: string;
+  status: "error" | "idle" | "saving" | "saved";
 }
 
 interface DetectedBarcode {
@@ -84,6 +92,9 @@ export function MobileScanPanel({
   const [notice, setNotice] = useState<ScanNotice | null>(null);
   const [offlineItems, setOfflineItems] = useState<OfflineScanQueueItem[]>([]);
   const [queueError, setQueueError] = useState<string | null>(null);
+  const [dockNo, setDockNo] = useState(initialLoadJob.dockNo ?? "");
+  const [dockSaveState, setDockSaveState] =
+    useState<DockSaveState>(idleDockSaveState);
   const [qrPayload, setQrPayload] = useState("");
   const [cameraScan, setCameraScan] = useState<CameraScanState>({
     message: "",
@@ -102,6 +113,7 @@ export function MobileScanPanel({
     qrPayload,
     submitting,
   });
+  const dockSaving = dockSaveState.status === "saving";
   const currentLoadJobQueue = offlineItems.filter(
     (item) => item.loadJobId === loadJob.id,
   );
@@ -345,6 +357,34 @@ export function MobileScanPanel({
     await submitPayload(qrPayload);
   }
 
+  async function saveDockNo() {
+    if (dockSaving || !loadJob.canScan) {
+      return;
+    }
+
+    setDockSaveState({ message: "Saving dock number.", status: "saving" });
+
+    try {
+      const result = await updateLoadJob(loadJob.id, {
+        dockNo: dockNo.trim(),
+      });
+      setLoadJob(result);
+      setDockNo(result.dockNo ?? "");
+      setDockSaveState({
+        message: `Dock saved${result.dockNo ? `: ${result.dockNo}` : "."}`,
+        status: "saved",
+      });
+      router.refresh();
+    } catch (error) {
+      setDockSaveState({
+        message: dockSaveErrorMessage(error),
+        status: "error",
+      });
+    } finally {
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }
+
   async function startCameraScan() {
     if (!loadJob.canScan || submitting || cameraScan.status === "starting") {
       return;
@@ -473,6 +513,42 @@ export function MobileScanPanel({
     <section className="border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <form className="grid gap-4" onSubmit={handleSubmit}>
+          <div className="grid gap-3 border border-zinc-200 bg-zinc-50 p-3">
+            <label className="grid gap-2 text-base font-semibold text-zinc-950">
+              Dock No.
+              <input
+                className="min-h-14 w-full border border-zinc-300 bg-white px-4 text-xl font-semibold text-zinc-950 outline-none focus:border-teal-700 focus:ring-4 focus:ring-teal-100 disabled:bg-zinc-100 disabled:text-zinc-500"
+                disabled={!loadJob.canScan || dockSaving}
+                onChange={(event) => setDockNo(event.target.value)}
+                placeholder="Dock door"
+                type="text"
+                value={dockNo}
+              />
+            </label>
+            <button
+              className="min-h-12 border border-teal-800 bg-white px-4 text-base font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-100 disabled:text-zinc-500"
+              disabled={!loadJob.canScan || dockSaving}
+              onClick={() => {
+                void saveDockNo();
+              }}
+              type="button"
+            >
+              {dockSaving ? "Saving dock" : "Save dock"}
+            </button>
+            {dockSaveState.message ? (
+              <div
+                className={`border p-3 text-sm font-medium ${
+                  dockSaveState.status === "error"
+                    ? "border-red-200 bg-red-50 text-red-950"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-950"
+                }`}
+                role={dockSaveState.status === "error" ? "alert" : "status"}
+              >
+                {dockSaveState.message}
+              </div>
+            ) : null}
+          </div>
+
           <label className="grid gap-2 text-base font-semibold text-zinc-950">
             Pallet QR scan
             <input
@@ -610,6 +686,20 @@ function CameraScanPanel({
       ) : null}
     </div>
   );
+}
+
+function dockSaveErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    if (error.code === "NOT_FOUND" && error.message.includes("Cannot PATCH")) {
+      return "The running API has not loaded load job edit routes. Restart the API service and try again.";
+    }
+
+    return error.message;
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Dock number could not be saved.";
 }
 
 function ReverseScanPanel({

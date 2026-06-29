@@ -6,12 +6,17 @@ docs/*
 !docs/runbooks/
 docs/runbooks/*
 !docs/runbooks/local-deployment.md
+!docs/runbooks/local-development.md
 !docs/runbooks/backup-restore.md
 !docs/runbooks/database-migrations.md
+!docs/runbooks/account-role-permission-management.md
 !docs/runbooks/deploy-linux.md
 !docs/runbooks/deploy-windows.md
 !docs/runbooks/warehouse-operator-manual.md
 !docs/runbooks/pilot-run-checklist.md
+!docs/reports/
+docs/reports/*
+!docs/reports/project-completion-status.html
 
 # macOS
 .DS_Store

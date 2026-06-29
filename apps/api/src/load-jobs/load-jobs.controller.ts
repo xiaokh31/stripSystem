@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CloseLoadJobDto } from './dto/close-load-job.dto';
 import { CreateLoadJobDto } from './dto/create-load-job.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
@@ -10,6 +19,7 @@ import {
 } from './dto/load-job-response.dto';
 import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
+import { UpdateLoadJobDto } from './dto/update-load-job.dto';
 import { LoadJobsService } from './load-jobs.service';
 
 @Controller('load-jobs')
@@ -29,6 +39,19 @@ export class LoadJobsController {
   @Get(':id')
   getById(@Param('id') id: string): Promise<LoadJobResponseDto> {
     return this.loadJobsService.getById(id);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateLoadJobDto,
+  ): Promise<LoadJobResponseDto> {
+    return this.loadJobsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string): Promise<LoadJobResponseDto> {
+    return this.loadJobsService.delete(id);
   }
 
   @Get(':id/loaded-pallets')

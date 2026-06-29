@@ -22,6 +22,7 @@ import {
 } from './dto/load-job-response.dto';
 import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
+import { UpdateLoadJobDto } from './dto/update-load-job.dto';
 import {
   LoadJobStatus,
   PalletEventType,
@@ -52,6 +53,7 @@ interface LoadJobRecord {
   container?: ContainerRecord | null;
   jobNo: string | null;
   truckNo: string | null;
+  dockNo: string | null;
   carrier: string | null;
   destinationRegion: string | null;
   status: LoadJobStatusValue;
@@ -121,6 +123,12 @@ interface ContainerLookupClient {
     findFirst(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<unknown>;
   };
+}
+
+interface LoadJobLineNormalizationInput {
+  destinationRegion?: string;
+  lines?: CreateLoadJobLineDto[];
+  loadNo?: string;
 }
 
 interface UserLookupClient {
@@ -275,7 +283,7 @@ export class LoadJobsService {
     }
 
     const loadNo = this.requiredString(dto.loadNo, 'loadNo');
-    const startedAt = dto.startedAt ? new Date(dto.startedAt) : new Date();
+    const startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
     const scheduledDepartureAt = dto.scheduledDepartureAt
       ? new Date(dto.scheduledDepartureAt)
       : null;
@@ -290,9 +298,10 @@ export class LoadJobsService {
           containerId: primaryContainerId,
           jobNo: loadNo,
           truckNo: this.stringOrNull(dto.truckNo),
+          dockNo: this.stringOrNull(dto.dockNo),
           carrier: this.stringOrNull(dto.carrier),
           destinationRegion: this.stringOrNull(dto.destinationRegion),
-          status: LoadJobStatus.IN_PROGRESS,
+          status: LoadJobStatus.PLANNED,
           startedAt,
           scheduledDepartureAt,
           closedAt: null,
@@ -361,6 +370,177 @@ export class LoadJobsService {
     return this.toResponse(record);
   }
 
+  async update(id: string, dto: UpdateLoadJobDto): Promise<LoadJobResponseDto> {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const existing = (await tx.loadJob.findUnique({
+        where: { id },
+        include: LOAD_JOB_INCLUDE,
+      })) as LoadJobRecord | null;
+
+      if (!existing) {
+        throw new NotFoundException({
+          code: 'LOAD_JOB_NOT_FOUND',
+          message: `Load job ${id} was not found.`,
+          details: { id },
+        });
+      }
+
+      this.assertEditable(existing);
+
+      if (dto.createdById) {
+        await this.assertUserExists(
+          tx,
+          dto.createdById,
+          'LOAD_JOB_CREATED_BY_NOT_FOUND',
+        );
+      }
+      if (dto.operatorId) {
+        await this.assertUserExists(
+          tx,
+          dto.operatorId,
+          'LOAD_JOB_UPDATE_OPERATOR_NOT_FOUND',
+        );
+      }
+
+      const destinationRegion =
+        dto.destinationRegion === undefined
+          ? existing.destinationRegion
+          : this.stringOrNull(dto.destinationRegion);
+      const normalizedLines =
+        dto.lines === undefined
+          ? null
+          : await this.normalizeLoadJobLines(tx, {
+              destinationRegion: destinationRegion ?? undefined,
+              lines: dto.lines,
+              loadNo: dto.loadNo ?? existing.jobNo ?? id,
+            });
+
+      if (normalizedLines && existing.status === LoadJobStatus.IN_PROGRESS) {
+        await this.assertUpdatedPlanKeepsLoadedPallets(tx, id, normalizedLines);
+      }
+
+      const requestedStatus = dto.status
+        ? this.status(dto.status)
+        : existing.status;
+      const nextDockNo =
+        dto.dockNo === undefined
+          ? existing.dockNo
+          : this.stringOrNull(dto.dockNo);
+      await this.assertStatusTransition(tx, existing, requestedStatus);
+      this.assertDockNoForCompleted(requestedStatus, nextDockNo, id);
+
+      const now = new Date();
+      const data: Prisma.LoadJobUncheckedUpdateInput = {};
+      if (dto.loadNo !== undefined) {
+        data.jobNo = this.requiredString(dto.loadNo, 'loadNo');
+      }
+      if (dto.truckNo !== undefined) {
+        data.truckNo = this.stringOrNull(dto.truckNo);
+      }
+      if (dto.dockNo !== undefined) {
+        data.dockNo = nextDockNo;
+      }
+      if (dto.carrier !== undefined) {
+        data.carrier = this.stringOrNull(dto.carrier);
+      }
+      if (dto.destinationRegion !== undefined) {
+        data.destinationRegion = destinationRegion;
+      }
+      if (dto.createdById !== undefined) {
+        data.createdById = this.stringOrNull(dto.createdById);
+      }
+      if (dto.startedAt !== undefined) {
+        data.startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
+      }
+      if (dto.scheduledDepartureAt !== undefined) {
+        data.scheduledDepartureAt = dto.scheduledDepartureAt
+          ? new Date(dto.scheduledDepartureAt)
+          : null;
+      }
+      if (normalizedLines) {
+        data.containerId =
+          normalizedLines.find((line) => !line.externalTransfer)?.containerId ??
+          null;
+        data.lines = {
+          deleteMany: {},
+          create: normalizedLines,
+        };
+      }
+      if (requestedStatus !== existing.status) {
+        data.status = requestedStatus;
+        if (
+          requestedStatus === LoadJobStatus.IN_PROGRESS &&
+          dto.startedAt === undefined &&
+          !existing.startedAt
+        ) {
+          data.startedAt = now;
+        }
+        if (requestedStatus === LoadJobStatus.PLANNED) {
+          data.closedAt = null;
+        }
+        if (requestedStatus === LoadJobStatus.COMPLETED) {
+          data.closedAt = now;
+        }
+
+        await tx.palletEvent.create({
+          data: {
+            loadJobId: id,
+            eventType: PalletEventType.STATUS_CHANGED,
+            metadata: this.statusEventMetadata(existing, requestedStatus, dto),
+            operatorId: this.stringOrNull(dto.operatorId),
+            occurredAt: now,
+          },
+        });
+      }
+
+      try {
+        return await tx.loadJob.update({
+          where: { id },
+          data,
+          include: LOAD_JOB_INCLUDE,
+        });
+      } catch (error) {
+        this.throwConflictIfUnique(error, 'LOAD_JOB_UPDATE_CONFLICT');
+        throw error;
+      }
+    });
+
+    return this.toResponse(updated);
+  }
+
+  async delete(id: string): Promise<LoadJobResponseDto> {
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const existing = (await tx.loadJob.findUnique({
+        where: { id },
+        include: LOAD_JOB_INCLUDE,
+      })) as LoadJobRecord | null;
+
+      if (!existing) {
+        throw new NotFoundException({
+          code: 'LOAD_JOB_NOT_FOUND',
+          message: `Load job ${id} was not found.`,
+          details: { id },
+        });
+      }
+
+      if (existing.status !== LoadJobStatus.PLANNED) {
+        throw new ConflictException({
+          code: 'LOAD_JOB_DELETE_NOT_ALLOWED',
+          message:
+            'Only planned load jobs can be deleted. In-progress and completed load jobs must remain auditable.',
+          details: { id, status: existing.status },
+        });
+      }
+
+      return await tx.loadJob.delete({
+        where: { id },
+        include: LOAD_JOB_INCLUDE,
+      });
+    });
+
+    return this.toResponse(deleted);
+  }
+
   async listLoadedPallets(
     id: string,
   ): Promise<LoadJobLoadedPalletsResponseDto> {
@@ -398,6 +578,11 @@ export class LoadJobsService {
       }
 
       this.assertClosable(existing);
+      const dockNo =
+        dto.dockNo === undefined
+          ? existing.dockNo
+          : this.stringOrNull(dto.dockNo);
+      this.assertDockNoForCompleted(LoadJobStatus.COMPLETED, dockNo, id);
       if (dto.operatorId) {
         await this.assertUserExists(
           tx,
@@ -419,6 +604,7 @@ export class LoadJobsService {
       const updated = (await tx.loadJob.update({
         where: { id },
         data: {
+          dockNo,
           status: LoadJobStatus.COMPLETED,
           closedAt,
         },
@@ -791,7 +977,7 @@ export class LoadJobsService {
 
   private async normalizeLoadJobLines(
     client: ContainerLookupClient,
-    dto: CreateLoadJobDto,
+    dto: LoadJobLineNormalizationInput,
   ): Promise<NormalizedLoadJobLine[]> {
     const rawLines = dto.lines ?? [];
     const normalized: NormalizedLoadJobLine[] = [];
@@ -816,7 +1002,7 @@ export class LoadJobsService {
 
   private async normalizeLoadJobLine(
     client: ContainerLookupClient,
-    dto: CreateLoadJobDto,
+    dto: LoadJobLineNormalizationInput,
     line: CreateLoadJobLineDto,
     index: number,
   ): Promise<NormalizedLoadJobLine> {
@@ -829,9 +1015,26 @@ export class LoadJobsService {
       this.hasTransferSuffix(sourceText) ||
       this.hasTransferSuffix(rawContainerNo);
     const plannedPallets = line.plannedPallets ?? parsed.plannedPallets;
-    const destinationCode =
-      this.stringOrNull(line.destinationCode) ??
-      this.stringOrNull(dto.destinationRegion);
+    const destinationRegion = this.stringOrNull(dto.destinationRegion);
+    const explicitDestinationCode = this.stringOrNull(line.destinationCode);
+    if (
+      destinationRegion &&
+      explicitDestinationCode &&
+      explicitDestinationCode !== destinationRegion
+    ) {
+      throw new BadRequestException({
+        code: 'LOAD_JOB_LINE_DESTINATION_REGION_MISMATCH',
+        message:
+          'Each plan line destination must match the load job destination region.',
+        details: {
+          sequence: index + 1,
+          destinationRegion,
+          destinationCode: explicitDestinationCode,
+        },
+      });
+    }
+
+    const destinationCode = explicitDestinationCode ?? destinationRegion;
 
     if (plannedPallets === null) {
       throw new BadRequestException({
@@ -1430,6 +1633,166 @@ export class LoadJobsService {
     return { kind: 'error', exception };
   }
 
+  private assertEditable(record: LoadJobRecord): void {
+    if (record.status === LoadJobStatus.COMPLETED) {
+      throw new ConflictException({
+        code: 'LOAD_JOB_COMPLETED_NOT_EDITABLE',
+        message: `Load job ${record.id} is completed and cannot be edited.`,
+        details: { id: record.id, status: record.status },
+      });
+    }
+
+    if (record.status === LoadJobStatus.CANCELLED) {
+      throw new ConflictException({
+        code: 'LOAD_JOB_CANCELLED',
+        message: `Load job ${record.id} was cancelled and cannot be edited.`,
+        details: { id: record.id, status: record.status },
+      });
+    }
+  }
+
+  private async assertStatusTransition(
+    tx: PalletCountClient,
+    record: LoadJobRecord,
+    nextStatus: LoadJobStatusValue,
+  ): Promise<void> {
+    if (nextStatus === record.status) {
+      return;
+    }
+
+    if (nextStatus === LoadJobStatus.CANCELLED) {
+      throw new BadRequestException({
+        code: 'LOAD_JOB_STATUS_NOT_SUPPORTED',
+        message: 'Cancelled load jobs are not supported by this workflow.',
+        details: { id: record.id, status: nextStatus },
+      });
+    }
+
+    if (
+      nextStatus === LoadJobStatus.PLANNED &&
+      record.status === LoadJobStatus.IN_PROGRESS
+    ) {
+      const loadedPallets = await tx.pallet.count({
+        where: {
+          loadJobId: record.id,
+          status: PalletStatus.LOADED,
+        },
+      });
+
+      if (loadedPallets > 0) {
+        throw new ConflictException({
+          code: 'LOAD_JOB_STATUS_HAS_LOADED_PALLETS',
+          message:
+            'A load job with loaded pallets cannot be moved back to planned.',
+          details: { id: record.id, loadedPallets },
+        });
+      }
+    }
+  }
+
+  private assertDockNoForCompleted(
+    status: LoadJobStatusValue,
+    dockNo: string | null,
+    loadJobId: string,
+  ): void {
+    if (status !== LoadJobStatus.COMPLETED || dockNo) {
+      return;
+    }
+
+    throw new BadRequestException({
+      code: 'LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED',
+      message: 'Dock No. is required before a load job can be completed.',
+      details: { loadJobId },
+    });
+  }
+
+  private async assertUpdatedPlanKeepsLoadedPallets(
+    tx: { pallet: { findMany(args: unknown): Promise<unknown> } },
+    loadJobId: string,
+    lines: NormalizedLoadJobLine[],
+  ): Promise<void> {
+    const loadedPallets = (await tx.pallet.findMany({
+      where: {
+        loadJobId,
+        status: PalletStatus.LOADED,
+      },
+      include: PALLET_INCLUDE,
+    })) as PalletRecord[];
+
+    for (const pallet of loadedPallets) {
+      const matchedLine = this.matchNormalizedLoadJobLine(lines, pallet);
+      if (!matchedLine) {
+        throw new ConflictException({
+          code: 'LOAD_JOB_LOADED_PALLET_OUTSIDE_UPDATED_PLAN',
+          message:
+            'The updated plan would remove a pallet that is already loaded.',
+          details: {
+            loadJobId,
+            palletId: pallet.palletId,
+            palletRecordId: pallet.id,
+          },
+        });
+      }
+    }
+
+    for (const line of lines.filter((item) => !item.externalTransfer)) {
+      const loadedForLine = loadedPallets.filter((pallet) =>
+        this.normalizedLineMatchesPallet(line, pallet),
+      ).length;
+
+      if (loadedForLine > line.plannedPallets) {
+        throw new ConflictException({
+          code: 'LOAD_JOB_LINE_PLAN_BELOW_LOADED_COUNT',
+          message:
+            'The updated plan cannot set planned pallets below already loaded pallets.',
+          details: {
+            loadJobId,
+            sequence: line.sequence,
+            plannedPallets: line.plannedPallets,
+            loadedForLine,
+          },
+        });
+      }
+    }
+  }
+
+  private matchNormalizedLoadJobLine(
+    lines: NormalizedLoadJobLine[],
+    pallet: PalletRecord,
+  ): NormalizedLoadJobLine | null {
+    return (
+      lines.find((line) => this.normalizedLineMatchesPallet(line, pallet)) ??
+      null
+    );
+  }
+
+  private normalizedLineMatchesPallet(
+    line: NormalizedLoadJobLine,
+    pallet: PalletRecord,
+  ): boolean {
+    if (line.externalTransfer || line.plannedPallets <= 0) {
+      return false;
+    }
+
+    if (line.containerDestinationId) {
+      return line.containerDestinationId === pallet.containerDestinationId;
+    }
+
+    const palletContainerId = pallet.containerDestination?.containerId ?? null;
+    const palletDestinationCode =
+      pallet.containerDestination?.destinationCode ?? null;
+
+    if (!line.containerId || line.containerId !== palletContainerId) {
+      return false;
+    }
+
+    if (line.destinationCode) {
+      return line.destinationCode === palletDestinationCode;
+    }
+
+    return true;
+  }
+
   private assertClosable(record: LoadJobRecord): void {
     if (record.status === LoadJobStatus.COMPLETED) {
       throw new ConflictException({
@@ -1460,6 +1823,24 @@ export class LoadJobsService {
       toStatus: LoadJobStatus.COMPLETED,
       plannedPalletCount: this.systemPlannedPalletCount(record),
       externalPalletCount: this.externalPlannedPalletCount(record),
+      dockNo: this.stringOrNull(dto.dockNo) ?? record.dockNo,
+      reason: this.stringOrNull(dto.reason),
+      note: this.stringOrNull(dto.note),
+    };
+  }
+
+  private statusEventMetadata(
+    record: LoadJobRecord,
+    toStatus: LoadJobStatusValue,
+    dto: UpdateLoadJobDto,
+  ): Prisma.InputJsonValue {
+    return {
+      action: 'LOAD_JOB_STATUS_CHANGED',
+      loadJobId: record.id,
+      loadNo: record.jobNo,
+      fromStatus: record.status,
+      toStatus,
+      dockNo: this.stringOrNull(dto.dockNo) ?? record.dockNo,
       reason: this.stringOrNull(dto.reason),
       note: this.stringOrNull(dto.note),
     };
@@ -1528,6 +1909,7 @@ export class LoadJobsService {
         : null,
       loadNo: record.jobNo,
       truckNo: record.truckNo,
+      dockNo: record.dockNo,
       carrier: record.carrier,
       destinationRegion: record.destinationRegion,
       status: record.status,

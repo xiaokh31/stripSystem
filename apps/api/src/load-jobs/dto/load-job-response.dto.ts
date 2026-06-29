@@ -32,6 +32,7 @@ export interface LoadJobResponseDto {
   container: LoadJobContainerResponseDto | null;
   loadNo: string | null;
   truckNo: string | null;
+  dockNo: string | null;
   carrier: string | null;
   destinationRegion: string | null;
   status: string;
