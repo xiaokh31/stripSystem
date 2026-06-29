@@ -32,6 +32,8 @@ import {
   FileFormat,
   ParseStatus,
 } from '../generated/prisma/enums';
+import { auditUserId } from '../auth/audit-user';
+import { AuthenticatedUser } from '../auth/auth-user';
 import { effectiveContainerStatus } from '../common/container-lifecycle';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,6 +58,7 @@ interface ImportFileRecord {
   errorCount: number;
   errorMessage: string | null;
   rawMetadata?: unknown;
+  importedById?: string | null;
   containers?: ImportFileContainerSummaryRecord[];
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -136,7 +139,10 @@ export class ImportsService {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
 
-  async importFile(file: Express.Multer.File): Promise<ImportFileResponseDto> {
+  async importFile(
+    file: Express.Multer.File,
+    actor: AuthenticatedUser,
+  ): Promise<ImportFileResponseDto> {
     this.validateXlsx(file);
 
     const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
@@ -164,6 +170,7 @@ export class ImportsService {
           warningCount: 0,
           errorCount: 0,
           errorMessage: null,
+          importedById: auditUserId(actor),
         },
       });
 
@@ -215,7 +222,10 @@ export class ImportsService {
     return this.toResponse(record);
   }
 
-  async parse(id: string): Promise<ImportParseResultResponseDto> {
+  async parse(
+    id: string,
+    _actor: AuthenticatedUser,
+  ): Promise<ImportParseResultResponseDto> {
     const record = await this.findImportOrThrow(id);
     await this.assertStoredFileExists(record);
 

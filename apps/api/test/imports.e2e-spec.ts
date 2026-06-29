@@ -11,6 +11,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
+  officeAuthHeader,
 } from './auth-test-helpers';
 
 interface ImportRecord {
@@ -28,6 +29,7 @@ interface ImportRecord {
   errorCount: number;
   errorMessage: string | null;
   rawMetadata: unknown;
+  importedById: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -91,6 +93,7 @@ interface GeneratedFileRecord {
   fileSizeBytes: bigint | number | string | null;
   status: string;
   errorMessage: string | null;
+  generatedById: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -117,6 +120,7 @@ interface PalletEventRecord {
   toStatus: string | null;
   scanPayload: string | null;
   metadata: unknown;
+  operatorId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -286,6 +290,7 @@ interface CreateImportArgs {
     errorMessage: string | null;
     parserVersion?: string | null;
     rawMetadata?: unknown;
+    importedById?: string | null;
   };
 }
 
@@ -362,7 +367,7 @@ describe('ImportsController (e2e)', () => {
   });
 
   it('uploads a real xlsx fixture, saves the original file, and writes import_files metadata', async () => {
-    const response = await authorizedRequest(app)
+    const response = await authorizedRequest(app, officeAuthHeader())
       .post('/api/imports')
       .attach('file', fixturePath)
       .expect(201);
@@ -381,6 +386,7 @@ describe('ImportsController (e2e)', () => {
     await expect(stat(body.storedPath)).resolves.toBeDefined();
     expect(records).toHaveLength(1);
     expect(records[0].storedPath).toBe(body.storedPath);
+    expect(records[0].importedById).toBe('auth-office');
   });
 
   it('rejects duplicate uploads by SHA-256', async () => {
@@ -502,7 +508,7 @@ describe('ImportsController (e2e)', () => {
     const parsedBody = parsed.body as ParseResultBody;
     const containerId = parsedBody.containers[0].id;
 
-    const report = await authorizedRequest(app)
+    const report = await authorizedRequest(app, officeAuthHeader())
       .post(`/api/containers/${containerId}/generate-report`)
       .expect(201);
     const reportBody = report.body as GenerateReportBody;
@@ -523,6 +529,7 @@ describe('ImportsController (e2e)', () => {
     expect(generatedFiles[0].storagePath).toBe(
       reportBody.generatedFile.storagePath,
     );
+    expect(generatedFiles[0].generatedById).toBe('auth-office');
 
     const files = await authorizedRequest(app)
       .get(`/api/containers/${containerId}/files`)
@@ -652,7 +659,7 @@ describe('ImportsController (e2e)', () => {
     const containerId = manualBody.container.id;
     const destinationId = manualBody.container.destinations[0].id;
 
-    const labels = await authorizedRequest(app)
+    const labels = await authorizedRequest(app, officeAuthHeader())
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(201);
     const labelsBody = labels.body as GenerateLabelsBody;
@@ -672,6 +679,10 @@ describe('ImportsController (e2e)', () => {
     expect(labelsBody.pallets).toHaveLength(6);
     expect(pallets).toHaveLength(6);
     expect(generatedFiles).toHaveLength(1);
+    expect(generatedFiles[0].generatedById).toBe('auth-office');
+    expect(palletEvents.every((event) => event.operatorId === 'auth-office')).toBe(
+      true,
+    );
     expect(
       labelsBody.pallets.every(
         (pallet) =>
@@ -690,7 +701,7 @@ describe('ImportsController (e2e)', () => {
       labelsBody.pallets.map((pallet) => pallet.id),
     );
 
-    await authorizedRequest(app)
+    await authorizedRequest(app, officeAuthHeader())
       .patch(`/api/container-destinations/${destinationId}`)
       .send({
         manualPallets: 3,
@@ -707,7 +718,7 @@ describe('ImportsController (e2e)', () => {
         });
       });
 
-    const regenerated = await authorizedRequest(app)
+    const regenerated = await authorizedRequest(app, officeAuthHeader())
       .post(`/api/containers/${containerId}/generate-labels`)
       .expect(201);
     const regeneratedBody = regenerated.body as GenerateLabelsBody;
@@ -947,6 +958,7 @@ describe('ImportsController (e2e)', () => {
             errorCount: data.errorCount,
             errorMessage: data.errorMessage,
             rawMetadata: data.rawMetadata ?? null,
+            importedById: data.importedById ?? null,
             createdAt: now,
             updatedAt: now,
           };
@@ -1215,6 +1227,7 @@ describe('ImportsController (e2e)', () => {
             fileSizeBytes: data.fileSizeBytes,
             status: data.status,
             errorMessage: data.errorMessage,
+            generatedById: data.generatedById ?? null,
             createdAt: now,
             updatedAt: now,
           };
@@ -1347,6 +1360,7 @@ describe('ImportsController (e2e)', () => {
             toStatus: row.toStatus,
             scanPayload: row.scanPayload,
             metadata: row.metadata,
+            operatorId: row.operatorId ?? null,
             createdAt: now,
             updatedAt: now,
           }));

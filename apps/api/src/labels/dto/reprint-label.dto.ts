@@ -7,9 +7,9 @@ import {
 } from 'class-validator';
 
 export class ReprintLabelDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  operatorId!: string;
+  operatorId?: string;
 
   @IsString()
   @IsNotEmpty()

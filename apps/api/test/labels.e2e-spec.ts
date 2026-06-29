@@ -8,6 +8,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
+  officeAuthHeader,
 } from './auth-test-helpers';
 
 interface DestinationRecord {
@@ -78,7 +79,7 @@ describe('LabelsController reprint audit (e2e)', () => {
   it('records pallet and container reprint audits without changing pallet status', async () => {
     const loadedStatus = pallets[1].status;
 
-    const palletResponse = await authorizedRequest(app)
+    const palletResponse = await authorizedRequest(app, officeAuthHeader())
       .post('/api/pallets/pallet-2/print')
       .send({
         operatorId: 'user-1',
@@ -90,7 +91,7 @@ describe('LabelsController reprint audit (e2e)', () => {
       event: {
         palletRecordId: 'pallet-2',
         businessPalletId: 'CSNU8877228-D001-YYZ-P002',
-        userId: 'user-1',
+        userId: 'auth-office',
         reason: 'Loaded pallet label was torn',
         palletStatus: 'LOADED',
         supervisorOverride: false,
@@ -107,10 +108,10 @@ describe('LabelsController reprint audit (e2e)', () => {
       eventType: 'REPRINTED',
       fromStatus: 'LOADED',
       toStatus: 'LOADED',
-      operatorId: 'user-1',
+      operatorId: 'auth-office',
     });
 
-    const containerResponse = await authorizedRequest(app)
+    const containerResponse = await authorizedRequest(app, officeAuthHeader())
       .post('/api/containers/container-1/labels/reprint')
       .send({
         operatorId: 'user-1',
@@ -125,12 +126,12 @@ describe('LabelsController reprint audit (e2e)', () => {
         {
           palletRecordId: 'pallet-1',
           palletStatus: 'LABEL_PRINTED',
-          userId: 'user-1',
+          userId: 'auth-office',
         },
         {
           palletRecordId: 'pallet-2',
           palletStatus: 'LOADED',
-          userId: 'user-1',
+          userId: 'auth-office',
         },
       ],
     });
@@ -143,7 +144,7 @@ describe('LabelsController reprint audit (e2e)', () => {
   });
 
   it('blocks cancelled pallet reprint unless supervisor override is sent', async () => {
-    await authorizedRequest(app)
+    await authorizedRequest(app, officeAuthHeader())
       .post('/api/pallets/pallet-cancelled/print')
       .send({
         operatorId: 'user-1',
@@ -155,7 +156,7 @@ describe('LabelsController reprint audit (e2e)', () => {
       });
     expect(palletEvents).toHaveLength(0);
 
-    await authorizedRequest(app)
+    await authorizedRequest(app, officeAuthHeader())
       .post('/api/pallets/pallet-cancelled/print')
       .send({
         operatorId: 'user-1',

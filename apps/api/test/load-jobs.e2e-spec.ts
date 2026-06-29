@@ -8,6 +8,8 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
+  officeAuthHeader,
+  warehouseAuthHeader,
 } from './auth-test-helpers';
 
 interface LoadJobBody {
@@ -24,6 +26,7 @@ interface LoadJobBody {
   destinationRegion: string | null;
   status: string;
   canScan: boolean;
+  createdById: string | null;
   scheduledDepartureAt: string | null;
   closedAt: string | null;
   plannedPalletCount: number;
@@ -85,7 +88,7 @@ describe('LoadJobsController (e2e)', () => {
   });
 
   it('creates, queries, and closes a mixed load job', async () => {
-    const created = await authorizedRequest(app)
+    const created = await authorizedRequest(app, officeAuthHeader())
       .post('/api/load-jobs')
       .send({
         loadNo: 'LOAD-2026-001',
@@ -111,6 +114,7 @@ describe('LoadJobsController (e2e)', () => {
       dockNo: 'D3',
       status: 'PLANNED',
       canScan: false,
+      createdById: 'auth-office',
       scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
       closedAt: null,
       plannedPalletCount: 2,
@@ -161,7 +165,7 @@ describe('LoadJobsController (e2e)', () => {
       lines: expect.any(Array),
     });
 
-    const closed = await authorizedRequest(app)
+    const closed = await authorizedRequest(app, officeAuthHeader())
       .post('/api/load-jobs/load-job-1/close')
       .send({
         dockNo: 'D3',
@@ -177,6 +181,7 @@ describe('LoadJobsController (e2e)', () => {
       eventCount: 1,
     });
     expect(closed.body.closedAt).toEqual(expect.any(String));
+    expect(prisma.__events[0].operatorId).toBe('auth-office');
 
     await authorizedRequest(app)
       .post('/api/load-jobs/load-job-1/close')
@@ -231,11 +236,12 @@ describe('LoadJobsController (e2e)', () => {
       .expect(201);
     await openLoadJobForScanning('load-job-1');
 
-    const first = await authorizedRequest(app)
+    const first = await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
         deviceId: 'scanner-1',
+        operatorId: 'user-1',
       })
       .expect(201);
     const firstBody = first.body as ScanBody;
@@ -257,10 +263,11 @@ describe('LoadJobsController (e2e)', () => {
       },
     });
 
-    const duplicate = await authorizedRequest(app)
+    const duplicate = await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        operatorId: 'user-1',
       })
       .expect(201);
 
@@ -273,17 +280,19 @@ describe('LoadJobsController (e2e)', () => {
       },
     });
 
-    await authorizedRequest(app)
+    await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
+        operatorId: 'user-1',
       })
       .expect(201);
 
-    const overPlan = await authorizedRequest(app)
+    const overPlan = await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+        operatorId: 'user-1',
       })
       .expect(409);
 
@@ -295,6 +304,16 @@ describe('LoadJobsController (e2e)', () => {
         (call) => call[0].data.eventType,
       ),
     ).toEqual(['LOADED', 'DUPLICATE_SCAN', 'LOADED', 'INVALID_SCAN']);
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.operatorId,
+      ),
+    ).toEqual([
+      'auth-warehouse',
+      'auth-warehouse',
+      'auth-warehouse',
+      'auth-warehouse',
+    ]);
   });
 
   it('reverses a loaded scan with explicit confirmation', async () => {
@@ -308,10 +327,11 @@ describe('LoadJobsController (e2e)', () => {
       .expect(201);
     await openLoadJobForScanning('load-job-1');
 
-    const loaded = await authorizedRequest(app)
+    const loaded = await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan')
       .send({
         qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        operatorId: 'user-1',
       })
       .expect(201);
     const loadedBody = loaded.body as ScanBody;
@@ -330,22 +350,24 @@ describe('LoadJobsController (e2e)', () => {
       ],
     });
 
-    await authorizedRequest(app)
+    await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan/reverse')
       .send({
         confirm: false,
         palletRecordId: loadedBody.pallet.id,
         reason: 'Need to combine pallets',
+        operatorId: 'user-1',
       })
       .expect(400);
 
-    const reversed = await authorizedRequest(app)
+    const reversed = await authorizedRequest(app, warehouseAuthHeader())
       .post('/api/load-jobs/load-job-1/scan/reverse')
       .send({
         confirm: true,
         deviceId: 'mobile-camera',
         palletRecordId: loadedBody.pallet.id,
         reason: 'Need to combine pallets',
+        operatorId: 'user-1',
       })
       .expect(201);
 
@@ -372,6 +394,11 @@ describe('LoadJobsController (e2e)', () => {
         (call) => call[0].data.eventType,
       ),
     ).toEqual(['LOADED', 'STATUS_CHANGED']);
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.operatorId,
+      ),
+    ).toEqual(['auth-warehouse', 'auth-warehouse']);
   });
 
   it('splits one container destination across multiple load jobs with part suffixes', async () => {

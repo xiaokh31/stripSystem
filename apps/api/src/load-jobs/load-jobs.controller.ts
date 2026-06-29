@@ -21,7 +21,8 @@ import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { UpdateLoadJobDto } from './dto/update-load-job.dto';
 import { LoadJobsService } from './load-jobs.service';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('load-jobs')
@@ -30,8 +31,11 @@ export class LoadJobsController {
 
   @Post()
   @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.create)
-  create(@Body() dto: CreateLoadJobDto): Promise<LoadJobResponseDto> {
-    return this.loadJobsService.create(dto);
+  create(
+    @Body() dto: CreateLoadJobDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
+    return this.loadJobsService.create(dto, actor);
   }
 
   @Get()
@@ -51,14 +55,18 @@ export class LoadJobsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateLoadJobDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<LoadJobResponseDto> {
-    return this.loadJobsService.update(id, dto);
+    return this.loadJobsService.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.delete)
-  delete(@Param('id') id: string): Promise<LoadJobResponseDto> {
-    return this.loadJobsService.delete(id);
+  delete(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
+    return this.loadJobsService.delete(id, actor);
   }
 
   @Get(':id/loaded-pallets')
@@ -74,8 +82,9 @@ export class LoadJobsController {
   close(
     @Param('id') id: string,
     @Body() dto: CloseLoadJobDto = {},
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<LoadJobResponseDto> {
-    return this.loadJobsService.close(id, dto);
+    return this.loadJobsService.close(id, dto, actor);
   }
 
   @Post(':id/scan')
@@ -83,8 +92,9 @@ export class LoadJobsController {
   scan(
     @Param('id') id: string,
     @Body() dto: ScanPalletDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<LoadJobScanResponseDto> {
-    return this.loadJobsService.scan(id, dto);
+    return this.loadJobsService.scan(id, dto, actor);
   }
 
   @Post(':id/scan/reverse')
@@ -92,7 +102,8 @@ export class LoadJobsController {
   reverseScan(
     @Param('id') id: string,
     @Body() dto: ReverseScanDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<LoadJobScanResponseDto> {
-    return this.loadJobsService.reverseScan(id, dto);
+    return this.loadJobsService.reverseScan(id, dto, actor);
   }
 }

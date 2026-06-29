@@ -9,7 +9,8 @@ import {
 import { CreateContainerDestinationDto } from './dto/create-container-destination.dto';
 import { CreateManualContainerDto } from './dto/create-manual-container.dto';
 import { UpdateContainerDto } from './dto/update-container.dto';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('containers')
@@ -20,8 +21,9 @@ export class ContainersController {
   @RequirePermissions(...ROUTE_PERMISSIONS.containers.createManual)
   createManualContainer(
     @Body() dto: CreateManualContainerDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ManualContainerResponseDto> {
-    return this.correctionsService.createManualContainer(dto);
+    return this.correctionsService.createManualContainer(dto, actor);
   }
 
   @Get(':id')
@@ -35,8 +37,9 @@ export class ContainersController {
   updateContainer(
     @Param('id') id: string,
     @Body() dto: UpdateContainerDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ContainerCorrectionResponseDto> {
-    return this.correctionsService.updateContainer(id, dto);
+    return this.correctionsService.updateContainer(id, dto, actor);
   }
 
   @Post(':id/destinations')
@@ -44,7 +47,8 @@ export class ContainersController {
   createContainerDestination(
     @Param('id') id: string,
     @Body() dto: CreateContainerDestinationDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ContainerDestinationCorrectionResponseDto> {
-    return this.correctionsService.createContainerDestination(id, dto);
+    return this.correctionsService.createContainerDestination(id, dto, actor);
   }
 }

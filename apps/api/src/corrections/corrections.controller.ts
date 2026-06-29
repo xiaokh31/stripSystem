@@ -6,7 +6,8 @@ import {
   CorrectionListResponseDto,
 } from './dto/correction-response.dto';
 import { ListCorrectionsQueryDto } from './dto/list-corrections-query.dto';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('corrections')
@@ -17,8 +18,9 @@ export class CorrectionsController {
   @RequirePermissions(...ROUTE_PERMISSIONS.corrections.create)
   createCorrection(
     @Body() dto: CreateCorrectionDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<CorrectionFeedbackResponseDto> {
-    return this.correctionsService.createCorrection(dto);
+    return this.correctionsService.createCorrection(dto, actor);
   }
 
   @Get()

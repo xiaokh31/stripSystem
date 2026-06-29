@@ -24,6 +24,12 @@ import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { UpdateLoadJobDto } from './dto/update-load-job.dto';
 import {
+  auditUserId,
+  canOverrideAuditUser,
+  isAuditUserOverride,
+} from '../auth/audit-user';
+import { AuthenticatedUser } from '../auth/auth-user';
+import {
   LoadJobStatus,
   PalletEventType,
   PalletStatus,
@@ -268,16 +274,20 @@ const PALLET_INCLUDE = {
 export class LoadJobsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateLoadJobDto): Promise<LoadJobResponseDto> {
+  async create(
+    dto: CreateLoadJobDto,
+    actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
     const requestedContainerId = this.stringOrNull(dto.containerId);
     const lines = await this.normalizeLoadJobLines(this.prisma, dto);
     if (requestedContainerId) {
       await this.assertContainerExists(this.prisma, requestedContainerId);
     }
-    if (dto.createdById) {
+    const createdById = auditUserId(actor, dto.createdById);
+    if (isAuditUserOverride(actor, dto.createdById)) {
       await this.assertUserExists(
         this.prisma,
-        dto.createdById,
+        createdById,
         'LOAD_JOB_CREATED_BY_NOT_FOUND',
       );
     }
@@ -305,7 +315,7 @@ export class LoadJobsService {
           startedAt,
           scheduledDepartureAt,
           closedAt: null,
-          createdById: this.stringOrNull(dto.createdById),
+          createdById,
           lines: {
             create: lines,
           },
@@ -370,7 +380,11 @@ export class LoadJobsService {
     return this.toResponse(record);
   }
 
-  async update(id: string, dto: UpdateLoadJobDto): Promise<LoadJobResponseDto> {
+  async update(
+    id: string,
+    dto: UpdateLoadJobDto,
+    actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = (await tx.loadJob.findUnique({
         where: { id },
@@ -387,17 +401,23 @@ export class LoadJobsService {
 
       this.assertEditable(existing);
 
-      if (dto.createdById) {
+      const operatorId = auditUserId(actor, dto.operatorId);
+      const canOverrideCreatedBy = canOverrideAuditUser(actor);
+      const createdById = canOverrideCreatedBy
+        ? auditUserId(actor, dto.createdById)
+        : null;
+
+      if (canOverrideCreatedBy && isAuditUserOverride(actor, dto.createdById)) {
         await this.assertUserExists(
           tx,
-          dto.createdById,
+          createdById ?? actor.id,
           'LOAD_JOB_CREATED_BY_NOT_FOUND',
         );
       }
-      if (dto.operatorId) {
+      if (isAuditUserOverride(actor, dto.operatorId)) {
         await this.assertUserExists(
           tx,
-          dto.operatorId,
+          operatorId,
           'LOAD_JOB_UPDATE_OPERATOR_NOT_FOUND',
         );
       }
@@ -446,8 +466,8 @@ export class LoadJobsService {
       if (dto.destinationRegion !== undefined) {
         data.destinationRegion = destinationRegion;
       }
-      if (dto.createdById !== undefined) {
-        data.createdById = this.stringOrNull(dto.createdById);
+      if (dto.createdById !== undefined && canOverrideCreatedBy) {
+        data.createdById = createdById;
       }
       if (dto.startedAt !== undefined) {
         data.startedAt = dto.startedAt ? new Date(dto.startedAt) : null;
@@ -487,7 +507,7 @@ export class LoadJobsService {
             loadJobId: id,
             eventType: PalletEventType.STATUS_CHANGED,
             metadata: this.statusEventMetadata(existing, requestedStatus, dto),
-            operatorId: this.stringOrNull(dto.operatorId),
+            operatorId,
             occurredAt: now,
           },
         });
@@ -508,7 +528,10 @@ export class LoadJobsService {
     return this.toResponse(updated);
   }
 
-  async delete(id: string): Promise<LoadJobResponseDto> {
+  async delete(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
     const deleted = await this.prisma.$transaction(async (tx) => {
       const existing = (await tx.loadJob.findUnique({
         where: { id },
@@ -531,6 +554,17 @@ export class LoadJobsService {
           details: { id, status: existing.status },
         });
       }
+
+      const deletedAt = new Date();
+      await tx.palletEvent.create({
+        data: {
+          loadJobId: id,
+          eventType: PalletEventType.STATUS_CHANGED,
+          metadata: this.deleteEventMetadata(existing),
+          operatorId: auditUserId(actor),
+          occurredAt: deletedAt,
+        },
+      });
 
       return await tx.loadJob.delete({
         where: { id },
@@ -560,7 +594,11 @@ export class LoadJobsService {
     };
   }
 
-  async close(id: string, dto: CloseLoadJobDto): Promise<LoadJobResponseDto> {
+  async close(
+    id: string,
+    dto: CloseLoadJobDto,
+    actor: AuthenticatedUser,
+  ): Promise<LoadJobResponseDto> {
     const closedAt = new Date();
 
     const record = await this.prisma.$transaction(async (tx) => {
@@ -583,10 +621,11 @@ export class LoadJobsService {
           ? existing.dockNo
           : this.stringOrNull(dto.dockNo);
       this.assertDockNoForCompleted(LoadJobStatus.COMPLETED, dockNo, id);
-      if (dto.operatorId) {
+      const operatorId = auditUserId(actor, dto.operatorId);
+      if (isAuditUserOverride(actor, dto.operatorId)) {
         await this.assertUserExists(
           tx,
-          dto.operatorId,
+          operatorId,
           'LOAD_JOB_CLOSE_OPERATOR_NOT_FOUND',
         );
       }
@@ -596,7 +635,7 @@ export class LoadJobsService {
           loadJobId: id,
           eventType: PalletEventType.STATUS_CHANGED,
           metadata: this.closeEventMetadata(existing, dto),
-          operatorId: this.stringOrNull(dto.operatorId),
+          operatorId,
           occurredAt: closedAt,
         },
       });
@@ -617,14 +656,18 @@ export class LoadJobsService {
     return this.toResponse(record);
   }
 
-  async scan(id: string, dto: ScanPalletDto): Promise<LoadJobScanResponseDto> {
+  async scan(
+    id: string,
+    dto: ScanPalletDto,
+    actor: AuthenticatedUser,
+  ): Promise<LoadJobScanResponseDto> {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const loadJob = await this.findLoadJobOrThrow(tx, id);
       const scanPayload = this.stringOrNull(dto.qrPayload);
       const deviceId = this.stringOrNull(dto.deviceId);
-      const operatorId = this.stringOrNull(dto.operatorId);
+      const operatorId = auditUserId(actor, dto.operatorId);
 
-      if (operatorId) {
+      if (isAuditUserOverride(actor, dto.operatorId)) {
         await this.assertUserExists(
           tx,
           operatorId,
@@ -860,6 +903,7 @@ export class LoadJobsService {
   async reverseScan(
     id: string,
     dto: ReverseScanDto,
+    actor: AuthenticatedUser,
   ): Promise<LoadJobScanResponseDto> {
     if (dto.confirm !== true) {
       throw new BadRequestException({
@@ -872,10 +916,10 @@ export class LoadJobsService {
     const outcome = await this.prisma.$transaction(async (tx) => {
       const loadJob = await this.findLoadJobOrThrow(tx, id);
       const deviceId = this.stringOrNull(dto.deviceId);
-      const operatorId = this.stringOrNull(dto.operatorId);
+      const operatorId = auditUserId(actor, dto.operatorId);
       const reason = this.requiredString(dto.reason, 'reason');
 
-      if (operatorId) {
+      if (isAuditUserOverride(actor, dto.operatorId)) {
         await this.assertUserExists(
           tx,
           operatorId,
@@ -1826,6 +1870,17 @@ export class LoadJobsService {
       dockNo: this.stringOrNull(dto.dockNo) ?? record.dockNo,
       reason: this.stringOrNull(dto.reason),
       note: this.stringOrNull(dto.note),
+    };
+  }
+
+  private deleteEventMetadata(record: LoadJobRecord): Prisma.InputJsonValue {
+    return {
+      action: 'LOAD_JOB_DELETED',
+      loadJobId: record.id,
+      loadNo: record.jobNo,
+      fromStatus: record.status,
+      plannedPalletCount: this.systemPlannedPalletCount(record),
+      externalPalletCount: this.externalPlannedPalletCount(record),
     };
   }
 

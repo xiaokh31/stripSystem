@@ -7,6 +7,20 @@ import { LoadJobsService } from './load-jobs.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('LoadJobsService', () => {
+  const officeActor = {
+    id: 'auth-office',
+    email: 'office@example.com',
+    name: 'Office User',
+    roles: ['OFFICE'],
+    permissions: ['load_jobs.create', 'load_jobs.update'],
+  };
+  const warehouseActor = {
+    id: 'auth-warehouse',
+    email: 'warehouse@example.com',
+    name: 'Warehouse User',
+    roles: ['WAREHOUSE'],
+    permissions: ['scan.create', 'scan.reverse'],
+  };
   let prisma: any;
   let service: LoadJobsService;
 
@@ -16,21 +30,24 @@ describe('LoadJobsService', () => {
   });
 
   it('creates a mixed load job with internal container lines and external transfer lines', async () => {
-    const result = await service.create({
-      loadNo: ' LOAD-2026-001 ',
-      truckNo: 'TRK-18',
-      dockNo: 'D3',
-      carrier: 'Bestar CCA',
-      destinationRegion: 'YEG2',
-      createdById: 'user-1',
-      startedAt: '2026-06-27T10:00:00.000Z',
-      scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
-      lines: [
-        { sourceText: 'ZCSU9024512B转运-12P' },
-        { sourceText: 'CSNU8877228-1P' },
-        { sourceText: 'EITU9315039-1P' },
-      ],
-    });
+    const result = await service.create(
+      {
+        loadNo: ' LOAD-2026-001 ',
+        truckNo: 'TRK-18',
+        dockNo: 'D3',
+        carrier: 'Bestar CCA',
+        destinationRegion: 'YEG2',
+        createdById: 'user-1',
+        startedAt: '2026-06-27T10:00:00.000Z',
+        scheduledDepartureAt: '2026-06-28T03:00:00.000Z',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+          { sourceText: 'EITU9315039-1P' },
+        ],
+      },
+      officeActor,
+    );
 
     expect(result).toMatchObject({
       id: 'load-job-1',
@@ -46,7 +63,7 @@ describe('LoadJobsService', () => {
       destinationRegion: 'YEG2',
       status: 'PLANNED',
       canScan: false,
-      createdById: 'user-1',
+      createdById: 'auth-office',
       plannedPalletCount: 2,
       externalPalletCount: 12,
       palletCount: 0,
@@ -85,7 +102,7 @@ describe('LoadJobsService', () => {
         externalTransfer: false,
       }),
     ]);
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+    expect(prisma.user.findUnique).not.toHaveBeenCalledWith({
       where: { id: 'user-1' },
       select: { id: true },
     });
@@ -100,7 +117,7 @@ describe('LoadJobsService', () => {
         status: 'PLANNED',
         scheduledDepartureAt: expect.any(Date),
         closedAt: null,
-        createdById: 'user-1',
+        createdById: 'auth-office',
         lines: {
           create: [
             expect.objectContaining({
@@ -132,42 +149,55 @@ describe('LoadJobsService', () => {
 
   it('rejects a load job without plan lines', async () => {
     await expect(
-      service.create({
-        loadNo: 'LOAD-2026-EMPTY',
-        destinationRegion: 'YEG2',
-      }),
+      service.create(
+        {
+          loadNo: 'LOAD-2026-EMPTY',
+          destinationRegion: 'YEG2',
+        },
+        officeActor,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects plan line destinations that do not match the destination region', async () => {
     await expectHttpErrorCode(
-      service.create({
-        loadNo: 'LOAD-2026-MISMATCH',
-        destinationRegion: 'YEG2',
-        lines: [
-          {
-            containerNo: 'CSNU8877228',
-            destinationCode: 'YYC1',
-            plannedPallets: 1,
-          },
-        ],
-      }),
+      service.create(
+        {
+          loadNo: 'LOAD-2026-MISMATCH',
+          destinationRegion: 'YEG2',
+          lines: [
+            {
+              containerNo: 'CSNU8877228',
+              destinationCode: 'YYC1',
+              plannedPallets: 1,
+            },
+          ],
+        },
+        officeActor,
+      ),
       'LOAD_JOB_LINE_DESTINATION_REGION_MISMATCH',
     );
   });
 
   it('updates planned load jobs, starts loading manually, and only deletes planned jobs', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
 
-    const started = await service.update('load-job-1', {
-      dockNo: 'D5',
-      status: 'IN_PROGRESS',
-      truckNo: 'TRK-99',
-    });
+    const started = await service.update(
+      'load-job-1',
+      {
+        dockNo: 'D5',
+        status: 'IN_PROGRESS',
+        truckNo: 'TRK-99',
+      },
+      officeActor,
+    );
 
     expect(started).toMatchObject({
       dockNo: 'D5',
@@ -176,51 +206,74 @@ describe('LoadJobsService', () => {
       truckNo: 'TRK-99',
       eventCount: 1,
     });
-    await expect(service.delete('load-job-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.delete('load-job-1', officeActor),
+    ).rejects.toBeInstanceOf(ConflictException);
 
-    await service.create({
-      loadNo: 'LOAD-2026-002',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'EITU9315039-1P' }],
-    });
-    const deleted = await service.delete('load-job-2');
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-002',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'EITU9315039-1P' }],
+      },
+      officeActor,
+    );
+    const deleted = await service.delete('load-job-2', officeActor);
 
     expect(deleted).toMatchObject({
       id: 'load-job-2',
       status: 'PLANNED',
     });
+    expect(prisma.palletEvent.create).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        loadJobId: 'load-job-2',
+        eventType: 'STATUS_CHANGED',
+        operatorId: 'auth-office',
+        metadata: expect.objectContaining({
+          action: 'LOAD_JOB_DELETED',
+          loadJobId: 'load-job-2',
+        }),
+      }),
+    });
   });
 
   it('requires dock number before completing a load job', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
 
     await expectHttpErrorCode(
-      service.update('load-job-1', { status: 'COMPLETED' }),
+      service.update('load-job-1', { status: 'COMPLETED' }, officeActor),
       'LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED',
     );
   });
 
   it('lists load jobs by load number and container lines', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [
-        { sourceText: 'ZCSU9024512B转运-12P' },
-        { sourceText: 'CSNU8877228-1P' },
-        { sourceText: 'EITU9315039-1P' },
-      ],
-    });
-    await service.create({
-      loadNo: 'LOAD-2026-002',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-2P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+          { sourceText: 'EITU9315039-1P' },
+        ],
+      },
+      officeActor,
+    );
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-002',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
 
     const result = await service.list({
       containerId: 'container-2',
@@ -253,23 +306,30 @@ describe('LoadJobsService', () => {
   });
 
   it('closes an open load job and writes a pallet event audit record', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      createdById: 'user-1',
-      lines: [
-        { sourceText: 'ZCSU9024512B转运-12P' },
-        { sourceText: 'CSNU8877228-1P' },
-      ],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        createdById: 'user-1',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+        ],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
 
-    const result = await service.close('load-job-1', {
-      dockNo: 'D3',
-      operatorId: 'user-1',
-      reason: 'Loaded at dock 3',
-      note: 'Seal verified',
-    });
+    const result = await service.close(
+      'load-job-1',
+      {
+        dockNo: 'D3',
+        operatorId: 'user-1',
+        reason: 'Loaded at dock 3',
+        note: 'Seal verified',
+      },
+      officeActor,
+    );
 
     expect(result).toMatchObject({
       id: 'load-job-1',
@@ -295,47 +355,61 @@ describe('LoadJobsService', () => {
           reason: 'Loaded at dock 3',
           note: 'Seal verified',
         }),
-        operatorId: 'user-1',
+        operatorId: 'auth-office',
       }),
     });
   });
 
   it('rejects closing an already completed load job', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P' }],
-    });
-    await service.close('load-job-1', { dockNo: 'D3' });
-
-    await expect(service.close('load-job-1', {})).rejects.toBeInstanceOf(
-      ConflictException,
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
     );
+    await service.close('load-job-1', { dockNo: 'D3' }, officeActor);
+
+    await expect(
+      service.close('load-job-1', {}, officeActor),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.palletEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it('loads planned pallets from multiple containers and blocks pallets beyond the planned line count', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [
-        { sourceText: 'ZCSU9024512B转运-12P' },
-        { sourceText: 'CSNU8877228-1P' },
-        { sourceText: 'EITU9315039-1P' },
-      ],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'CSNU8877228-1P' },
+          { sourceText: 'EITU9315039-1P' },
+        ],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
 
-    const first = await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-      deviceId: 'scanner-1',
-      operatorId: 'user-1',
-    });
-    const second = await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
-      deviceId: 'scanner-1',
-      operatorId: 'user-1',
-    });
+    const first = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        deviceId: 'scanner-1',
+        operatorId: 'user-1',
+      },
+      warehouseActor,
+    );
+    const second = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
+        deviceId: 'scanner-1',
+        operatorId: 'user-1',
+      },
+      warehouseActor,
+    );
 
     expect(first).toMatchObject({
       result: 'LOADED',
@@ -385,11 +459,21 @@ describe('LoadJobsService', () => {
     ).toMatchObject({
       loadJobLineId: 'line-3',
     });
+    expect(
+      prisma.palletEvent.create.mock.calls
+        .slice(0, 2)
+        .map((call) => call[0].data.operatorId),
+    ).toEqual(['auth-warehouse', 'auth-warehouse']);
 
     await expectHttpErrorCode(
-      service.scan('load-job-1', {
-        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
-      }),
+      service.scan(
+        'load-job-1',
+        {
+          qrPayload:
+            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+        },
+        warehouseActor,
+      ),
       'LOAD_JOB_LINE_PALLET_LIMIT_REACHED',
     );
     expect(prisma.pallet.update).toHaveBeenCalledTimes(2);
@@ -409,16 +493,22 @@ describe('LoadJobsService', () => {
   });
 
   it('splits one container destination across multiple load jobs with part suffixes', async () => {
-    const firstJob = await service.create({
-      loadNo: 'LOAD-2026-PART-1',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P-part1' }],
-    });
-    const secondJob = await service.create({
-      loadNo: 'LOAD-2026-PART-2',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P-part2' }],
-    });
+    const firstJob = await service.create(
+      {
+        loadNo: 'LOAD-2026-PART-1',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P-part1' }],
+      },
+      officeActor,
+    );
+    const secondJob = await service.create(
+      {
+        loadNo: 'LOAD-2026-PART-2',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P-part2' }],
+      },
+      officeActor,
+    );
 
     expect(firstJob.lines[0]).toMatchObject({
       sourceText: 'CSNU8877228-1P-part1',
@@ -439,12 +529,20 @@ describe('LoadJobsService', () => {
     await openLoadJobForScanning('load-job-1');
     await openLoadJobForScanning('load-job-2');
 
-    const firstScan = await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-    });
-    const secondScan = await service.scan('load-job-2', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
-    });
+    const firstScan = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
+    const secondScan = await service.scan(
+      'load-job-2',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      },
+      warehouseActor,
+    );
 
     expect(firstScan).toMatchObject({
       result: 'LOADED',
@@ -478,19 +576,30 @@ describe('LoadJobsService', () => {
   });
 
   it('returns duplicate for the same load job without loading twice', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-2P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
 
-    await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-    });
-    const duplicate = await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-    });
+    await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
+    const duplicate = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
 
     expect(duplicate).toMatchObject({
       result: 'DUPLICATE',
@@ -514,17 +623,24 @@ describe('LoadJobsService', () => {
   });
 
   it('reverses a loaded pallet only with explicit confirmation and audit reason', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-2P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
-    const scan = await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-      deviceId: 'scanner-1',
-      operatorId: 'user-1',
-    });
+    const scan = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        deviceId: 'scanner-1',
+        operatorId: 'user-1',
+      },
+      warehouseActor,
+    );
     const loadedBeforeReverse = await service.listLoadedPallets('load-job-1');
 
     expect(loadedBeforeReverse).toMatchObject({
@@ -539,21 +655,29 @@ describe('LoadJobsService', () => {
     });
 
     await expectHttpErrorCode(
-      service.reverseScan('load-job-1', {
-        confirm: false,
-        palletRecordId: scan.pallet.id,
-        reason: 'Need to combine pallets',
-      }),
+      service.reverseScan(
+        'load-job-1',
+        {
+          confirm: false,
+          palletRecordId: scan.pallet.id,
+          reason: 'Need to combine pallets',
+        },
+        warehouseActor,
+      ),
       'LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED',
     );
 
-    const reversed = await service.reverseScan('load-job-1', {
-      confirm: true,
-      deviceId: 'mobile-camera',
-      operatorId: 'user-1',
-      palletRecordId: scan.pallet.id,
-      reason: 'Need to combine pallets',
-    });
+    const reversed = await service.reverseScan(
+      'load-job-1',
+      {
+        confirm: true,
+        deviceId: 'mobile-camera',
+        operatorId: 'user-1',
+        palletRecordId: scan.pallet.id,
+        reason: 'Need to combine pallets',
+      },
+      warehouseActor,
+    );
 
     expect(reversed).toMatchObject({
       result: 'REMOVED',
@@ -582,6 +706,7 @@ describe('LoadJobsService', () => {
       eventType: 'STATUS_CHANGED',
       fromStatus: 'LOADED',
       toStatus: 'LABEL_PRINTED',
+      operatorId: 'auth-warehouse',
       exceptionReason: 'LOAD_JOB_SCAN_REVERSED',
       metadata: {
         action: 'PALLET_SCAN_REVERSED',
@@ -610,27 +735,42 @@ describe('LoadJobsService', () => {
   });
 
   it('blocks a pallet loaded by a different load job', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-2P' }],
-    });
-    await service.create({
-      loadNo: 'LOAD-2026-002',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-2P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-002',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
     await openLoadJobForScanning('load-job-2');
 
-    await service.scan('load-job-1', {
-      qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-    });
+    await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
 
     await expectHttpErrorCode(
-      service.scan('load-job-2', {
-        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-      }),
+      service.scan(
+        'load-job-2',
+        {
+          qrPayload:
+            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        },
+        warehouseActor,
+      ),
       'PALLET_ALREADY_LOADED',
     );
     expect(prisma.pallet.update).toHaveBeenCalledTimes(1);
@@ -642,14 +782,17 @@ describe('LoadJobsService', () => {
   });
 
   it('allows a pure external transfer load job but rejects system pallets as not in plan', async () => {
-    const result = await service.create({
-      loadNo: 'LOAD-2026-XFER',
-      destinationRegion: 'YEG2',
-      lines: [
-        { sourceText: 'ZCSU9024512B转运-12P' },
-        { sourceText: 'ZCSU9025231B转运 -2P' },
-      ],
-    });
+    const result = await service.create(
+      {
+        loadNo: 'LOAD-2026-XFER',
+        destinationRegion: 'YEG2',
+        lines: [
+          { sourceText: 'ZCSU9024512B转运-12P' },
+          { sourceText: 'ZCSU9025231B转运 -2P' },
+        ],
+      },
+      officeActor,
+    );
 
     expect(result).toMatchObject({
       containerId: null,
@@ -670,9 +813,14 @@ describe('LoadJobsService', () => {
     await openLoadJobForScanning('load-job-1');
 
     await expectHttpErrorCode(
-      service.scan('load-job-1', {
-        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-      }),
+      service.scan(
+        'load-job-1',
+        {
+          qrPayload:
+            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        },
+        warehouseActor,
+      ),
       'PALLET_NOT_IN_LOAD_PLAN',
     );
     expect(prisma.pallet.update).not.toHaveBeenCalled();
@@ -686,17 +834,25 @@ describe('LoadJobsService', () => {
   });
 
   it('rejects scans after the load job is closed', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P' }],
-    });
-    await service.close('load-job-1', { dockNo: 'D3' });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
+    await service.close('load-job-1', { dockNo: 'D3' }, officeActor);
 
     await expect(
-      service.scan('load-job-1', {
-        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
-      }),
+      service.scan(
+        'load-job-1',
+        {
+          qrPayload:
+            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        },
+        warehouseActor,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.pallet.update).not.toHaveBeenCalled();
     expect(
@@ -707,18 +863,25 @@ describe('LoadJobsService', () => {
   });
 
   it('records invalid QR scans without updating a pallet', async () => {
-    await service.create({
-      loadNo: 'LOAD-2026-001',
-      destinationRegion: 'YEG2',
-      lines: [{ sourceText: 'CSNU8877228-1P' }],
-    });
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
     await openLoadJobForScanning('load-job-1');
 
     await expect(
-      service.scan('load-job-1', {
-        qrPayload: 'SSP0|PALLET|old-version|PALLET-001',
-        deviceId: 'scanner-1',
-      }),
+      service.scan(
+        'load-job-1',
+        {
+          qrPayload: 'SSP0|PALLET|old-version|PALLET-001',
+          deviceId: 'scanner-1',
+        },
+        warehouseActor,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
@@ -748,7 +911,7 @@ describe('LoadJobsService', () => {
   }
 
   async function openLoadJobForScanning(id: string): Promise<void> {
-    await service.update(id, { status: 'IN_PROGRESS' });
+    await service.update(id, { status: 'IN_PROGRESS' }, officeActor);
     prisma.palletEvent.create.mockClear();
     prisma.__events.length = 0;
   }

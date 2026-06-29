@@ -13,7 +13,8 @@ import {
   GenerateReportResponseDto,
 } from './dto/generated-file-response.dto';
 import { ReportsService } from './reports.service';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('containers')
@@ -22,8 +23,11 @@ export class ReportsController {
 
   @Post(':id/generate-report')
   @RequirePermissions(...ROUTE_PERMISSIONS.reports.generate)
-  generateReport(@Param('id') id: string): Promise<GenerateReportResponseDto> {
-    return this.reportsService.generateReport(id);
+  generateReport(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<GenerateReportResponseDto> {
+    return this.reportsService.generateReport(id, actor);
   }
 
   @Get(':id/files')

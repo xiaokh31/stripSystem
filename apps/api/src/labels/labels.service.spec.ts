@@ -84,6 +84,7 @@ interface PalletEventCreateManyArgs {
     fromStatus: string | null;
     toStatus: string | null;
     scanPayload: string;
+    operatorId: string;
     metadata: unknown;
   }>;
 }
@@ -125,6 +126,7 @@ interface GeneratedFileData {
   fileSizeBytes: bigint | null;
   status: string;
   errorMessage: string | null;
+  generatedById: string;
 }
 
 interface GeneratedFileCreateArgs {
@@ -206,6 +208,20 @@ interface PalletResultRequest {
 }
 
 describe('LabelsService', () => {
+  const officeActor = {
+    id: 'auth-office',
+    email: 'office@example.com',
+    name: 'Office User',
+    roles: ['OFFICE'],
+    permissions: ['labels.generate'],
+  };
+  const warehouseActor = {
+    id: 'auth-warehouse',
+    email: 'warehouse@example.com',
+    name: 'Warehouse User',
+    roles: ['WAREHOUSE'],
+    permissions: ['labels.reprint'],
+  };
   let storageRoot: string;
   let outputPath: string;
   let prisma: LabelsPrismaMock;
@@ -254,7 +270,7 @@ describe('LabelsService', () => {
   });
 
   it('creates pallets from finalPallets, generates a PDF, and records generated_files', async () => {
-    const result = await service.generateLabels('container-1');
+    const result = await service.generateLabels('container-1', officeActor);
 
     expect(result.generatedFile).toMatchObject({
       containerId: 'container-1',
@@ -301,8 +317,21 @@ describe('LabelsService', () => {
     expect(generatedFileCreate.data.status).toBe('GENERATED');
     expect(generatedFileCreate.data.storagePath).toBe(outputPath);
     expect(typeof generatedFileCreate.data.fileSha256).toBe('string');
+    expect(generatedFileCreate.data.generatedById).toBe('auth-office');
 
     expect(prisma.palletEvent.createMany).toHaveBeenCalledTimes(2);
+    expect(
+      prisma.palletEvent.createMany.mock.calls.flatMap((call) =>
+        call[0].data.map((event) => event.operatorId),
+      ),
+    ).toEqual([
+      'auth-office',
+      'auth-office',
+      'auth-office',
+      'auth-office',
+      'auth-office',
+      'auth-office',
+    ]);
     expect(prisma.container.update).toHaveBeenCalledWith({
       where: { id: 'container-1' },
       data: { status: 'LABELS_GENERATED' },
@@ -333,7 +362,7 @@ describe('LabelsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
 
-    const result = await service.generateLabels('container-manual');
+    const result = await service.generateLabels('container-manual', officeActor);
 
     expect(result.generatedFile).toMatchObject({
       importFileId: null,
@@ -367,7 +396,7 @@ describe('LabelsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(duplicateContainer);
 
-    const result = await service.generateLabels('container-1');
+    const result = await service.generateLabels('container-1', officeActor);
 
     expect(result.pallets).toHaveLength(2);
     expect(prisma.pallet.deleteMany).toHaveBeenCalledWith({
@@ -393,7 +422,9 @@ describe('LabelsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(loadedContainer);
 
-    await expect(service.generateLabels('container-1')).rejects.toHaveProperty(
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toHaveProperty(
       'response.code',
       'CONTAINER_GENERATION_LOCKED',
     );
@@ -406,7 +437,9 @@ describe('LabelsService', () => {
       status: 'LOADING_IN_PROGRESS',
     });
 
-    await expect(service.generateLabels('container-1')).rejects.toHaveProperty(
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toHaveProperty(
       'response.code',
       'CONTAINER_GENERATION_LOCKED',
     );
@@ -421,15 +454,19 @@ describe('LabelsService', () => {
     });
     prisma.pallet.findUnique.mockResolvedValueOnce(loadedPallet);
 
-    const result = await service.reprintPalletLabel('pallet-loaded', {
-      operatorId: 'user-1',
-      reason: 'Original label was damaged during loading',
-    });
+    const result = await service.reprintPalletLabel(
+      'pallet-loaded',
+      {
+        operatorId: 'user-1',
+        reason: 'Original label was damaged during loading',
+      },
+      warehouseActor,
+    );
 
     expect(result.event).toMatchObject({
       palletRecordId: 'pallet-loaded',
       businessPalletId: loadedPallet.palletId,
-      userId: 'user-1',
+      userId: 'auth-warehouse',
       reason: 'Original label was damaged during loading',
       palletStatus: 'LOADED',
       supervisorOverride: false,
@@ -442,7 +479,7 @@ describe('LabelsService', () => {
         fromStatus: 'LOADED',
         toStatus: 'LOADED',
         scanPayload: loadedPallet.qrPayload,
-        operatorId: 'user-1',
+        operatorId: 'auth-warehouse',
         metadata: expect.objectContaining({
           action: 'PALLET_LABEL_REPRINT',
           reason: 'Original label was damaged during loading',
@@ -460,10 +497,14 @@ describe('LabelsService', () => {
     const second = palletRecord({ id: 'pallet-2', status: 'LOADED' });
     prisma.pallet.findMany.mockResolvedValueOnce([first, second]);
 
-    const result = await service.reprintContainerLabels('container-1', {
-      operatorId: 'user-1',
-      reason: 'Warehouse requested a full label set reprint',
-    });
+    const result = await service.reprintContainerLabels(
+      'container-1',
+      {
+        operatorId: 'user-1',
+        reason: 'Warehouse requested a full label set reprint',
+      },
+      warehouseActor,
+    );
 
     expect(result).toMatchObject({
       containerId: 'container-1',
@@ -472,12 +513,12 @@ describe('LabelsService', () => {
         {
           palletRecordId: 'pallet-1',
           palletStatus: 'LABEL_PRINTED',
-          userId: 'user-1',
+          userId: 'auth-warehouse',
         },
         {
           palletRecordId: 'pallet-2',
           palletStatus: 'LOADED',
-          userId: 'user-1',
+          userId: 'auth-warehouse',
         },
       ],
     });
@@ -487,7 +528,7 @@ describe('LabelsService', () => {
       eventType: 'REPRINTED',
       fromStatus: 'LABEL_PRINTED',
       toStatus: 'LABEL_PRINTED',
-      operatorId: 'user-1',
+      operatorId: 'auth-warehouse',
       metadata: expect.objectContaining({ scope: 'CONTAINER' }),
     });
     expect(prisma.palletEvent.create.mock.calls[1][0].data).toMatchObject({
@@ -495,7 +536,7 @@ describe('LabelsService', () => {
       eventType: 'REPRINTED',
       fromStatus: 'LOADED',
       toStatus: 'LOADED',
-      operatorId: 'user-1',
+      operatorId: 'auth-warehouse',
       metadata: expect.objectContaining({ scope: 'CONTAINER' }),
     });
     expect(prisma.pallet.updateMany).not.toHaveBeenCalled();
@@ -512,7 +553,7 @@ describe('LabelsService', () => {
       service.reprintPalletLabel('pallet-cancelled', {
         operatorId: 'user-1',
         reason: 'Reprint requested after cancellation',
-      }),
+      }, warehouseActor),
     ).rejects.toHaveProperty(
       'response.code',
       'REPRINT_REQUIRES_SUPERVISOR_OVERRIDE',
@@ -520,11 +561,15 @@ describe('LabelsService', () => {
     expect(prisma.palletEvent.create).not.toHaveBeenCalled();
 
     prisma.pallet.findUnique.mockResolvedValueOnce(cancelled);
-    const result = await service.reprintPalletLabel('pallet-cancelled', {
-      operatorId: 'user-1',
-      reason: 'Supervisor approved one-time reprint',
-      supervisorOverride: true,
-    });
+    const result = await service.reprintPalletLabel(
+      'pallet-cancelled',
+      {
+        operatorId: 'user-1',
+        reason: 'Supervisor approved one-time reprint',
+        supervisorOverride: true,
+      },
+      warehouseActor,
+    );
 
     expect(result.event).toMatchObject({
       palletRecordId: 'pallet-cancelled',

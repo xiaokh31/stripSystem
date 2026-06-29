@@ -2,7 +2,8 @@ import { Body, Controller, Param, Patch } from '@nestjs/common';
 import { CorrectionsService } from './corrections.service';
 import { ContainerDestinationCorrectionResponseDto } from './dto/correction-response.dto';
 import { UpdateContainerDestinationDto } from './dto/update-container-destination.dto';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('container-destinations')
@@ -14,7 +15,8 @@ export class ContainerDestinationsController {
   updateContainerDestination(
     @Param('id') id: string,
     @Body() dto: UpdateContainerDestinationDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ContainerDestinationCorrectionResponseDto> {
-    return this.correctionsService.updateContainerDestination(id, dto);
+    return this.correctionsService.updateContainerDestination(id, dto, actor);
   }
 }

@@ -3,6 +3,13 @@ import { CorrectionsService } from './corrections.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 describe('CorrectionsService', () => {
+  const officeActor = {
+    id: 'auth-office',
+    email: 'office@example.com',
+    name: 'Office User',
+    roles: ['OFFICE'],
+    permissions: ['containers.update', 'corrections.create'],
+  };
   let prisma: any;
   let service: CorrectionsService;
 
@@ -12,11 +19,16 @@ describe('CorrectionsService', () => {
   });
 
   it('updates manualPallets, recalculates finalPallets, and writes audit rows', async () => {
-    const result = await service.updateContainerDestination('destination-1', {
-      manualPallets: 7,
-      reason: 'Office review',
-      correctionNote: 'Customer confirmed pallet split',
-    });
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        manualPallets: 7,
+        reason: 'Office review',
+        correctionNote: 'Customer confirmed pallet split',
+        correctedById: 'spoofed-user',
+      },
+      officeActor,
+    );
 
     expect(result.containerDestination).toMatchObject({
       id: 'destination-1',
@@ -29,6 +41,11 @@ describe('CorrectionsService', () => {
       'finalPallets',
     ]);
     expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(2);
+    expect(
+      prisma.correctionFeedback.create.mock.calls.map(
+        (call) => call[0].data.correctedById,
+      ),
+    ).toEqual(['auth-office', 'auth-office']);
     expect(prisma.container.update).toHaveBeenCalledWith({
       where: { id: 'container-1' },
       data: { status: 'CORRECTED' },
@@ -78,28 +95,31 @@ describe('CorrectionsService', () => {
   });
 
   it('creates a manual unloading container with destinations and audit rows', async () => {
-    const result = await service.createManualContainer({
-      containerNo: 'MANU1234567',
-      company: 'Manual Customer',
-      dockNo: 'D7',
-      reason: 'Original manifest could not be parsed',
-      correctionNote: 'Created from office manual entry',
-      destinations: [
-        {
-          destinationCode: 'YEG1',
-          destinationType: 'WAREHOUSE',
-          cartons: 36,
-          pallets: 4,
-          note: 'Manual report line',
-        },
-        {
-          destinationCode: 'YVR2',
-          cartons: 12,
-          pallets: 2,
-          volume: 1.5,
-        },
-      ],
-    });
+    const result = await service.createManualContainer(
+      {
+        containerNo: 'MANU1234567',
+        company: 'Manual Customer',
+        dockNo: 'D7',
+        reason: 'Original manifest could not be parsed',
+        correctionNote: 'Created from office manual entry',
+        destinations: [
+          {
+            destinationCode: 'YEG1',
+            destinationType: 'WAREHOUSE',
+            cartons: 36,
+            pallets: 4,
+            note: 'Manual report line',
+          },
+          {
+            destinationCode: 'YVR2',
+            cartons: 12,
+            pallets: 2,
+            volume: 1.5,
+          },
+        ],
+      },
+      officeActor,
+    );
 
     expect(result.container).toMatchObject({
       importFileId: null,
@@ -164,14 +184,23 @@ describe('CorrectionsService', () => {
       }),
     });
     expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(3);
+    expect(
+      prisma.correctionFeedback.create.mock.calls.every(
+        (call) => call[0].data.correctedById === 'auth-office',
+      ),
+    ).toBe(true);
   });
 
   it('updates container lifecycle status and writes audit feedback', async () => {
-    const result = await service.updateContainer('container-1', {
-      correctionNote: 'Reset after test label generation',
-      reason: 'Office lifecycle correction',
-      status: 'LABELS_GENERATED',
-    });
+    const result = await service.updateContainer(
+      'container-1',
+      {
+        correctionNote: 'Reset after test label generation',
+        reason: 'Office lifecycle correction',
+        status: 'LABELS_GENERATED',
+      },
+      officeActor,
+    );
 
     expect(result.container).toMatchObject({
       id: 'container-1',
@@ -196,22 +225,30 @@ describe('CorrectionsService', () => {
     ];
 
     await expect(
-      service.updateContainer('container-1', {
-        status: 'LOADED',
-      }),
+      service.updateContainer(
+        'container-1',
+        {
+          status: 'LOADED',
+        },
+        officeActor,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('creates a manual actual unloading destination and writes audit rows', async () => {
-    const result = await service.createContainerDestination('container-1', {
-      cartons: 12,
-      correctionNote: 'Added from returned paper report',
-      destinationCode: 'MANUAL-YYZ',
-      destinationType: 'WAREHOUSE',
-      manualPallets: 2,
-      note: 'Actual unloading entry',
-      volume: 1.25,
-    });
+    const result = await service.createContainerDestination(
+      'container-1',
+      {
+        cartons: 12,
+        correctionNote: 'Added from returned paper report',
+        destinationCode: 'MANUAL-YYZ',
+        destinationType: 'WAREHOUSE',
+        manualPallets: 2,
+        note: 'Actual unloading entry',
+        volume: 1.25,
+      },
+      officeActor,
+    );
 
     expect(result.containerDestination).toMatchObject({
       containerId: 'container-1',
@@ -231,9 +268,13 @@ describe('CorrectionsService', () => {
 
   it('rejects corrections when no value changes', async () => {
     await expect(
-      service.updateContainerDestination('destination-1', {
-        manualPallets: null,
-      }),
+      service.updateContainerDestination(
+        'destination-1',
+        {
+          manualPallets: null,
+        },
+        officeActor,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
   });
@@ -261,9 +302,13 @@ describe('CorrectionsService', () => {
     });
 
     await expect(
-      service.updateContainerDestination('destination-1', {
-        manualPallets: 7,
-      }),
+      service.updateContainerDestination(
+        'destination-1',
+        {
+          manualPallets: 7,
+        },
+        officeActor,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.containerDestination.update).not.toHaveBeenCalled();
     expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();

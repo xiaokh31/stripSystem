@@ -35,6 +35,8 @@ import {
   isContainerGenerationLocked,
   nonReusablePallets,
 } from '../common/container-lifecycle';
+import { auditUserId, isAuditUserOverride } from '../auth/audit-user';
+import { AuthenticatedUser } from '../auth/auth-user';
 import { GeneratedFileResponseDto } from '../reports/dto/generated-file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -78,6 +80,7 @@ interface GeneratedFileRecord {
   fileSizeBytes: bigint | number | string | null;
   status: string;
   errorMessage: string | null;
+  generatedById?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -164,6 +167,17 @@ interface GeneratedFileWriteClient {
   };
 }
 
+interface GeneratedFileUpsertInput {
+  fileType: string;
+  storagePath: string;
+  fileSha256: string | null;
+  mimeType: string;
+  fileSizeBytes: bigint | null;
+  status: string;
+  errorMessage: string | null;
+  generatedById: string;
+}
+
 const PDF_MIME_TYPE = 'application/pdf';
 const MANUAL_DESTINATION = 'NEED_MANUAL_DESTINATION';
 
@@ -179,9 +193,13 @@ export class LabelsService {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
 
-  async generateLabels(id: string): Promise<GenerateLabelsResponseDto> {
+  async generateLabels(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<GenerateLabelsResponseDto> {
     const container = await this.findContainerOrThrow(id, true);
     this.assertCanRegeneratePallets(container);
+    const generatedById = auditUserId(actor);
 
     const labelDate = this.labelDate();
     const drafts = this.buildPalletDrafts(container, labelDate);
@@ -208,6 +226,7 @@ export class LabelsService {
         container,
         this.failureStoragePath(container),
         error,
+        generatedById,
       );
       throw this.labelFailure(error, failed);
     }
@@ -219,6 +238,7 @@ export class LabelsService {
         container,
         outputPath ?? this.failureStoragePath(container),
         payload,
+        generatedById,
       );
       throw this.labelFailure(payload, failed);
     }
@@ -228,6 +248,7 @@ export class LabelsService {
         container,
         outputPath,
         new Error('Worker QR payloads did not match persisted pallet records.'),
+        generatedById,
       );
       throw this.labelFailure(payload, failed);
     }
@@ -238,6 +259,7 @@ export class LabelsService {
       drafts,
       outputPath,
       printedAt,
+      generatedById,
     );
 
     return {
@@ -277,21 +299,25 @@ export class LabelsService {
   async reprintPalletLabel(
     id: string,
     dto: ReprintLabelDto,
+    actor: AuthenticatedUser,
   ): Promise<PalletReprintResponseDto> {
     const occurredAt = new Date();
     const supervisorOverride = dto.supervisorOverride === true;
+    const operatorId = auditUserId(actor, dto.operatorId);
 
     const { pallet, event } = await this.prisma.$transaction(async (tx) => {
-      await this.assertUserExists(
-        tx,
-        dto.operatorId,
-        'REPRINT_OPERATOR_NOT_FOUND',
-      );
+      if (isAuditUserOverride(actor, dto.operatorId)) {
+        await this.assertUserExists(
+          tx,
+          operatorId,
+          'REPRINT_OPERATOR_NOT_FOUND',
+        );
+      }
       const pallet = await this.findPalletOrThrow(tx, id);
       this.assertPalletsCanBeReprinted([pallet], supervisorOverride);
       const event = await this.createReprintEvent(tx, {
         pallet,
-        operatorId: dto.operatorId,
+        operatorId,
         reason: dto.reason,
         occurredAt,
         supervisorOverride,
@@ -315,16 +341,20 @@ export class LabelsService {
   async reprintContainerLabels(
     id: string,
     dto: ReprintLabelDto,
+    actor: AuthenticatedUser,
   ): Promise<ContainerLabelReprintResponseDto> {
     const occurredAt = new Date();
     const supervisorOverride = dto.supervisorOverride === true;
+    const operatorId = auditUserId(actor, dto.operatorId);
 
     const events = (await this.prisma.$transaction(async (tx) => {
-      await this.assertUserExists(
-        tx,
-        dto.operatorId,
-        'REPRINT_OPERATOR_NOT_FOUND',
-      );
+      if (isAuditUserOverride(actor, dto.operatorId)) {
+        await this.assertUserExists(
+          tx,
+          operatorId,
+          'REPRINT_OPERATOR_NOT_FOUND',
+        );
+      }
       await this.findContainerForReprintOrThrow(tx, id);
       const pallets = await this.findContainerPallets(tx, id);
       if (pallets.length === 0) {
@@ -346,7 +376,7 @@ export class LabelsService {
           pallet,
           event: await this.createReprintEvent(tx, {
             pallet,
-            operatorId: dto.operatorId,
+            operatorId,
             reason: dto.reason,
             occurredAt,
             supervisorOverride,
@@ -632,6 +662,7 @@ export class LabelsService {
     drafts: PalletDraft[],
     outputPath: string,
     printedAt: Date,
+    generatedById: string,
   ): Promise<PersistedLabels> {
     return await this.prisma.$transaction(async (tx) => {
       const destinationIds = (container.destinations ?? []).map(
@@ -663,6 +694,7 @@ export class LabelsService {
           fromStatus: null,
           toStatus: PalletStatus.PLANNED,
           scanPayload: pallet.qrPayload,
+          operatorId: generatedById,
           metadata: { source: 'generate-labels-api' },
         })),
       });
@@ -678,6 +710,7 @@ export class LabelsService {
         fileSizeBytes: BigInt(fileStat.size),
         status: GeneratedFileStatus.GENERATED,
         errorMessage: null,
+        generatedById,
       });
       const palletIds = created.map((pallet) => pallet.id);
 
@@ -695,6 +728,7 @@ export class LabelsService {
           fromStatus: PalletStatus.PLANNED,
           toStatus: PalletStatus.LABEL_PRINTED,
           scanPayload: pallet.qrPayload,
+          operatorId: generatedById,
           metadata: {
             source: 'generate-labels-api',
             generatedFileId: generatedFile.id,
@@ -768,6 +802,7 @@ export class LabelsService {
     container: ContainerRecord,
     storagePath: string,
     error: unknown,
+    generatedById: string,
   ): Promise<GeneratedFileRecord> {
     return await this.upsertGeneratedFile(this.prisma, container, {
       fileType: GeneratedFileType.PALLET_LABEL_PDF,
@@ -777,21 +812,14 @@ export class LabelsService {
       fileSizeBytes: null,
       status: GeneratedFileStatus.FAILED,
       errorMessage: this.errorMessage(error),
+      generatedById,
     });
   }
 
   private async upsertGeneratedFile(
     tx: GeneratedFileWriteClient,
     container: ContainerRecord,
-    data: {
-      fileType: string;
-      storagePath: string;
-      fileSha256: string | null;
-      mimeType: string;
-      fileSizeBytes: bigint | null;
-      status: string;
-      errorMessage: string | null;
-    },
+    data: GeneratedFileUpsertInput,
   ): Promise<GeneratedFileRecord> {
     const existing = (await tx.generatedFile.findFirst({
       where: { containerId: container.id, fileType: data.fileType },

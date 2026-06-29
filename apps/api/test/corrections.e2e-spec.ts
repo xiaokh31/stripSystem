@@ -8,6 +8,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
+  officeAuthHeader,
 } from './auth-test-helpers';
 
 interface CorrectionBody {
@@ -18,6 +19,7 @@ interface CorrectionBody {
   fieldName: string;
   oldValue: unknown;
   newValue: unknown;
+  correctedById: string | null;
 }
 
 interface CorrectionListBody {
@@ -52,12 +54,13 @@ describe('CorrectionsController (e2e)', () => {
   });
 
   it('updates destination manual pallets, recalculates final pallets, and lists audit rows', async () => {
-    const response = await authorizedRequest(app)
+    const response = await authorizedRequest(app, officeAuthHeader())
       .patch('/api/container-destinations/destination-1')
       .send({
         manualPallets: 9,
         reason: 'Office correction',
         correctionNote: 'Customer confirmed revised pallet count',
+        correctedById: 'spoofed-user',
       })
       .expect(200);
 
@@ -69,8 +72,13 @@ describe('CorrectionsController (e2e)', () => {
       },
     });
     expect(response.body.corrections).toHaveLength(2);
+    expect(
+      response.body.corrections.every(
+        (item: CorrectionBody) => item.correctedById === 'auth-office',
+      ),
+    ).toBe(true);
 
-    const list = await authorizedRequest(app)
+    const list = await authorizedRequest(app, officeAuthHeader())
       .get('/api/corrections?containerDestinationId=destination-1')
       .expect(200);
     const body = list.body as CorrectionListBody;
@@ -80,6 +88,9 @@ describe('CorrectionsController (e2e)', () => {
       'manualPallets',
     ]);
     expect(body.items.every((item) => item.containerId === 'container-1')).toBe(
+      true,
+    );
+    expect(body.items.every((item) => item.correctedById === 'auth-office')).toBe(
       true,
     );
   });

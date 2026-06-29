@@ -8,7 +8,8 @@ import {
 import { ListPalletsQueryDto } from './dto/list-pallets-query.dto';
 import { ReprintLabelDto } from './dto/reprint-label.dto';
 import { LabelsService } from './labels.service';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller()
@@ -17,8 +18,11 @@ export class LabelsController {
 
   @Post('containers/:id/generate-labels')
   @RequirePermissions(...ROUTE_PERMISSIONS.labels.generate)
-  generateLabels(@Param('id') id: string): Promise<GenerateLabelsResponseDto> {
-    return this.labelsService.generateLabels(id);
+  generateLabels(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<GenerateLabelsResponseDto> {
+    return this.labelsService.generateLabels(id, actor);
   }
 
   @Post('containers/:id/labels/reprint')
@@ -26,8 +30,9 @@ export class LabelsController {
   reprintContainerLabels(
     @Param('id') id: string,
     @Body() dto: ReprintLabelDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ContainerLabelReprintResponseDto> {
-    return this.labelsService.reprintContainerLabels(id, dto);
+    return this.labelsService.reprintContainerLabels(id, dto, actor);
   }
 
   @Get('pallets')
@@ -43,7 +48,8 @@ export class LabelsController {
   reprintPalletLabel(
     @Param('id') id: string,
     @Body() dto: ReprintLabelDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<PalletReprintResponseDto> {
-    return this.labelsService.reprintPalletLabel(id, dto);
+    return this.labelsService.reprintPalletLabel(id, dto, actor);
   }
 }

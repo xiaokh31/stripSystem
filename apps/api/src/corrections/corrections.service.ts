@@ -30,6 +30,8 @@ import {
   effectiveContainerStatus,
   isContainerGenerationLocked,
 } from '../common/container-lifecycle';
+import { auditUserId } from '../auth/audit-user';
+import { AuthenticatedUser } from '../auth/auth-user';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -152,12 +154,14 @@ export class CorrectionsService {
 
   async createManualContainer(
     dto: CreateManualContainerDto,
+    actor: AuthenticatedUser,
   ): Promise<ManualContainerResponseDto> {
     const containerNo = this.requiredString(dto.containerNo, 'containerNo');
     const destinationInputs = dto.destinations.map((destination, index) =>
       this.toManualDestinationCreateInput(destination, index + 1),
     );
     const createdAt = new Date();
+    const correctedById = auditUserId(actor, dto.correctedById);
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -210,7 +214,7 @@ export class CorrectionsService {
           },
           dto.reason ?? 'Manual unloading report created',
           dto.correctionNote,
-          dto.correctedById,
+          correctedById,
         );
 
         for (const destination of destinations) {
@@ -239,7 +243,7 @@ export class CorrectionsService {
               },
               dto.reason ?? 'Manual unloading destination created',
               dto.correctionNote,
-              dto.correctedById,
+              correctedById,
             )),
           );
         }
@@ -268,6 +272,7 @@ export class CorrectionsService {
   async updateContainer(
     id: string,
     dto: UpdateContainerDto,
+    actor: AuthenticatedUser,
   ): Promise<ContainerCorrectionResponseDto> {
     const existing = (await this.prisma.container.findUnique({
       where: { id },
@@ -294,6 +299,7 @@ export class CorrectionsService {
       });
     }
     this.assertContainerEditableForStatusUpdate(existing, dto.status);
+    const correctedById = auditUserId(actor, dto.correctedById);
 
     const data: Prisma.ContainerUpdateInput = {};
     const changes: Change[] = [];
@@ -321,7 +327,7 @@ export class CorrectionsService {
           },
           dto.reason,
           dto.correctionNote,
-          dto.correctedById,
+          correctedById,
         );
 
         return { container, corrections };
@@ -342,6 +348,7 @@ export class CorrectionsService {
   async updateContainerDestination(
     id: string,
     dto: UpdateContainerDestinationDto,
+    actor: AuthenticatedUser,
   ): Promise<ContainerDestinationCorrectionResponseDto> {
     const existing = (await this.prisma.containerDestination.findUnique({
       where: { id },
@@ -362,6 +369,7 @@ export class CorrectionsService {
       effectiveContainerStatus(container.status, container.destinations ?? []),
       existing.containerId,
     );
+    const correctedById = auditUserId(actor, dto.correctedById);
 
     const data: Prisma.ContainerDestinationUpdateInput = {};
     const changes: Change[] = [];
@@ -399,7 +407,7 @@ export class CorrectionsService {
           },
           dto.reason,
           dto.correctionNote,
-          dto.correctedById,
+          correctedById,
         );
 
         return { containerDestination, corrections };
@@ -425,6 +433,7 @@ export class CorrectionsService {
   async createContainerDestination(
     containerId: string,
     dto: CreateContainerDestinationDto,
+    actor: AuthenticatedUser,
   ): Promise<ContainerDestinationCorrectionResponseDto> {
     const container = (await this.prisma.container.findUnique({
       where: { id: containerId },
@@ -454,6 +463,7 @@ export class CorrectionsService {
       effectiveContainerStatus(container.status, container.destinations ?? []),
       containerId,
     );
+    const correctedById = auditUserId(actor, dto.correctedById);
 
     const destinationCode = this.stringOrNull(dto.destinationCode);
     if (!destinationCode) {
@@ -515,7 +525,7 @@ export class CorrectionsService {
           },
           dto.reason ?? 'Manual actual unloading entry',
           dto.correctionNote,
-          dto.correctedById,
+          correctedById,
         );
 
         return { containerDestination, corrections };
@@ -540,10 +550,12 @@ export class CorrectionsService {
 
   async createCorrection(
     dto: CreateCorrectionDto,
+    actor: AuthenticatedUser,
   ): Promise<CorrectionFeedbackResponseDto> {
     const targetType = this.targetType(dto.targetType);
     const target = this.targetForDto(dto, targetType);
     this.assertCorrectionValuesProvided(dto);
+    const correctedById = auditUserId(actor, dto.correctedById);
 
     const record = await this.prisma.$transaction(async (tx) => {
       await this.assertTargetExists(tx, targetType, target);
@@ -556,7 +568,7 @@ export class CorrectionsService {
           newValue: this.nullableJsonValue(dto.newValue),
           reason: this.stringOrNull(dto.reason),
           note: this.stringOrNull(dto.note),
-          correctedById: this.stringOrNull(dto.correctedById),
+          correctedById,
         },
       });
     });

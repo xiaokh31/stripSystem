@@ -16,7 +16,8 @@ import {
   ImportParseResultResponseDto,
 } from './dto/import-file-response.dto';
 import { ImportsService } from './imports.service';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
+import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('imports')
@@ -33,7 +34,8 @@ export class ImportsController {
     }),
   )
   upload(
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ImportFileResponseDto> {
     if (!file) {
       throw new BadRequestException({
@@ -43,7 +45,7 @@ export class ImportsController {
       });
     }
 
-    return this.importsService.importFile(file);
+    return this.importsService.importFile(file, actor);
   }
 
   @Get()
@@ -62,8 +64,11 @@ export class ImportsController {
 
   @Post(':id/parse')
   @RequirePermissions(...ROUTE_PERMISSIONS.imports.parse)
-  parse(@Param('id') id: string): Promise<ImportParseResultResponseDto> {
-    return this.importsService.parse(id);
+  parse(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<ImportParseResultResponseDto> {
+    return this.importsService.parse(id, actor);
   }
 
   @Get(':id/parse-result')

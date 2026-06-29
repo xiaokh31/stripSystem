@@ -24,6 +24,8 @@ import {
   GeneratedFileStatus,
   GeneratedFileType,
 } from '../generated/prisma/enums';
+import { auditUserId } from '../auth/audit-user';
+import { AuthenticatedUser } from '../auth/auth-user';
 import {
   effectiveContainerStatus,
   isContainerGenerationLocked,
@@ -69,6 +71,7 @@ interface GeneratedFileRecord {
   fileSizeBytes: bigint | number | string | null;
   status: string;
   errorMessage: string | null;
+  generatedById?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -81,6 +84,7 @@ interface GeneratedFileUpsertInput {
   fileSizeBytes: bigint | null;
   status: string;
   errorMessage: string | null;
+  generatedById: string;
 }
 
 interface GeneratedFileUpsertData extends GeneratedFileUpsertInput {
@@ -119,10 +123,14 @@ export class ReportsService {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
 
-  async generateReport(id: string): Promise<GenerateReportResponseDto> {
+  async generateReport(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<GenerateReportResponseDto> {
     const container = await this.findContainerOrThrow(id);
     const outputDir = join(this.storageRoot, 'reports');
     const request = this.toWorkerReportRequest(container);
+    const generatedById = auditUserId(actor);
 
     let payload: WorkerReportPayload;
     try {
@@ -132,6 +140,7 @@ export class ReportsService {
         container,
         this.failureStoragePath(container),
         error,
+        generatedById,
       );
       throw this.reportFailure(error, failed);
     }
@@ -143,6 +152,7 @@ export class ReportsService {
         container,
         outputPath ?? this.failureStoragePath(container),
         payload,
+        generatedById,
       );
       throw this.reportFailure(payload, failed);
     }
@@ -150,6 +160,7 @@ export class ReportsService {
     const generatedFile = await this.recordGeneratedReport(
       container,
       outputPath,
+      generatedById,
     );
 
     return {
@@ -316,6 +327,7 @@ export class ReportsService {
   private async recordGeneratedReport(
     container: ContainerRecord,
     outputPath: string,
+    generatedById: string,
   ): Promise<GeneratedFileRecord> {
     const fileBuffer = await readFile(outputPath);
     const fileStat = await stat(outputPath);
@@ -333,6 +345,7 @@ export class ReportsService {
           fileSizeBytes: BigInt(fileStat.size),
           status: GeneratedFileStatus.GENERATED,
           errorMessage: null,
+          generatedById,
         },
       );
       if (this.shouldMarkReportGenerated(container)) {
@@ -359,6 +372,7 @@ export class ReportsService {
     container: ContainerRecord,
     storagePath: string,
     error: unknown,
+    generatedById: string,
   ): Promise<GeneratedFileRecord> {
     return await this.upsertGeneratedFile(
       this.prisma as unknown as GeneratedFileWriteClient,
@@ -371,6 +385,7 @@ export class ReportsService {
         fileSizeBytes: null,
         status: GeneratedFileStatus.FAILED,
         errorMessage: this.errorMessage(error),
+        generatedById,
       },
     );
   }

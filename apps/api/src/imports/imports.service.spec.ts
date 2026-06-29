@@ -27,6 +27,13 @@ interface ImportRecord {
 }
 
 describe('ImportsService', () => {
+  const officeActor = {
+    id: 'auth-office',
+    email: 'office@example.com',
+    name: 'Office User',
+    roles: ['OFFICE'],
+    permissions: ['imports.create', 'imports.parse'],
+  };
   const fixturePath = resolve(
     process.cwd(),
     '..',
@@ -104,7 +111,7 @@ describe('ImportsService', () => {
       });
     });
 
-    const response = await service.importFile(file);
+    const response = await service.importFile(file, officeActor);
 
     expect(response).toMatchObject({
       id: 'import-1',
@@ -125,6 +132,7 @@ describe('ImportsService', () => {
       storedPath: response.storedPath,
       fileSha256: expectedSha256,
       originalFilename: 'Unloading Plan CSNU8877228.xlsx',
+      importedById: 'auth-office',
     });
   });
 
@@ -156,7 +164,7 @@ describe('ImportsService', () => {
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     } satisfies ImportRecord);
 
-    await expect(service.importFile(file)).rejects.toBeInstanceOf(
+    await expect(service.importFile(file, officeActor)).rejects.toBeInstanceOf(
       ConflictException,
     );
     expect(prisma.importFile.create).not.toHaveBeenCalled();
@@ -170,7 +178,7 @@ describe('ImportsService', () => {
       buffer: Buffer.from('hello'),
     } as Express.Multer.File;
 
-    await expect(service.importFile(file)).rejects.toBeInstanceOf(
+    await expect(service.importFile(file, officeActor)).rejects.toBeInstanceOf(
       BadRequestException,
     );
     expect(prisma.importFile.findUnique).not.toHaveBeenCalled();
@@ -302,7 +310,7 @@ describe('ImportsService', () => {
       exception: null,
     });
 
-    const result = await service.parse(record.id);
+    const result = await service.parse(record.id, officeActor);
 
     expect(workerParser.parseFile).toHaveBeenCalledWith(storedPath);
     expect(result.importFile).toMatchObject({

@@ -52,6 +52,7 @@ interface GeneratedFileData {
   fileSizeBytes: bigint | null;
   status: string;
   errorMessage: string | null;
+  generatedById: string;
 }
 
 interface GeneratedFileCreateArgs {
@@ -117,6 +118,13 @@ interface PalletReportPayload {
 }
 
 describe('ReportsService', () => {
+  const officeActor = {
+    id: 'auth-office',
+    email: 'office@example.com',
+    name: 'Office User',
+    roles: ['OFFICE'],
+    permissions: ['reports.generate'],
+  };
   let storageRoot: string;
   let outputPath: string;
   let prisma: ReportsPrismaMock;
@@ -162,7 +170,7 @@ describe('ReportsService', () => {
   });
 
   it('uses corrected finalPallets and records a generated Excel report', async () => {
-    const result = await service.generateReport('container-1');
+    const result = await service.generateReport('container-1', officeActor);
 
     expect(workerReport.writeReport).toHaveBeenCalledTimes(1);
     const [request, reportDir] = workerReport.writeReport.mock.calls[0];
@@ -188,6 +196,7 @@ describe('ReportsService', () => {
     expect(generatedFileCreate.data.status).toBe('GENERATED');
     expect(generatedFileCreate.data.storagePath).toBe(outputPath);
     expect(typeof generatedFileCreate.data.fileSha256).toBe('string');
+    expect(generatedFileCreate.data.generatedById).toBe('auth-office');
     expect(prisma.container.update).toHaveBeenCalledWith({
       where: { id: 'container-1' },
       data: { status: 'REPORT_GENERATED' },
@@ -216,7 +225,7 @@ describe('ReportsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
 
-    const result = await service.generateReport('container-manual');
+    const result = await service.generateReport('container-manual', officeActor);
 
     const [request] = workerReport.writeReport.mock.calls[0];
     const palletResult =
@@ -237,7 +246,7 @@ describe('ReportsService', () => {
   });
 
   it('downloads a generated file for the owning container', async () => {
-    const generated = await service.generateReport('container-1');
+    const generated = await service.generateReport('container-1', officeActor);
     const download = await service.downloadFile(
       'container-1',
       generated.generatedFile.id,
@@ -258,7 +267,7 @@ describe('ReportsService', () => {
   it('downloads legacy generated file records stored with a host storage path', async () => {
     const legacyPath =
       '/Volumes/xfl/logistics/stripSystem/storage/reports/CSNU8877228卸柜报告-En.xlsx';
-    const generated = await service.generateReport('container-1');
+    const generated = await service.generateReport('container-1', officeActor);
     prisma.generatedFile.findFirst.mockResolvedValueOnce({
       id: generated.generatedFile.id,
       importFileId: generated.generatedFile.importFileId,
@@ -271,6 +280,7 @@ describe('ReportsService', () => {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       status: generated.generatedFile.status,
       errorMessage: null,
+      generatedById: 'auth-office',
       createdAt: new Date('2026-06-26T00:00:00.000Z'),
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     });
@@ -300,10 +310,9 @@ describe('ReportsService', () => {
       ],
     });
 
-    await expect(service.generateReport('container-1')).rejects.toHaveProperty(
-      'response.code',
-      'REPORT_GENERATION_FAILED',
-    );
+    await expect(
+      service.generateReport('container-1', officeActor),
+    ).rejects.toHaveProperty('response.code', 'REPORT_GENERATION_FAILED');
 
     const failedFileCreate = prisma.generatedFile.create.mock.calls[0][0];
     expect(failedFileCreate.data.fileType).toBe('EXCEL_REPORT');
@@ -336,7 +345,7 @@ describe('ReportsService', () => {
       ],
     });
 
-    const result = await service.generateReport('container-1');
+    const result = await service.generateReport('container-1', officeActor);
 
     expect(result.generatedFile).toMatchObject({
       containerId: 'container-1',
@@ -348,8 +357,8 @@ describe('ReportsService', () => {
   });
 
   it('updates the existing Excel report record when regenerating', async () => {
-    const first = await service.generateReport('container-1');
-    const second = await service.generateReport('container-1');
+    const first = await service.generateReport('container-1', officeActor);
+    const second = await service.generateReport('container-1', officeActor);
 
     expect(second.generatedFile.id).toBe(first.generatedFile.id);
     expect(prisma.generatedFile.create).toHaveBeenCalledTimes(1);
