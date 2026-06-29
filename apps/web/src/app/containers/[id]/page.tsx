@@ -16,7 +16,8 @@ import {
   type ContainerDetailResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import { canReprintLabels } from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function ContainerDetailPage({
     return <ContainerDetailError error={state.error} id={id} />;
   }
 
+  const currentUser = await getServerCurrentUser();
   const containerIssues = [
     ...summarizeIssues(state.container.warnings),
     ...summarizeIssues(state.container.errors),
@@ -182,6 +184,7 @@ export default async function ContainerDetailPage({
         />
       ) : (
         <ContainerGeneratedFiles
+          canReprintLabels={canReprintLabels(currentUser)}
           containerId={state.container.id}
           containerStatus={state.container.status}
           initialFiles={state.files}

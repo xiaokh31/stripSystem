@@ -7,16 +7,20 @@ import {
   generateContainerLabels,
   generateContainerReport,
   getGeneratedFileDownloadUrl,
+  reprintContainerLabels,
+  type ContainerLabelReprintResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
+  canShowLabelReprintAction,
   formatFileSizeBytes,
   containerOperationLockMessage,
   generationActionNotice,
   generatedFileTypeLabel,
   generationActionLabel,
   generationFailureMessage,
+  labelReprintUnavailableMessage,
   isContainerOperationLocked,
   isDownloadableGeneratedFile,
   newestGeneratedFiles,
@@ -31,6 +35,13 @@ interface GenerationState {
   status: "error" | "idle" | "running" | "success";
 }
 
+interface ReprintState {
+  code: string | null;
+  message: string;
+  response: ContainerLabelReprintResponse | null;
+  status: "error" | "idle" | "running" | "success";
+}
+
 const idleState: GenerationState = {
   action: null,
   code: null,
@@ -39,21 +50,42 @@ const idleState: GenerationState = {
   status: "idle",
 };
 
+const idleReprintState: ReprintState = {
+  code: null,
+  message: "",
+  response: null,
+  status: "idle",
+};
+
 export function ContainerGeneratedFiles({
+  canReprintLabels,
   containerId,
   containerStatus,
   initialFiles,
 }: {
+  canReprintLabels: boolean;
   containerId: string;
   containerStatus: string;
   initialFiles: GeneratedFileResponse[];
 }) {
   const router = useRouter();
   const [generation, setGeneration] = useState<GenerationState>(idleState);
+  const [reprint, setReprint] = useState<ReprintState>(idleReprintState);
+  const [reprintReason, setReprintReason] = useState("");
   const files = newestGeneratedFiles(initialFiles);
   const runningAction = generation.status === "running" ? generation.action : null;
   const locked = isContainerOperationLocked(containerStatus);
   const lockedMessage = containerOperationLockMessage(containerStatus);
+  const latestLabelFile =
+    files.find(
+      (file) =>
+        file.fileType === "PALLET_LABEL_PDF" && file.status === "GENERATED",
+    ) ?? null;
+  const showReprintAction = canShowLabelReprintAction(canReprintLabels, files);
+  const reprintUnavailableMessage = labelReprintUnavailableMessage(
+    canReprintLabels,
+    files,
+  );
 
   async function generate(action: GenerationAction) {
     if (runningAction || locked) {
@@ -86,6 +118,34 @@ export function ContainerGeneratedFiles({
       router.refresh();
     } catch (error) {
       setGeneration(toGenerationError(action, error));
+    }
+  }
+
+  async function reprintLabels() {
+    const reason = reprintReason.trim();
+    if (!showReprintAction || reprint.status === "running" || !reason) {
+      return;
+    }
+
+    setReprint({
+      code: null,
+      message: "Recording label reprint audit.",
+      response: null,
+      status: "running",
+    });
+
+    try {
+      const response = await reprintContainerLabels(containerId, { reason });
+      setReprint({
+        code: null,
+        message: `Reprint audit recorded for ${response.eventCount} pallet label${response.eventCount === 1 ? "" : "s"}.`,
+        response,
+        status: "success",
+      });
+      setReprintReason("");
+      router.refresh();
+    } catch (error) {
+      setReprint(toReprintError(error));
     }
   }
 
@@ -131,6 +191,72 @@ export function ContainerGeneratedFiles({
 
       {generation.status !== "idle" ? (
         <GenerationStatus containerId={containerId} generation={generation} />
+      ) : null}
+
+      {showReprintAction ? (
+        <form
+          className="mt-4 grid gap-3 border border-zinc-200 bg-zinc-50 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void reprintLabels();
+          }}
+        >
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-950">
+              Reprint label PDF
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              Records an audit event for every pallet label in this container.
+              Inventory status, QR payloads, and label dimensions are not
+              changed.
+            </p>
+          </div>
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            <span>Reason</span>
+            <textarea
+              className="min-h-20 w-full border border-zinc-300 bg-white p-3 text-sm text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100"
+              disabled={reprint.status === "running"}
+              maxLength={500}
+              onChange={(event) => setReprintReason(event.target.value)}
+              placeholder="Damaged label, replacement print packet, printer issue..."
+              required
+              value={reprintReason}
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="min-h-11 border border-amber-700 bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+              disabled={
+                reprint.status === "running" || !reprintReason.trim()
+              }
+              type="submit"
+            >
+              {reprint.status === "running"
+                ? "Recording reprint"
+                : "Record reprint audit"}
+            </button>
+            {latestLabelFile && isDownloadableGeneratedFile(latestLabelFile) ? (
+              <a
+                className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-100"
+                href={getGeneratedFileDownloadUrl(containerId, latestLabelFile.id)}
+              >
+                Download current label PDF
+              </a>
+            ) : null}
+          </div>
+        </form>
+      ) : reprintUnavailableMessage ? (
+        <p className="mt-4 border border-zinc-200 bg-zinc-50 p-3 text-sm font-medium text-zinc-600">
+          {reprintUnavailableMessage}
+        </p>
+      ) : null}
+
+      {reprint.status !== "idle" ? (
+        <ReprintStatus
+          containerId={containerId}
+          latestLabelFile={latestLabelFile}
+          reprint={reprint}
+        />
       ) : null}
 
       <GeneratedFilesTable containerId={containerId} files={files} />
@@ -249,6 +375,48 @@ function GenerationStatus({
   );
 }
 
+function ReprintStatus({
+  containerId,
+  latestLabelFile,
+  reprint,
+}: {
+  containerId: string;
+  latestLabelFile: GeneratedFileResponse | null;
+  reprint: ReprintState;
+}) {
+  const isError = reprint.status === "error";
+
+  return (
+    <div
+      className={`mt-4 border p-3 text-sm ${
+        isError
+          ? "border-red-200 bg-red-50 text-red-950"
+          : "border-emerald-200 bg-emerald-50 text-emerald-950"
+      }`}
+      role={isError ? "alert" : "status"}
+    >
+      <p className="font-semibold">{reprint.message}</p>
+      {reprint.code ? (
+        <p className="mt-1 text-xs font-semibold uppercase">{reprint.code}</p>
+      ) : null}
+      {reprint.response ? (
+        <p className="mt-1">
+          Audit events: {reprint.response.eventCount}. Operator IDs are recorded
+          by the API from the current signed-in user.
+        </p>
+      ) : null}
+      {latestLabelFile && isDownloadableGeneratedFile(latestLabelFile) ? (
+        <a
+          className="mt-2 inline-flex min-h-10 items-center border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
+          href={getGeneratedFileDownloadUrl(containerId, latestLabelFile.id)}
+        >
+          Download current label PDF
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const styles =
     status === "GENERATED"
@@ -300,6 +468,27 @@ function generatedFileFromError(details: unknown): GeneratedFileResponse | null 
   }
 
   return generatedFile as GeneratedFileResponse;
+}
+
+function toReprintError(error: unknown): ReprintState {
+  if (error instanceof ApiClientError) {
+    return {
+      code: error.code,
+      message: error.message,
+      response: null,
+      status: "error",
+    };
+  }
+
+  return {
+    code: "REPRINT_FAILED",
+    message:
+      error instanceof Error
+        ? error.message
+        : "Label reprint audit could not be recorded.",
+    response: null,
+    status: "error",
+  };
 }
 
 function filenameFromStoragePath(storagePath: string): string {

@@ -4,6 +4,7 @@ import type { AuthUserResponse } from "../src/lib/api-client";
 import {
   canManageAccounts,
   canManageOfficeLoadJobs,
+  canReprintLabels,
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
@@ -116,4 +117,33 @@ test("office load job management requires load job create permission", () => {
   assert.equal(canManageOfficeLoadJobs(adminUser), true);
   assert.equal(canManageOfficeLoadJobs(readOnlyWarehouse), false);
   assert.equal(canManageOfficeLoadJobs(null), false);
+});
+
+test("label reprint permission is not granted to warehouse by default", () => {
+  const officeUser: AuthUserResponse = {
+    id: "office-reprint-1",
+    email: "office-reprint@example.com",
+    name: "Office Reprint",
+    roles: ["OFFICE"],
+    permissions: ["labels.reprint"],
+  };
+  const warehouseUser: AuthUserResponse = {
+    id: "warehouse-reprint-1",
+    email: "warehouse-reprint@example.com",
+    name: "Warehouse Reprint",
+    roles: ["WAREHOUSE"],
+    permissions: ["load_jobs.read", "scan.create", "scan.reverse"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-reprint-1",
+    email: "admin-reprint@example.com",
+    name: "Admin Reprint",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canReprintLabels(officeUser), true);
+  assert.equal(canReprintLabels(adminUser), true);
+  assert.equal(canReprintLabels(warehouseUser), false);
+  assert.equal(canReprintLabels(null), false);
 });

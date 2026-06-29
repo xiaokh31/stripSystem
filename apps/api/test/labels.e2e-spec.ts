@@ -9,6 +9,7 @@ import {
   configureAuthTestEnv,
   installAuthMock,
   officeAuthHeader,
+  warehouseAuthHeader,
 } from './auth-test-helpers';
 
 interface DestinationRecord {
@@ -136,11 +137,40 @@ describe('LabelsController reprint audit (e2e)', () => {
       ],
     });
     expect(palletEvents).toHaveLength(3);
+    expect(
+      palletEvents
+        .slice(1)
+        .map((event) => (event.metadata as { containerId?: string }).containerId),
+    ).toEqual(['container-1', 'container-1']);
     expect(pallets.map((pallet) => pallet.status)).toEqual([
       'LABEL_PRINTED',
       'LOADED',
       'CANCELLED',
     ]);
+  });
+
+  it('blocks warehouse label reprint routes before writing audit events', async () => {
+    await authorizedRequest(app, warehouseAuthHeader())
+      .post('/api/pallets/pallet-2/print')
+      .send({
+        reason: 'Warehouse tried to reprint a damaged loaded label',
+      })
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.code).toBe('FORBIDDEN');
+      });
+
+    await authorizedRequest(app, warehouseAuthHeader())
+      .post('/api/containers/container-1/labels/reprint')
+      .send({
+        reason: 'Warehouse tried to reprint the full packet',
+      })
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.code).toBe('FORBIDDEN');
+      });
+
+    expect(palletEvents).toHaveLength(0);
   });
 
   it('blocks cancelled pallet reprint unless supervisor override is sent', async () => {

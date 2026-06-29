@@ -424,6 +424,33 @@ export interface GenerateLabelsResponse {
   errors: unknown[];
 }
 
+export interface ReprintLabelRequest {
+  reason: string;
+  supervisorOverride?: boolean;
+}
+
+export interface ReprintAuditEventResponse {
+  id: string;
+  palletRecordId: string;
+  businessPalletId: string;
+  userId: string;
+  printedAt: string;
+  reason: string;
+  palletStatus: string;
+  supervisorOverride: boolean;
+}
+
+export interface PalletReprintResponse {
+  event: ReprintAuditEventResponse;
+  pallet: PalletResponse;
+}
+
+export interface ContainerLabelReprintResponse {
+  containerId: string;
+  eventCount: number;
+  events: ReprintAuditEventResponse[];
+}
+
 export interface PalletStatsResponse {
   totalPallets: number;
   loadedPallets: number;
@@ -910,6 +937,28 @@ export function generateContainerLabels(
 ): Promise<GenerateLabelsResponse> {
   return createApiClient(options).post<GenerateLabelsResponse>(
     `/containers/${encodeURIComponent(id)}/generate-labels`,
+  );
+}
+
+export function reprintContainerLabels(
+  id: string,
+  body: ReprintLabelRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerLabelReprintResponse> {
+  return createApiClient(options).post<ContainerLabelReprintResponse>(
+    `/containers/${encodeURIComponent(id)}/labels/reprint`,
+    { ...body },
+  );
+}
+
+export function reprintPalletLabel(
+  id: string,
+  body: ReprintLabelRequest,
+  options: ApiClientOptions = {},
+): Promise<PalletReprintResponse> {
+  return createApiClient(options).post<PalletReprintResponse>(
+    `/pallets/${encodeURIComponent(id)}/print`,
+    { ...body },
   );
 }
 

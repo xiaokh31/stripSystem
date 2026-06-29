@@ -29,6 +29,28 @@ export function hasGeneratedLabelPdf(
   );
 }
 
+export function canShowLabelReprintAction(
+  canReprintLabels: boolean,
+  files: readonly GeneratedFileResponse[],
+): boolean {
+  return canReprintLabels && hasGeneratedLabelPdf(files);
+}
+
+export function labelReprintUnavailableMessage(
+  canReprintLabels: boolean,
+  files: readonly GeneratedFileResponse[],
+): string {
+  if (!hasGeneratedLabelPdf(files)) {
+    return "Generate a label PDF before recording a reprint.";
+  }
+
+  if (!canReprintLabels) {
+    return "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.";
+  }
+
+  return "";
+}
+
 export function isDownloadableGeneratedFile(
   file: Pick<GeneratedFileResponse, "fileSha256" | "status">,
 ): boolean {

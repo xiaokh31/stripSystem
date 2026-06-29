@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canShowLabelReprintAction,
   containerOperationLockMessage,
   containerStatusLabel,
   formatFileSizeBytes,
@@ -10,6 +11,7 @@ import {
   hasGeneratedLabelPdf,
   isContainerOperationLocked,
   isDownloadableGeneratedFile,
+  labelReprintUnavailableMessage,
   newestGeneratedFiles,
 } from "../src/components/containers/container-files-flow";
 import type { GeneratedFileResponse } from "../src/lib/api-client";
@@ -26,6 +28,27 @@ test("generated label PDFs are detected", () => {
     ]),
     true,
   );
+});
+
+test("label reprint action is permissioned and requires an existing label PDF", () => {
+  const labelPdf = fileRecord({
+    fileSha256: "sha",
+    fileType: "PALLET_LABEL_PDF",
+    status: "GENERATED",
+  });
+
+  assert.equal(canShowLabelReprintAction(true, [labelPdf]), true);
+  assert.equal(canShowLabelReprintAction(false, [labelPdf]), false);
+  assert.equal(canShowLabelReprintAction(true, [fileRecord()]), false);
+  assert.match(
+    labelReprintUnavailableMessage(false, [labelPdf]),
+    /labels\.reprint/,
+  );
+  assert.match(
+    labelReprintUnavailableMessage(true, [fileRecord()]),
+    /Generate a label PDF/,
+  );
+  assert.equal(labelReprintUnavailableMessage(true, [labelPdf]), "");
 });
 
 test("only generated files with a sha are downloadable", () => {
