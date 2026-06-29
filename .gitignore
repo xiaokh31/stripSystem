@@ -12,6 +12,7 @@ docs/runbooks/*
 !docs/runbooks/account-role-permission-management.md
 !docs/runbooks/deploy-linux.md
 !docs/runbooks/deploy-windows.md
+!docs/runbooks/production-deployment-beginner-guide.md
 !docs/runbooks/warehouse-operator-manual.md
 !docs/runbooks/pilot-run-checklist.md
 !docs/reports/
