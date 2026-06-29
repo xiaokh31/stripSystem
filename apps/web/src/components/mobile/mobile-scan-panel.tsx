@@ -15,6 +15,7 @@ import {
   reverseLoadJobScan,
   scanLoadJobPallet,
   updateLoadJob,
+  type AuthUserResponse,
   type LoadJobProgressResponse,
   type LoadJobResponse,
   type LoadJobScanResponse,
@@ -58,6 +59,12 @@ interface DockSaveState {
   status: "error" | "idle" | "saving" | "saved";
 }
 
+export interface MobileScanPermissions {
+  canReverseScan: boolean;
+  canSaveDockNo: boolean;
+  canScan: boolean;
+}
+
 interface DetectedBarcode {
   rawValue: string;
 }
@@ -71,9 +78,13 @@ type BarcodeDetectorConstructor = new (options?: {
 }) => BarcodeDetectorLike;
 
 export function MobileScanPanel({
+  currentUser,
   initialLoadJob,
+  permissions,
 }: {
+  currentUser: AuthUserResponse;
   initialLoadJob: LoadJobResponse;
+  permissions: MobileScanPermissions;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -108,8 +119,11 @@ export function MobileScanPanel({
   const [syncingQueue, setSyncingQueue] = useState(false);
 
   const progress = lastScan?.progress ?? loadJobProgressSnapshot(loadJob);
+  const canSaveDockNo = loadJob.canScan && permissions.canSaveDockNo;
+  const canScanThisLoadJob = loadJob.canScan && permissions.canScan;
+  const canReverseThisLoadJob = loadJob.canScan && permissions.canReverseScan;
   const disabled = isScanSubmitDisabled({
-    canScan: loadJob.canScan,
+    canScan: canScanThisLoadJob,
     qrPayload,
     submitting,
   });
@@ -122,7 +136,7 @@ export function MobileScanPanel({
     loadedPallets.find((pallet) => pallet.id === selectedReversePalletId) ??
     null;
   const reverseDisabled = isReverseScanDisabled({
-    canScan: loadJob.canScan,
+    canScan: canReverseThisLoadJob,
     confirmed: reverseConfirmed,
     reason: reverseReason,
     reversing: reversingScan,
@@ -206,6 +220,13 @@ export function MobileScanPanel({
       return;
     }
 
+    if (!permissions.canScan) {
+      setQueueError(
+        "Sign in as a user with scan permission before syncing queued scans.",
+      );
+      return;
+    }
+
     setSyncingQueue(true);
     setQueueError(null);
     let refreshedCurrentLoadJob = false;
@@ -267,7 +288,7 @@ export function MobileScanPanel({
       setSyncingQueue(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [loadJob.id, router, syncingQueue]);
+  }, [loadJob.id, permissions.canScan, router, syncingQueue]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -304,7 +325,7 @@ export function MobileScanPanel({
 
     if (
       isScanSubmitDisabled({
-        canScan: loadJob.canScan,
+        canScan: canScanThisLoadJob,
         qrPayload: normalizedPayload,
         submitting,
       })
@@ -358,7 +379,7 @@ export function MobileScanPanel({
   }
 
   async function saveDockNo() {
-    if (dockSaving || !loadJob.canScan) {
+    if (dockSaving || !canSaveDockNo) {
       return;
     }
 
@@ -386,7 +407,7 @@ export function MobileScanPanel({
   }
 
   async function startCameraScan() {
-    if (!loadJob.canScan || submitting || cameraScan.status === "starting") {
+    if (!canScanThisLoadJob || submitting || cameraScan.status === "starting") {
       return;
     }
 
@@ -511,6 +532,8 @@ export function MobileScanPanel({
 
   return (
     <section className="border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
+      <MobileScanUserPanel currentUser={currentUser} permissions={permissions} />
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-3 border border-zinc-200 bg-zinc-50 p-3">
@@ -518,7 +541,7 @@ export function MobileScanPanel({
               Dock No.
               <input
                 className="min-h-14 w-full border border-zinc-300 bg-white px-4 text-xl font-semibold text-zinc-950 outline-none focus:border-teal-700 focus:ring-4 focus:ring-teal-100 disabled:bg-zinc-100 disabled:text-zinc-500"
-                disabled={!loadJob.canScan || dockSaving}
+                disabled={!canSaveDockNo || dockSaving}
                 onChange={(event) => setDockNo(event.target.value)}
                 placeholder="Dock door"
                 type="text"
@@ -527,7 +550,7 @@ export function MobileScanPanel({
             </label>
             <button
               className="min-h-12 border border-teal-800 bg-white px-4 text-base font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-100 disabled:text-zinc-500"
-              disabled={!loadJob.canScan || dockSaving}
+              disabled={!canSaveDockNo || dockSaving}
               onClick={() => {
                 void saveDockNo();
               }}
@@ -557,7 +580,7 @@ export function MobileScanPanel({
               autoComplete="off"
               autoCorrect="off"
               className="min-h-16 w-full border-2 border-teal-700 bg-white px-4 text-xl font-semibold text-zinc-950 outline-none focus:border-teal-900 focus:ring-4 focus:ring-teal-100"
-              disabled={!loadJob.canScan || submitting}
+              disabled={!canScanThisLoadJob || submitting}
               inputMode="text"
               onChange={(event) => setQrPayload(event.target.value)}
               placeholder="Scan pallet QR, then Enter"
@@ -570,7 +593,7 @@ export function MobileScanPanel({
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               className="min-h-12 border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:border-teal-700 hover:text-teal-900 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-              disabled={!loadJob.canScan || submitting}
+              disabled={!canScanThisLoadJob || submitting}
               onClick={() => {
                 void startCameraScan();
               }}
@@ -610,6 +633,18 @@ export function MobileScanPanel({
             </div>
           ) : null}
 
+          {loadJob.canScan && !permissions.canScan ? (
+            <div
+              className="border border-red-200 bg-red-50 p-4 text-base text-red-950"
+              role="alert"
+            >
+              <p className="font-semibold">Scan permission required</p>
+              <p className="mt-1">
+                This account can view the load job but cannot scan pallets.
+              </p>
+            </div>
+          ) : null}
+
           {notice ? <ScanNoticePanel notice={notice} /> : null}
         </form>
 
@@ -617,6 +652,7 @@ export function MobileScanPanel({
           <ProgressPanel progress={progress} />
           <LastScanPanel scan={lastScan} />
           <ReverseScanPanel
+            canReverse={canReverseThisLoadJob}
             confirmed={reverseConfirmed}
             disabled={reverseDisabled}
             error={loadedPalletsError}
@@ -635,6 +671,7 @@ export function MobileScanPanel({
       </div>
 
       <OfflineQueuePanel
+        canSync={permissions.canScan}
         items={currentLoadJobQueue}
         queueError={queueError}
         syncableCount={syncableCount}
@@ -688,6 +725,33 @@ function CameraScanPanel({
   );
 }
 
+function MobileScanUserPanel({
+  currentUser,
+  permissions,
+}: {
+  currentUser: AuthUserResponse;
+  permissions: MobileScanPermissions;
+}) {
+  const displayName = currentUser.name ?? currentUser.email ?? currentUser.id;
+  const permissionSummary = [
+    permissions.canSaveDockNo ? "Dock" : null,
+    permissions.canScan ? "Scan" : null,
+    permissions.canReverseScan ? "Reverse scan" : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="mb-4 border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+      <p className="font-semibold text-zinc-950">Signed in as {displayName}</p>
+      <p className="mt-1 break-all">
+        Roles: {currentUser.roles.join(", ") || "None"}
+      </p>
+      <p className="mt-1">
+        Mobile permissions: {permissionSummary.join(", ") || "Read only"}
+      </p>
+    </div>
+  );
+}
+
 function dockSaveErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     if (error.code === "NOT_FOUND" && error.message.includes("Cannot PATCH")) {
@@ -703,6 +767,7 @@ function dockSaveErrorMessage(error: unknown): string {
 }
 
 function ReverseScanPanel({
+  canReverse,
   confirmed,
   disabled,
   error,
@@ -715,6 +780,7 @@ function ReverseScanPanel({
   reversing,
   selectedPalletId,
 }: {
+  canReverse: boolean;
   confirmed: boolean;
   disabled: boolean;
   error: string | null;
@@ -739,6 +805,14 @@ function ReverseScanPanel({
         Remove a loaded pallet from this load job only when it will not be
         loaded.
       </p>
+      {!canReverse ? (
+        <p
+          className="mt-3 border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-950"
+          role="alert"
+        >
+          This account can view loaded pallets but cannot reverse scans.
+        </p>
+      ) : null}
 
       {error ? (
         <p
@@ -761,7 +835,7 @@ function ReverseScanPanel({
             Loaded pallet
             <select
               className="min-h-12 w-full border border-amber-300 bg-white px-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
-              disabled={reversing}
+              disabled={!canReverse || reversing}
               onChange={(event) => onSelectedPalletChange(event.target.value)}
               value={selectedPallet?.id ?? ""}
             >
@@ -777,7 +851,7 @@ function ReverseScanPanel({
             Reason
             <textarea
               className="min-h-24 w-full border border-amber-300 bg-white p-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
-              disabled={reversing}
+              disabled={!canReverse || reversing}
               maxLength={240}
               onChange={(event) => onReasonChange(event.target.value)}
               placeholder="Damage, pallet consolidation, short load..."
@@ -789,7 +863,7 @@ function ReverseScanPanel({
             <input
               checked={confirmed}
               className="mt-1 h-5 w-5"
-              disabled={reversing}
+              disabled={!canReverse || reversing}
               onChange={(event) => onConfirmChange(event.target.checked)}
               type="checkbox"
             />
@@ -811,6 +885,7 @@ function ReverseScanPanel({
 }
 
 function OfflineQueuePanel({
+  canSync,
   items,
   onSync,
   queueError,
@@ -818,6 +893,7 @@ function OfflineQueuePanel({
   syncing,
   totalCounts,
 }: {
+  canSync: boolean;
   items: OfflineScanQueueItem[];
   onSync: () => void;
   queueError: string | null;
@@ -839,7 +915,7 @@ function OfflineQueuePanel({
         </div>
         <button
           className="min-h-11 border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-          disabled={syncing || syncableCount === 0}
+          disabled={!canSync || syncing || syncableCount === 0}
           onClick={onSync}
           type="button"
         >
@@ -852,6 +928,19 @@ function OfflineQueuePanel({
         <Metric label="Synced" value={totalCounts.synced} />
         <Metric label="Failed" value={totalCounts.failed} />
       </dl>
+
+      {!canSync ? (
+        <div
+          className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-950"
+          role="alert"
+        >
+          <p className="font-semibold">Scan permission required</p>
+          <p className="mt-1">
+            Pending scans remain local until a user with scan permission signs
+            in and syncs them.
+          </p>
+        </div>
+      ) : null}
 
       {queueError ? (
         <div

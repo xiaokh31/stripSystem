@@ -8,14 +8,22 @@ import {
 import {
   ApiClientError,
   listLoadJobs,
+  type AuthUserResponse,
   type LoadJobListResponse,
   type LoadJobResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import {
+  canManageAccounts,
+  canManageOfficeLoadJobs,
+  canViewMobileLoadJobs,
+} from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
+const MOBILE_LOAD_JOBS_PATH = "/mobile/load-jobs";
 
 type MobileLoadJobsState =
   | {
@@ -28,6 +36,16 @@ type MobileLoadJobsState =
     };
 
 export default async function MobileLoadJobsPage() {
+  const currentUser = await getServerCurrentUser();
+
+  if (!currentUser) {
+    return <MobileLoginRequired nextPath={MOBILE_LOAD_JOBS_PATH} />;
+  }
+
+  if (!canViewMobileLoadJobs(currentUser)) {
+    return <MobilePermissionDenied currentUser={currentUser} />;
+  }
+
   const state = await loadOpenLoadJobs();
 
   return (
@@ -51,12 +69,101 @@ export default async function MobileLoadJobsPage() {
         </div>
       </section>
 
+      <MobileUserPanel currentUser={currentUser} />
+
       {state.ok ? (
-        <LoadJobList loadJobs={state.loadJobs} />
+        <LoadJobList
+          canOpenOfficeLoadJobs={canManageOfficeLoadJobs(currentUser)}
+          loadJobs={state.loadJobs}
+        />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
     </main>
+  );
+}
+
+function MobileLoginRequired({ nextPath }: { nextPath: string }) {
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
+      <section
+        className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
+        role="alert"
+      >
+        <p className="text-sm font-semibold uppercase">Authentication</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          Sign in to use mobile loading
+        </h1>
+        <p className="mt-2 leading-7">
+          Mobile load jobs are only loaded after the API confirms the current
+          user. No placeholder load jobs are shown without a valid session.
+        </p>
+        <Link
+          className="mt-4 inline-flex min-h-12 items-center border border-amber-700 bg-white px-4 text-base font-semibold text-amber-950 hover:bg-amber-100"
+          href={loginHref(nextPath)}
+        >
+          Sign in
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+function MobilePermissionDenied({
+  currentUser,
+}: {
+  currentUser: AuthUserResponse;
+}) {
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
+      <section
+        className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+        role="alert"
+      >
+        <p className="text-sm font-semibold uppercase">Permission denied</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          Mobile load jobs are not available
+        </h1>
+        <p className="mt-2 leading-7">
+          The signed-in user does not have load job read permission. Ask an
+          administrator to assign a warehouse, office, or admin role with mobile
+          loading access.
+        </p>
+        <p className="mt-3 break-all text-sm font-medium">
+          Signed in as {currentUser.email ?? currentUser.name ?? currentUser.id}
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function MobileUserPanel({
+  currentUser,
+}: {
+  currentUser: AuthUserResponse;
+}) {
+  return (
+    <section className="border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold text-zinc-950">
+            Signed in as{" "}
+            {currentUser.name ?? currentUser.email ?? currentUser.id}
+          </p>
+          <p className="mt-1 break-all">
+            Roles: {currentUser.roles.join(", ") || "None"}
+          </p>
+        </div>
+        {canManageAccounts(currentUser) ? (
+          <Link
+            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+            href="/settings"
+          >
+            Account settings
+          </Link>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -80,7 +187,13 @@ async function loadOpenLoadJobs(): Promise<MobileLoadJobsState> {
   }
 }
 
-function LoadJobList({ loadJobs }: { loadJobs: LoadJobListResponse }) {
+function LoadJobList({
+  canOpenOfficeLoadJobs,
+  loadJobs,
+}: {
+  canOpenOfficeLoadJobs: boolean;
+  loadJobs: LoadJobListResponse;
+}) {
   if (loadJobs.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-5 text-base text-zinc-700">
@@ -90,12 +203,14 @@ function LoadJobList({ loadJobs }: { loadJobs: LoadJobListResponse }) {
         <p className="mt-2 leading-7">
           Ask the office to create or start a load job before scanning pallets.
         </p>
-        <Link
-          className="mt-4 inline-flex min-h-10 items-center border border-teal-700 bg-white px-4 text-sm font-semibold text-teal-900 hover:bg-teal-50"
-          href="/load-jobs"
-        >
-          Open load jobs
-        </Link>
+        {canOpenOfficeLoadJobs ? (
+          <Link
+            className="mt-4 inline-flex min-h-10 items-center border border-teal-700 bg-white px-4 text-sm font-semibold text-teal-900 hover:bg-teal-50"
+            href="/load-jobs"
+          >
+            Open load jobs
+          </Link>
+        ) : null}
       </section>
     );
   }
@@ -237,4 +352,8 @@ function toApiClientError(error: unknown, fallback: string): ApiClientError {
     message: error instanceof Error ? error.message : fallback,
     status: 0,
   });
+}
+
+function loginHref(nextPath: string): string {
+  return `/login?${AUTH_REDIRECT_PARAM}=${encodeURIComponent(nextPath)}`;
 }

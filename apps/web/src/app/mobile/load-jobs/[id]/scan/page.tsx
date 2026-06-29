@@ -8,9 +8,17 @@ import {
 import {
   ApiClientError,
   getLoadJob,
+  type AuthUserResponse,
   type LoadJobResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import {
+  canReverseMobileScans,
+  canSaveMobileDock,
+  canScanMobilePallets,
+  canViewMobileLoadJobs,
+} from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +38,17 @@ export default async function MobileLoadJobScanPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const currentUser = await getServerCurrentUser();
+  const nextPath = mobileScanPath(id);
+
+  if (!currentUser) {
+    return <MobileLoginRequired nextPath={nextPath} />;
+  }
+
+  if (!canViewMobileLoadJobs(currentUser)) {
+    return <MobilePermissionDenied currentUser={currentUser} />;
+  }
+
   const state = await loadScanPage(id);
 
   if (!state.ok) {
@@ -61,7 +80,68 @@ export default async function MobileLoadJobScanPage({
       </section>
 
       <LoadJobPlanPanel loadJob={state.loadJob} />
-      <MobileScanPanel initialLoadJob={state.loadJob} />
+      <MobileScanPanel
+        currentUser={currentUser}
+        initialLoadJob={state.loadJob}
+        permissions={{
+          canReverseScan: canReverseMobileScans(currentUser),
+          canSaveDockNo: canSaveMobileDock(currentUser),
+          canScan: canScanMobilePallets(currentUser),
+        }}
+      />
+    </main>
+  );
+}
+
+function MobileLoginRequired({ nextPath }: { nextPath: string }) {
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
+      <section
+        className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
+        role="alert"
+      >
+        <p className="text-sm font-semibold uppercase">Authentication</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          Sign in to scan pallets
+        </h1>
+        <p className="mt-2 leading-7">
+          The scan page needs a valid API session before showing load job data or
+          accepting queued scans.
+        </p>
+        <Link
+          className="mt-4 inline-flex min-h-12 items-center border border-amber-700 bg-white px-4 text-base font-semibold text-amber-950 hover:bg-amber-100"
+          href={loginHref(nextPath)}
+        >
+          Sign in
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+function MobilePermissionDenied({
+  currentUser,
+}: {
+  currentUser: AuthUserResponse;
+}) {
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
+      <section
+        className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+        role="alert"
+      >
+        <p className="text-sm font-semibold uppercase">Permission denied</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          This account cannot open mobile load jobs
+        </h1>
+        <p className="mt-2 leading-7">
+          The signed-in user needs load job read permission before scan actions
+          can be shown.
+        </p>
+        <p className="mt-3 break-all text-sm font-medium">
+          Signed in as {currentUser.email ?? currentUser.name ?? currentUser.id}
+        </p>
+      </section>
     </main>
   );
 }
@@ -176,4 +256,12 @@ function toApiClientError(error: unknown, fallback: string): ApiClientError {
     message: error instanceof Error ? error.message : fallback,
     status: 0,
   });
+}
+
+function mobileScanPath(id: string): string {
+  return `/mobile/load-jobs/${encodeURIComponent(id)}/scan`;
+}
+
+function loginHref(nextPath: string): string {
+  return `/login?${AUTH_REDIRECT_PARAM}=${encodeURIComponent(nextPath)}`;
 }

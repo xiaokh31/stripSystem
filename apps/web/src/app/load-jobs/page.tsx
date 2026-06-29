@@ -4,9 +4,14 @@ import { LoadJobPlanningForm } from "@/components/load-jobs/load-job-planning-fo
 import {
   ApiClientError,
   listLoadJobs,
+  type AuthUserResponse,
   type LoadJobListResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import {
+  canManageOfficeLoadJobs,
+  canViewMobileLoadJobs,
+} from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +28,12 @@ type LoadJobsPageState =
     };
 
 export default async function LoadJobsPage() {
+  const currentUser = await getServerCurrentUser();
+
+  if (!canManageOfficeLoadJobs(currentUser)) {
+    return <LoadJobManagementDenied currentUser={currentUser} />;
+  }
+
   const state = await loadLoadJobs();
 
   return (
@@ -72,6 +83,44 @@ export default async function LoadJobsPage() {
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
+    </main>
+  );
+}
+
+function LoadJobManagementDenied({
+  currentUser,
+}: {
+  currentUser: AuthUserResponse | null;
+}) {
+  return (
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+      <section
+        className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+        role="alert"
+      >
+        <p className="text-sm font-semibold uppercase">Permission denied</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          Office load job management is not available
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6">
+          This page is for office staff to create and maintain truck plans.
+          Warehouse users should use the mobile scan page for in-progress load
+          jobs, dock updates, pallet scans, and scan reversals.
+        </p>
+        {currentUser ? (
+          <p className="mt-3 break-all text-sm font-medium">
+            Signed in as {currentUser.email ?? currentUser.name ?? currentUser.id}
+          </p>
+        ) : null}
+        {canViewMobileLoadJobs(currentUser) ? (
+          <Link
+            className="mt-4 inline-flex min-h-11 items-center border border-red-300 bg-white px-4 text-sm font-semibold text-red-950 hover:bg-red-100"
+            href="/mobile/load-jobs"
+          >
+            Open mobile scan
+          </Link>
+        ) : null}
+      </section>
     </main>
   );
 }

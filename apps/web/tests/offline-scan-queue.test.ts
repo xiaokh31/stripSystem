@@ -6,7 +6,9 @@ import {
   createOfflineScanQueueItem,
   markOfflineScanFailed,
   markOfflineScanSynced,
+  offlineScanErrorMessage,
   offlineQueueCounts,
+  isOfflineScanAuthError,
   queueOfflineScan,
   readOfflineScanQueue,
   shouldQueueOfflineScan,
@@ -129,6 +131,21 @@ test("offline scan queue only queues network send failures", () => {
       }),
     ),
     false,
+  );
+});
+
+test("offline scan queue treats expired auth as re-login instead of fake sync", () => {
+  const error = new ApiClientError({
+    code: "UNAUTHENTICATED",
+    message: "Token expired.",
+    status: 401,
+  });
+
+  assert.equal(shouldQueueOfflineScan(error), false);
+  assert.equal(isOfflineScanAuthError(error), true);
+  assert.equal(
+    offlineScanErrorMessage(error),
+    "Sign in again before syncing queued scans. Pending scans remain local and inventory was not changed.",
   );
 });
 

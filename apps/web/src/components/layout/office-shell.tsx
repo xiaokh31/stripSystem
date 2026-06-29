@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import type { AuthUserResponse } from "@/lib/api-client";
-import { canManageAccounts, hasPermission } from "@/lib/permissions";
+import {
+  canManageAccounts,
+  canManageOfficeLoadJobs,
+  hasPermission,
+} from "@/lib/permissions";
 import { OfficeNavigation, type OfficeNavItem } from "./office-navigation";
 
 interface PermissionAwareNavItem extends OfficeNavItem {
@@ -23,7 +27,7 @@ const navItems: PermissionAwareNavItem[] = [
   {
     href: "/load-jobs",
     label: "Load Jobs",
-    requiredPermissions: ["load_jobs.read"],
+    requiredPermissions: ["load_jobs.create"],
   },
   {
     href: "/reports",
@@ -97,6 +101,10 @@ function visibleNavItems(user: AuthUserResponse): OfficeNavItem[] {
     .filter((item) => {
       if (item.href === "/admin/users") {
         return canManageAccounts(user);
+      }
+
+      if (item.href === "/load-jobs") {
+        return canManageOfficeLoadJobs(user);
       }
 
       return (

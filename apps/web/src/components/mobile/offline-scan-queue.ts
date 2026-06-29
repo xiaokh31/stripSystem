@@ -120,6 +120,10 @@ export function offlineQueueCounts(items: OfflineScanQueueItem[]): {
 
 export function offlineScanErrorMessage(error: unknown): string {
   if (isApiClientError(error)) {
+    if (isOfflineScanAuthError(error)) {
+      return "Sign in again before syncing queued scans. Pending scans remain local and inventory was not changed.";
+    }
+
     return `${error.code}: ${error.message}`;
   }
 
@@ -128,6 +132,16 @@ export function offlineScanErrorMessage(error: unknown): string {
 
 export function shouldQueueOfflineScan(error: unknown): boolean {
   return isApiClientError(error) && error.code === "API_NETWORK_ERROR";
+}
+
+export function isOfflineScanAuthError(error: unknown): boolean {
+  return (
+    isApiClientError(error) &&
+    (error.status === 401 ||
+      error.code === "UNAUTHENTICATED" ||
+      error.code === "AUTH_TOKEN_EXPIRED" ||
+      error.code === "USER_INACTIVE")
+  );
 }
 
 export function offlineQueuedNotice(
