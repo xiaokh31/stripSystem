@@ -38,6 +38,108 @@ export interface LoginResponse {
   user: AuthUserResponse;
 }
 
+export interface UserRoleResponse {
+  id: string;
+  code: string;
+  displayName: string;
+  permissions: string[];
+}
+
+export interface UserResponse {
+  id: string;
+  email: string | null;
+  name: string | null;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  roles: UserRoleResponse[];
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserListResponse {
+  items: UserResponse[];
+}
+
+export interface UserMutationResponse {
+  user: UserResponse;
+  audit: {
+    actorUserId: string;
+    action: string;
+    targetUserId: string;
+  };
+}
+
+export interface CreateUserRequest {
+  email: string;
+  name?: string | null;
+  password: string;
+  roleCodes?: string[];
+  roleIds?: string[];
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  name?: string | null;
+}
+
+export interface ResetPasswordRequest {
+  password: string;
+}
+
+export interface UpdateUserRolesRequest {
+  roleCodes?: string[];
+  roleIds?: string[];
+}
+
+export interface UpdateUserStatusRequest {
+  isActive: boolean;
+}
+
+export interface PermissionResponse {
+  id: string;
+  code: string;
+  category: string | null;
+  description: string | null;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleResponse {
+  id: string;
+  code: string;
+  displayName: string;
+  description: string | null;
+  isSystem: boolean;
+  isActive: boolean;
+  permissions: PermissionResponse[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleListResponse {
+  items: RoleResponse[];
+}
+
+export interface PermissionListResponse {
+  items: PermissionResponse[];
+}
+
+export interface RoleMutationResponse {
+  role: RoleResponse;
+  audit: {
+    actorUserId: string;
+    action: string;
+    targetRoleId: string;
+  };
+}
+
+export interface UpdateRolePermissionsRequest {
+  permissionCodes?: string[];
+  permissionIds?: string[];
+}
+
 export interface ImportFileResponse {
   id: string;
   originalFilename: string;
@@ -594,6 +696,97 @@ export function getCurrentUser(
   options: ApiClientOptions = {},
 ): Promise<AuthUserResponse> {
   return createApiClient(options).get<AuthUserResponse>("/auth/me");
+}
+
+export function listUsers(
+  options: ApiClientOptions = {},
+): Promise<UserListResponse> {
+  return createApiClient(options).get<UserListResponse>("/users");
+}
+
+export function createUser(
+  body: CreateUserRequest,
+  options: ApiClientOptions = {},
+): Promise<UserMutationResponse> {
+  return createApiClient(options).post<UserMutationResponse>("/users", {
+    ...body,
+  });
+}
+
+export function getUser(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<UserResponse> {
+  return createApiClient(options).get<UserResponse>(
+    `/users/${encodeURIComponent(id)}`,
+  );
+}
+
+export function updateUser(
+  id: string,
+  body: UpdateUserRequest,
+  options: ApiClientOptions = {},
+): Promise<UserMutationResponse> {
+  return createApiClient(options).patch<UserMutationResponse>(
+    `/users/${encodeURIComponent(id)}`,
+    { ...body },
+  );
+}
+
+export function resetUserPassword(
+  id: string,
+  body: ResetPasswordRequest,
+  options: ApiClientOptions = {},
+): Promise<UserMutationResponse> {
+  return createApiClient(options).post<UserMutationResponse>(
+    `/users/${encodeURIComponent(id)}/reset-password`,
+    { ...body },
+  );
+}
+
+export function updateUserRoles(
+  id: string,
+  body: UpdateUserRolesRequest,
+  options: ApiClientOptions = {},
+): Promise<UserMutationResponse> {
+  return createApiClient(options).patch<UserMutationResponse>(
+    `/users/${encodeURIComponent(id)}/roles`,
+    { ...body },
+  );
+}
+
+export function updateUserStatus(
+  id: string,
+  body: UpdateUserStatusRequest,
+  options: ApiClientOptions = {},
+): Promise<UserMutationResponse> {
+  return createApiClient(options).patch<UserMutationResponse>(
+    `/users/${encodeURIComponent(id)}/status`,
+    { ...body },
+  );
+}
+
+export function listRoles(
+  options: ApiClientOptions = {},
+): Promise<RoleListResponse> {
+  return createApiClient(options).get<RoleListResponse>("/roles");
+}
+
+export function updateRolePermissions(
+  id: string,
+  body: UpdateRolePermissionsRequest,
+  options: ApiClientOptions = {},
+): Promise<RoleMutationResponse> {
+  return createApiClient(options).patch<RoleMutationResponse>(
+    `/roles/${encodeURIComponent(id)}/permissions`,
+    { ...body },
+  );
+}
+
+export function listPermissions(
+  options: ApiClientOptions = {},
+): Promise<PermissionListResponse> {
+  return createApiClient(options).get<PermissionListResponse>("/permissions");
 }
 
 export function getImportFile(

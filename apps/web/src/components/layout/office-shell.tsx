@@ -1,16 +1,46 @@
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import type { AuthUserResponse } from "@/lib/api-client";
+import { canManageAccounts, hasPermission } from "@/lib/permissions";
 import { OfficeNavigation, type OfficeNavItem } from "./office-navigation";
 
-const navItems: OfficeNavItem[] = [
+interface PermissionAwareNavItem extends OfficeNavItem {
+  requiredPermissions?: string[];
+}
+
+const navItems: PermissionAwareNavItem[] = [
   { href: "/", label: "Dashboard" },
-  { href: "/imports", label: "Imports" },
-  { href: "/containers", label: "Containers" },
-  { href: "/load-jobs", label: "Load Jobs" },
-  { href: "/reports", label: "Reports" },
-  { href: "/mobile/load-jobs", label: "Mobile Scan" },
+  {
+    href: "/imports",
+    label: "Imports",
+    requiredPermissions: ["imports.read"],
+  },
+  {
+    href: "/containers",
+    label: "Containers",
+    requiredPermissions: ["containers.read"],
+  },
+  {
+    href: "/load-jobs",
+    label: "Load Jobs",
+    requiredPermissions: ["load_jobs.read"],
+  },
+  {
+    href: "/reports",
+    label: "Reports",
+    requiredPermissions: ["inventory.read"],
+  },
+  {
+    href: "/mobile/load-jobs",
+    label: "Mobile Scan",
+    requiredPermissions: ["scan.create"],
+  },
   { href: "/settings", label: "Settings" },
+  {
+    href: "/admin/users",
+    label: "Admin",
+    requiredPermissions: ["users.manage", "roles.manage"],
+  },
 ];
 
 export function OfficeShell({
@@ -52,10 +82,29 @@ export function OfficeShell({
               </a>
             )}
           </div>
-          {currentUser ? <OfficeNavigation items={navItems} /> : null}
+          {currentUser ? (
+            <OfficeNavigation items={visibleNavItems(currentUser)} />
+          ) : null}
         </div>
       </header>
       {children}
     </div>
   );
+}
+
+function visibleNavItems(user: AuthUserResponse): OfficeNavItem[] {
+  return navItems
+    .filter((item) => {
+      if (item.href === "/admin/users") {
+        return canManageAccounts(user);
+      }
+
+      return (
+        item.requiredPermissions === undefined ||
+        item.requiredPermissions.some((permission) =>
+          hasPermission(user, permission),
+        )
+      );
+    })
+    .map(({ href, label }) => ({ href, label }));
 }
