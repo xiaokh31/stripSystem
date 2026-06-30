@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ApiClientError, type LoadJobResponse } from "../src/lib/api-client";
 import {
+  cameraQrScannerMode,
   isReverseScanDisabled,
   isScanSubmitDisabled,
   loadJobDisplayName,
@@ -63,6 +64,33 @@ test("mobile load job links keep the load job id in the scan route", () => {
     "/mobile/load-jobs/load-job%201/scan",
   );
   assert.equal(loadJobLineLabel(loadJob.lines[0]!), "CSNU8877228-1P-part1");
+});
+
+test("camera QR scanning falls back to canvas when BarcodeDetector is missing", () => {
+  assert.equal(
+    cameraQrScannerMode({
+      hasBarcodeDetector: true,
+      hasCanvas: true,
+      hasGetUserMedia: true,
+    }),
+    "native",
+  );
+  assert.equal(
+    cameraQrScannerMode({
+      hasBarcodeDetector: false,
+      hasCanvas: true,
+      hasGetUserMedia: true,
+    }),
+    "canvas",
+  );
+  assert.equal(
+    cameraQrScannerMode({
+      hasBarcodeDetector: false,
+      hasCanvas: false,
+      hasGetUserMedia: true,
+    }),
+    "unsupported",
+  );
 });
 
 test("scan submit is disabled for empty input, closed jobs, or active submit", () => {

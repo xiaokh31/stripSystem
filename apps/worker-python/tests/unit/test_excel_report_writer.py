@@ -4,6 +4,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from openpyxl import load_workbook
 
@@ -148,6 +149,42 @@ def test_excel_report_writer_marks_missing_bestar_destination_for_manual_entry(
     worksheet = workbook["Sheet1"]
     assert worksheet["N4"].value == "NEED_MANUAL_DESTINATION"
     assert any(warning.code == "MISSING_DESTINATION" for warning in result.warnings)
+    workbook.close()
+
+
+def test_excel_report_writer_auto_expands_destination_row_height(
+    tmp_path: Path,
+) -> None:
+    long_destination = "Private Address / SZCA2604054725 / Surrey"
+    parsed = SimpleNamespace(containerNo="AUTOROW123")
+    pallet_result = SimpleNamespace(
+        plans=(
+            SimpleNamespace(
+                destinationCode=long_destination,
+                finalPallets=1,
+                totalCartons=12,
+            ),
+        )
+    )
+
+    result = write_excel_report(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, data_only=False)
+    template_height = template["Sheet1"].row_dimensions[4].height
+    template.close()
+
+    workbook = load_workbook(result.outputPath, data_only=False)
+    worksheet = workbook["Sheet1"]
+    assert worksheet["N4"].value == long_destination
+    assert worksheet["C4"].value == long_destination
+    assert worksheet["N4"].alignment.wrap_text is True
+    assert worksheet["C4"].alignment.wrap_text is True
+    assert worksheet.row_dimensions[4].height > (template_height or 0)
     workbook.close()
 
 

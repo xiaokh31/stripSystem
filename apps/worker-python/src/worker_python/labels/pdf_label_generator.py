@@ -25,6 +25,12 @@ TEMPLATE_NAME = "label.html"
 PRINT_CALIBRATION_FILENAME = "print-calibration.pdf"
 PRINT_CALIBRATION_TEMPLATE_NAME = "print_calibration.html"
 MANUAL_DESTINATION = "NEED_MANUAL_DESTINATION"
+DESTINATION_AREA_WIDTH_MM = 93
+DESTINATION_AREA_HEIGHT_MM = 34
+POINT_MM = 25.4 / 72
+MAX_DESTINATION_FONT_PT = 53
+MAX_DESTINATION_FONT_PT = 50
+MIN_DESTINATION_FONT_PT = 3
 
 
 @dataclass(frozen=True)
@@ -143,7 +149,7 @@ def generate_print_calibration_pdf(
         outputPath=output_path,
         pageWidthMm=150,
         pageHeightMm=100,
-        qrBoxMm=30,
+        qrBoxMm=28,
         instruction=instruction,
     )
 
@@ -186,12 +192,13 @@ def _label_contexts(
                 pallet_no=pallet_no,
                 pallet_id=pallet_id,
             )
+            destination_layout = _destination_layout(destination)
             labels.append(
                 {
                     "date": label_date.isoformat(),
                     "container_no": container_no,
                     "destination": destination,
-                    "destination_font_size": _destination_font_size(destination),
+                    **destination_layout,
                     "pallet_no": pallet_no,
                     "pallet_id": pallet_id,
                     "qr_payload": qr_payload,
@@ -203,14 +210,86 @@ def _label_contexts(
 
 
 def _destination_font_size(destination: str) -> str:
-    length = len(destination.strip())
-    if length > 44:
-        return "28pt"
-    if length > 30:
-        return "34pt"
-    if length > 20:
-        return "44pt"
-    return "56pt"
+    return _destination_layout(destination)["destination_font_size"]
+
+
+def _destination_layout(destination: str) -> dict[str, Any]:
+    text = " ".join(destination.strip().split())
+    if not text:
+        return {
+            "destination_font_size": f"{MAX_DESTINATION_FONT_PT}pt",
+            "destination_lines": ("",),
+        }
+
+    for font_size in range(MAX_DESTINATION_FONT_PT, MIN_DESTINATION_FONT_PT - 1, -1):
+        max_line_width = DESTINATION_AREA_WIDTH_MM / (font_size * POINT_MM)
+        lines = _wrap_destination_lines(text, max_line_width)
+        required_height_mm = len(lines) * font_size * POINT_MM
+        if required_height_mm <= DESTINATION_AREA_HEIGHT_MM:
+            return {
+                "destination_font_size": f"{font_size}pt",
+                "destination_lines": tuple(lines),
+            }
+
+    return {
+        "destination_font_size": f"{MIN_DESTINATION_FONT_PT}pt",
+        "destination_lines": tuple(
+            _wrap_destination_lines(
+                text,
+                DESTINATION_AREA_WIDTH_MM / (MIN_DESTINATION_FONT_PT * POINT_MM),
+            )
+        ),
+    }
+
+
+def _wrap_destination_lines(text: str, max_line_width: float) -> list[str]:
+    lines: list[str] = []
+    current = ""
+
+    for token in text.split(" "):
+        for part in _split_token_to_width(token, max_line_width):
+            candidate = part if not current else f"{current} {part}"
+            if _estimated_destination_width(candidate) <= max_line_width:
+                current = candidate
+                continue
+            if current:
+                lines.append(current)
+            current = part
+
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def _split_token_to_width(token: str, max_line_width: float) -> list[str]:
+    if _estimated_destination_width(token) <= max_line_width:
+        return [token]
+
+    parts: list[str] = []
+    current = ""
+    for character in token:
+        candidate = f"{current}{character}"
+        if current and _estimated_destination_width(candidate) > max_line_width:
+            parts.append(current)
+            current = character
+        else:
+            current = candidate
+
+    if current:
+        parts.append(current)
+    return parts
+
+
+def _estimated_destination_width(destination: str) -> float:
+    width = 0.0
+    for character in destination:
+        if character.isspace():
+            width += 0.35
+        elif character.isascii():
+            width += 0.62
+        else:
+            width += 1.0
+    return width
 
 
 def _render_template(labels: list[dict[str, Any]]) -> str:

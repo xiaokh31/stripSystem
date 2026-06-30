@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,8 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_TEMPLATE_PATH = REPO_ROOT / "samples" / "templates" / "卸柜报告-En.xlsx"
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "storage" / "reports"
 REPORT_MANIFEST_FILENAME = "report_manifest.json"
+DEFAULT_REPORT_ROW_HEIGHT = 16.5
+MIN_REPORT_ROW_WIDTH = 8.0
 
 
 @dataclass(frozen=True)
@@ -174,6 +177,74 @@ def _write_destination_rows(
         worksheet[row_cells.destination_cell] = destination
         worksheet[row_cells.pallet_count_cell] = final_pallets
         worksheet[row_cells.carton_count_cell] = total_cartons
+        _apply_destination_row_layout(worksheet, row_cells, destination)
+
+
+def _apply_destination_row_layout(
+    worksheet: Any,
+    row_cells: Any,
+    destination: str,
+) -> None:
+    wrapped_cells = (
+        worksheet[row_cells.pallet_label_cell],
+        worksheet[row_cells.destination_cell],
+    )
+    for cell in wrapped_cells:
+        alignment = copy(cell.alignment)
+        alignment.wrap_text = True
+        alignment.vertical = "center"
+        cell.alignment = alignment
+
+    line_count = max(
+        _estimated_excel_line_count(
+            destination,
+            _column_width(worksheet, cell.column_letter),
+        )
+        for cell in wrapped_cells
+    )
+    current_height = worksheet.row_dimensions[row_cells.row].height
+    base_height = current_height or DEFAULT_REPORT_ROW_HEIGHT
+    worksheet.row_dimensions[row_cells.row].height = max(
+        base_height,
+        DEFAULT_REPORT_ROW_HEIGHT * line_count,
+    )
+
+
+def _estimated_excel_line_count(value: str, column_width: float) -> int:
+    max_width = max(column_width - 1, MIN_REPORT_ROW_WIDTH)
+    line_count = 1
+    current_width = 0.0
+
+    for token in value.split(" "):
+        token_width = _estimated_excel_text_width(token)
+        separator_width = 0.35 if current_width else 0.0
+        if current_width and current_width + separator_width + token_width > max_width:
+            line_count += 1
+            current_width = token_width
+        else:
+            current_width += separator_width + token_width
+
+        while current_width > max_width:
+            line_count += 1
+            current_width -= max_width
+
+    return max(1, line_count)
+
+
+def _estimated_excel_text_width(value: str) -> float:
+    width = 0.0
+    for character in value:
+        if character.isspace():
+            width += 0.35
+        elif character.isascii():
+            width += 1.0
+        else:
+            width += 1.8
+    return width
+
+
+def _column_width(worksheet: Any, column_letter: str) -> float:
+    return float(worksheet.column_dimensions[column_letter].width or MIN_REPORT_ROW_WIDTH)
 
 
 def _append_manifest_record(

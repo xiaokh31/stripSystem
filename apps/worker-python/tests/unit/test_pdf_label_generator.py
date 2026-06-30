@@ -10,6 +10,7 @@ import pytest
 
 from worker_python.imports import ImportRegistry
 from worker_python.labels import generate_pallet_label_pdf, generate_print_calibration_pdf
+from worker_python.labels.pdf_label_generator import _destination_font_size, _destination_layout
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
 
@@ -162,15 +163,105 @@ def test_pdf_label_generator_uses_pallet_numbers_without_expected_totals(
 def test_label_template_uses_large_readable_fields_and_wraps_long_destination() -> None:
     template = LABEL_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "font-size: 56pt;" in template
+    assert "font-size: 50pt;" in template
     assert "font-size: 44pt;" in template
-    assert "font-size: 20pt;" in template
+    assert "position: absolute;" in template
     assert "width: 28mm;" in template
     assert "height: 28mm;" in template
+    assert "right: 34mm;" in template
+    assert "right: 0;" in template
     assert "label.destination_font_size" in template
+    assert "label.destination_lines" in template
+    assert "destination-line" in template
     assert "top-right" in template
     assert "pallet-no" not in template
-    assert "overflow-wrap: anywhere;" in template
+    assert "white-space: nowrap;" in template
+
+
+def test_destination_layout_keeps_problem_destination_text_complete() -> None:
+    problem_destinations = (
+        "PUROLATOR / No Label",
+        "Private Address / SZCA2604054725 / Surrey",
+    )
+
+    for destination in problem_destinations:
+        layout = _destination_layout(destination)
+        rendered = " ".join(layout["destination_lines"])
+
+        assert rendered == destination
+        assert layout["destination_font_size"].endswith("pt")
+        assert 1 <= len(layout["destination_lines"]) <= 3
+
+
+def test_pdf_label_generator_keeps_problem_destinations_on_their_own_labels(
+    tmp_path: Path,
+) -> None:
+    parsed = SimpleNamespace(containerNo="PROBLEMDEST")
+    pallet_result = SimpleNamespace(
+        totalFinalPallets=2,
+        plans=(
+            SimpleNamespace(
+                destinationCode="PUROLATOR / No Label",
+                palletIds=("PROBLEMDEST-D001-PUROLATOR-P001",),
+            ),
+            SimpleNamespace(
+                destinationCode="Private Address / SZCA2604054725 / Surrey",
+                palletIds=("PROBLEMDEST-D002-PRIVATE-P001",),
+            ),
+        ),
+    )
+
+    result = generate_pallet_label_pdf(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "labels",
+        label_date=date(2026, 6, 25),
+    )
+
+    assert result.errors == ()
+    text = result.outputPath.read_bytes().decode("latin1", errors="ignore")
+    assert _page_count(text) == 2
+    width, height = _first_media_box_size(text)
+    assert width == pytest.approx(_mm_points(150), abs=0.01)
+    assert height == pytest.approx(_mm_points(100), abs=0.01)
+
+
+def test_pdf_label_generator_shrinks_long_destination_without_moving_qr(
+    tmp_path: Path,
+) -> None:
+    long_destination = (
+        "Amazon Fulfillment Center Very Long Destination Name With UPS "
+        "Purolator Courier Delivery Notes And Appointment Window 0800-1200 "
+        "Building Door Thirty Five YYC Calgary Alberta Canada"
+    )
+    parsed = SimpleNamespace(containerNo="LONGDEST123")
+    pallet_result = SimpleNamespace(
+        totalFinalPallets=1,
+        plans=(
+            SimpleNamespace(
+                destinationCode=long_destination,
+                palletIds=("LONGDEST123-D001-LONGDEST-P001",),
+            ),
+        ),
+    )
+
+    result = generate_pallet_label_pdf(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "labels",
+        label_date=date(2026, 6, 25),
+    )
+
+    assert result.errors == ()
+    assert result.outputPath.is_file()
+    layout = _destination_layout(long_destination)
+    assert _destination_font_size(long_destination) == layout["destination_font_size"]
+    assert " ".join(layout["destination_lines"]) == long_destination
+    text = result.outputPath.read_bytes().decode("latin1", errors="ignore")
+    assert _page_count(text) == 1
+    width, height = _first_media_box_size(text)
+    assert width == pytest.approx(_mm_points(150), abs=0.01)
+    assert height == pytest.approx(_mm_points(100), abs=0.01)
 
 
 def test_print_calibration_pdf_is_150mm_by_100mm_with_28mm_qr_box(

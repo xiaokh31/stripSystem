@@ -14,6 +14,22 @@ export interface ScanNotice {
   tone: ScanNoticeTone;
 }
 
+export type CameraQrScannerMode = "canvas" | "native" | "unsupported";
+
+export function cameraQrScannerMode(input: {
+  hasBarcodeDetector: boolean;
+  hasCanvas: boolean;
+  hasGetUserMedia: boolean;
+}): CameraQrScannerMode {
+  if (!input.hasGetUserMedia) {
+    return "unsupported";
+  }
+  if (input.hasBarcodeDetector) {
+    return "native";
+  }
+  return input.hasCanvas ? "canvas" : "unsupported";
+}
+
 export function mobileLoadJobScanHref(loadJobId: string): string {
   return `/mobile/load-jobs/${encodeURIComponent(loadJobId)}/scan`;
 }

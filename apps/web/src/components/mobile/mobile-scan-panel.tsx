@@ -1,5 +1,6 @@
 "use client";
 
+import jsQR from "jsqr";
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
@@ -25,6 +26,7 @@ import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   isReverseScanDisabled,
   isScanSubmitDisabled,
+  cameraQrScannerMode,
   loadJobDisplayName,
   loadJobProgressSnapshot,
   normalizeScanInput,
@@ -89,6 +91,7 @@ export function MobileScanPanel({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraFrameRef = useRef<number | null>(null);
   const cameraActiveRef = useRef(false);
@@ -411,21 +414,16 @@ export function MobileScanPanel({
       return;
     }
 
-    const BarcodeDetector = barcodeDetectorConstructor();
+    const mode = cameraQrScannerMode({
+      hasBarcodeDetector: barcodeDetectorConstructor() !== null,
+      hasCanvas: browserCanDecodeVideoWithCanvas(),
+      hasGetUserMedia: Boolean(navigator.mediaDevices?.getUserMedia),
+    });
 
-    if (!BarcodeDetector) {
+    if (mode === "unsupported") {
       setCameraScan({
         message:
-          "This browser does not support camera QR scanning. Use a scanner or manual input.",
-        status: "error",
-      });
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraScan({
-        message:
-          "This device cannot open the camera from the browser. Use a scanner or manual input.",
+          "This browser cannot open or decode camera QR scans. Use a scanner or manual input.",
         status: "error",
       });
       return;
@@ -449,10 +447,19 @@ export function MobileScanPanel({
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
 
-      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const BarcodeDetector = barcodeDetectorConstructor();
+      const detector =
+        mode === "native" && BarcodeDetector
+          ? new BarcodeDetector({ formats: ["qr_code"] })
+          : null;
+      const canvas = cameraCanvasRef.current ?? document.createElement("canvas");
+      cameraCanvasRef.current = canvas;
       cameraActiveRef.current = true;
       setCameraScan({
-        message: "Point the camera at a pallet QR label.",
+        message:
+          mode === "native"
+            ? "Point the camera at a pallet QR label."
+            : "Point the camera at a pallet QR label. Canvas QR scanning is active.",
         status: "scanning",
       });
 
@@ -462,8 +469,9 @@ export function MobileScanPanel({
         }
 
         try {
-          const detections = await detector.detect(videoRef.current);
-          const rawValue = detections[0]?.rawValue?.trim();
+          const rawValue = (
+            await detectQrFromVideo(videoRef.current, detector, canvas)
+          )?.trim();
 
           if (rawValue) {
             stopCameraScan("QR captured.");
@@ -1057,6 +1065,61 @@ function barcodeDetectorConstructor(): BarcodeDetectorConstructor | null {
   return typeof candidate === "function"
     ? (candidate as BarcodeDetectorConstructor)
     : null;
+}
+
+async function detectQrFromVideo(
+  video: HTMLVideoElement,
+  detector: BarcodeDetectorLike | null,
+  canvas: HTMLCanvasElement,
+): Promise<string | null> {
+  if (detector) {
+    try {
+      const detections = await detector.detect(video);
+      const rawValue = detections[0]?.rawValue?.trim();
+      if (rawValue) {
+        return rawValue;
+      }
+    } catch {
+      // Fall through to the canvas/jsQR decoder. Some browser builds expose
+      // BarcodeDetector but reject live video frames.
+    }
+  }
+
+  return decodeQrFromVideoCanvas(video, canvas);
+}
+
+function decodeQrFromVideoCanvas(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+): string | null {
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", {
+    willReadFrequently: true,
+  });
+  if (!context) {
+    return null;
+  }
+
+  context.drawImage(video, 0, 0, width, height);
+  const imageData = context.getImageData(0, 0, width, height);
+  const result = jsQR(imageData.data, width, height);
+  return result?.data?.trim() || null;
+}
+
+function browserCanDecodeVideoWithCanvas(): boolean {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const canvas = document.createElement("canvas");
+  return typeof canvas.getContext === "function" && Boolean(canvas.getContext("2d"));
 }
 
 function loadedPalletLabel(pallet: ScannedPalletResponse): string {
