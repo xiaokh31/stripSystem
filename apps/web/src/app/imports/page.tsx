@@ -155,12 +155,12 @@ function ImportRow({ importFile }: { importFile: ImportFileResponse }) {
         <p className="break-all font-medium text-zinc-950">
           {importFile.originalFilename}
         </p>
-        <p className="mt-1 break-all text-xs text-zinc-500">
+        {/* <p className="mt-1 break-all text-xs text-zinc-500">
           {importFile.id}
-        </p>
-        <p className="mt-1 break-all text-xs text-zinc-500">
+        </p> */}
+        {/* <p className="mt-1 break-all text-xs text-zinc-500">
           SHA-256: {importFile.fileSha256}
-        </p>
+        </p> */}
       </td>
       <td className="space-y-2 py-3 pr-4">
         <StatusBadge
