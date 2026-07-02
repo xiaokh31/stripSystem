@@ -82,7 +82,7 @@ apps/api/prisma/seed.ts
 | Edit planned load job     | yes   | yes    | no                      | no          |
 | Edit in-progress load job | yes   | yes    | limited scan correction | no          |
 | Delete planned load job   | yes   | yes    | no                      | no          |
-| Complete load job         | yes   | yes    | no                      | no          |
+| Complete load job         | yes   | yes    | yes                     | no          |
 | Scan pallet               | yes   | yes    | yes                     | no          |
 | Reverse scan              | yes   | yes    | yes                     | no          |
 | View inventory            | yes   | yes    | yes                     | no          |

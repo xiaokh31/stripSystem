@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  closeLoadJob,
   createLoadJob,
   deleteLoadJob,
   getLoadJobLoadedPallets,
+  listMyLoadJobOperatorHistory,
   listLoadJobs,
   reverseLoadJobScan,
   scanLoadJobPallet,
@@ -23,6 +25,10 @@ const loadJob: LoadJobResponse = {
   status: "IN_PROGRESS",
   canScan: true,
   createdById: null,
+  createdBy: null,
+  completedById: null,
+  completedBy: null,
+  completedAt: null,
   startedAt: "2026-06-27T10:00:00.000Z",
   scheduledDepartureAt: "2026-06-27T21:00:00.000Z",
   closedAt: null,
@@ -303,6 +309,120 @@ test("load job API client reads currently loaded pallets", async () => {
     "http://api.local/api/load-jobs/load-job%201/loaded-pallets",
   ]);
   assert.equal(result.items[0]?.status, "LOADED");
+});
+
+test("load job API client lists the current operator loading history", async () => {
+  const requests: string[] = [];
+  const fetcher: typeof fetch = async (input) => {
+    requests.push(input instanceof Request ? input.url : String(input));
+
+    return new Response(
+      JSON.stringify({
+        items: [
+          {
+            id: "load-job 1",
+            loadNo: "LOAD-2026-001",
+            destinationRegion: "YEG2",
+            truckNo: "TRUCK-9",
+            dockNo: "D3",
+            carrier: "Carrier",
+            scheduledDepartureAt: "2026-06-27T21:00:00.000Z",
+            completedAt: "2026-06-27T23:00:00.000Z",
+            completedById: "user-warehouse",
+            completedBy: {
+              id: "user-warehouse",
+              email: "warehouse@example.test",
+              name: "Warehouse User",
+              role: "WAREHOUSE",
+            },
+            totalPallets: 1,
+            pallets: [
+              {
+                id: "pallet-1",
+                containerId: "container-1",
+                containerNo: "CSNU8877228",
+                containerDestinationId: "destination-1",
+                destinationCode: "YEG2",
+                destinationType: "AMAZON_FBA",
+                palletNo: 1,
+                palletId: "PALLET-001",
+                qrPayload:
+                  "SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/1|PALLET-001",
+                status: "LOADED",
+                loadedAt: "2026-06-27T22:05:00.000Z",
+                loadJobId: "load-job 1",
+              },
+            ],
+          },
+        ],
+        limit: 25,
+        offset: 0,
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  const result = await listMyLoadJobOperatorHistory(
+    { limit: 25, offset: 0 },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    "http://api.local/api/load-jobs/operator-history/me?limit=25&offset=0",
+  ]);
+  assert.equal(result.items[0]?.completedBy?.name, "Warehouse User");
+  assert.equal(result.items[0]?.pallets[0]?.containerNo, "CSNU8877228");
+});
+
+test("load job API client closes a job through the close endpoint", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: JSON.parse(String(init?.body ?? "{}")) as unknown,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        ...loadJob,
+        canScan: false,
+        closedAt: "2026-06-27T22:00:00.000Z",
+        status: "COMPLETED",
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 201,
+      },
+    );
+  };
+
+  const result = await closeLoadJob(
+    "load-job 1",
+    {
+      dockNo: "D3",
+      note: "Completed from mobile scan page.",
+      reason: "Warehouse loading completed.",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: {
+        dockNo: "D3",
+        note: "Completed from mobile scan page.",
+        reason: "Warehouse loading completed.",
+      },
+      method: "POST",
+      url: "http://api.local/api/load-jobs/load-job%201/close",
+    },
+  ]);
+  assert.equal(result.status, "COMPLETED");
+  assert.equal(result.canScan, false);
 });
 
 test("load job API client posts confirmed reverse scan adjustments", async () => {

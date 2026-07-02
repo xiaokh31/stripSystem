@@ -6,6 +6,7 @@ export const ROLES_MANAGE_PERMISSION = "roles.manage";
 export const LOAD_JOBS_READ_PERMISSION = "load_jobs.read";
 export const LOAD_JOBS_CREATE_PERMISSION = "load_jobs.create";
 export const LOAD_JOBS_UPDATE_PERMISSION = "load_jobs.update";
+export const LOAD_JOBS_COMPLETE_PERMISSION = "load_jobs.complete";
 export const LABELS_REPRINT_PERMISSION = "labels.reprint";
 export const SCAN_CREATE_PERMISSION = "scan.create";
 export const SCAN_REVERSE_PERMISSION = "scan.reverse";
@@ -59,6 +60,12 @@ export function canManageOfficeLoadJobs(
 
 export function canSaveMobileDock(user: AuthUserResponse | null): boolean {
   return hasPermission(user, LOAD_JOBS_UPDATE_PERMISSION);
+}
+
+export function canCompleteMobileLoadJob(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, LOAD_JOBS_COMPLETE_PERMISSION);
 }
 
 export function canScanMobilePallets(user: AuthUserResponse | null): boolean {

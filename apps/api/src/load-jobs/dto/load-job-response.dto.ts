@@ -39,6 +39,9 @@ export interface LoadJobResponseDto {
   canScan: boolean;
   createdById: string | null;
   createdBy: LoadJobUserResponseDto | null;
+  completedById: string | null;
+  completedBy: LoadJobUserResponseDto | null;
+  completedAt: string | null;
   startedAt: string | null;
   scheduledDepartureAt: string | null;
   closedAt: string | null;
@@ -88,4 +91,25 @@ export interface LoadJobScanResponseDto {
 
 export interface LoadJobLoadedPalletsResponseDto {
   items: ScannedPalletResponseDto[];
+}
+
+export interface LoadJobOperatorHistoryItemDto {
+  id: string;
+  loadNo: string | null;
+  destinationRegion: string | null;
+  truckNo: string | null;
+  dockNo: string | null;
+  carrier: string | null;
+  scheduledDepartureAt: string | null;
+  completedAt: string | null;
+  completedById: string | null;
+  completedBy: LoadJobUserResponseDto | null;
+  totalPallets: number;
+  pallets: ScannedPalletResponseDto[];
+}
+
+export interface LoadJobOperatorHistoryResponseDto {
+  items: LoadJobOperatorHistoryItemDto[];
+  limit: number;
+  offset: number;
 }

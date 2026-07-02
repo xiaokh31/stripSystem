@@ -74,6 +74,18 @@ export function isScanSubmitDisabled(input: {
   );
 }
 
+export function isCompleteLoadJobDisabled(input: {
+  canComplete: boolean;
+  completing: boolean;
+  dockNo: string;
+}): boolean {
+  return (
+    input.completing ||
+    !input.canComplete ||
+    input.dockNo.trim().length === 0
+  );
+}
+
 export function isReverseScanDisabled(input: {
   canScan: boolean;
   confirmed: boolean;

@@ -12,6 +12,7 @@ import {
 } from "react";
 import {
   ApiClientError,
+  closeLoadJob,
   getLoadJobLoadedPallets,
   reverseLoadJobScan,
   scanLoadJobPallet,
@@ -27,6 +28,7 @@ import {
   isReverseScanDisabled,
   isScanSubmitDisabled,
   cameraQrScannerMode,
+  isCompleteLoadJobDisabled,
   loadJobDisplayName,
   loadJobProgressSnapshot,
   normalizeScanInput,
@@ -50,6 +52,10 @@ import {
 
 const DEVICE_ID = "web-mobile-scan";
 const idleDockSaveState: DockSaveState = { message: "", status: "idle" };
+const idleCompleteLoadJobState: CompleteLoadJobState = {
+  message: "",
+  status: "idle",
+};
 
 interface CameraScanState {
   message: string;
@@ -61,7 +67,13 @@ interface DockSaveState {
   status: "error" | "idle" | "saving" | "saved";
 }
 
+interface CompleteLoadJobState {
+  message: string;
+  status: "completed" | "error" | "idle" | "saving";
+}
+
 export interface MobileScanPermissions {
+  canCompleteLoadJob: boolean;
   canReverseScan: boolean;
   canSaveDockNo: boolean;
   canScan: boolean;
@@ -109,6 +121,8 @@ export function MobileScanPanel({
   const [dockNo, setDockNo] = useState(initialLoadJob.dockNo ?? "");
   const [dockSaveState, setDockSaveState] =
     useState<DockSaveState>(idleDockSaveState);
+  const [completeLoadJobState, setCompleteLoadJobState] =
+    useState<CompleteLoadJobState>(idleCompleteLoadJobState);
   const [qrPayload, setQrPayload] = useState("");
   const [cameraScan, setCameraScan] = useState<CameraScanState>({
     message: "",
@@ -123,6 +137,8 @@ export function MobileScanPanel({
 
   const progress = lastScan?.progress ?? loadJobProgressSnapshot(loadJob);
   const canSaveDockNo = loadJob.canScan && permissions.canSaveDockNo;
+  const canCompleteLoadJob =
+    loadJob.canScan && permissions.canCompleteLoadJob;
   const canScanThisLoadJob = loadJob.canScan && permissions.canScan;
   const canReverseThisLoadJob = loadJob.canScan && permissions.canReverseScan;
   const disabled = isScanSubmitDisabled({
@@ -131,6 +147,14 @@ export function MobileScanPanel({
     submitting,
   });
   const dockSaving = dockSaveState.status === "saving";
+  const completingLoadJob = completeLoadJobState.status === "saving";
+  const completeLoadJobDisabled = isCompleteLoadJobDisabled({
+    canComplete: canCompleteLoadJob,
+    completing: completingLoadJob,
+    dockNo,
+  });
+  const dockNoRequiredForCompletion =
+    canCompleteLoadJob && dockNo.trim().length === 0;
   const currentLoadJobQueue = offlineItems.filter(
     (item) => item.loadJobId === loadJob.id,
   );
@@ -409,6 +433,55 @@ export function MobileScanPanel({
     }
   }
 
+  async function completeLoadJobFromMobile() {
+    if (completingLoadJob || !canCompleteLoadJob) {
+      return;
+    }
+
+    const normalizedDockNo = dockNo.trim();
+    if (!normalizedDockNo) {
+      setCompleteLoadJobState({
+        message: "Dock No. is required before completing this load job.",
+        status: "error",
+      });
+      return;
+    }
+
+    setCompleteLoadJobState({
+      message: "Completing load job...",
+      status: "saving",
+    });
+
+    try {
+      stopCameraScan();
+      const result = await closeLoadJob(loadJob.id, {
+        dockNo: normalizedDockNo,
+        note: "Completed from mobile scan page.",
+        reason: "Warehouse loading completed.",
+      });
+      setLoadJob(result);
+      setDockNo(result.dockNo ?? normalizedDockNo);
+      setCompleteLoadJobState({
+        message: `Load job completed by ${currentUser.name ?? currentUser.email ?? currentUser.id}.`,
+        status: "completed",
+      });
+      setNotice({
+        code: "LOAD_JOB_COMPLETED",
+        message: "This load job is now completed and closed for scanning.",
+        title: "Loading completed",
+        tone: "emerald",
+      });
+      router.refresh();
+    } catch (error) {
+      setCompleteLoadJobState({
+        message: completeLoadJobErrorMessage(error),
+        status: "error",
+      });
+    } finally {
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }
+
   async function startCameraScan() {
     if (!canScanThisLoadJob || submitting || cameraScan.status === "starting") {
       return;
@@ -556,16 +629,38 @@ export function MobileScanPanel({
                 value={dockNo}
               />
             </label>
-            <button
-              className="min-h-12 border border-teal-800 bg-white px-4 text-base font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-100 disabled:text-zinc-500"
-              disabled={!canSaveDockNo || dockSaving}
-              onClick={() => {
-                void saveDockNo();
-              }}
-              type="button"
-            >
-              {dockSaving ? "Saving dock" : "Save dock"}
-            </button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                className="min-h-12 border border-teal-800 bg-white px-4 text-base font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-100 disabled:text-zinc-500"
+                disabled={!canSaveDockNo || dockSaving}
+                onClick={() => {
+                  void saveDockNo();
+                }}
+                type="button"
+              >
+                {dockSaving ? "Saving dock" : "Save dock"}
+              </button>
+              <button
+                className="min-h-12 border border-emerald-800 bg-emerald-800 px-4 text-base font-semibold text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+                disabled={
+                  completeLoadJobDisabled
+                }
+                onClick={() => {
+                  void completeLoadJobFromMobile();
+                }}
+                type="button"
+              >
+                {completingLoadJob ? "Completing" : "Complete loading"}
+              </button>
+            </div>
+            {dockNoRequiredForCompletion ? (
+              <div
+                className="border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-950"
+                role="alert"
+              >
+                Dock No. is required before completing this load job.
+              </div>
+            ) : null}
             {dockSaveState.message ? (
               <div
                 className={`border p-3 text-sm font-medium ${
@@ -576,6 +671,20 @@ export function MobileScanPanel({
                 role={dockSaveState.status === "error" ? "alert" : "status"}
               >
                 {dockSaveState.message}
+              </div>
+            ) : null}
+            {completeLoadJobState.message ? (
+              <div
+                className={`border p-3 text-sm font-medium ${
+                  completeLoadJobState.status === "error"
+                    ? "border-red-200 bg-red-50 text-red-950"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-950"
+                }`}
+                role={
+                  completeLoadJobState.status === "error" ? "alert" : "status"
+                }
+              >
+                {completeLoadJobState.message}
               </div>
             ) : null}
           </div>
@@ -743,6 +852,7 @@ function MobileScanUserPanel({
   const displayName = currentUser.name ?? currentUser.email ?? currentUser.id;
   const permissionSummary = [
     permissions.canSaveDockNo ? "Dock" : null,
+    permissions.canCompleteLoadJob ? "Complete" : null,
     permissions.canScan ? "Scan" : null,
     permissions.canReverseScan ? "Reverse scan" : null,
   ].filter(Boolean);
@@ -772,6 +882,20 @@ function dockSaveErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "Dock number could not be saved.";
+}
+
+function completeLoadJobErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    if (error.code === "LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED") {
+      return "Dock No. is required before completing this load job.";
+    }
+
+    return error.message;
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "The load job could not be completed.";
 }
 
 function ReverseScanPanel({

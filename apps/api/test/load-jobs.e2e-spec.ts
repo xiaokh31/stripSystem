@@ -483,6 +483,77 @@ describe('LoadJobsController (e2e)', () => {
     });
   });
 
+  it('allows leftover internal-cycle pallets from an underloaded completed job to load in a future job', async () => {
+    await authorizedRequest(app)
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-FIRST',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      })
+      .expect(201);
+    await authorizedRequest(app)
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-FUTURE',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      })
+      .expect(201);
+    await openLoadJobForScanning('load-job-1');
+
+    const firstScan = await authorizedRequest(app)
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(201);
+    const closed = await authorizedRequest(app)
+      .post('/api/load-jobs/load-job-1/close')
+      .send({ dockNo: 'D3' })
+      .expect(201);
+
+    expect(firstScan.body).toMatchObject({
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 1,
+        remainingPallets: 1,
+      },
+    });
+    expect(closed.body).toMatchObject({
+      status: 'COMPLETED',
+      canScan: false,
+    });
+
+    await openLoadJobForScanning('load-job-2');
+    const futureScan = await authorizedRequest(app)
+      .post('/api/load-jobs/load-job-2/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      })
+      .expect(201);
+
+    expect(futureScan.body).toMatchObject({
+      result: 'LOADED',
+      loadJob: {
+        id: 'load-job-2',
+        plannedPalletCount: 1,
+        palletCount: 1,
+      },
+      pallet: {
+        id: 'pallet-2',
+        palletId: 'PALLET-002',
+        loadJobId: 'load-job-2',
+        status: 'LOADED',
+      },
+      progress: {
+        totalPallets: 1,
+        loadedPallets: 1,
+        remainingPallets: 0,
+      },
+    });
+  });
+
   it('allows a pure external transfer job but rejects system pallets as not in plan', async () => {
     const created = await authorizedRequest(app)
       .post('/api/load-jobs')

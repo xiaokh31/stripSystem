@@ -125,6 +125,12 @@ describe('RBAC route guards (e2e)', () => {
       .expect(400);
 
     await request(app.getHttpServer())
+      .post('/api/load-jobs/load-job-1/close')
+      .set('Authorization', warehouseAuthHeader())
+      .send({ operatorId: 123 })
+      .expect(400);
+
+    await request(app.getHttpServer())
       .post('/api/containers/container-1/generate-labels')
       .set('Authorization', warehouseAuthHeader())
       .expect(403)

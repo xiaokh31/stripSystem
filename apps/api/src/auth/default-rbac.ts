@@ -115,6 +115,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
     [ROLE_CODES.warehouse]: [
       PERMISSIONS.loadJobs.read,
       PERMISSIONS.loadJobs.update,
+      PERMISSIONS.loadJobs.complete,
       PERMISSIONS.scan.create,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.inventory.read,

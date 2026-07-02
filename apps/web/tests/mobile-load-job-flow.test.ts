@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ApiClientError, type LoadJobResponse } from "../src/lib/api-client";
 import {
   cameraQrScannerMode,
+  isCompleteLoadJobDisabled,
   isReverseScanDisabled,
   isScanSubmitDisabled,
   loadJobDisplayName,
@@ -26,6 +27,10 @@ const loadJob: LoadJobResponse = {
   status: "IN_PROGRESS",
   canScan: true,
   createdById: null,
+  createdBy: null,
+  completedById: null,
+  completedBy: null,
+  completedAt: null,
   startedAt: null,
   scheduledDepartureAt: "2026-06-27T21:00:00.000Z",
   closedAt: null,
@@ -118,6 +123,41 @@ test("scan submit is disabled for empty input, closed jobs, or active submit", (
       submitting: false,
     }),
     false,
+  );
+});
+
+test("complete loading requires permission, dock number, and idle state", () => {
+  assert.equal(
+    isCompleteLoadJobDisabled({
+      canComplete: true,
+      completing: false,
+      dockNo: "D3",
+    }),
+    false,
+  );
+  assert.equal(
+    isCompleteLoadJobDisabled({
+      canComplete: true,
+      completing: false,
+      dockNo: " ",
+    }),
+    true,
+  );
+  assert.equal(
+    isCompleteLoadJobDisabled({
+      canComplete: false,
+      completing: false,
+      dockNo: "D3",
+    }),
+    true,
+  );
+  assert.equal(
+    isCompleteLoadJobDisabled({
+      canComplete: true,
+      completing: true,
+      dockNo: "D3",
+    }),
+    true,
   );
 });
 

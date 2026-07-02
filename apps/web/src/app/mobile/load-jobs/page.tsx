@@ -60,12 +60,20 @@ export default async function MobileLoadJobsPage() {
               Select open load job
             </h1>
           </div>
-          <Link
-            className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
-            href="/mobile/load-jobs"
-          >
-            Refresh
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
+              href="/mobile/load-jobs/history"
+            >
+              My history
+            </Link>
+            <Link
+              className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
+              href="/mobile/load-jobs"
+            >
+              Refresh
+            </Link>
+          </div>
         </div>
       </section>
 

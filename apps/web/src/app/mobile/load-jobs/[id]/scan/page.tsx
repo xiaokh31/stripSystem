@@ -13,6 +13,7 @@ import {
 } from "@/lib/api-client";
 import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
 import {
+  canCompleteMobileLoadJob,
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
@@ -84,6 +85,7 @@ export default async function MobileLoadJobScanPage({
         currentUser={currentUser}
         initialLoadJob={state.loadJob}
         permissions={{
+          canCompleteLoadJob: canCompleteMobileLoadJob(currentUser),
           canReverseScan: canReverseMobileScans(currentUser),
           canSaveDockNo: canSaveMobileDock(currentUser),
           canScan: canScanMobilePallets(currentUser),

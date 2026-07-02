@@ -486,6 +486,13 @@ export interface LoadJobContainerResponse {
   containerNo: string;
 }
 
+export interface LoadJobUserResponse {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: string;
+}
+
 export interface LoadJobLineResponse {
   id: string;
   sequence: number;
@@ -514,6 +521,10 @@ export interface LoadJobResponse {
   status: string;
   canScan: boolean;
   createdById: string | null;
+  createdBy: LoadJobUserResponse | null;
+  completedById: string | null;
+  completedBy: LoadJobUserResponse | null;
+  completedAt: string | null;
   startedAt: string | null;
   scheduledDepartureAt: string | null;
   closedAt: string | null;
@@ -581,6 +592,13 @@ export interface UpdateLoadJobRequest {
   truckNo?: string;
 }
 
+export interface CloseLoadJobRequest {
+  dockNo?: string;
+  note?: string;
+  operatorId?: string;
+  reason?: string;
+}
+
 export interface LoadJobProgressResponse {
   totalPallets: number;
   loadedPallets: number;
@@ -626,6 +644,27 @@ export interface LoadJobScanResponse {
 
 export interface LoadJobLoadedPalletsResponse {
   items: ScannedPalletResponse[];
+}
+
+export interface LoadJobOperatorHistoryItemResponse {
+  id: string;
+  loadNo: string | null;
+  destinationRegion: string | null;
+  truckNo: string | null;
+  dockNo: string | null;
+  carrier: string | null;
+  scheduledDepartureAt: string | null;
+  completedAt: string | null;
+  completedById: string | null;
+  completedBy: LoadJobUserResponse | null;
+  totalPallets: number;
+  pallets: ScannedPalletResponse[];
+}
+
+export interface LoadJobOperatorHistoryResponse {
+  items: LoadJobOperatorHistoryItemResponse[];
+  limit: number;
+  offset: number;
 }
 
 export interface ApiClientOptions {
@@ -1016,6 +1055,15 @@ export function getLoadJobLoadedPallets(
   );
 }
 
+export function listMyLoadJobOperatorHistory(
+  filters: Pick<LoadJobListFilters, "limit" | "offset"> = {},
+  options: ApiClientOptions = {},
+): Promise<LoadJobOperatorHistoryResponse> {
+  return createApiClient(options).get<LoadJobOperatorHistoryResponse>(
+    `/load-jobs/operator-history/me${toLoadJobListQueryString(filters)}`,
+  );
+}
+
 export function createLoadJob(
   body: CreateLoadJobRequest,
   options: ApiClientOptions = {},
@@ -1042,6 +1090,17 @@ export function deleteLoadJob(
 ): Promise<LoadJobResponse> {
   return createApiClient(options).delete<LoadJobResponse>(
     `/load-jobs/${encodeURIComponent(id)}`,
+  );
+}
+
+export function closeLoadJob(
+  id: string,
+  body: CloseLoadJobRequest,
+  options: ApiClientOptions = {},
+): Promise<LoadJobResponse> {
+  return createApiClient(options).post<LoadJobResponse>(
+    `/load-jobs/${encodeURIComponent(id)}/close`,
+    { ...body },
   );
 }
 

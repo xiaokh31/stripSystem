@@ -360,6 +360,92 @@ describe('LoadJobsService', () => {
     });
   });
 
+  it('returns completed-by user details from the load job completion event', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+
+    const closed = await service.close(
+      'load-job-1',
+      { dockNo: 'D3' },
+      warehouseActor,
+    );
+
+    expect(closed).toMatchObject({
+      id: 'load-job-1',
+      status: 'COMPLETED',
+      completedById: 'auth-warehouse',
+      completedBy: {
+        id: 'auth-warehouse',
+        email: 'warehouse@example.test',
+        name: 'Warehouse User',
+        role: 'WAREHOUSE',
+      },
+    });
+    expect(closed.completedAt).toEqual(expect.any(String));
+  });
+
+  it('lists the current operator completed history with loaded pallet details', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        truckNo: 'TRK-9',
+        dockNo: 'D3',
+        carrier: 'Bestar CCA',
+        destinationRegion: 'YEG2',
+        scheduledDepartureAt: '2026-06-27T21:00:00.000Z',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+    await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
+    await service.close('load-job-1', { dockNo: 'D3' }, warehouseActor);
+
+    const history = await service.listOperatorHistory(warehouseActor, {
+      limit: 25,
+      offset: 0,
+    });
+
+    expect(history).toMatchObject({
+      limit: 25,
+      offset: 0,
+      items: [
+        {
+          id: 'load-job-1',
+          loadNo: 'LOAD-2026-001',
+          destinationRegion: 'YEG2',
+          truckNo: 'TRK-9',
+          dockNo: 'D3',
+          carrier: 'Bestar CCA',
+          scheduledDepartureAt: '2026-06-27T21:00:00.000Z',
+          completedById: 'auth-warehouse',
+          totalPallets: 1,
+          pallets: [
+            {
+              containerNo: 'CSNU8877228',
+              destinationCode: 'YEG2',
+              palletId: 'PALLET-001',
+              status: 'LOADED',
+            },
+          ],
+        },
+      ],
+    });
+  });
+
   it('rejects closing an already completed load job', async () => {
     await service.create(
       {
@@ -573,6 +659,81 @@ describe('LoadJobsService', () => {
         (call) => call[0].data.metadata?.loadJobLineId,
       ),
     ).toEqual(['line-1', 'line-2']);
+  });
+
+  it('allows leftover internal-cycle pallets from an underloaded completed job to load in a future job', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-FIRST',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-FUTURE',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-1P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+
+    const firstScan = await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
+    const closedFirstJob = await service.close(
+      'load-job-1',
+      { dockNo: 'D3' },
+      warehouseActor,
+    );
+
+    expect(firstScan).toMatchObject({
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 1,
+        remainingPallets: 1,
+      },
+    });
+    expect(closedFirstJob).toMatchObject({
+      status: 'COMPLETED',
+      canScan: false,
+    });
+
+    await openLoadJobForScanning('load-job-2');
+    const futureScan = await service.scan(
+      'load-job-2',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+      },
+      warehouseActor,
+    );
+
+    expect(futureScan).toMatchObject({
+      result: 'LOADED',
+      loadJob: {
+        id: 'load-job-2',
+        plannedPalletCount: 1,
+        palletCount: 1,
+      },
+      pallet: {
+        id: 'pallet-2',
+        palletId: 'PALLET-002',
+        loadJobId: 'load-job-2',
+        status: 'LOADED',
+      },
+      progress: {
+        totalPallets: 1,
+        loadedPallets: 1,
+        remainingPallets: 0,
+      },
+    });
+    expect(prisma.pallet.update).toHaveBeenCalledTimes(2);
   });
 
   it('returns duplicate for the same load job without loading twice', async () => {
@@ -936,6 +1097,18 @@ describe('LoadJobsService', () => {
         name: 'Office User',
         role: 'OFFICE',
       },
+      {
+        id: 'auth-warehouse',
+        email: 'warehouse@example.test',
+        name: 'Warehouse User',
+        role: 'WAREHOUSE',
+      },
+      {
+        id: 'auth-office',
+        email: 'office-auth@example.test',
+        name: 'Office Auth',
+        role: 'OFFICE',
+      },
     ];
     const destinations = [
       {
@@ -1012,6 +1185,18 @@ describe('LoadJobsService', () => {
         .filter((line) => line.loadJobId === record.id)
         .sort((left, right) => left.sequence - right.sequence)
         .map(hydrateLine),
+      pallets: pallets
+        .filter((pallet) => pallet.loadJobId === record.id)
+        .map(hydratePallet),
+      events: events
+        .filter((event) => event.loadJobId === record.id)
+        .sort(
+          (left, right) => timeMs(right.occurredAt) - timeMs(left.occurredAt),
+        )
+        .map((event) => ({
+          ...event,
+          operator: users.find((user) => user.id === event.operatorId) ?? null,
+        })),
       _count: {
         pallets: pallets.filter((pallet) => pallet.loadJobId === record.id)
           .length,
@@ -1071,6 +1256,31 @@ describe('LoadJobsService', () => {
       }
       if (where.status && record.status !== where.status) {
         return false;
+      }
+      const eventFilter = where.events?.some;
+      if (eventFilter) {
+        const matchesEvent = events.some((event) => {
+          if (event.loadJobId !== record.id) {
+            return false;
+          }
+          if (
+            eventFilter.eventType &&
+            event.eventType !== eventFilter.eventType
+          ) {
+            return false;
+          }
+          if (
+            eventFilter.operatorId &&
+            event.operatorId !== eventFilter.operatorId
+          ) {
+            return false;
+          }
+          return true;
+        });
+
+        if (!matchesEvent) {
+          return false;
+        }
       }
       return true;
     };

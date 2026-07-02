@@ -13,6 +13,7 @@ import { CreateLoadJobDto } from './dto/create-load-job.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
   LoadJobLoadedPalletsResponseDto,
+  LoadJobOperatorHistoryResponseDto,
   LoadJobListResponseDto,
   LoadJobResponseDto,
   LoadJobScanResponseDto,
@@ -42,6 +43,15 @@ export class LoadJobsController {
   @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.read)
   list(@Query() query: ListLoadJobsQueryDto): Promise<LoadJobListResponseDto> {
     return this.loadJobsService.list(query);
+  }
+
+  @Get('operator-history/me')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.read)
+  listMyOperatorHistory(
+    @Query() query: ListLoadJobsQueryDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<LoadJobOperatorHistoryResponseDto> {
+    return this.loadJobsService.listOperatorHistory(actor, query);
   }
 
   @Get(':id')

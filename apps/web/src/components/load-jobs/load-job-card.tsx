@@ -55,6 +55,11 @@ export function LoadJobCard({
           label="Loaded pallets"
           value={String(loadJob.palletCount)}
         />
+        <DetailItem label="Loaded by" value={loadJobOperatorLabel(loadJob)} />
+        <DetailItem
+          label="Loaded at"
+          value={formatOptionalDate(loadJob.completedAt ?? loadJob.closedAt)}
+        />
       </dl>
 
       <ul className="mt-4 grid gap-2 text-sm text-zinc-700">
@@ -120,4 +125,13 @@ function StatusBadge({ status }: { status: string }) {
 
 function formatOptionalDate(value: string | null): string {
   return value ? formatDateTime(value) : "Not scheduled";
+}
+
+function loadJobOperatorLabel(loadJob: LoadJobResponse): string {
+  return (
+    loadJob.completedBy?.name ??
+    loadJob.completedBy?.email ??
+    loadJob.completedById ??
+    (loadJob.status === "COMPLETED" ? "Unknown operator" : "Not completed")
+  );
 }

@@ -4,6 +4,7 @@ import type { AuthUserResponse } from "../src/lib/api-client";
 import {
   canManageAccounts,
   canManageOfficeLoadJobs,
+  canCompleteMobileLoadJob,
   canReprintLabels,
   canReverseMobileScans,
   canSaveMobileDock,
@@ -60,6 +61,7 @@ test("mobile warehouse permissions allow scanning without account management", (
     permissions: [
       "load_jobs.read",
       "load_jobs.update",
+      "load_jobs.complete",
       "scan.create",
       "scan.reverse",
       "inventory.read",
@@ -68,6 +70,7 @@ test("mobile warehouse permissions allow scanning without account management", (
 
   assert.equal(canViewMobileLoadJobs(warehouseUser), true);
   assert.equal(canSaveMobileDock(warehouseUser), true);
+  assert.equal(canCompleteMobileLoadJob(warehouseUser), true);
   assert.equal(canScanMobilePallets(warehouseUser), true);
   assert.equal(canReverseMobileScans(warehouseUser), true);
   assert.equal(canManageOfficeLoadJobs(warehouseUser), false);
@@ -85,6 +88,7 @@ test("mobile scan permissions are based on granted permissions", () => {
 
   assert.equal(canViewMobileLoadJobs(mobileOfficeUser), true);
   assert.equal(canSaveMobileDock(mobileOfficeUser), false);
+  assert.equal(canCompleteMobileLoadJob(mobileOfficeUser), false);
   assert.equal(canScanMobilePallets(mobileOfficeUser), true);
   assert.equal(canReverseMobileScans(mobileOfficeUser), false);
   assert.equal(canViewMobileLoadJobs(null), false);

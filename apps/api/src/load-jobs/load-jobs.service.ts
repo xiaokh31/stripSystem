@@ -13,6 +13,8 @@ import {
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
   LoadJobLoadedPalletsResponseDto,
+  LoadJobOperatorHistoryItemDto,
+  LoadJobOperatorHistoryResponseDto,
   LoadJobListResponseDto,
   LoadJobLineResponseDto,
   LoadJobProgressDto,
@@ -69,6 +71,8 @@ interface LoadJobRecord {
   createdById: string | null;
   createdBy?: UserRecord | null;
   lines?: LoadJobLineRecord[];
+  pallets?: PalletRecord[];
+  events?: PalletEventRecord[];
   createdAt: Date | string;
   updatedAt: Date | string;
   _count?: {
@@ -119,6 +123,10 @@ interface PalletRecord {
 
 interface PalletEventRecord {
   id: string;
+  operatorId?: string | null;
+  operator?: UserRecord | null;
+  metadata?: unknown;
+  occurredAt?: Date | string;
 }
 
 interface ContainerLookupClient {
@@ -245,6 +253,23 @@ const LOAD_JOB_INCLUDE = {
       role: true,
     },
   },
+  events: {
+    where: {
+      eventType: PalletEventType.STATUS_CHANGED,
+    },
+    orderBy: { occurredAt: 'desc' },
+    take: 10,
+    include: {
+      operator: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+        },
+      },
+    },
+  },
   _count: {
     select: {
       pallets: true,
@@ -269,6 +294,17 @@ const PALLET_INCLUDE = {
     },
   },
 } satisfies Prisma.PalletInclude;
+
+const OPERATOR_HISTORY_INCLUDE = {
+  ...LOAD_JOB_INCLUDE,
+  pallets: {
+    where: {
+      status: PalletStatus.LOADED,
+    },
+    include: PALLET_INCLUDE,
+    orderBy: [{ loadedAt: 'asc' }, { palletNo: 'asc' }],
+  },
+} satisfies Prisma.LoadJobInclude;
 
 @Injectable()
 export class LoadJobsService {
@@ -358,6 +394,38 @@ export class LoadJobsService {
 
     return {
       items: records.map((record) => this.toResponse(record)),
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
+  async listOperatorHistory(
+    actor: AuthenticatedUser,
+    query: ListLoadJobsQueryDto,
+  ): Promise<LoadJobOperatorHistoryResponseDto> {
+    const records = (await this.prisma.loadJob.findMany({
+      where: {
+        status: LoadJobStatus.COMPLETED,
+        events: {
+          some: {
+            eventType: PalletEventType.STATUS_CHANGED,
+            operatorId: actor.id,
+          },
+        },
+      },
+      include: OPERATOR_HISTORY_INCLUDE,
+      orderBy: { closedAt: 'desc' },
+      take: Math.min(query.limit * 5, 500),
+      skip: 0,
+    })) as LoadJobRecord[];
+
+    const items = records
+      .filter((record) => this.completionEvent(record)?.operatorId === actor.id)
+      .slice(query.offset, query.offset + query.limit)
+      .map((record) => this.toOperatorHistoryItem(record));
+
+    return {
+      items,
       limit: query.limit,
       offset: query.offset,
     };
@@ -1953,6 +2021,8 @@ export class LoadJobsService {
   }
 
   private toResponse(record: LoadJobRecord): LoadJobResponseDto {
+    const completionEvent = this.completionEvent(record);
+
     return {
       id: record.id,
       containerId: record.containerId,
@@ -1978,6 +2048,16 @@ export class LoadJobsService {
             role: record.createdBy.role,
           }
         : null,
+      completedById: completionEvent?.operatorId ?? null,
+      completedBy: completionEvent?.operator
+        ? {
+            id: completionEvent.operator.id,
+            email: completionEvent.operator.email,
+            name: completionEvent.operator.name,
+            role: completionEvent.operator.role,
+          }
+        : null,
+      completedAt: this.isoDateOrNull(completionEvent?.occurredAt ?? null),
       startedAt: this.isoDateOrNull(record.startedAt),
       scheduledDepartureAt: this.isoDateOrNull(record.scheduledDepartureAt),
       closedAt: this.isoDateOrNull(record.closedAt),
@@ -1989,6 +2069,52 @@ export class LoadJobsService {
       palletCount: record._count?.pallets ?? 0,
       eventCount: record._count?.events ?? 0,
     };
+  }
+
+  private toOperatorHistoryItem(
+    record: LoadJobRecord,
+  ): LoadJobOperatorHistoryItemDto {
+    const response = this.toResponse(record);
+    const pallets = (record.pallets ?? []).map((pallet) =>
+      this.toScannedPalletResponse(pallet),
+    );
+
+    return {
+      id: response.id,
+      loadNo: response.loadNo,
+      destinationRegion: response.destinationRegion,
+      truckNo: response.truckNo,
+      dockNo: response.dockNo,
+      carrier: response.carrier,
+      scheduledDepartureAt: response.scheduledDepartureAt,
+      completedAt: response.completedAt ?? response.closedAt,
+      completedById: response.completedById,
+      completedBy: response.completedBy,
+      totalPallets: pallets.length,
+      pallets,
+    };
+  }
+
+  private completionEvent(record: LoadJobRecord): PalletEventRecord | null {
+    return (
+      (record.events ?? []).find((event) =>
+        this.isLoadJobCompletionEvent(event),
+      ) ?? null
+    );
+  }
+
+  private isLoadJobCompletionEvent(event: PalletEventRecord): boolean {
+    const metadata = this.jsonObject(event.metadata);
+    return (
+      metadata.action === 'LOAD_JOB_CLOSED' ||
+      metadata.toStatus === LoadJobStatus.COMPLETED
+    );
+  }
+
+  private jsonObject(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
   private toLineResponse(line: LoadJobLineRecord): LoadJobLineResponseDto {
