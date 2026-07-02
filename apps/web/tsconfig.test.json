@@ -19,6 +19,7 @@
     "src/components/mobile/load-job-flow.ts",
     "src/components/mobile/offline-scan-queue.ts",
     "src/components/reports/inventory-report-flow.ts",
+    "src/lib/i18n/*.ts",
     "tests/**/*.test.ts"
   ]
 }

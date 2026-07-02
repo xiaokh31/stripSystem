@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import type { AuthUserResponse } from "@/lib/api-client";
 import {
   canManageAccounts,
@@ -67,6 +68,7 @@ export function OfficeShell({
             </div>
             {currentUser ? (
               <div className="flex flex-wrap items-center gap-2">
+                <LanguageSwitcher />
                 <div className="border border-teal-700 bg-teal-800 px-3 py-2 text-xs text-teal-50">
                   <p className="font-semibold">
                     {currentUser.name ?? currentUser.email ?? "Signed in"}
@@ -78,12 +80,15 @@ export function OfficeShell({
                 <LogoutButton />
               </div>
             ) : (
-              <a
-                className="inline-flex min-h-9 items-center border border-teal-700 bg-teal-800 px-3 text-xs font-semibold uppercase text-teal-50 hover:bg-teal-700"
-                href="/login"
-              >
-                Sign in
-              </a>
+              <div className="flex flex-wrap items-center gap-2">
+                <LanguageSwitcher />
+                <a
+                  className="inline-flex min-h-9 items-center border border-teal-700 bg-teal-800 px-3 text-xs font-semibold uppercase text-teal-50 hover:bg-teal-700"
+                  href="/login"
+                >
+                  Sign in
+                </a>
+              </div>
             )}
           </div>
           {currentUser ? (
