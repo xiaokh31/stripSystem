@@ -23,6 +23,7 @@ docs/runbooks/*
 !docs/runbooks/warehouse-operator-manual.md
 !docs/runbooks/pilot-run-checklist.md
 !docs/runbooks/native-scan-app-testing.md
+!docs/runbooks/native-scan-app-release.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html

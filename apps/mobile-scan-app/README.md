@@ -25,7 +25,9 @@ as Android APK, iOS IPA, and Windows MSIX.
   second confirmation.
 - Dock No. update and complete loading through the existing protected load job
   APIs.
-- Future tasks add platform camera module wiring and release packaging.
+- Release packaging runbook for Windows MSIX, Android APK, and iOS IPA.
+- Future tasks add platform camera module wiring and generated native platform
+  project hardening.
 
 ## Token Storage
 
@@ -77,12 +79,15 @@ handling.
 pnpm --filter mobile-scan-app lint
 pnpm --filter mobile-scan-app typecheck
 pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app build
+pnpm --filter mobile-scan-app package:check
 ```
 
 Task-by-task manual testing is documented in:
 
 ```text
 docs/runbooks/native-scan-app-testing.md
+docs/runbooks/native-scan-app-release.md
 ```
 
 Native platform commands require React Native dependencies and platform tooling:

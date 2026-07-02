@@ -309,6 +309,59 @@ Known limitation:
 - P6-MOBILE-07 depends on the existing backend permissions and audit trail. It
   does not add office-side role management, new permission bypasses, or local
   offline completion.
+
+## P6-MOBILE-08 Native Packaging + LAN Deployment Runbook
+
+Purpose:
+- Document Windows MSIX, Android APK, and iOS IPA build and installation paths.
+- Document LAN API URL, HTTP/HTTPS certificate risk, camera permissions, and
+  device distribution.
+- Add a native app release checklist covering login, scan, offline queue,
+  supervisor override, and complete loading.
+- Provide a locally runnable packaging readiness check without committing
+  signing secrets.
+
+Automated checks:
+
+```bash
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app build
+pnpm --filter mobile-scan-app package:check
+git diff --check
+```
+
+Manual review:
+1. Open `docs/runbooks/native-scan-app-release.md`.
+2. Confirm Windows MSIX instructions include build command, artifact path,
+   install, update, uninstall, signing certificate, and LAN API configuration.
+3. Confirm Android instructions include debug APK, signed release APK, camera
+   permission, and PDA/scanner-gun notes.
+4. Confirm iOS instructions include Apple Developer account, signing
+   certificate, provisioning profile, and TestFlight/MDM/internal distribution
+   limits.
+5. Confirm the runbook states native camera scanning does not depend on browser
+   HTTPS secure-context rules, while API passwords/JWTs should use HTTPS in
+   production.
+6. Confirm no real signing secret, keystore, certificate private key, or
+   provisioning profile is committed.
+
+Device smoke test when a platform package is available:
+1. Install the MSIX, APK, or IPA on a warehouse device.
+2. Configure API base URL as `http://<server-lan-ip>/api` or
+   `https://warehouse-server.local/api`.
+3. Tap `Save and check API`.
+4. Login with a real warehouse account.
+5. Open a real load job and complete one scanner-gun/manual or camera scan.
+6. Test offline queue, supervisor override, and complete loading before pilot
+   release.
+
+Known limitation:
+- P6-MOBILE-08 documents platform packaging and adds readiness checks, but the
+  generated Android/iOS/Windows native platform projects and native camera
+  module still need platform-machine implementation before final device
+  acceptance.
 - Automatic network-recovery sync is currently triggered by API health recovery
   and manual sync. A later native platform task can add OS network-state
   listeners.
