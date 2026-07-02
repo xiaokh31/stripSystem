@@ -680,9 +680,9 @@ describe('ImportsController (e2e)', () => {
     expect(pallets).toHaveLength(6);
     expect(generatedFiles).toHaveLength(1);
     expect(generatedFiles[0].generatedById).toBe('auth-office');
-    expect(palletEvents.every((event) => event.operatorId === 'auth-office')).toBe(
-      true,
-    );
+    expect(
+      palletEvents.every((event) => event.operatorId === 'auth-office'),
+    ).toBe(true);
     expect(
       labelsBody.pallets.every(
         (pallet) =>

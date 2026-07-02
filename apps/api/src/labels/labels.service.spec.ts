@@ -362,7 +362,10 @@ describe('LabelsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
 
-    const result = await service.generateLabels('container-manual', officeActor);
+    const result = await service.generateLabels(
+      'container-manual',
+      officeActor,
+    );
 
     expect(result.generatedFile).toMatchObject({
       importFileId: null,
@@ -424,10 +427,7 @@ describe('LabelsService', () => {
 
     await expect(
       service.generateLabels('container-1', officeActor),
-    ).rejects.toHaveProperty(
-      'response.code',
-      'CONTAINER_GENERATION_LOCKED',
-    );
+    ).rejects.toHaveProperty('response.code', 'CONTAINER_GENERATION_LOCKED');
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
 
@@ -439,10 +439,7 @@ describe('LabelsService', () => {
 
     await expect(
       service.generateLabels('container-1', officeActor),
-    ).rejects.toHaveProperty(
-      'response.code',
-      'CONTAINER_GENERATION_LOCKED',
-    );
+    ).rejects.toHaveProperty('response.code', 'CONTAINER_GENERATION_LOCKED');
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
 
@@ -550,10 +547,14 @@ describe('LabelsService', () => {
     prisma.pallet.findUnique.mockResolvedValueOnce(cancelled);
 
     await expect(
-      service.reprintPalletLabel('pallet-cancelled', {
-        operatorId: 'user-1',
-        reason: 'Reprint requested after cancellation',
-      }, warehouseActor),
+      service.reprintPalletLabel(
+        'pallet-cancelled',
+        {
+          operatorId: 'user-1',
+          reason: 'Reprint requested after cancellation',
+        },
+        warehouseActor,
+      ),
     ).rejects.toHaveProperty(
       'response.code',
       'REPRINT_REQUIRES_SUPERVISOR_OVERRIDE',

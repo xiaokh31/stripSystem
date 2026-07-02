@@ -5,7 +5,6 @@ import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { ImportsService } from './imports.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 interface ImportRecord {
   id: string;

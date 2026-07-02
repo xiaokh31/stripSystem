@@ -38,7 +38,7 @@ export const enMessages = {
   "Back to load jobs": "Back to load jobs",
   "Bestar Service CCA": "Bestar Service CCA",
   "Bestar Warehouse Office": "Bestar Warehouse Office",
-  "Bestar warehouse office": "Bestar Warehouse Office",
+  "Bestar warehouse office": "Bestar warehouse office",
   "Browse files": "Browse files",
   "CALGARY LOCAL": "CALGARY LOCAL",
   "CANCELLED": "CANCELLED",

@@ -611,7 +611,9 @@ export class CorrectionsService {
 
     return {
       containerDestination: this.toContainerDestinationResponse(existing),
-      corrections: corrections.map((record) => this.toCorrectionResponse(record)),
+      corrections: corrections.map((record) =>
+        this.toCorrectionResponse(record),
+      ),
     };
   }
 

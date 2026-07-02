@@ -623,8 +623,7 @@ describe('LoadJobsService', () => {
       service.scan(
         'load-job-1',
         {
-          qrPayload:
-            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|2/2|PALLET-002',
         },
         warehouseActor,
       ),
@@ -995,8 +994,7 @@ describe('LoadJobsService', () => {
       service.scan(
         'load-job-2',
         {
-          qrPayload:
-            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
         },
         warehouseActor,
       ),
@@ -1042,8 +1040,7 @@ describe('LoadJobsService', () => {
       service.scan(
         'load-job-2',
         {
-          qrPayload:
-            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
           supervisorOverride: true,
         },
         warehouseActor,
@@ -1128,8 +1125,7 @@ describe('LoadJobsService', () => {
       service.scan(
         'load-job-1',
         {
-          qrPayload:
-            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
         },
         warehouseActor,
       ),
@@ -1160,8 +1156,7 @@ describe('LoadJobsService', () => {
       service.scan(
         'load-job-1',
         {
-          qrPayload:
-            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
         },
         warehouseActor,
       ),

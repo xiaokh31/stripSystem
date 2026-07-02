@@ -225,7 +225,10 @@ describe('ReportsService', () => {
     ];
     prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
 
-    const result = await service.generateReport('container-manual', officeActor);
+    const result = await service.generateReport(
+      'container-manual',
+      officeActor,
+    );
 
     const [request] = workerReport.writeReport.mock.calls[0];
     const palletResult =

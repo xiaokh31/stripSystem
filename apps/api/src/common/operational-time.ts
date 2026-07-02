@@ -47,7 +47,9 @@ export function operationalTimeZone(): string {
     process.env.TZ ||
     DEFAULT_OPERATIONAL_TIME_ZONE;
 
-  return isValidTimeZone(configured) ? configured : DEFAULT_OPERATIONAL_TIME_ZONE;
+  return isValidTimeZone(configured)
+    ? configured
+    : DEFAULT_OPERATIONAL_TIME_ZONE;
 }
 
 function isValidTimeZone(timeZone: string): boolean {

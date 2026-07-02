@@ -140,7 +140,9 @@ describe('LabelsController reprint audit (e2e)', () => {
     expect(
       palletEvents
         .slice(1)
-        .map((event) => (event.metadata as { containerId?: string }).containerId),
+        .map(
+          (event) => (event.metadata as { containerId?: string }).containerId,
+        ),
     ).toEqual(['container-1', 'container-1']);
     expect(pallets.map((pallet) => pallet.status)).toEqual([
       'LABEL_PRINTED',

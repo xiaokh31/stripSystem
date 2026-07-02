@@ -284,8 +284,9 @@ export class ImportsService {
 
   async parse(
     id: string,
-    _actor: AuthenticatedUser,
+    actor: AuthenticatedUser,
   ): Promise<ImportParseResultResponseDto> {
+    void actor;
     const record = await this.findImportOrThrow(id);
     await this.assertStoredFileExists(record);
 

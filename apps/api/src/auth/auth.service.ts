@@ -115,14 +115,14 @@ export class AuthService {
     return this.prisma.user.findUnique({
       where: { email },
       include: AUTH_USER_INCLUDE,
-    }) as Promise<AuthUserRecord | null>;
+    });
   }
 
   private findUserById(id: string): Promise<AuthUserRecord | null> {
     return this.prisma.user.findUnique({
       where: { id },
       include: AUTH_USER_INCLUDE,
-    }) as Promise<AuthUserRecord | null>;
+    });
   }
 
   private toUserProfile(user: AuthUserRecord): AuthUserResponseDto {

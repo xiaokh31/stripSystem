@@ -90,9 +90,9 @@ describe('CorrectionsController (e2e)', () => {
     expect(body.items.every((item) => item.containerId === 'container-1')).toBe(
       true,
     );
-    expect(body.items.every((item) => item.correctedById === 'auth-office')).toBe(
-      true,
-    );
+    expect(
+      body.items.every((item) => item.correctedById === 'auth-office'),
+    ).toBe(true);
   });
 
   it('updates container fields and creates correction feedback', async () => {
