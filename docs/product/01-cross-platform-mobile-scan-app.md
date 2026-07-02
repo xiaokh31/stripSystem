@@ -21,7 +21,7 @@ the final product.
 
 Deliver one cross-platform native warehouse scan app codebase that can produce:
 
-- Windows exe for warehouse PCs, Windows tablets, or local scan stations.
+- Windows MSIX for warehouse PCs, Windows tablets, or local scan stations.
 - Android apk for company-managed phones and Android PDA devices.
 - iOS ipa for company-managed iPhones or iPads.
 
@@ -177,7 +177,7 @@ The standalone app is complete when:
 4. Camera scan and scanner-gun/manual input both call the real scan API.
 5. Offline scans are queued and later synced without double decrementing.
 6. Supervisor override works only for authorized users and writes audit events.
-7. Windows exe, Android apk, and iOS ipa build instructions are documented and
+7. Windows MSIX, Android apk, and iOS ipa build instructions are documented and
    tested to the extent possible in the available environment.
 8. No office/admin/report/import UI is bundled into the app.
 

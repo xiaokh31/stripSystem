@@ -1,0 +1,25 @@
+{
+  "name": "mobile-scan-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "android": "react-native run-android",
+    "build": "tsc --noEmit --pretty false",
+    "ios": "react-native run-ios",
+    "lint": "tsc --noEmit --pretty false",
+    "test": "tsc -p tsconfig.test.json && node --test .test-output/__tests__/*.test.js",
+    "typecheck": "tsc --noEmit --pretty false",
+    "windows": "react-native run-windows"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "react": "19.1.1",
+    "react-native": "0.84.0",
+    "react-native-windows": "0.84.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

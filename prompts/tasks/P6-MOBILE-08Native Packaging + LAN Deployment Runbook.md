@@ -10,7 +10,7 @@
 - .codex/skills/docker-local-deploy/SKILL.md
 
 任务范围：
-1. 补齐 Windows exe、Android apk、iOS ipa 的构建和安装文档。
+1. 补齐 Windows MSIX、Android APK、iOS IPA 的构建和安装文档。
 2. 增加 native app release checklist。
 3. 增加 LAN API URL、证书、相机权限、设备分发说明。
 4. 尽可能实现可在本机验证的 build/package script。

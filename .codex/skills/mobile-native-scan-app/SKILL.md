@@ -1,6 +1,6 @@
 ---
 name: mobile-native-scan-app
-description: Use for the standalone cross-platform native warehouse scan app, including React Native, React Native Windows, Windows exe, Android apk, iOS ipa packaging, LAN API configuration, native camera scanning, scanner-gun input, mobile login, token storage, offline scan queue, and app release runbooks.
+description: Use for the standalone cross-platform native warehouse scan app, including React Native, React Native Windows, Windows MSIX, Android apk, iOS ipa packaging, LAN API configuration, native camera scanning, scanner-gun input, mobile login, token storage, offline scan queue, and app release runbooks.
 ---
 
 # Mobile Native Scan App Skill
@@ -42,7 +42,7 @@ operation.
 ## Preferred Delivery Shape
 
 Use a single app codebase that can package:
-- Windows desktop installer/exe for warehouse PCs or rugged Windows tablets.
+- Windows MSIX package for warehouse PCs or rugged Windows tablets.
 - Android apk for company-managed phones or PDA devices.
 - iOS ipa for company-managed iPhones, subject to Apple signing constraints.
 

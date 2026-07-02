@@ -13,7 +13,7 @@
 任务范围：
 1. 只做架构决策和落地方案文档。
 2. 验证并细化推荐技术路线：React Native + React Native Windows。
-3. 必须覆盖 Windows exe、Android apk、iOS ipa 三端原生交付路径。
+3. 必须覆盖 Windows MSIX、Android APK、iOS IPA 三端原生交付路径。
 4. 不写 App 业务代码。
 5. 不改现有 web/api/worker 业务逻辑。
 
@@ -33,7 +33,7 @@ API：
 3. 必须说明 LAN API URL 配置方式。
 4. 必须说明 camera 权限、扫码枪输入、离线队列、token storage、设备标识。
 5. 必须说明 iOS 签名/企业分发限制。
-6. 必须说明 Windows exe 的实际构建路径。
+6. 必须说明 Windows MSIX 的实际构建路径。
 7. 必须明确 P6-MOBILE 不是 WebView-first wrapper、不是 PWA、不是浏览器页面。
 8. 必须说明 native camera 如何避免浏览器 HTTPS/camera 限制。
 
@@ -48,6 +48,6 @@ API：
 - git diff --check
 
 手工验收：
-1. 读取 ADR，确认技术路线能覆盖 exe/apk/ipa。
+1. 读取 ADR，确认技术路线能覆盖 MSIX/APK/IPA。
 2. 确认没有把 office web 功能纳入 standalone app。
 3. 确认没有把浏览器 camera/HTTPS 作为扫码前提。

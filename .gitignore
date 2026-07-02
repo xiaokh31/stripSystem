@@ -6,6 +6,9 @@ docs/*
 !docs/adr/
 docs/adr/*
 !docs/adr/0003-native-scan-app.md
+!docs/architecture/
+docs/architecture/*
+!docs/architecture/10-native-scan-app-architecture.md
 !docs/product/
 !docs/product/01-cross-platform-mobile-scan-app.md
 !docs/runbooks/
@@ -19,6 +22,7 @@ docs/runbooks/*
 !docs/runbooks/production-deployment-beginner-guide.md
 !docs/runbooks/warehouse-operator-manual.md
 !docs/runbooks/pilot-run-checklist.md
+!docs/runbooks/native-scan-app-testing.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html

@@ -14,7 +14,7 @@
 1. 不新增功能。
 2. 对 P6-MOBILE-01 至 P6-MOBILE-08 做完整验收。
 3. 验证 standalone app 只有登录和 mobile scan。
-4. 验证 exe/apk/ipa 交付文档完整。
+4. 验证 MSIX/APK/IPA 交付文档完整。
 5. 更新 docs/reports/project-completion-status.html。
 
 API：
@@ -46,7 +46,7 @@ API：
 7. Duplicate scan 不重复扣库存。
 8. Supervisor override 权限、reason、审计完整。
 9. Complete loading 需要 dockNo 并记录装车人。
-10. Windows exe 构建/安装文档存在。
+10. Windows MSIX 构建/安装文档存在。
 11. Android apk 构建/安装文档存在。
 12. iOS ipa 签名/分发文档存在。
 13. 不包含 office/admin/import/report/label 页面。
