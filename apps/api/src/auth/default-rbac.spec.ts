@@ -49,10 +49,12 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.loadJobs.complete,
         PERMISSIONS.scan.create,
         PERMISSIONS.scan.reverse,
+        PERMISSIONS.settings.read,
       ]),
     );
     expect(officePermissions.has(PERMISSIONS.users.manage)).toBe(false);
     expect(officePermissions.has(PERMISSIONS.roles.manage)).toBe(false);
+    expect(officePermissions.has(PERMISSIONS.settings.update)).toBe(false);
   });
 
   it('limits WAREHOUSE to scan, dock/job update, and inventory read access', () => {
@@ -66,6 +68,7 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.scan.create,
         PERMISSIONS.scan.reverse,
         PERMISSIONS.inventory.read,
+        PERMISSIONS.settings.read,
       ]),
     );
   });

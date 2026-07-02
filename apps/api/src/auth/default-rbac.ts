@@ -74,6 +74,16 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
     'roles',
     'Manage roles and permissions.',
   ),
+  permission(
+    PERMISSIONS.settings.read,
+    'settings',
+    'Read operational settings.',
+  ),
+  permission(
+    PERMISSIONS.settings.update,
+    'settings',
+    'Update operational settings.',
+  ),
 ];
 
 export const DEFAULT_ROLES: DefaultRole[] = [
@@ -113,6 +123,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.loadJobs.complete,
       PERMISSIONS.scan.create,
       PERMISSIONS.scan.reverse,
+      PERMISSIONS.settings.read,
     ],
     [ROLE_CODES.warehouse]: [
       PERMISSIONS.loadJobs.read,
@@ -121,12 +132,14 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.create,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.inventory.read,
+      PERMISSIONS.settings.read,
     ],
     [ROLE_CODES.system]: [
       PERMISSIONS.imports.parse,
       PERMISSIONS.reports.generate,
       PERMISSIONS.labels.generate,
       PERMISSIONS.inventory.read,
+      PERMISSIONS.settings.read,
     ],
   };
 

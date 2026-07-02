@@ -208,19 +208,20 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-06-29</p>
+        <p class="small">Generated: 2026-07-02</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
           API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心业务闭环
-          和账号权限体系均已完成到当前项目验收范围；可以进入 Windows 11 内网
-          生产部署准备。仍需在目标机器完成 full-stack healthcheck、真实账号、
-          真实打印机、PDA/手机和备份恢复验证后再切换为正式使用。
+          和账号权限体系均已完成到当前项目验收范围；P2 剩余的可编辑 Settings
+          后台和 Playwright 浏览器 E2E 已补齐。可以进入 Windows 11 内网生产部署
+          准备。仍需在目标机器完成 full-stack healthcheck、真实账号、真实打印机、
+          PDA/手机和备份恢复验证后再切换为正式使用。
         </p>
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>96%</dd>
+            <dd>98%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -244,8 +245,8 @@
           面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
           账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
           感知 UI、移动端权限和业务审计 userId。当前未完成项主要是真正的异步队列化、
-          自动打印代理实现、Supervisor override、集中监控告警和更完整的浏览器端
-          自动化回归。
+          自动打印代理实现、Supervisor override、集中监控告警和更深的端到端业务
+          流程回归。
         </p>
       </section>
 
@@ -279,7 +280,7 @@
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
               <td>apps/api/src/auth/default-rbac.ts；apps/api/prisma/seed.ts。</td>
-              <td>ADMIN、OFFICE、WAREHOUSE、SYSTEM 均可 seed；首个 ADMIN 通过 SEED_ADMIN_* 一次性创建。</td>
+              <td>ADMIN、OFFICE、WAREHOUSE、SYSTEM 均可 seed；SEED_ADMIN_* 可创建或恢复指定 ADMIN，不会删除其他用户。</td>
             </tr>
             <tr>
               <td>登录、JWT、当前用户</td>
@@ -328,7 +329,7 @@
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
               <td>local-deployment、deploy-windows、deploy-linux、production-deployment-beginner-guide、account-role-permission-management runbooks。</td>
-              <td>文档覆盖 JWT_SECRET 替换、seed、首个 ADMIN、禁用员工、重置密码和登录验证。</td>
+              <td>文档覆盖 JWT_SECRET 替换、seed、首个 ADMIN、管理员恢复、禁用员工、重置密码和登录验证。</td>
             </tr>
           </tbody>
         </table>
@@ -368,9 +369,9 @@
               <td>P2</td>
               <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表、登录和账号管理 UI。</td>
               <td><span class="badge done">Done</span></td>
-              <td>98%</td>
-              <td>Next.js routes: imports, containers, reports/inventory, settings, login, admin/users, admin/roles；真实 API client。</td>
-              <td>缺少完整 Playwright 浏览器 E2E；Settings 仍是配置展示，不是完整可编辑后台。</td>
+              <td>100%</td>
+              <td>Next.js routes: imports, containers, reports/inventory, settings, login, admin/users, admin/roles；真实 API client；Playwright desktop/mobile E2E。</td>
+              <td>当前 P2 范围无剩余；未来可继续扩展导入、报告、面单、扫码的深度浏览器业务流 E2E。</td>
             </tr>
             <tr>
               <td>P3</td>
@@ -543,10 +544,10 @@
               <td>先设计审批权限、原因、审计事件，再开放 override。</td>
             </tr>
             <tr>
-              <td>浏览器端 E2E 自动化</td>
+              <td>深度浏览器业务流 E2E</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>API/单元覆盖较多，但完整 UI 流程仍主要靠手工验证。</td>
-              <td>补 Playwright：导入、解析失败手工创建、报告/面单、扫码、history。</td>
+              <td>Playwright 已覆盖登录、核心页面渲染和 Settings 保存；导入、报告、面单、扫码等长业务流仍可继续扩展。</td>
+              <td>后续按真实 pilot 缺陷补充 Playwright：导入、解析失败手工创建、报告/面单、扫码、history。</td>
             </tr>
             <tr>
               <td>生产级监控和告警</td>
@@ -588,7 +589,7 @@
             <tr>
               <td>账号初始化</td>
               <td><span class="badge done">Ready</span></td>
-              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建首个 ADMIN，再通过 API 创建 OFFICE/WAREHOUSE。</td>
+              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建或恢复 ADMIN，再通过 API 创建 OFFICE/WAREHOUSE。</td>
             </tr>
             <tr>
               <td>业务 smoke test</td>

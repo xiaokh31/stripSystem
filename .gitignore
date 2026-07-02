@@ -33,6 +33,8 @@ node_modules/
 dist/
 coverage/
 apps/api/src/generated/prisma/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # python
 .venv/

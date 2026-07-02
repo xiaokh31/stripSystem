@@ -11,6 +11,7 @@ export const LOAD_JOBS_COMPLETE_PERMISSION = "load_jobs.complete";
 export const LABELS_REPRINT_PERMISSION = "labels.reprint";
 export const SCAN_CREATE_PERMISSION = "scan.create";
 export const SCAN_REVERSE_PERMISSION = "scan.reverse";
+export const SETTINGS_UPDATE_PERMISSION = "settings.update";
 
 export function hasRole(
   user: AuthUserResponse | null,
@@ -85,4 +86,8 @@ export function canReverseMobileScans(
 
 export function canReprintLabels(user: AuthUserResponse | null): boolean {
   return hasPermission(user, LABELS_REPRINT_PERMISSION);
+}
+
+export function canUpdateSettings(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, SETTINGS_UPDATE_PERMISSION);
 }

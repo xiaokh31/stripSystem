@@ -640,6 +640,82 @@ export const enMessages = {
   "Yes": "Yes",
   "You do not have permission to view this page.":
     "You do not have permission to view this page.",
+  "Admin approval required": "Admin approval required",
+  "Audit required": "Audit required",
+  "Authoritative source for remaining pallet inventory.":
+    "Authoritative source for remaining pallet inventory.",
+  "Backend/database state": "Backend/database state",
+  "Block duplicate uploads": "Block duplicate uploads",
+  "Calgary / Edmonton": "Calgary / Edmonton",
+  "Company Excel template": "Company Excel template",
+  "Company unloading report template name.":
+    "Company unloading report template name.",
+  "Configure the live operational profile used by office and warehouse workflows. Values are read from and saved to the backend Settings API.":
+    "Configure the live operational profile used by office and warehouse workflows. Values are read from and saved to the backend Settings API.",
+  "Current rollout stage shown on the dashboard.":
+    "Current rollout stage shown on the dashboard.",
+  "Daily PostgreSQL backup before schema migrations.":
+    "Daily PostgreSQL backup before schema migrations.",
+  "Default values are staged. Save changes to persist them.":
+    "Default values are staged. Save changes to persist them.",
+  "Default:": "Default:",
+  "Docker Compose full stack": "Docker Compose full stack",
+  "Duplicate import policy": "Duplicate import policy",
+  "Editable operational settings": "Editable operational settings",
+  "Expected local and production runtime mode.":
+    "Expected local and production runtime mode.",
+  "How office corrections are tracked after parser output.":
+    "How office corrections are tracked after parser output.",
+  "IANA time zone used for local warehouse timestamps.":
+    "IANA time zone used for local warehouse timestamps.",
+  "Label height mm": "Label height mm",
+  "Label width mm": "Label width mm",
+  "Last saved:": "Last saved:",
+  "Manual correction policy": "Manual correction policy",
+  "Name shown to office and warehouse users.":
+    "Name shown to office and warehouse users.",
+  "Not saved yet": "Not saved yet",
+  "Operational settings could not be loaded.":
+    "Operational settings could not be loaded.",
+  "Operational settings could not be saved.":
+    "Operational settings could not be saved.",
+  "Operational settings saved.": "Operational settings saved.",
+  "P2 Office": "P2 Office",
+  "Persistent upload, report, and label file storage.":
+    "Persistent upload, report, and label file storage.",
+  "Persistence expectation for uploads, reports, and labels.":
+    "Persistence expectation for uploads, reports, and labels.",
+  "Physical PDF label height in millimeters.":
+    "Physical PDF label height in millimeters.",
+  "Physical PDF label width in millimeters.":
+    "Physical PDF label width in millimeters.",
+  "Pilot Running": "Pilot Running",
+  "Policy for uploaded Excel files with the same SHA-256.":
+    "Policy for uploaded Excel files with the same SHA-256.",
+  "PostgreSQL backup expectation for production operations.":
+    "PostgreSQL backup expectation for production operations.",
+  "Production": "Production",
+  "QR target size mm": "QR target size mm",
+  "Report template": "Report template",
+  "Reset draft": "Reset draft",
+  "Runtime mode": "Runtime mode",
+  "Save settings": "Save settings",
+  "Saved": "Saved",
+  "Saving operational settings.": "Saving operational settings.",
+  "Settings could not be loaded": "Settings could not be loaded",
+  "Site name": "Site name",
+  "Stage defaults": "Stage defaults",
+  "Storage policy": "Storage policy",
+  "Target QR print box size in millimeters.":
+    "Target QR print box size in millimeters.",
+  "Toronto": "Toronto",
+  "UTC": "UTC",
+  "Vancouver": "Vancouver",
+  "Values are loaded from the Settings API and saved to the database. Role permissions decide who can edit them.":
+    "Values are loaded from the Settings API and saved to the database. Role permissions decide who can edit them.",
+  "Warn and keep existing import": "Warn and keep existing import",
+  "You can view operational settings, but your role cannot edit them.":
+    "You can view operational settings, but your role cannot edit them.",
   "container(s)": "container(s)",
   "correction record(s).": "correction record(s).",
   "could not be loaded": "could not be loaded",

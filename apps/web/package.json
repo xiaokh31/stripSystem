@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .test-output/tests/*.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .test-output/tests/*.test.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "jsqr": "^1.4.0",
@@ -17,6 +18,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

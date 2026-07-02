@@ -31,6 +31,7 @@ test("Chinese locale does not silently fall back to English for translatable cop
     "Bestar Service CCA",
     "English",
     "P5 Pilot Ready",
+    "UTC",
     "中文",
   ]);
   const untranslated = Object.keys(enMessages).filter(

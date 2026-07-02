@@ -49,6 +49,10 @@ export const PERMISSIONS = {
   roles: {
     manage: 'roles.manage',
   },
+  settings: {
+    read: 'settings.read',
+    update: 'settings.update',
+  },
 } as const;
 
 export type PermissionCode = LeafValues<typeof PERMISSIONS>;

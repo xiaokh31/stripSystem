@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createUser,
+  getOperationalSettings,
   listPermissions,
   listRoles,
   listUsers,
   resetUserPassword,
+  updateOperationalSettings,
   updateRolePermissions,
   updateUser,
   updateUserRoles,
@@ -189,6 +191,67 @@ test("admin API client updates role permissions with permission codes", async ()
       body: { permissionCodes: ["users.manage", "roles.manage"] },
       method: "PATCH",
       url: "http://api.local/api/roles/role-office/permissions",
+    },
+  ]);
+});
+
+test("admin API client reads and updates operational settings", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const settings = {
+    fields: [
+      {
+        key: "deliveryPhase",
+        category: "Operational profile",
+        label: "Delivery phase",
+        description: "Current rollout stage.",
+        inputType: "select",
+        value: "P5 Pilot Ready",
+        defaultValue: "P5 Pilot Ready",
+        editable: true,
+        options: [{ label: "Production", value: "Production" }],
+        updatedAt: null,
+        updatedById: null,
+      },
+    ],
+    updatedAt: null,
+  };
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+    return jsonResponse(
+      init?.method === "PATCH"
+        ? {
+            settings,
+            audit: {
+              actorUserId: "admin-1",
+              action: "settings.update",
+              changedKeys: ["deliveryPhase"],
+            },
+          }
+        : settings,
+    );
+  };
+  const options = { baseUrl: "http://api.local/api", fetcher };
+
+  await getOperationalSettings(options);
+  await updateOperationalSettings(
+    { values: { deliveryPhase: "Production" } },
+    options,
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/settings/operational",
+    },
+    {
+      body: { values: { deliveryPhase: "Production" } },
+      method: "PATCH",
+      url: "http://api.local/api/settings/operational",
     },
   ]);
 });

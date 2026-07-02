@@ -1,51 +1,30 @@
 import Link from "next/link";
-import { OPERATIONAL_TIME_ZONE_DESCRIPTION } from "@/lib/date-time";
-import { canManageAccounts } from "@/lib/permissions";
-import { getServerCurrentUser } from "@/lib/server-auth";
+import { OperationalSettingsForm } from "@/components/settings/operational-settings-form";
+import {
+  ApiClientError,
+  getOperationalSettings,
+  type OperationalSettingsResponse,
+} from "@/lib/api-client";
+import { canManageAccounts, canUpdateSettings } from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
-const settingsSections = [
-  {
-    title: "Operational profile",
-    rows: [
-      { label: "Delivery phase", value: "P5 Pilot Ready" },
-      { label: "Data source", value: "Live API" },
-      {
-        label: "Operational time zone",
-        value: OPERATIONAL_TIME_ZONE_DESCRIPTION,
-      },
-    ],
-  },
-  {
-    title: "Warehouse rules",
-    rows: [
-      { label: "Original uploads", value: "Preserved for every import" },
-      { label: "Duplicate imports", value: "Detected by SHA-256" },
-      { label: "Manual correction", value: "Stored with audit feedback" },
-      { label: "Inventory source", value: "Calculated from backend state" },
-    ],
-  },
-  {
-    title: "Generated files",
-    rows: [
-      { label: "Unloading report", value: "Company Excel template" },
-      { label: "Pallet labels", value: "150mm x 100mm PDF" },
-      { label: "QR target size", value: "25mm x 25mm" },
-      { label: "Generation record", value: "Recorded for reports and labels" },
-    ],
-  },
-  {
-    title: "Deployment",
-    rows: [
-      { label: "Runtime", value: "Docker Compose full stack" },
-      { label: "Database", value: "PostgreSQL with backup scripts" },
-      { label: "Storage", value: "Persistent upload, report, and label files" },
-    ],
-  },
-];
+export const dynamic = "force-dynamic";
+
+type SettingsState =
+  | {
+      ok: true;
+      settings: OperationalSettingsResponse;
+    }
+  | {
+      error: ApiClientError;
+      ok: false;
+    };
 
 export default async function SettingsPage() {
   const currentUser = await getServerCurrentUser();
   const showAdmin = canManageAccounts(currentUser);
+  const canEditSettings = canUpdateSettings(currentUser);
+  const state = await loadSettings();
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
@@ -59,9 +38,9 @@ export default async function SettingsPage() {
               Operational settings
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-              Current pilot configuration for unloading imports, report
-              generation, pallet labels, inventory, loading scans, and local
-              deployment.
+              Configure the live operational profile used by office and
+              warehouse workflows. Values are read from and saved to the
+              backend Settings API.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -113,31 +92,59 @@ export default async function SettingsPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        {settingsSections.map((section) => (
-          <article
-            className="border border-zinc-200 bg-white p-5 shadow-sm"
-            key={section.title}
-          >
-            <h2 className="text-base font-semibold text-zinc-950">
-              {section.title}
-            </h2>
-            <dl className="mt-4 grid gap-3 text-sm">
-              {section.rows.map((row) => (
-                <div
-                  className="grid gap-1 border-t border-zinc-100 pt-3 sm:grid-cols-[180px_minmax(0,1fr)]"
-                  key={row.label}
-                >
-                  <dt className="font-medium text-zinc-500">{row.label}</dt>
-                  <dd className="break-words font-semibold text-zinc-950">
-                    {row.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
-      </section>
+      {state.ok ? (
+        <OperationalSettingsForm
+          canEdit={canEditSettings}
+          initialSettings={state.settings}
+        />
+      ) : (
+        <SettingsErrorPanel error={state.error} />
+      )}
     </main>
   );
+}
+
+async function loadSettings(): Promise<SettingsState> {
+  try {
+    return {
+      ok: true,
+      settings: await getOperationalSettings(await getServerApiOptions()),
+    };
+  } catch (error) {
+    return {
+      error: toApiClientError(error),
+      ok: false,
+    };
+  }
+}
+
+function SettingsErrorPanel({ error }: { error: ApiClientError }) {
+  return (
+    <section
+      className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
+      role="alert"
+    >
+      <h2 className="text-base font-semibold">Settings could not be loaded</h2>
+      <p className="mt-2 text-sm leading-6">{error.message}</p>
+      <p className="mt-2 text-xs font-semibold uppercase">
+        {error.code}
+        {error.status ? ` (${error.status})` : ""}
+      </p>
+    </section>
+  );
+}
+
+function toApiClientError(error: unknown): ApiClientError {
+  if (error instanceof ApiClientError) {
+    return error;
+  }
+
+  return new ApiClientError({
+    code: "SETTINGS_LOAD_FAILED",
+    message:
+      error instanceof Error
+        ? error.message
+        : "Operational settings could not be loaded.",
+    status: 0,
+  });
 }

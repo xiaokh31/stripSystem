@@ -11,11 +11,13 @@ import {
   safeAuthRedirectTarget,
   setBrowserAuthToken,
 } from "@/lib/auth-token";
+import { useClientHydrated } from "@/lib/use-client-hydrated";
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<LoginError | null>(null);
+  const isHydrated = useClientHydrated();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -79,7 +81,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
 
       <button
         className="min-h-11 border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-300 disabled:text-zinc-600"
-        disabled={isSubmitting}
+        disabled={!isHydrated || isSubmitting}
         type="submit"
       >
         {isSubmitting ? "Signing in" : "Sign in"}

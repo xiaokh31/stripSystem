@@ -60,4 +60,8 @@ export const ROUTE_PERMISSIONS = {
   permissions: {
     manage: [PERMISSIONS.roles.manage],
   },
+  settings: {
+    read: [PERMISSIONS.settings.read],
+    update: [PERMISSIONS.settings.update],
+  },
 } as const;

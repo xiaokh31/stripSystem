@@ -10,6 +10,7 @@ import {
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
+  canUpdateSettings,
   canViewMobileLoadJobs,
   hasAllPermissions,
   hasPermission,
@@ -180,4 +181,33 @@ test("label reprint permission is not granted to warehouse by default", () => {
   assert.equal(canReprintLabels(adminUser), true);
   assert.equal(canReprintLabels(warehouseUser), false);
   assert.equal(canReprintLabels(null), false);
+});
+
+test("settings updates require explicit settings update permission", () => {
+  const officeUser: AuthUserResponse = {
+    id: "office-settings-1",
+    email: "office-settings@example.com",
+    name: "Office Settings",
+    roles: ["OFFICE"],
+    permissions: ["settings.read"],
+  };
+  const settingsAdmin: AuthUserResponse = {
+    id: "settings-admin-1",
+    email: "settings-admin@example.com",
+    name: "Settings Admin",
+    roles: ["OFFICE"],
+    permissions: ["settings.read", "settings.update"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-settings-1",
+    email: "admin-settings@example.com",
+    name: "Admin Settings",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canUpdateSettings(officeUser), false);
+  assert.equal(canUpdateSettings(settingsAdmin), true);
+  assert.equal(canUpdateSettings(adminUser), true);
+  assert.equal(canUpdateSettings(null), false);
 });

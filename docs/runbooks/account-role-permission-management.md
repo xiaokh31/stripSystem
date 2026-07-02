@@ -109,8 +109,8 @@ The seed is idempotent:
 
 ## Initial Administrator
 
-Empty databases create the first administrator through one-time seed variables.
-Replace the email and password before running the command:
+Create or recover an administrator through one-time seed variables. Replace the
+email and password before running the command:
 
 ```bash
 docker compose -f infra/docker/compose.local.yml exec -T \
@@ -124,6 +124,14 @@ Production must not use a shared or example password. The seed rejects weak
 administrator passwords and requires `SEED_ADMIN_EMAIL` and
 `SEED_ADMIN_PASSWORD` to be set together.
 
+The command is idempotent for the supplied email:
+
+- If the email does not exist, it creates an active ADMIN user.
+- If the email already exists, it resets that account's password, sets
+  `is_active = true`, keeps the user row, and ensures the ADMIN role assignment
+  exists.
+- It does not delete or replace other users.
+
 After the first administrator logs in, create normal users through the API:
 
 ```http
@@ -132,6 +140,20 @@ POST /api/users
 
 Assign roles with `roleCodes` such as `OFFICE` or `WAREHOUSE`. Do not manually
 insert users or password hashes in the database.
+
+## Browser E2E Administrator
+
+Playwright browser E2E tests do not create or assume a hidden administrator.
+Create a dedicated local test administrator with the seed command above, then
+run E2E with explicit credentials:
+
+```bash
+E2E_ADMIN_EMAIL='<admin-email>' \
+E2E_ADMIN_PASSWORD='<unique-strong-admin-password>' \
+pnpm --filter web test:e2e
+```
+
+Do not use the E2E administrator as a production shared account.
 
 ## Login Verification
 

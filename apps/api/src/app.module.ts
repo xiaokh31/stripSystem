@@ -12,6 +12,7 @@ import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 import { RolesModule } from './roles/roles.module';
+import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module';
     LoadJobsModule,
     UsersModule,
     RolesModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

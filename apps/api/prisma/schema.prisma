@@ -114,6 +114,7 @@ model User {
   loadJobs           LoadJob[]            @relation("LoadJobCreatedBy")
   palletEvents       PalletEvent[]        @relation("PalletEventOperator")
   correctionFeedback CorrectionFeedback[] @relation("CorrectionFeedbackCorrectedBy")
+  operationalSettings OperationalSetting[] @relation("OperationalSettingUpdatedBy")
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
@@ -483,4 +484,17 @@ model CorrectionFeedback {
   @@index([correctedById])
   @@index([createdAt])
   @@map("correction_feedback")
+}
+
+model OperationalSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  updatedById String?  @map("updated_by_id")
+  updatedBy   User?    @relation("OperationalSettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([updatedById])
+  @@map("operational_settings")
 }

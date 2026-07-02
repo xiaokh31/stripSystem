@@ -140,6 +140,51 @@ export interface UpdateRolePermissionsRequest {
   permissionIds?: string[];
 }
 
+export type OperationalSettingInputType =
+  | "number"
+  | "select"
+  | "text"
+  | "textarea";
+
+export interface OperationalSettingOptionResponse {
+  label: string;
+  value: string;
+}
+
+export interface OperationalSettingFieldResponse {
+  key: string;
+  category: string;
+  label: string;
+  description: string;
+  inputType: OperationalSettingInputType;
+  value: string;
+  defaultValue: string;
+  editable: boolean;
+  options?: OperationalSettingOptionResponse[];
+  min?: number;
+  max?: number;
+  updatedAt: string | null;
+  updatedById: string | null;
+}
+
+export interface OperationalSettingsResponse {
+  fields: OperationalSettingFieldResponse[];
+  updatedAt: string | null;
+}
+
+export interface UpdateOperationalSettingsRequest {
+  values: Record<string, string>;
+}
+
+export interface OperationalSettingsMutationResponse {
+  settings: OperationalSettingsResponse;
+  audit: {
+    actorUserId: string;
+    action: "settings.update";
+    changedKeys: string[];
+  };
+}
+
 export interface ImportFileResponse {
   id: string;
   originalFilename: string;
@@ -860,6 +905,24 @@ export function listPermissions(
   options: ApiClientOptions = {},
 ): Promise<PermissionListResponse> {
   return createApiClient(options).get<PermissionListResponse>("/permissions");
+}
+
+export function getOperationalSettings(
+  options: ApiClientOptions = {},
+): Promise<OperationalSettingsResponse> {
+  return createApiClient(options).get<OperationalSettingsResponse>(
+    "/settings/operational",
+  );
+}
+
+export function updateOperationalSettings(
+  body: UpdateOperationalSettingsRequest,
+  options: ApiClientOptions = {},
+): Promise<OperationalSettingsMutationResponse> {
+  return createApiClient(options).patch<OperationalSettingsMutationResponse>(
+    "/settings/operational",
+    { ...body },
+  );
 }
 
 export function getImportFile(
