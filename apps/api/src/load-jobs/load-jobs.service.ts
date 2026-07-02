@@ -13,6 +13,7 @@ import {
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
   LoadJobLoadedPalletsResponseDto,
+  LoadJobContainerSuggestionResponseDto,
   LoadJobOperatorHistoryItemDto,
   LoadJobOperatorHistoryResponseDto,
   LoadJobListResponseDto,
@@ -22,6 +23,7 @@ import {
   LoadJobScanResponseDto,
   ScannedPalletResponseDto,
 } from './dto/load-job-response.dto';
+import { ListContainerSuggestionsQueryDto } from './dto/list-container-suggestions-query.dto';
 import { ReverseScanDto } from './dto/reverse-scan.dto';
 import { ScanPalletDto } from './dto/scan-pallet.dto';
 import { UpdateLoadJobDto } from './dto/update-load-job.dto';
@@ -31,6 +33,7 @@ import {
   isAuditUserOverride,
 } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
+import { PERMISSIONS } from '../auth/permissions';
 import {
   LoadJobStatus,
   PalletEventType,
@@ -106,6 +109,22 @@ interface ContainerDestinationRecord {
   destinationType: string | null;
 }
 
+interface ContainerSuggestionDestinationRecord {
+  id: string;
+  containerId: string;
+  container:
+    | (ContainerRecord & {
+        status: string;
+        updatedAt?: Date | string;
+      })
+    | null;
+  destinationCode: string;
+  destinationType: string | null;
+  finalPallets: number;
+  pallets: Array<{ status: PalletStatusValue }>;
+  updatedAt: Date | string;
+}
+
 interface PalletRecord {
   id: string;
   containerDestinationId: string;
@@ -136,6 +155,12 @@ interface ContainerLookupClient {
   containerDestination: {
     findFirst(args: unknown): Promise<unknown>;
     findUnique(args: unknown): Promise<unknown>;
+  };
+}
+
+interface ContainerSuggestionClient {
+  containerDestination: {
+    findMany(args: unknown): Promise<unknown>;
   };
 }
 
@@ -396,6 +421,31 @@ export class LoadJobsService {
       items: records.map((record) => this.toResponse(record)),
       limit: query.limit,
       offset: query.offset,
+    };
+  }
+
+  async listContainerSuggestions(
+    query: ListContainerSuggestionsQueryDto,
+  ): Promise<LoadJobContainerSuggestionResponseDto> {
+    const destinationRegion = this.requiredString(
+      query.destinationRegion,
+      'destinationRegion',
+    ).toUpperCase();
+    const containerNo = this.stringOrNull(query.containerNo);
+    const limit = query.limit;
+    const records = await this.findContainerSuggestionRecords(
+      this.prisma,
+      destinationRegion,
+      limit,
+      containerNo,
+    );
+
+    return {
+      items: records
+        .map((record) => this.toContainerSuggestion(record))
+        .filter((item) => item.remainingPallets > 0)
+        .slice(0, limit),
+      limit,
     };
   }
 
@@ -734,6 +784,8 @@ export class LoadJobsService {
       const scanPayload = this.stringOrNull(dto.qrPayload);
       const deviceId = this.stringOrNull(dto.deviceId);
       const operatorId = auditUserId(actor, dto.operatorId);
+      const supervisorOverride = dto.supervisorOverride === true;
+      const overrideReason = this.stringOrNull(dto.overrideReason);
 
       if (isAuditUserOverride(actor, dto.operatorId)) {
         await this.assertUserExists(
@@ -852,6 +904,97 @@ export class LoadJobsService {
             parsed,
             deviceId,
             operatorId,
+          });
+        }
+
+        if (supervisorOverride) {
+          this.assertSupervisorOverrideAllowed(actor, overrideReason);
+
+          const planLine = this.matchLoadJobLine(loadJob, pallet);
+          if (!planLine) {
+            await this.createInvalidScanEvent(tx, {
+              loadJobId: id,
+              palletId: pallet.id,
+              fromStatus: pallet.status,
+              toStatus: pallet.status,
+              scanPayload: parsed.payload,
+              deviceId,
+              operatorId,
+              exceptionReason: 'PALLET_NOT_IN_LOAD_PLAN',
+              metadata: {
+                ...this.scanMetadata(parsed),
+                supervisorOverride: true,
+                overrideReason,
+                existingLoadJobId: pallet.loadJobId,
+                palletContainerId:
+                  pallet.containerDestination?.containerId ?? '',
+                palletDestinationCode:
+                  pallet.containerDestination?.destinationCode ?? '',
+              },
+            });
+            return this.scanError(
+              new ConflictException({
+                code: 'PALLET_NOT_IN_LOAD_PLAN',
+                message: `Pallet ${pallet.palletId} is not included in load job ${id}.`,
+                details: {
+                  palletId: pallet.palletId,
+                  loadJobId: id,
+                  existingLoadJobId: pallet.loadJobId,
+                  supervisorOverride: true,
+                },
+              }),
+            );
+          }
+
+          const loadedForLine = await this.loadedPalletCountForLine(
+            tx,
+            id,
+            planLine,
+          );
+          if (loadedForLine >= planLine.plannedPallets) {
+            await this.createInvalidScanEvent(tx, {
+              loadJobId: id,
+              palletId: pallet.id,
+              fromStatus: pallet.status,
+              toStatus: pallet.status,
+              scanPayload: parsed.payload,
+              deviceId,
+              operatorId,
+              exceptionReason: 'LOAD_JOB_LINE_PALLET_LIMIT_REACHED',
+              metadata: {
+                ...this.scanMetadata(parsed),
+                supervisorOverride: true,
+                overrideReason,
+                existingLoadJobId: pallet.loadJobId,
+                loadJobLineId: planLine.id,
+                plannedPallets: planLine.plannedPallets,
+                loadedForLine,
+              },
+            });
+            return this.scanError(
+              new ConflictException({
+                code: 'LOAD_JOB_LINE_PALLET_LIMIT_REACHED',
+                message: `Load job line ${planLine.id} has already loaded its planned pallet count.`,
+                details: {
+                  loadJobId: id,
+                  loadJobLineId: planLine.id,
+                  plannedPallets: planLine.plannedPallets,
+                  loadedForLine,
+                  supervisorOverride: true,
+                },
+              }),
+            );
+          }
+
+          return await this.recordSupervisorOverrideLoadedScan(tx, {
+            loadJob,
+            planLine,
+            pallet,
+            parsed,
+            deviceId,
+            operatorId,
+            overrideReason: overrideReason ?? '',
+            previousLoadJobId: pallet.loadJobId,
           });
         }
 
@@ -1400,6 +1543,56 @@ export class LoadJobsService {
     })) as PalletRecord | null;
   }
 
+  private async findContainerSuggestionRecords(
+    client: ContainerSuggestionClient,
+    destinationRegion: string,
+    limit: number,
+    containerNo: string | null,
+  ): Promise<ContainerSuggestionDestinationRecord[]> {
+    const where: Prisma.ContainerDestinationWhereInput = {
+      destinationCode: destinationRegion,
+      pallets: {
+        some: {
+          status: { not: PalletStatus.CANCELLED },
+        },
+      },
+    };
+    if (containerNo) {
+      where.container = {
+        is: {
+          containerNo: {
+            contains: containerNo,
+            mode: 'insensitive',
+          },
+        },
+      };
+    }
+
+    return (await client.containerDestination.findMany({
+      where,
+      include: {
+        container: {
+          select: {
+            id: true,
+            containerNo: true,
+            status: true,
+            updatedAt: true,
+          },
+        },
+        pallets: {
+          where: {
+            status: { not: PalletStatus.CANCELLED },
+          },
+          select: {
+            status: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { destinationCode: 'asc' }],
+      take: limit * 5,
+    })) as ContainerSuggestionDestinationRecord[];
+  }
+
   private matchLoadJobLine(
     loadJob: LoadJobRecord,
     pallet: PalletRecord,
@@ -1494,6 +1687,68 @@ export class LoadJobsService {
         metadata: {
           action: 'PALLET_SCAN_LOADED',
           loadJobLineId: input.planLine.id,
+          ...this.scanMetadata(input.parsed),
+        },
+        occurredAt,
+      },
+    })) as PalletEventRecord;
+
+    const updatedPallet = (await tx.pallet.update({
+      where: { id: input.pallet.id },
+      data: {
+        status: PalletStatus.LOADED,
+        loadedAt: occurredAt,
+        loadJobId: input.loadJob.id,
+      },
+      include: PALLET_INCLUDE,
+    })) as PalletRecord;
+
+    await this.syncContainerStatusAfterPalletChange(
+      tx,
+      updatedPallet.containerDestination?.containerId ?? null,
+    );
+
+    return {
+      kind: 'response',
+      response: await this.toScanResponse(tx, {
+        result: 'LOADED',
+        loadJobId: input.loadJob.id,
+        pallet: updatedPallet,
+        eventId: event.id,
+      }),
+    };
+  }
+
+  private async recordSupervisorOverrideLoadedScan(
+    tx: ScanTransactionClient,
+    input: {
+      loadJob: LoadJobRecord;
+      planLine: LoadJobLineRecord;
+      pallet: PalletRecord;
+      parsed: ParsedPalletQrPayload;
+      deviceId: string | null;
+      operatorId: string | null;
+      overrideReason: string;
+      previousLoadJobId: string | null;
+    },
+  ): Promise<ScanTransactionOutcome> {
+    const occurredAt = new Date();
+    const event = (await tx.palletEvent.create({
+      data: {
+        palletId: input.pallet.id,
+        loadJobId: input.loadJob.id,
+        eventType: PalletEventType.LOADED,
+        fromStatus: input.pallet.status,
+        toStatus: PalletStatus.LOADED,
+        scanPayload: input.parsed.payload,
+        deviceId: input.deviceId,
+        operatorId: input.operatorId,
+        exceptionReason: 'SUPERVISOR_OVERRIDE_DIFFERENT_LOAD_JOB',
+        metadata: {
+          action: 'PALLET_SCAN_SUPERVISOR_OVERRIDE',
+          loadJobLineId: input.planLine.id,
+          previousLoadJobId: input.previousLoadJobId,
+          overrideReason: input.overrideReason,
           ...this.scanMetadata(input.parsed),
         },
         occurredAt,
@@ -1743,6 +1998,28 @@ export class LoadJobsService {
 
   private scanError(exception: HttpException): ScanTransactionOutcome {
     return { kind: 'error', exception };
+  }
+
+  private assertSupervisorOverrideAllowed(
+    actor: AuthenticatedUser,
+    overrideReason: string | null,
+  ): void {
+    if (!actor.permissions.includes(PERMISSIONS.scan.override)) {
+      throw new ConflictException({
+        code: 'SUPERVISOR_OVERRIDE_REQUIRED',
+        message:
+          'Supervisor override permission is required to move a pallet loaded by another load job.',
+        details: { requiredPermission: PERMISSIONS.scan.override },
+      });
+    }
+
+    if (!overrideReason) {
+      throw new BadRequestException({
+        code: 'SUPERVISOR_OVERRIDE_REASON_REQUIRED',
+        message: 'Supervisor override requires an audit reason.',
+        details: {},
+      });
+    }
   }
 
   private assertEditable(record: LoadJobRecord): void {
@@ -2168,6 +2445,27 @@ export class LoadJobsService {
       status: pallet.status,
       loadedAt: this.isoDateOrNull(pallet.loadedAt),
       loadJobId: pallet.loadJobId,
+    };
+  }
+
+  private toContainerSuggestion(
+    record: ContainerSuggestionDestinationRecord,
+  ): LoadJobContainerSuggestionResponseDto['items'][number] {
+    const activePallets = record.pallets.length;
+    const loadedPallets = record.pallets.filter(
+      (pallet) => pallet.status === PalletStatus.LOADED,
+    ).length;
+
+    return {
+      containerId: record.containerId,
+      containerNo: record.container?.containerNo ?? '',
+      containerDestinationId: record.id,
+      destinationCode: record.destinationCode,
+      destinationType: record.destinationType,
+      finalPallets: record.finalPallets,
+      loadedPallets,
+      remainingPallets: Math.max(0, activePallets - loadedPallets),
+      status: record.container?.status ?? 'UNKNOWN',
     };
   }
 

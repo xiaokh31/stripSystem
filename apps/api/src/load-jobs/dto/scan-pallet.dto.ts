@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class ScanPalletDto {
   @IsString()
@@ -13,4 +19,13 @@ export class ScanPalletDto {
   @IsOptional()
   @IsString()
   operatorId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  supervisorOverride?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  overrideReason?: string;
 }

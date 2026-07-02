@@ -10,8 +10,10 @@ import {
 } from '@nestjs/common';
 import { CloseLoadJobDto } from './dto/close-load-job.dto';
 import { CreateLoadJobDto } from './dto/create-load-job.dto';
+import { ListContainerSuggestionsQueryDto } from './dto/list-container-suggestions-query.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
 import {
+  LoadJobContainerSuggestionResponseDto,
   LoadJobLoadedPalletsResponseDto,
   LoadJobOperatorHistoryResponseDto,
   LoadJobListResponseDto,
@@ -52,6 +54,14 @@ export class LoadJobsController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<LoadJobOperatorHistoryResponseDto> {
     return this.loadJobsService.listOperatorHistory(actor, query);
+  }
+
+  @Get('container-suggestions')
+  @RequirePermissions(...ROUTE_PERMISSIONS.loadJobs.create)
+  listContainerSuggestions(
+    @Query() query: ListContainerSuggestionsQueryDto,
+  ): Promise<LoadJobContainerSuggestionResponseDto> {
+    return this.loadJobsService.listContainerSuggestions(query);
   }
 
   @Get(':id')

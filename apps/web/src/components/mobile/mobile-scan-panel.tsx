@@ -77,6 +77,7 @@ export interface MobileScanPermissions {
   canReverseScan: boolean;
   canSaveDockNo: boolean;
   canScan: boolean;
+  canSupervisorOverride: boolean;
 }
 
 interface DetectedBarcode {
@@ -131,6 +132,9 @@ export function MobileScanPanel({
   const [reverseConfirmed, setReverseConfirmed] = useState(false);
   const [reverseReason, setReverseReason] = useState("");
   const [selectedReversePalletId, setSelectedReversePalletId] = useState("");
+  const [overridePayload, setOverridePayload] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideConfirmed, setOverrideConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [reversingScan, setReversingScan] = useState(false);
   const [syncingQueue, setSyncingQueue] = useState(false);
@@ -392,6 +396,15 @@ export function MobileScanPanel({
       if (shouldQueueOfflineScan(error)) {
         queueScanLocally(normalizedPayload);
       } else {
+        if (
+          error instanceof ApiClientError &&
+          error.code === "PALLET_ALREADY_LOADED" &&
+          permissions.canSupervisorOverride
+        ) {
+          setOverridePayload(normalizedPayload);
+          setOverrideConfirmed(false);
+          setOverrideReason("");
+        }
         setNotice(scanErrorNotice(error));
       }
     } finally {
@@ -403,6 +416,56 @@ export function MobileScanPanel({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await submitPayload(qrPayload);
+  }
+
+  async function submitSupervisorOverride() {
+    const normalizedPayload = normalizeScanInput(overridePayload);
+    const reason = overrideReason.trim();
+    if (
+      submitting ||
+      !permissions.canSupervisorOverride ||
+      !overrideConfirmed ||
+      !normalizedPayload ||
+      !reason
+    ) {
+      return;
+    }
+
+    setSubmitting(true);
+    setNotice(null);
+
+    try {
+      const response = await scanLoadJobPallet(loadJob.id, {
+        deviceId: DEVICE_ID,
+        overrideReason: reason,
+        qrPayload: normalizedPayload,
+        supervisorOverride: true,
+      });
+      setLoadJob(response.loadJob);
+      setLastScan(response);
+      setNotice({
+        code: "SUPERVISOR_OVERRIDE",
+        message: "Supervisor override accepted and audited.",
+        title: "Override accepted",
+        tone: "amber",
+      });
+      setLoadedPallets((items) => [
+        response.pallet,
+        ...items.filter((pallet) => pallet.id !== response.pallet.id),
+      ]);
+      setSelectedReversePalletId(response.pallet.id);
+      setLoadedPalletsError(null);
+      setQrPayload("");
+      setOverridePayload("");
+      setOverrideReason("");
+      setOverrideConfirmed(false);
+      router.refresh();
+    } catch (error) {
+      setNotice(scanErrorNotice(error));
+    } finally {
+      setSubmitting(false);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
   }
 
   async function saveDockNo() {
@@ -762,6 +825,30 @@ export function MobileScanPanel({
             </div>
           ) : null}
 
+          {overridePayload && permissions.canSupervisorOverride ? (
+            <SupervisorOverridePanel
+              confirmed={overrideConfirmed}
+              disabled={
+                submitting ||
+                !overrideConfirmed ||
+                overrideReason.trim().length === 0
+              }
+              onCancel={() => {
+                setOverridePayload("");
+                setOverrideReason("");
+                setOverrideConfirmed(false);
+              }}
+              onConfirmChange={setOverrideConfirmed}
+              onReasonChange={setOverrideReason}
+              onSubmit={() => {
+                void submitSupervisorOverride();
+              }}
+              payload={overridePayload}
+              reason={overrideReason}
+              submitting={submitting}
+            />
+          ) : null}
+
           {notice ? <ScanNoticePanel notice={notice} /> : null}
         </form>
 
@@ -842,6 +929,74 @@ function CameraScanPanel({
   );
 }
 
+function SupervisorOverridePanel({
+  confirmed,
+  disabled,
+  onCancel,
+  onConfirmChange,
+  onReasonChange,
+  onSubmit,
+  payload,
+  reason,
+  submitting,
+}: {
+  confirmed: boolean;
+  disabled: boolean;
+  onCancel: () => void;
+  onConfirmChange: (value: boolean) => void;
+  onReasonChange: (value: string) => void;
+  onSubmit: () => void;
+  payload: string;
+  reason: string;
+  submitting: boolean;
+}) {
+  return (
+    <section className="border border-amber-300 bg-amber-50 p-4 text-base text-amber-950">
+      <h2 className="font-semibold">Supervisor override required</h2>
+      <p className="mt-2 text-sm leading-6">
+        This pallet is already assigned to another load job. A supervisor can
+        move it to this load job only after confirming the reason.
+      </p>
+      <p className="mt-2 break-all text-xs font-medium">Payload: {payload}</p>
+      <label className="mt-3 grid gap-1 text-sm font-semibold">
+        Override reason
+        <textarea
+          className="min-h-20 border border-amber-300 bg-white px-3 py-2 text-zinc-950 outline-none focus:border-amber-700"
+          onChange={(event) => onReasonChange(event.target.value)}
+          value={reason}
+        />
+      </label>
+      <label className="mt-3 flex min-h-10 items-start gap-2 text-sm font-medium">
+        <input
+          checked={confirmed}
+          className="mt-1 h-4 w-4 accent-amber-700"
+          onChange={(event) => onConfirmChange(event.target.checked)}
+          type="checkbox"
+        />
+        I confirm this supervisor override should move the pallet to the current
+        load job and create an audit event.
+      </label>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <button
+          className="min-h-11 border border-amber-800 bg-amber-800 px-4 text-sm font-semibold text-white hover:bg-amber-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+          disabled={disabled}
+          onClick={onSubmit}
+          type="button"
+        >
+          {submitting ? "Submitting override" : "Submit override"}
+        </button>
+        <button
+          className="min-h-11 border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100"
+          onClick={onCancel}
+          type="button"
+        >
+          Cancel override
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function MobileScanUserPanel({
   currentUser,
   permissions,
@@ -854,6 +1009,7 @@ function MobileScanUserPanel({
     permissions.canSaveDockNo ? "Dock" : null,
     permissions.canCompleteLoadJob ? "Complete" : null,
     permissions.canScan ? "Scan" : null,
+    permissions.canSupervisorOverride ? "Supervisor override" : null,
     permissions.canReverseScan ? "Reverse scan" : null,
   ].filter(Boolean);
 

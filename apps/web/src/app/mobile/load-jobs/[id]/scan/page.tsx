@@ -17,6 +17,7 @@ import {
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
+  canSupervisorOverrideScans,
   canViewMobileLoadJobs,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
@@ -89,6 +90,7 @@ export default async function MobileLoadJobScanPage({
           canReverseScan: canReverseMobileScans(currentUser),
           canSaveDockNo: canSaveMobileDock(currentUser),
           canScan: canScanMobilePallets(currentUser),
+          canSupervisorOverride: canSupervisorOverrideScans(currentUser),
         }}
       />
     </main>

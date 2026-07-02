@@ -48,6 +48,7 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.loadJobs.delete,
         PERMISSIONS.loadJobs.complete,
         PERMISSIONS.scan.create,
+        PERMISSIONS.scan.override,
         PERMISSIONS.scan.reverse,
         PERMISSIONS.settings.read,
       ]),

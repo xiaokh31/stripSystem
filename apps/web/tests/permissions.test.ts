@@ -10,6 +10,7 @@ import {
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
+  canSupervisorOverrideScans,
   canUpdateSettings,
   canViewMobileLoadJobs,
   hasAllPermissions,
@@ -74,6 +75,7 @@ test("mobile warehouse permissions allow scanning without account management", (
   assert.equal(canSaveMobileDock(warehouseUser), true);
   assert.equal(canCompleteMobileLoadJob(warehouseUser), true);
   assert.equal(canScanMobilePallets(warehouseUser), true);
+  assert.equal(canSupervisorOverrideScans(warehouseUser), false);
   assert.equal(canReverseMobileScans(warehouseUser), true);
   assert.equal(canManageOfficeLoadJobs(warehouseUser), false);
   assert.equal(canManageAccounts(warehouseUser), false);
@@ -92,8 +94,30 @@ test("mobile scan permissions are based on granted permissions", () => {
   assert.equal(canSaveMobileDock(mobileOfficeUser), false);
   assert.equal(canCompleteMobileLoadJob(mobileOfficeUser), false);
   assert.equal(canScanMobilePallets(mobileOfficeUser), true);
+  assert.equal(canSupervisorOverrideScans(mobileOfficeUser), false);
   assert.equal(canReverseMobileScans(mobileOfficeUser), false);
   assert.equal(canViewMobileLoadJobs(null), false);
+});
+
+test("supervisor scan override requires explicit permission or admin role", () => {
+  const supervisorUser: AuthUserResponse = {
+    id: "supervisor-1",
+    email: "supervisor@example.com",
+    name: "Supervisor",
+    roles: ["OFFICE"],
+    permissions: ["scan.create", "scan.override"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-1",
+    email: "admin@example.com",
+    name: "Admin",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canSupervisorOverrideScans(supervisorUser), true);
+  assert.equal(canSupervisorOverrideScans(adminUser), true);
+  assert.equal(canSupervisorOverrideScans(null), false);
 });
 
 test("office load job management requires load job create permission", () => {

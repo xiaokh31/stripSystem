@@ -661,6 +661,9 @@ export const zhMessages = {
   "Site name": "站点名称",
   "Stage defaults": "载入默认值",
   "Storage policy": "存储策略",
+  "Supervisor override": "主管覆盖",
+  "Supervisor override accepted and audited.": "主管覆盖已接受并记录审计。",
+  "Supervisor override required": "需要主管覆盖",
   "Target QR print box size in millimeters.": "QR 打印区域目标尺寸，单位毫米。",
   "Toronto": "多伦多",
   "UTC": "UTC",
@@ -670,6 +673,26 @@ export const zhMessages = {
   "Warn and keep existing import": "警告并保留已有导入",
   "You can view operational settings, but your role cannot edit them.":
     "你可以查看运营设置，但当前角色不能编辑。",
+  "Cancel override": "取消覆盖",
+  "Container suggestions": "柜号建议",
+  "Container suggestions could not be loaded.": "无法加载柜号建议。",
+  "Enter Destination region before loading container suggestions.":
+    "请先填写目的仓区域，再加载柜号建议。",
+  "From current inventory": "来自当前库存",
+  "Loading suggestions.": "正在加载建议。",
+  "No eligible containers with remaining pallets were found.":
+    "没有找到仍有剩余托盘的可用柜子。",
+  "Override accepted": "覆盖已接受",
+  "Override reason": "覆盖原因",
+  "Payload:": "载荷：",
+  "Submit override": "提交覆盖",
+  "Submitting override": "正在提交覆盖",
+  "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.":
+    "该托盘已经分配到另一个装车任务。主管确认原因后，才能把它移动到当前装车任务。",
+  "I confirm this supervisor override should move the pallet to the current load job and create an audit event.":
+    "我确认此主管覆盖会把托盘移动到当前装车任务，并创建审计事件。",
+  "pallets, loaded": "托，已装",
+  "status": "状态",
   "container(s)": "个柜子",
   "correction record(s).": "条修正记录。",
   "could not be loaded": "无法加载",

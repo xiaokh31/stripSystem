@@ -10,6 +10,7 @@ export const LOAD_JOBS_UPDATE_PERMISSION = "load_jobs.update";
 export const LOAD_JOBS_COMPLETE_PERMISSION = "load_jobs.complete";
 export const LABELS_REPRINT_PERMISSION = "labels.reprint";
 export const SCAN_CREATE_PERMISSION = "scan.create";
+export const SCAN_OVERRIDE_PERMISSION = "scan.override";
 export const SCAN_REVERSE_PERMISSION = "scan.reverse";
 export const SETTINGS_UPDATE_PERMISSION = "settings.update";
 
@@ -76,6 +77,12 @@ export function canCompleteMobileLoadJob(
 
 export function canScanMobilePallets(user: AuthUserResponse | null): boolean {
   return hasPermission(user, SCAN_CREATE_PERMISSION);
+}
+
+export function canSupervisorOverrideScans(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, SCAN_OVERRIDE_PERMISSION);
 }
 
 export function canReverseMobileScans(

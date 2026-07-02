@@ -1,13 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ApiClientError,
   createLoadJob,
+  listLoadJobContainerSuggestions,
+  type LoadJobContainerSuggestionResponse,
   type LoadJobResponse,
 } from "@/lib/api-client";
 import {
+  applyContainerSuggestionToDraft,
   buildLoadJobRequest,
   defaultLoadJobDraft,
   emptyLoadJobLineDraft,
@@ -23,10 +26,33 @@ interface SaveState {
 
 const idleSaveState: SaveState = { message: "", status: "idle" };
 
+interface SuggestionState {
+  activeLineIndex: number | null;
+  containerNo: string;
+  destinationRegion: string;
+  error: string;
+  items: LoadJobContainerSuggestionResponse[];
+  loading: boolean;
+  opened: boolean;
+}
+
+const idleSuggestionState: SuggestionState = {
+  activeLineIndex: null,
+  containerNo: "",
+  destinationRegion: "",
+  error: "",
+  items: [],
+  loading: false,
+  opened: false,
+};
+
 export function LoadJobPlanningForm() {
   const router = useRouter();
   const [draft, setDraft] = useState<LoadJobDraft>(() => defaultLoadJobDraft());
   const [saveState, setSaveState] = useState<SaveState>(idleSaveState);
+  const [suggestions, setSuggestions] =
+    useState<SuggestionState>(idleSuggestionState);
+  const suggestionRequestIdRef = useRef(0);
   const summary = useMemo(() => loadJobPlanSummary(draft), [draft]);
   const saving = saveState.status === "saving";
 
@@ -48,6 +74,9 @@ export function LoadJobPlanningForm() {
           : current.lines,
       };
     });
+    if (field === "destinationRegion") {
+      setSuggestions(idleSuggestionState);
+    }
   }
 
   function updateLine(
@@ -116,6 +145,98 @@ export function LoadJobPlanningForm() {
         status: "error",
       });
     }
+  }
+
+  async function loadContainerSuggestions(lineIndex: number, containerNo = "") {
+    const destinationRegion = draft.destinationRegion.trim();
+    const containerNoQuery = containerNo.trim();
+    if (!destinationRegion || saving) {
+      setSuggestions({
+        activeLineIndex: lineIndex,
+        containerNo: containerNoQuery,
+        destinationRegion,
+        error: destinationRegion
+          ? ""
+          : "Enter Destination region before loading container suggestions.",
+        items: [],
+        loading: false,
+        opened: true,
+      });
+      return;
+    }
+
+    if (
+      suggestions.opened &&
+      !suggestions.loading &&
+      suggestions.destinationRegion === destinationRegion &&
+      suggestions.containerNo === containerNoQuery &&
+      suggestions.activeLineIndex === lineIndex
+    ) {
+      return;
+    }
+
+    const requestId = suggestionRequestIdRef.current + 1;
+    suggestionRequestIdRef.current = requestId;
+    setSuggestions((current) => ({
+      ...current,
+      activeLineIndex: lineIndex,
+      containerNo: containerNoQuery,
+      destinationRegion,
+      error: "",
+      loading: true,
+      opened: true,
+    }));
+
+    try {
+      const response = await listLoadJobContainerSuggestions(
+        destinationRegion,
+        { containerNo: containerNoQuery },
+      );
+      if (suggestionRequestIdRef.current !== requestId) {
+        return;
+      }
+      setSuggestions({
+        activeLineIndex: lineIndex,
+        containerNo: containerNoQuery,
+        destinationRegion,
+        error: "",
+        items: response.items,
+        loading: false,
+        opened: true,
+      });
+    } catch (error) {
+      if (suggestionRequestIdRef.current !== requestId) {
+        return;
+      }
+      setSuggestions({
+        activeLineIndex: lineIndex,
+        containerNo: containerNoQuery,
+        destinationRegion,
+        error:
+          error instanceof ApiClientError
+            ? error.message
+            : "Container suggestions could not be loaded.",
+        items: [],
+        loading: false,
+        opened: true,
+      });
+    }
+  }
+
+  function hideContainerSuggestions() {
+    suggestionRequestIdRef.current += 1;
+    setSuggestions((current) => ({ ...current, opened: false }));
+  }
+
+  function selectSuggestion(suggestion: LoadJobContainerSuggestionResponse) {
+    setDraft((current) =>
+      applyContainerSuggestionToDraft(
+        current,
+        suggestion,
+        suggestions.activeLineIndex ?? undefined,
+      ),
+    );
+    setSuggestions((current) => ({ ...current, opened: false }));
   }
 
   return (
@@ -207,11 +328,22 @@ export function LoadJobPlanningForm() {
                 key={index}
                 line={line}
                 onChange={updateLine}
+                onContainerBlur={hideContainerSuggestions}
+                onContainerFocus={(lineIndex) => {
+                  void loadContainerSuggestions(lineIndex, line.containerNo);
+                }}
+                onContainerInput={(lineIndex, containerNo) => {
+                  void loadContainerSuggestions(lineIndex, containerNo);
+                }}
                 onRemove={removeLine}
                 removable={draft.lines.length > 1}
               />
             ))}
           </div>
+          <ContainerSuggestionPanel
+            onSelect={selectSuggestion}
+            state={suggestions}
+          />
 
           {saveState.message ? (
             <div
@@ -248,6 +380,9 @@ function LoadJobLineEditor({
   index,
   line,
   onChange,
+  onContainerBlur,
+  onContainerFocus,
+  onContainerInput,
   onRemove,
   removable,
 }: {
@@ -260,6 +395,9 @@ function LoadJobLineEditor({
     field: keyof LoadJobLineDraft,
     value: boolean | string,
   ) => void;
+  onContainerBlur: () => void;
+  onContainerFocus: (index: number) => void;
+  onContainerInput: (index: number, containerNo: string) => void;
   onRemove: (index: number) => void;
   removable: boolean;
 }) {
@@ -303,7 +441,12 @@ function LoadJobLineEditor({
         <TextField
           disabled={disabled || line.externalTransfer}
           label="Container No."
-          onChange={(value) => onChange(index, "containerNo", value)}
+          onBlur={onContainerBlur}
+          onChange={(value) => {
+            onChange(index, "containerNo", value);
+            onContainerInput(index, value);
+          }}
+          onFocus={() => onContainerFocus(index)}
           value={line.containerNo}
         />
         <TextField
@@ -348,6 +491,8 @@ function TextField({
   inputMode,
   label,
   onChange,
+  onBlur,
+  onFocus,
   required = false,
   type = "text",
   value,
@@ -356,6 +501,8 @@ function TextField({
   inputMode?: "decimal" | "numeric";
   label: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
+  onFocus?: () => void;
   required?: boolean;
   type?: string;
   value: string;
@@ -370,11 +517,67 @@ function TextField({
         className="min-h-10 border border-zinc-300 bg-white px-3 text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100 disabled:text-zinc-500"
         disabled={disabled}
         inputMode={inputMode}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={onFocus}
         type={type}
         value={value}
       />
     </label>
+  );
+}
+
+function ContainerSuggestionPanel({
+  onSelect,
+  state,
+}: {
+  onSelect: (suggestion: LoadJobContainerSuggestionResponse) => void;
+  state: SuggestionState;
+}) {
+  if (!state.opened) {
+    return null;
+  }
+
+  return (
+    <div className="border border-zinc-200 bg-zinc-50 p-3 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-zinc-900">
+          Container suggestions
+        </span>
+        <span className="text-xs font-medium text-zinc-500">
+          From current inventory
+        </span>
+      </div>
+      {state.loading ? (
+        <p className="mt-2 text-zinc-600">Loading suggestions.</p>
+      ) : state.error ? (
+        <p className="mt-2 text-red-800">{state.error}</p>
+      ) : state.items.length === 0 ? (
+        <p className="mt-2 text-zinc-600">
+          No eligible containers with remaining pallets were found.
+        </p>
+      ) : (
+        <div className="mt-2 grid gap-2">
+          {state.items.map((item) => (
+            <button
+              className="grid min-h-12 gap-1 border border-zinc-300 bg-white px-3 py-2 text-left hover:border-teal-700 hover:bg-teal-50"
+              key={item.containerDestinationId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onSelect(item)}
+              type="button"
+            >
+              <span className="font-semibold text-zinc-950">
+                {item.containerNo} / {item.destinationCode}
+              </span>
+              <span className="text-xs text-zinc-600">
+                Remaining {item.remainingPallets} pallets, loaded{" "}
+                {item.loadedPallets}, status {item.status}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

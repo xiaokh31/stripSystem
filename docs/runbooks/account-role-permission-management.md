@@ -84,6 +84,7 @@ apps/api/prisma/seed.ts
 | Delete planned load job   | yes   | yes    | no                      | no          |
 | Complete load job         | yes   | yes    | yes                     | no          |
 | Scan pallet               | yes   | yes    | yes                     | no          |
+| Supervisor scan override  | yes   | yes    | no                      | no          |
 | Reverse scan              | yes   | yes    | yes                     | no          |
 | View inventory            | yes   | yes    | yes                     | no          |
 | View audit history        | yes   | yes    | limited own job         | no          |
@@ -222,7 +223,8 @@ Password hashes are never returned by API responses.
 - Every mutating endpoint should receive an authenticated user identity.
 - Permission checks must happen in the API, not only in the frontend.
 - Scanner flows must never trust frontend inventory counts.
-- Manual correction and scan reversal must keep audit records.
+- Manual correction, scan reversal, and supervisor scan override must keep audit
+  records.
 - Completed load jobs and loaded containers must remain immutable except for
   explicit audit-only annotations.
 - `SYSTEM` actions must be traceable to a worker name, script, or service

@@ -21,6 +21,13 @@ describe('LoadJobsService', () => {
     roles: ['WAREHOUSE'],
     permissions: ['scan.create', 'scan.reverse'],
   };
+  const supervisorActor = {
+    id: 'auth-supervisor',
+    email: 'supervisor@example.com',
+    name: 'Supervisor User',
+    roles: ['OFFICE'],
+    permissions: ['scan.create', 'scan.override'],
+  };
   let prisma: any;
   let service: LoadJobsService;
 
@@ -303,6 +310,67 @@ describe('LoadJobsService', () => {
       take: 50,
       skip: 0,
     });
+  });
+
+  it('suggests real containers for a destination with remaining pallets', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'EITU9315039-1P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+    await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|EITU9315039|YEG2|1/1|PALLET-003',
+      },
+      warehouseActor,
+    );
+
+    const result = await service.listContainerSuggestions({
+      containerNo: ' csnu ',
+      destinationRegion: ' yeg2 ',
+      limit: 20,
+    });
+
+    expect(result).toEqual({
+      limit: 20,
+      items: [
+        {
+          containerId: 'container-1',
+          containerNo: 'CSNU8877228',
+          containerDestinationId: 'destination-1',
+          destinationCode: 'YEG2',
+          destinationType: 'AMAZON_FBA',
+          finalPallets: 2,
+          loadedPallets: 0,
+          remainingPallets: 2,
+          status: 'LABELS_GENERATED',
+        },
+      ],
+    });
+    expect(prisma.containerDestination.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ destinationCode: 'YEG2' }),
+      }),
+    );
+    expect(prisma.containerDestination.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          container: {
+            is: {
+              containerNo: {
+                contains: 'csnu',
+                mode: 'insensitive',
+              },
+            },
+          },
+        }),
+      }),
+    );
   });
 
   it('closes an open load job and writes a pallet event audit record', async () => {
@@ -942,6 +1010,89 @@ describe('LoadJobsService', () => {
     ).toEqual(['LOADED', 'INVALID_SCAN']);
   });
 
+  it('allows supervisor override to move a pallet loaded by a different load job', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-002',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+    await openLoadJobForScanning('load-job-2');
+
+    await service.scan(
+      'load-job-1',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      },
+      warehouseActor,
+    );
+
+    await expectHttpErrorCode(
+      service.scan(
+        'load-job-2',
+        {
+          qrPayload:
+            'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+          supervisorOverride: true,
+        },
+        warehouseActor,
+      ),
+      'SUPERVISOR_OVERRIDE_REQUIRED',
+    );
+
+    const override = await service.scan(
+      'load-job-2',
+      {
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        supervisorOverride: true,
+        overrideReason: 'Supervisor verified pallet belongs on truck 2',
+      },
+      supervisorActor,
+    );
+
+    expect(override).toMatchObject({
+      result: 'LOADED',
+      loadJob: {
+        id: 'load-job-2',
+        palletCount: 1,
+      },
+      pallet: {
+        id: 'pallet-1',
+        loadJobId: 'load-job-2',
+        status: 'LOADED',
+      },
+      progress: {
+        totalPallets: 2,
+        loadedPallets: 1,
+        remainingPallets: 1,
+      },
+    });
+    expect(prisma.pallet.update).toHaveBeenCalledTimes(2);
+    expect(prisma.palletEvent.create.mock.calls[1][0].data).toMatchObject({
+      eventType: 'LOADED',
+      fromStatus: 'LOADED',
+      toStatus: 'LOADED',
+      exceptionReason: 'SUPERVISOR_OVERRIDE_DIFFERENT_LOAD_JOB',
+      operatorId: 'auth-supervisor',
+      metadata: {
+        action: 'PALLET_SCAN_SUPERVISOR_OVERRIDE',
+        previousLoadJobId: 'load-job-1',
+        overrideReason: 'Supervisor verified pallet belongs on truck 2',
+      },
+    });
+  });
+
   it('allows a pure external transfer load job but rejects system pallets as not in plan', async () => {
     const result = await service.create(
       {
@@ -1116,12 +1267,16 @@ describe('LoadJobsService', () => {
         containerId: 'container-1',
         destinationCode: 'YEG2',
         destinationType: 'AMAZON_FBA',
+        finalPallets: 2,
+        updatedAt: new Date('2026-06-27T09:00:00.000Z'),
       },
       {
         id: 'destination-2',
         containerId: 'container-2',
         destinationCode: 'YEG2',
         destinationType: 'AMAZON_FBA',
+        finalPallets: 1,
+        updatedAt: new Date('2026-06-27T09:01:00.000Z'),
       },
     ];
     const pallets = [
@@ -1365,6 +1520,47 @@ describe('LoadJobsService', () => {
             ) ?? null,
           ),
         ),
+        findMany: jest.fn(({ where, take }) => {
+          const filtered = destinations
+            .filter((destination) => {
+              if (
+                where.destinationCode &&
+                destination.destinationCode !== where.destinationCode
+              ) {
+                return false;
+              }
+              if (where.pallets?.some?.status?.not) {
+                return pallets.some(
+                  (pallet) =>
+                    pallet.containerDestinationId === destination.id &&
+                    pallet.status !== where.pallets.some.status.not,
+                );
+              }
+
+              return true;
+            })
+            .sort(
+              (left, right) =>
+                right.updatedAt.getTime() - left.updatedAt.getTime(),
+            )
+            .slice(0, take)
+            .map((destination) => ({
+              ...destination,
+              container:
+                containers.find(
+                  (container) => container.id === destination.containerId,
+                ) ?? null,
+              pallets: pallets
+                .filter(
+                  (pallet) =>
+                    pallet.containerDestinationId === destination.id &&
+                    pallet.status !== 'CANCELLED',
+                )
+                .map((pallet) => ({ status: pallet.status })),
+            }));
+
+          return Promise.resolve(filtered);
+        }),
       },
       user: {
         findUnique: jest.fn(({ where }) =>

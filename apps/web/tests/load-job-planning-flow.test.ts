@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyContainerSuggestionToDraft,
   buildLoadJobRequest,
   defaultLoadJobDraft,
   loadJobPlanSummary,
@@ -146,5 +147,85 @@ test("load job planning summary separates system and external pallets", () => {
     externalPallets: 12,
     internalPallets: 5,
     lineCount: 2,
+  });
+});
+
+test("load job planning applies a container suggestion to the first empty system line", () => {
+  const draft = defaultLoadJobDraft();
+  draft.loadNo = "LOAD-1";
+  draft.destinationRegion = " yeg2 ";
+
+  const updated = applyContainerSuggestionToDraft(draft, {
+    containerId: "container-1",
+    containerNo: "CSNU8877228",
+    containerDestinationId: "destination-1",
+    destinationCode: "YEG2",
+    destinationType: "AMAZON_FBA",
+    finalPallets: 8,
+    loadedPallets: 2,
+    remainingPallets: 6,
+    status: "LABELS_GENERATED",
+  });
+
+  assert.equal(updated.destinationRegion, "YEG2");
+  assert.deepEqual(updated.lines, [
+    {
+      containerNo: "CSNU8877228",
+      destinationCode: "YEG2",
+      externalTransfer: false,
+      note: "",
+      plannedPallets: "6",
+      sourceText: "CSNU8877228-6P",
+    },
+  ]);
+});
+
+test("load job planning applies a container suggestion to the focused system line", () => {
+  const draft = defaultLoadJobDraft();
+  draft.loadNo = "LOAD-1";
+  draft.destinationRegion = "YEG2";
+  draft.lines = [
+    {
+      containerNo: "",
+      destinationCode: "YEG2",
+      externalTransfer: false,
+      note: "",
+      plannedPallets: "",
+      sourceText: "",
+    },
+    {
+      containerNo: "",
+      destinationCode: "YEG2",
+      externalTransfer: false,
+      note: "",
+      plannedPallets: "",
+      sourceText: "",
+    },
+  ];
+
+  const updated = applyContainerSuggestionToDraft(
+    draft,
+    {
+      containerId: "container-2",
+      containerNo: "MSCU4455667",
+      containerDestinationId: "destination-2",
+      destinationCode: "YEG2",
+      destinationType: "AMAZON_FBA",
+      finalPallets: 10,
+      loadedPallets: 4,
+      remainingPallets: 6,
+      status: "LABELS_GENERATED",
+    },
+    1,
+  );
+
+  assert.equal(updated.lines[0]?.containerNo, "");
+  assert.deepEqual(updated.lines[1], {
+    containerNo: "MSCU4455667",
+    destinationCode: "YEG2",
+    externalTransfer: false,
+    note: "",
+    plannedPallets: "6",
+    sourceText: "MSCU4455667-6P",
   });
 });

@@ -67,6 +67,11 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
   permission(PERMISSIONS.loadJobs.delete, 'load_jobs', 'Delete load jobs.'),
   permission(PERMISSIONS.loadJobs.complete, 'load_jobs', 'Complete load jobs.'),
   permission(PERMISSIONS.scan.create, 'scan', 'Scan pallets into load jobs.'),
+  permission(
+    PERMISSIONS.scan.override,
+    'scan',
+    'Supervisor override for loaded pallet scan conflicts.',
+  ),
   permission(PERMISSIONS.scan.reverse, 'scan', 'Reverse pallet scans.'),
   permission(PERMISSIONS.users.manage, 'users', 'Manage users.'),
   permission(
@@ -122,6 +127,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.loadJobs.delete,
       PERMISSIONS.loadJobs.complete,
       PERMISSIONS.scan.create,
+      PERMISSIONS.scan.override,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.settings.read,
     ],

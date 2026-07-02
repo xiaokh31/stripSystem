@@ -706,6 +706,10 @@ export const enMessages = {
   "Site name": "Site name",
   "Stage defaults": "Stage defaults",
   "Storage policy": "Storage policy",
+  "Supervisor override": "Supervisor override",
+  "Supervisor override accepted and audited.":
+    "Supervisor override accepted and audited.",
+  "Supervisor override required": "Supervisor override required",
   "Target QR print box size in millimeters.":
     "Target QR print box size in millimeters.",
   "Toronto": "Toronto",
@@ -716,6 +720,27 @@ export const enMessages = {
   "Warn and keep existing import": "Warn and keep existing import",
   "You can view operational settings, but your role cannot edit them.":
     "You can view operational settings, but your role cannot edit them.",
+  "Cancel override": "Cancel override",
+  "Container suggestions": "Container suggestions",
+  "Container suggestions could not be loaded.":
+    "Container suggestions could not be loaded.",
+  "Enter Destination region before loading container suggestions.":
+    "Enter Destination region before loading container suggestions.",
+  "From current inventory": "From current inventory",
+  "Loading suggestions.": "Loading suggestions.",
+  "No eligible containers with remaining pallets were found.":
+    "No eligible containers with remaining pallets were found.",
+  "Override accepted": "Override accepted",
+  "Override reason": "Override reason",
+  "Payload:": "Payload:",
+  "Submit override": "Submit override",
+  "Submitting override": "Submitting override",
+  "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.":
+    "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.",
+  "I confirm this supervisor override should move the pallet to the current load job and create an audit event.":
+    "I confirm this supervisor override should move the pallet to the current load job and create an audit event.",
+  "pallets, loaded": "pallets, loaded",
+  "status": "status",
   "container(s)": "container(s)",
   "correction record(s).": "correction record(s).",
   "could not be loaded": "could not be loaded",

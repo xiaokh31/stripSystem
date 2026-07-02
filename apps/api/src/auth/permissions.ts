@@ -41,6 +41,7 @@ export const PERMISSIONS = {
   },
   scan: {
     create: 'scan.create',
+    override: 'scan.override',
     reverse: 'scan.reverse',
   },
   users: {

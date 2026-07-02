@@ -113,3 +113,20 @@ export interface LoadJobOperatorHistoryResponseDto {
   limit: number;
   offset: number;
 }
+
+export interface LoadJobContainerSuggestionDto {
+  containerId: string;
+  containerNo: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  finalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+  status: string;
+}
+
+export interface LoadJobContainerSuggestionResponseDto {
+  items: LoadJobContainerSuggestionDto[];
+  limit: number;
+}

@@ -1,4 +1,7 @@
-import type { CreateLoadJobRequest } from "@/lib/api-client";
+import type {
+  CreateLoadJobRequest,
+  LoadJobContainerSuggestionResponse,
+} from "@/lib/api-client";
 
 export interface LoadJobLineDraft {
   containerNo: string;
@@ -52,6 +55,55 @@ export function defaultLoadJobDraft(): LoadJobDraft {
     loadNo: "",
     scheduledDepartureAt: "",
     truckNo: "",
+  };
+}
+
+export function applyContainerSuggestionToDraft(
+  draft: LoadJobDraft,
+  suggestion: LoadJobContainerSuggestionResponse,
+  targetLineIndex?: number,
+): LoadJobDraft {
+  const destinationCode = suggestion.destinationCode.trim();
+  const suggestedLine: LoadJobLineDraft = {
+    containerNo: suggestion.containerNo,
+    destinationCode,
+    externalTransfer: false,
+    note: "",
+    plannedPallets: String(suggestion.remainingPallets),
+    sourceText: `${suggestion.containerNo}-${suggestion.remainingPallets}P`,
+  };
+  if (
+    targetLineIndex !== undefined &&
+    targetLineIndex >= 0 &&
+    targetLineIndex < draft.lines.length &&
+    !draft.lines[targetLineIndex]?.externalTransfer
+  ) {
+    return {
+      ...draft,
+      destinationRegion: destinationCode,
+      lines: draft.lines.map((line, index) =>
+        index === targetLineIndex ? suggestedLine : line,
+      ),
+    };
+  }
+
+  const emptySystemLineIndex = draft.lines.findIndex(
+    (line) =>
+      !line.externalTransfer &&
+      !line.containerNo.trim() &&
+      !line.sourceText.trim(),
+  );
+  const lines =
+    emptySystemLineIndex >= 0
+      ? draft.lines.map((line, index) =>
+          index === emptySystemLineIndex ? suggestedLine : line,
+        )
+      : [...draft.lines, suggestedLine];
+
+  return {
+    ...draft,
+    destinationRegion: destinationCode,
+    lines,
   };
 }
 

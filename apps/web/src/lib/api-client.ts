@@ -595,6 +595,23 @@ export interface LoadJobListResponse {
   offset: number;
 }
 
+export interface LoadJobContainerSuggestionResponse {
+  containerId: string;
+  containerNo: string;
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
+  finalPallets: number;
+  loadedPallets: number;
+  remainingPallets: number;
+  status: string;
+}
+
+export interface LoadJobContainerSuggestionListResponse {
+  items: LoadJobContainerSuggestionResponse[];
+  limit: number;
+}
+
 export interface LoadJobListFilters {
   containerId?: string;
   destinationRegion?: string;
@@ -675,7 +692,9 @@ export interface ScannedPalletResponse {
 export interface ScanPalletRequest {
   deviceId?: string;
   operatorId?: string;
+  overrideReason?: string;
   qrPayload: string;
+  supervisorOverride?: boolean;
 }
 
 export interface ReverseScanRequest {
@@ -1124,6 +1143,21 @@ export function getLoadJob(
 ): Promise<LoadJobResponse> {
   return createApiClient(options).get<LoadJobResponse>(
     `/load-jobs/${encodeURIComponent(id)}`,
+  );
+}
+
+export function listLoadJobContainerSuggestions(
+  destinationRegion: string,
+  filters: { containerNo?: string } = {},
+  options: ApiClientOptions = {},
+): Promise<LoadJobContainerSuggestionListResponse> {
+  const params = new URLSearchParams();
+  appendQueryParam(params, "destinationRegion", destinationRegion);
+  appendQueryParam(params, "containerNo", filters.containerNo);
+  appendNumberQueryParam(params, "limit", 20);
+
+  return createApiClient(options).get<LoadJobContainerSuggestionListResponse>(
+    `/load-jobs/container-suggestions?${params.toString()}`,
   );
 }
 

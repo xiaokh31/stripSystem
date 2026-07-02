@@ -221,7 +221,7 @@
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>98%</dd>
+            <dd>99%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -229,7 +229,7 @@
           </dl>
           <dl class="metric">
             <dt>P0-P3 Core</dt>
-            <dd>98%</dd>
+            <dd>100%</dd>
           </dl>
           <dl class="metric">
             <dt>P5 Deploy</dt>
@@ -245,7 +245,7 @@
           面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
           账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
           感知 UI、移动端权限和业务审计 userId。当前未完成项主要是真正的异步队列化、
-          自动打印代理实现、Supervisor override、集中监控告警和更深的端到端业务
+          自动打印代理实现、集中监控告警和更深的端到端业务
           流程回归。
         </p>
       </section>
@@ -377,9 +377,9 @@
               <td>P3</td>
               <td>Load Job API、扫码事务、移动扫码页、离线队列、实时库存刷新。</td>
               <td><span class="badge done">Done</span></td>
-              <td>97%</td>
-              <td>load-jobs API/UI、mobile auth、mobile scan、camera scan、offline queue、inventory polling。</td>
-              <td>Supervisor override 未实现；Load Job container suggestion 仍是设计方案。</td>
+              <td>100%</td>
+              <td>load-jobs API/UI、mobile auth、mobile scan、camera scan、offline queue、inventory polling、Supervisor override、Load Job container suggestion。</td>
+              <td>当前 P3 范围无剩余；后续可继续扩展端到端业务流 E2E。</td>
             </tr>
             <tr>
               <td>P4</td>
@@ -533,15 +533,15 @@
             </tr>
             <tr>
               <td>Load Job container suggestion</td>
-              <td><span class="badge deferred">Deferred</span></td>
-              <td>办公室仍需手动查询可装柜号。</td>
-              <td>实现 `/api/load-jobs/container-suggestions` 和 Truck No. 聚焦 combobox。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>已实现 `/api/load-jobs/container-suggestions`，Truck No. 聚焦后从真实库存加载可装柜号建议。</td>
+              <td>建议只来自持久化 container destination 和 pallet 状态；无 mock 数据。</td>
             </tr>
             <tr>
               <td>Supervisor override</td>
-              <td><span class="badge deferred">Deferred</span></td>
-              <td>跨 job 已装托盘、void pallet 重打等高风险操作不能例外处理。</td>
-              <td>先设计审批权限、原因、审计事件，再开放 override。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>已实现 `scan.override` 权限、原因必填、二次确认 UI 和 pallet event 审计。</td>
+              <td>仅允许覆盖“已装到其他 load job”的扫码冲突；取消托盘仍禁止装车。</td>
             </tr>
             <tr>
               <td>深度浏览器业务流 E2E</td>
