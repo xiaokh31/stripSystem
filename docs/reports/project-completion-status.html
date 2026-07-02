@@ -213,15 +213,16 @@
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
           API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心业务闭环
-          和账号权限体系均已完成到当前项目验收范围；P2 剩余的可编辑 Settings
-          后台和 Playwright 浏览器 E2E 已补齐。可以进入 Windows 11 内网生产部署
-          准备。仍需在目标机器完成 full-stack healthcheck、真实账号、真实打印机、
-          PDA/手机和备份恢复验证后再切换为正式使用。
+          和账号权限体系均已完成到原 Web/API 项目验收范围；P2 剩余的可编辑
+          Settings 后台和 Playwright 浏览器 E2E 已补齐。新增的 P6-MOBILE
+          standalone native scan app 需求已经补齐 PRD 和任务拆解，但尚未实现。
+          因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
+          exe/apk/ipa 三端扫码 App 需等 P6-MOBILE 完成后再作为独立原生客户端发布。
         </p>
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>99%</dd>
+            <dd>92%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -232,8 +233,8 @@
             <dd>100%</dd>
           </dl>
           <dl class="metric">
-            <dt>P5 Deploy</dt>
-            <dd>97%</dd>
+            <dt>Native App</dt>
+            <dd>0%</dd>
           </dl>
         </div>
       </header>
@@ -244,9 +245,13 @@
           项目的主业务闭环已经打通：真实 Excel 导入、解析、人工修正、拆柜报告、
           面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
           账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
-          感知 UI、移动端权限和业务审计 userId。当前未完成项主要是真正的异步队列化、
-          自动打印代理实现、集中监控告警和更深的端到端业务
-          流程回归。
+          感知 UI、移动端权限和业务审计 userId。新增需求要求将 mobile scan
+          单独交付为 Windows exe、Android apk、iOS ipa 三端原生 App，以规避
+          LAN 浏览器 HTTPS/camera 限制。目前已新增
+          docs/product/01-cross-platform-mobile-scan-app.md、docs/adr/0003-native-scan-app.md
+          和 P6-MOBILE 任务拆解，但尚未进入实现。当前未完成项主要是 standalone
+          native scan app、真正的异步队列化、自动打印代理实现、集中监控告警和
+          更深的端到端业务流程回归。
         </p>
       </section>
 
@@ -397,6 +402,14 @@
               <td>compose.local、nginx、backup/restore scripts、deployment runbooks、auth initial admin runbook、pilot checklist。</td>
               <td>现场 secrets、打印机、扫码枪、PDA 和网络环境仍需 pilot 验证。</td>
             </tr>
+            <tr>
+              <td>P6-MOBILE</td>
+              <td>Standalone native scan app：只包含登录和 mobile scan，面向 Windows exe、Android apk、iOS ipa 三端。</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>0%</td>
+              <td>新增 docs/product/01-cross-platform-mobile-scan-app.md；新增 docs/adr/0003-native-scan-app.md；推荐 React Native + React Native Windows；新增 P6-MOBILE-01 至 P6-MOBILE-08 和 Exit Gate 任务。</td>
+              <td>尚未创建 Native App workspace；尚未实现登录、扫码、离线队列、打包和发布文档。</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -477,7 +490,7 @@
               <td>移动扫码</td>
               <td><span class="badge done">Done</span></td>
               <td>94%</td>
-              <td>支持扫码枪输入、手机摄像头扫码、重复扫码处理、当前 progress 修正。</td>
+              <td>Web/PWA mobile scan 支持扫码枪输入、手机摄像头扫码、重复扫码处理、当前 progress 修正；但它仍可能受浏览器 HTTPS/camera 限制。standalone native app 尚未实现。</td>
             </tr>
             <tr>
               <td>离线扫码队列</td>
@@ -508,6 +521,12 @@
           </thead>
           <tbody>
             <tr>
+              <td>Standalone native scan app</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>新增需求要求 exe/apk/ipa 三端独立原生 App，只包含登录和 mobile scan；目标是绕开浏览器 HTTPS/camera 限制。目前已有 PRD、ADR 和任务拆解，未实现。</td>
+              <td>按 P6-MOBILE-01 至 P6-MOBILE-08 执行；推荐 React Native + React Native Windows；再实现 scaffold、login、load jobs、native camera scan、offline、override、packaging。</td>
+            </tr>
+            <tr>
               <td>外部身份集成 / SSO</td>
               <td><span class="badge deferred">Deferred</span></td>
               <td>当前系统使用本地账号、JWT 和 RBAC；不接入 Microsoft Entra ID/LDAP。</td>
@@ -534,8 +553,8 @@
             <tr>
               <td>Load Job container suggestion</td>
               <td><span class="badge done">Done</span></td>
-              <td>已实现 `/api/load-jobs/container-suggestions`，Truck No. 聚焦后从真实库存加载可装柜号建议。</td>
-              <td>建议只来自持久化 container destination 和 pallet 状态；无 mock 数据。</td>
+              <td>已实现 `/api/load-jobs/container-suggestions`，Container No. 聚焦/输入后按目的仓和柜号模糊匹配加载真实库存建议。</td>
+              <td>建议只来自持久化 container destination 和 pallet 状态；无 mock 数据；Truck No. 不触发柜号查询。</td>
             </tr>
             <tr>
               <td>Supervisor override</td>
@@ -610,6 +629,7 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
+          <li>新增 standalone native scan app 已规划为 P6-MOBILE；在完成 P6-MOBILE 前，仓库移动扫码仍使用现有 Web/PWA mobile scan，但要注意 LAN 浏览器摄像头可能受 HTTPS 限制。</li>
           <li>先创建 ADMIN、OFFICE、WAREHOUSE 三类真实账号，验证权限不足和审计 userId。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>

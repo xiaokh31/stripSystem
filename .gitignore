@@ -3,6 +3,11 @@ samples/
 docs/
 !docs/
 docs/*
+!docs/adr/
+docs/adr/*
+!docs/adr/0003-native-scan-app.md
+!docs/product/
+!docs/product/01-cross-platform-mobile-scan-app.md
 !docs/runbooks/
 docs/runbooks/*
 !docs/runbooks/local-deployment.md
@@ -75,3 +80,4 @@ prompts/tasks/*
 !prompts/tasks/P3-AUTH-01Mobile Warehouse Auth + Permission UX.md
 !prompts/tasks/P4-AUTH-01Permissioned Reprint Audit Controls.md
 !prompts/tasks/P5-AUTH-01Auth Deployment Runbook + Initial Admin Setup.md
+!prompts/tasks/P6-MOBILE*.md
