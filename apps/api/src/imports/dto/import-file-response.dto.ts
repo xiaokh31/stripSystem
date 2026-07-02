@@ -18,6 +18,9 @@ export interface ImportFileResponseDto {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  deletedAt: string | null;
+  deletedById: string | null;
+  deleteReason: string | null;
   containers: ImportFileContainerSummaryDto[];
   createdAt: string;
   updatedAt: string;

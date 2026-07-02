@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -9,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { DeleteImportDto } from './dto/delete-import.dto';
 import { ListImportsQueryDto } from './dto/list-imports-query.dto';
 import {
   ImportFileListResponseDto,
@@ -60,6 +63,16 @@ export class ImportsController {
   @RequirePermissions(...ROUTE_PERMISSIONS.imports.getById)
   getById(@Param('id') id: string): Promise<ImportFileResponseDto> {
     return this.importsService.getById(id);
+  }
+
+  @Delete(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.delete)
+  delete(
+    @Param('id') id: string,
+    @Body() dto: DeleteImportDto = {},
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<ImportFileResponseDto> {
+    return this.importsService.delete(id, dto, actor);
   }
 
   @Post(':id/parse')

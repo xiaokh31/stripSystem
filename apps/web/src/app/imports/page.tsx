@@ -11,7 +11,9 @@ import {
   type StatusTone,
 } from "@/components/imports/import-detail-flow";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
-import { getServerApiOptions } from "@/lib/server-auth";
+import { ImportDeleteButton } from "@/components/imports/import-delete-button";
+import { canDeleteImports } from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,9 @@ type ImportsPageState =
     };
 
 export default async function ImportsPage() {
+  const currentUser = await getServerCurrentUser();
   const state = await loadImports();
+  const canDelete = canDeleteImports(currentUser);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
@@ -64,7 +68,7 @@ export default async function ImportsPage() {
       </section>
 
       {state.ok ? (
-        <ImportHistory imports={state.imports} />
+        <ImportHistory canDelete={canDelete} imports={state.imports} />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
@@ -85,7 +89,13 @@ async function loadImports(): Promise<ImportsPageState> {
   }
 }
 
-function ImportHistory({ imports }: { imports: ImportFileListResponse }) {
+function ImportHistory({
+  canDelete,
+  imports,
+}: {
+  canDelete: boolean;
+  imports: ImportFileListResponse;
+}) {
   if (imports.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -139,7 +149,11 @@ function ImportHistory({ imports }: { imports: ImportFileListResponse }) {
           </thead>
           <tbody>
             {imports.items.map((item) => (
-              <ImportRow importFile={item} key={item.id} />
+              <ImportRow
+                canDelete={canDelete}
+                importFile={item}
+                key={item.id}
+              />
             ))}
           </tbody>
         </table>
@@ -148,7 +162,13 @@ function ImportHistory({ imports }: { imports: ImportFileListResponse }) {
   );
 }
 
-function ImportRow({ importFile }: { importFile: ImportFileResponse }) {
+function ImportRow({
+  canDelete,
+  importFile,
+}: {
+  canDelete: boolean;
+  importFile: ImportFileResponse;
+}) {
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
       <td className="py-3 pr-4">
@@ -199,13 +219,16 @@ function ImportRow({ importFile }: { importFile: ImportFileResponse }) {
       <td className="py-3 pr-4 text-zinc-700">
         {formatDateTime(importFile.createdAt)}
       </td>
-      <td className="py-3">
-        <Link
-          className="font-semibold text-teal-700 underline hover:text-teal-900"
-          href={`/imports/${importFile.id}`}
-        >
-          Open
-        </Link>
+      <td className="py-3 text-right">
+        <div className="grid w-[88px] justify-items-stretch gap-2">
+          <Link
+            className="inline-flex min-h-9 w-full items-center justify-center border border-teal-700 bg-white px-3 text-xs font-semibold uppercase text-teal-800 hover:bg-teal-50"
+            href={`/imports/${importFile.id}`}
+          >
+            Open
+          </Link>
+          {canDelete ? <ImportDeleteButton importFile={importFile} /> : null}
+        </div>
       </td>
     </tr>
   );

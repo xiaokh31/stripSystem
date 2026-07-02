@@ -10,6 +10,7 @@ export const PERMISSIONS = {
     read: 'imports.read',
     create: 'imports.create',
     parse: 'imports.parse',
+    delete: 'imports.delete',
   },
   containers: {
     read: 'containers.read',

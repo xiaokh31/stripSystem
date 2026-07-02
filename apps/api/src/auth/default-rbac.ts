@@ -22,6 +22,7 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
   permission(PERMISSIONS.imports.read, 'imports', 'Read import files.'),
   permission(PERMISSIONS.imports.create, 'imports', 'Upload import files.'),
   permission(PERMISSIONS.imports.parse, 'imports', 'Parse import files.'),
+  permission(PERMISSIONS.imports.delete, 'imports', 'Delete bad imports.'),
   permission(PERMISSIONS.containers.read, 'containers', 'Read containers.'),
   permission(
     PERMISSIONS.containers.create,
@@ -94,6 +95,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.imports.read,
       PERMISSIONS.imports.create,
       PERMISSIONS.imports.parse,
+      PERMISSIONS.imports.delete,
       PERMISSIONS.containers.read,
       PERMISSIONS.containers.create,
       PERMISSIONS.containers.update,

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { AuthUserResponse } from "../src/lib/api-client";
 import {
   canManageAccounts,
+  canDeleteImports,
   canManageOfficeLoadJobs,
   canCompleteMobileLoadJob,
   canReprintLabels,
@@ -121,6 +122,35 @@ test("office load job management requires load job create permission", () => {
   assert.equal(canManageOfficeLoadJobs(adminUser), true);
   assert.equal(canManageOfficeLoadJobs(readOnlyWarehouse), false);
   assert.equal(canManageOfficeLoadJobs(null), false);
+});
+
+test("import deletion requires explicit import delete permission", () => {
+  const officeImporter: AuthUserResponse = {
+    id: "office-importer-1",
+    email: "importer@example.com",
+    name: "Office Importer",
+    roles: ["OFFICE"],
+    permissions: ["imports.read", "imports.create", "imports.delete"],
+  };
+  const warehouseUser: AuthUserResponse = {
+    id: "warehouse-import-1",
+    email: "warehouse-import@example.com",
+    name: "Warehouse Import",
+    roles: ["WAREHOUSE"],
+    permissions: ["imports.read"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-import-1",
+    email: "admin-import@example.com",
+    name: "Admin Import",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canDeleteImports(officeImporter), true);
+  assert.equal(canDeleteImports(adminUser), true);
+  assert.equal(canDeleteImports(warehouseUser), false);
+  assert.equal(canDeleteImports(null), false);
 });
 
 test("label reprint permission is not granted to warehouse by default", () => {

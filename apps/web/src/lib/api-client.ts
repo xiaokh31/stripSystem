@@ -154,6 +154,9 @@ export interface ImportFileResponse {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  deletedAt: string | null;
+  deletedById: string | null;
+  deleteReason: string | null;
   containers: ImportFileContainerSummaryResponse[];
   createdAt: string;
   updatedAt: string;
@@ -174,6 +177,10 @@ export interface ImportFileListResponse {
 export interface ImportListFilters {
   limit?: number;
   offset?: number;
+}
+
+export interface DeleteImportRequest {
+  reason?: string;
 }
 
 export interface ContainerLineResponse {
@@ -870,6 +877,17 @@ export function listImportFiles(
 ): Promise<ImportFileListResponse> {
   return createApiClient(options).get<ImportFileListResponse>(
     `/imports${toImportListQueryString(filters)}`,
+  );
+}
+
+export function deleteImportFile(
+  id: string,
+  body: DeleteImportRequest = {},
+  options: ApiClientOptions = {},
+): Promise<ImportFileResponse> {
+  return createApiClient(options).request<ImportFileResponse>(
+    `/imports/${encodeURIComponent(id)}`,
+    { body: { ...body }, method: "DELETE" },
   );
 }
 

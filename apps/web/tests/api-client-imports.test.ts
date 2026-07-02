@@ -4,6 +4,7 @@ import {
   createApiClient,
   createManualContainer,
   deleteContainerDestination,
+  deleteImportFile,
   generateContainerLabels,
   generateContainerReport,
   listCorrections,
@@ -38,6 +39,61 @@ test("imports API client sends pagination to the import list endpoint", async ()
     "http://api.local/api/imports?limit=25&offset=50",
   ]);
   assert.deepEqual(result, { items: [], limit: 25, offset: 50 });
+});
+
+test("imports API client deletes an import through the real endpoint", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        containers: [],
+        createdAt: "2026-06-27T00:00:00.000Z",
+        deletedAt: "2026-06-27T01:00:00.000Z",
+        deletedById: "auth-office",
+        deleteReason: "Wrong customer file",
+        errorCount: 0,
+        errorMessage: null,
+        fileSha256: "sha256",
+        fileSizeBytes: "100",
+        format: "UNKNOWN",
+        id: "import-1",
+        importStatus: "UPLOADED",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        originalFilename: "wrong.xlsx",
+        parseStatus: "NOT_PARSED",
+        parserVersion: null,
+        storedPath: "/storage/original.xlsx",
+        updatedAt: "2026-06-27T01:00:00.000Z",
+        warningCount: 0,
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  const result = await deleteImportFile(
+    "import 1",
+    { reason: "Wrong customer file" },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: { reason: "Wrong customer file" },
+      method: "DELETE",
+      url: "http://api.local/api/imports/import%201",
+    },
+  ]);
+  assert.equal(result.deletedById, "auth-office");
 });
 
 test("destination API client deletes through the real destination endpoint", async () => {

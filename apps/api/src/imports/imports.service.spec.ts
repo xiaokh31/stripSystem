@@ -22,6 +22,11 @@ interface ImportRecord {
   errorCount: number;
   errorMessage: string | null;
   rawMetadata: unknown;
+  importedById?: string | null;
+  deletedAt?: Date | string | null;
+  deletedById?: string | null;
+  deleteReason?: string | null;
+  containers?: Array<{ id: string; containerNo: string }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,6 +82,19 @@ describe('ImportsService', () => {
       containerDestination: {
         createMany: jest.fn(),
         deleteMany: jest.fn(),
+      },
+      correctionFeedback: {
+        count: jest.fn(),
+        create: jest.fn(),
+      },
+      generatedFile: {
+        count: jest.fn(),
+      },
+      loadJob: {
+        count: jest.fn(),
+      },
+      pallet: {
+        count: jest.fn(),
       },
     };
     workerParser = { parseFile: jest.fn() };
@@ -183,6 +201,81 @@ describe('ImportsService', () => {
     );
     expect(prisma.importFile.findUnique).not.toHaveBeenCalled();
     expect(prisma.importFile.create).not.toHaveBeenCalled();
+  });
+
+  it('soft deletes an unused bad import and writes correction feedback audit', async () => {
+    const record = importRecord({
+      id: 'import-delete',
+      containers: [],
+    });
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.generatedFile.count.mockResolvedValue(0);
+    prisma.pallet.count.mockResolvedValue(0);
+    prisma.loadJob.count.mockResolvedValue(0);
+    prisma.correctionFeedback.count.mockResolvedValue(0);
+    prisma.importFile.update.mockImplementation(({ data }) =>
+      Promise.resolve({
+        ...record,
+        ...data,
+        containers: [],
+        updatedAt: new Date('2026-06-26T00:02:00.000Z'),
+      }),
+    );
+    prisma.correctionFeedback.create.mockResolvedValue({
+      id: 'correction-delete',
+    });
+
+    const result = await service.delete(
+      record.id,
+      { reason: 'Wrong customer file' },
+      officeActor,
+    );
+
+    expect(result).toMatchObject({
+      id: 'import-delete',
+      deletedById: 'auth-office',
+      deleteReason: 'Wrong customer file',
+    });
+    expect(result.deletedAt).toEqual(expect.any(String));
+    expect(prisma.container.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: record.id },
+      data: {
+        deletedAt: expect.any(Date),
+        deletedById: 'auth-office',
+        deleteReason: 'Wrong customer file',
+      },
+      include: expect.any(Object),
+    });
+    expect(prisma.correctionFeedback.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        correctedById: 'auth-office',
+        fieldName: 'deletedAt',
+        importFileId: record.id,
+        reason: 'Wrong customer file',
+        targetType: 'IMPORT_FILE',
+      }),
+    });
+  });
+
+  it('blocks deleting an import that already has business records', async () => {
+    const record = importRecord({
+      id: 'import-in-use',
+      containers: [{ id: 'container-1', containerNo: 'CSNU8877228' }],
+    });
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.generatedFile.count.mockResolvedValue(1);
+    prisma.pallet.count.mockResolvedValue(0);
+    prisma.loadJob.count.mockResolvedValue(0);
+    prisma.correctionFeedback.count.mockResolvedValue(0);
+
+    await expect(
+      service.delete(record.id, { reason: 'Wrong file' }, officeActor),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.importFile.update).not.toHaveBeenCalled();
+    expect(prisma.container.deleteMany).not.toHaveBeenCalled();
   });
 
   it('calls the worker parser for a stored real fixture and persists parsed rows', async () => {
@@ -368,6 +461,10 @@ describe('ImportsService', () => {
       errorCount: 0,
       errorMessage: null,
       rawMetadata: null,
+      importedById: null,
+      deletedAt: null,
+      deletedById: null,
+      deleteReason: null,
       createdAt: new Date('2026-06-26T00:00:00.000Z'),
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
       ...overrides,

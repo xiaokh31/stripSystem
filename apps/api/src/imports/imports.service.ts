@@ -18,6 +18,7 @@ import {
   ContainerLineResponseDto,
   ContainerResponseDto,
 } from './dto/import-file-response.dto';
+import { DeleteImportDto } from './dto/delete-import.dto';
 import { ListImportsQueryDto } from './dto/list-imports-query.dto';
 import {
   WorkerDestinationSummary,
@@ -29,6 +30,7 @@ import {
 } from './worker-parser.service';
 import {
   ContainerStatus,
+  CorrectionTargetType,
   FileFormat,
   ParseStatus,
 } from '../generated/prisma/enums';
@@ -59,6 +61,9 @@ interface ImportFileRecord {
   errorMessage: string | null;
   rawMetadata?: unknown;
   importedById?: string | null;
+  deletedAt?: Date | string | null;
+  deletedById?: string | null;
+  deleteReason?: string | null;
   containers?: ImportFileContainerSummaryRecord[];
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -201,6 +206,7 @@ export class ImportsService {
 
   async list(query: ListImportsQueryDto): Promise<ImportFileListResponseDto> {
     const records = await this.prisma.importFile.findMany({
+      where: { deletedAt: null },
       include: this.importContainersInclude(),
       orderBy: { createdAt: 'desc' },
       take: query.limit,
@@ -218,6 +224,60 @@ export class ImportsService {
 
   async getById(id: string): Promise<ImportFileResponseDto> {
     const record = await this.findImportOrThrow(id, true);
+
+    return this.toResponse(record);
+  }
+
+  async delete(
+    id: string,
+    dto: DeleteImportDto,
+    actor: AuthenticatedUser,
+  ): Promise<ImportFileResponseDto> {
+    const deletedAt = new Date();
+    const reason = this.stringOrNull(dto.reason);
+
+    const record = (await this.prisma.$transaction(async (tx) => {
+      const existing = await this.findImportForDeleteOrThrow(tx, id);
+      const containerIds = existing.containers.map((container) => container.id);
+      await this.assertImportCanBeDeleted(tx, id, containerIds);
+
+      if (containerIds.length > 0) {
+        await tx.containerLine.deleteMany({
+          where: { containerId: { in: containerIds } },
+        });
+        await tx.containerDestination.deleteMany({
+          where: { containerId: { in: containerIds } },
+        });
+        await tx.container.deleteMany({
+          where: { id: { in: containerIds } },
+        });
+      }
+
+      const updated = await tx.importFile.update({
+        where: { id },
+        data: {
+          deletedAt,
+          deletedById: auditUserId(actor),
+          deleteReason: reason,
+        },
+        include: this.importContainersInclude(),
+      });
+
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.IMPORT_FILE,
+          importFileId: id,
+          fieldName: 'deletedAt',
+          oldValue: this.nullableJsonValue(null),
+          newValue: this.nullableJsonValue(deletedAt.toISOString()),
+          reason,
+          note: 'Import hidden from active import history after operator deletion.',
+          correctedById: auditUserId(actor),
+        },
+      });
+
+      return updated;
+    })) as ImportFileRecord;
 
     return this.toResponse(record);
   }
@@ -313,7 +373,7 @@ export class ImportsService {
     includeContainers = false,
   ): Promise<ImportFileRecord> {
     const record = await this.prisma.importFile.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: includeContainers ? this.importContainersInclude() : undefined,
     });
 
@@ -326,6 +386,119 @@ export class ImportsService {
     }
 
     return record;
+  }
+
+  private async findImportForDeleteOrThrow(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<{
+    id: string;
+    containers: Array<{ id: string; containerNo: string }>;
+  }> {
+    const record = await tx.importFile.findUnique({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        containers: {
+          select: {
+            id: true,
+            containerNo: true,
+          },
+        },
+      },
+    });
+
+    if (!record) {
+      throw new NotFoundException({
+        code: 'IMPORT_NOT_FOUND',
+        message: `Import file ${id} was not found.`,
+        details: { id },
+      });
+    }
+
+    return record;
+  }
+
+  private async assertImportCanBeDeleted(
+    tx: Prisma.TransactionClient,
+    importFileId: string,
+    containerIds: string[],
+  ): Promise<void> {
+    const generatedFileCount = await tx.generatedFile.count({
+      where: {
+        OR: [
+          { importFileId },
+          ...(containerIds.length > 0
+            ? [{ containerId: { in: containerIds } }]
+            : []),
+        ],
+      },
+    });
+    const palletCount =
+      containerIds.length === 0
+        ? 0
+        : await tx.pallet.count({
+            where: {
+              containerDestination: {
+                containerId: { in: containerIds },
+              },
+            },
+          });
+    const loadJobCount =
+      containerIds.length === 0
+        ? 0
+        : await tx.loadJob.count({
+            where: {
+              OR: [
+                { containerId: { in: containerIds } },
+                { lines: { some: { containerId: { in: containerIds } } } },
+              ],
+            },
+          });
+    const correctionCount = await tx.correctionFeedback.count({
+      where: {
+        OR: [
+          { importFileId },
+          ...(containerIds.length > 0
+            ? [
+                { containerId: { in: containerIds } },
+                {
+                  containerLine: {
+                    containerId: { in: containerIds },
+                  },
+                },
+                {
+                  containerDestination: {
+                    containerId: { in: containerIds },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    });
+
+    if (
+      generatedFileCount === 0 &&
+      palletCount === 0 &&
+      loadJobCount === 0 &&
+      correctionCount === 0
+    ) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'IMPORT_DELETE_BLOCKED_IN_USE',
+      message:
+        'This import already has business records and cannot be deleted from import history.',
+      details: {
+        importFileId,
+        generatedFileCount,
+        palletCount,
+        loadJobCount,
+        correctionCount,
+      },
+    });
   }
 
   private async assertStoredFileExists(
@@ -789,6 +962,9 @@ export class ImportsService {
       warningCount: record.warningCount,
       errorCount: record.errorCount,
       errorMessage: record.errorMessage,
+      deletedAt: this.toIsoStringOrNull(record.deletedAt ?? null),
+      deletedById: record.deletedById ?? null,
+      deleteReason: record.deleteReason ?? null,
       containers: this.importContainerSummaries(record.containers ?? []),
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
@@ -1064,12 +1240,12 @@ export class ImportsService {
 
   private nullableJsonValue(value: unknown): NullableJsonInput {
     if (value === undefined || value === null) {
-      return Prisma.JsonNull;
+      return Prisma?.JsonNull ?? (null as unknown as NullableJsonInput);
     }
 
     const serialized = JSON.stringify(value);
     if (serialized === undefined || serialized === 'null') {
-      return Prisma.JsonNull;
+      return Prisma?.JsonNull ?? (null as unknown as NullableJsonInput);
     }
 
     return JSON.parse(serialized) as Prisma.InputJsonValue;
@@ -1082,6 +1258,10 @@ export class ImportsService {
 
   private toIsoString(value: Date | string): string {
     return value instanceof Date ? value.toISOString() : value;
+  }
+
+  private toIsoStringOrNull(value: Date | string | null): string | null {
+    return value ? this.toIsoString(value) : null;
   }
 
   private isUniqueConstraintError(error: unknown): boolean {

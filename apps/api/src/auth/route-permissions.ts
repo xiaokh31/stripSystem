@@ -6,6 +6,7 @@ export const ROUTE_PERMISSIONS = {
     list: [PERMISSIONS.imports.read],
     getById: [PERMISSIONS.imports.read],
     parse: [PERMISSIONS.imports.parse],
+    delete: [PERMISSIONS.imports.delete],
     getParseResult: [PERMISSIONS.imports.read],
   },
   containers: {

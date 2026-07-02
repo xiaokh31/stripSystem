@@ -109,6 +109,7 @@ model User {
   roleAssignments    UserRoleAssignment[]
   assignedUserRoles  UserRoleAssignment[] @relation("UserRoleAssignedBy")
   importedFiles      ImportFile[]         @relation("ImportFileImportedBy")
+  deletedImportFiles ImportFile[]         @relation("ImportFileDeletedBy")
   generatedFiles     GeneratedFile[]      @relation("GeneratedFileGeneratedBy")
   loadJobs           LoadJob[]            @relation("LoadJobCreatedBy")
   palletEvents       PalletEvent[]        @relation("PalletEventOperator")
@@ -202,6 +203,10 @@ model ImportFile {
   rawMetadata        Json?                @map("raw_metadata")
   importedById       String?              @map("imported_by_id")
   importedBy         User?                @relation("ImportFileImportedBy", fields: [importedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deletedAt          DateTime?            @map("deleted_at")
+  deletedById        String?              @map("deleted_by_id")
+  deletedBy          User?                @relation("ImportFileDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deleteReason       String?              @map("delete_reason")
   containers         Container[]
   generatedFiles     GeneratedFile[]
   correctionFeedback CorrectionFeedback[]
@@ -211,6 +216,8 @@ model ImportFile {
   @@index([format])
   @@index([importStatus])
   @@index([parseStatus])
+  @@index([deletedAt])
+  @@index([deletedById])
   @@index([createdAt])
   @@map("import_files")
 }

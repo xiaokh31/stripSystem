@@ -31,6 +31,7 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.imports.read,
         PERMISSIONS.imports.create,
         PERMISSIONS.imports.parse,
+        PERMISSIONS.imports.delete,
         PERMISSIONS.containers.read,
         PERMISSIONS.containers.create,
         PERMISSIONS.containers.update,
@@ -61,6 +62,7 @@ describe('default RBAC seed data', () => {
       new Set([
         PERMISSIONS.loadJobs.read,
         PERMISSIONS.loadJobs.update,
+        PERMISSIONS.loadJobs.complete,
         PERMISSIONS.scan.create,
         PERMISSIONS.scan.reverse,
         PERMISSIONS.inventory.read,
