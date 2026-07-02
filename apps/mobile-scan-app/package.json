@@ -4,11 +4,12 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --no-packager",
     "build": "tsc --noEmit --pretty false",
     "ios": "react-native run-ios",
     "lint": "tsc --noEmit --pretty false",
     "package:check": "node scripts/packaging-readiness.mjs",
+    "start": "react-native start",
     "test": "tsc -p tsconfig.test.json && node --test .test-output/__tests__/*.test.js",
     "typecheck": "tsc --noEmit --pretty false",
     "windows": "react-native run-windows"
@@ -20,6 +21,9 @@
     "react-native-windows": "0.84.0"
   },
   "devDependencies": {
+    "@react-native-community/cli": "20.0.0",
+    "@react-native/codegen": "0.84.0",
+    "@react-native/gradle-plugin": "0.84.0",
     "@types/node": "^20",
     "typescript": "^5"
   }

@@ -86,3 +86,5 @@ prompts/tasks/*
 !prompts/tasks/P4-AUTH-01Permissioned Reprint Audit Controls.md
 !prompts/tasks/P5-AUTH-01Auth Deployment Runbook + Initial Admin Setup.md
 !prompts/tasks/P6-MOBILE*.md
+
+apps/mobile-scan-app/BestarNativeScanTemp/

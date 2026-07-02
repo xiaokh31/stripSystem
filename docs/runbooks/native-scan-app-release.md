@@ -201,6 +201,24 @@ If `apps/mobile-scan-app/android/` is absent, generate the React Native Android
 project from the pinned React Native template on the build machine. Review the
 generated native files before committing.
 
+Current repository status can be checked with:
+
+```bash
+pnpm --filter mobile-scan-app package:check
+```
+
+If it reports `placeholder directory present; platform project not generated
+yet`, `pnpm --filter mobile-scan-app android` cannot install to a device yet.
+Generate the Android platform project first on a machine with Android Studio,
+JDK, and Android SDK. The generated project must create files such as:
+
+```text
+apps/mobile-scan-app/android/gradlew
+apps/mobile-scan-app/android/settings.gradle
+apps/mobile-scan-app/android/app/build.gradle
+apps/mobile-scan-app/android/app/src/main/AndroidManifest.xml
+```
+
 ### Camera Permission
 
 The Android manifest must include camera permission before camera release
@@ -215,6 +233,12 @@ Scanner-gun and manual input must still work when camera permission is denied.
 ### Debug APK
 
 From the repository root:
+
+```bash
+pnpm --filter mobile-scan-app start
+```
+
+In a second terminal, install and run on a connected Android device or emulator:
 
 ```bash
 pnpm --filter mobile-scan-app android
