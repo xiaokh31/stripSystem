@@ -23,7 +23,7 @@
   "devDependencies": {
     "@react-native-community/cli": "20.0.0",
     "@react-native/codegen": "0.84.0",
-    "@react-native/gradle-plugin": "0.84.0",
+    "@react-native/gradle-plugin": "0.84.1",
     "@types/node": "^20",
     "typescript": "^5"
   }

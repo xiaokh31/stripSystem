@@ -195,11 +195,22 @@ Use a build machine with:
 - USB debugging enabled for device testing.
 - A release keystore stored outside git.
 
-### Generate Or Restore Platform Project
+Verified local debug build matrix:
 
-If `apps/mobile-scan-app/android/` is absent, generate the React Native Android
-project from the pinned React Native template on the build machine. Review the
-generated native files before committing.
+```text
+Android Studio JBR: JDK 21.0.10
+React Native: 0.84.0
+Android Gradle Plugin: 8.12.0
+Gradle wrapper: 8.14.3
+Kotlin Gradle plugin: 2.1.20
+compileSdk: 36
+targetSdk: 36
+minSdk: 24
+buildToolsVersion: 36.0.0
+NDK: 27.1.12297006
+```
+
+### Platform Project
 
 Current repository status can be checked with:
 
@@ -207,10 +218,8 @@ Current repository status can be checked with:
 pnpm --filter mobile-scan-app package:check
 ```
 
-If it reports `placeholder directory present; platform project not generated
-yet`, `pnpm --filter mobile-scan-app android` cannot install to a device yet.
-Generate the Android platform project first on a machine with Android Studio,
-JDK, and Android SDK. The generated project must create files such as:
+The repository includes the generated Android platform project. It must contain
+files such as:
 
 ```text
 apps/mobile-scan-app/android/gradlew
@@ -218,6 +227,80 @@ apps/mobile-scan-app/android/settings.gradle
 apps/mobile-scan-app/android/app/build.gradle
 apps/mobile-scan-app/android/app/src/main/AndroidManifest.xml
 ```
+
+For Android Studio Quail 1 and newer, the Android project uses a standard
+Gradle layout instead of relying on legacy root `buildscript` classpath wiring:
+
+- `settings.gradle` declares plugin repositories, applies the React Native
+  settings plugin, includes `:app`, and pins `project(':app').projectDir`.
+- `gradle/libs.versions.toml` is the central declaration for AGP, Kotlin,
+  SDK/NDK versions, and Android dependencies used by the app module.
+- Root `build.gradle` declares shared Android/Kotlin plugins with `apply false`
+  and applies the React Native root project plugin.
+- `app/build.gradle` uses the plugins DSL and references SDK/dependency values
+  through the version catalog.
+
+Open this exact directory in Android Studio:
+
+```text
+apps/mobile-scan-app/android
+```
+
+Do not open the repository root as an Android project. The repository root is a
+pnpm workspace, while the Gradle Android root project is
+`apps/mobile-scan-app/android`.
+
+`apps/mobile-scan-app/android/local.properties` is machine-specific and ignored
+by git. On each build machine, Android Studio or Gradle should create it with
+the local SDK path, for example:
+
+```properties
+sdk.dir=C\:\\Users\\<user>\\AppData\\Local\\Android\\Sdk
+```
+
+or on macOS:
+
+```properties
+sdk.dir=/Users/<user>/Library/Android/sdk
+```
+
+If Android Studio reports `Missing ExternalProject for :` after a Gradle build
+shows `BUILD SUCCESSFUL`, it is an IDE Gradle-sync/import problem, not an APK
+compiler error. First confirm Android Studio's Gradle JDK is the bundled JBR 21
+or another installed JDK 21. In Android Studio this is typically named
+`jbr-21`; do not leave the Gradle JDK pointed at an unresolved `#JAVA_HOME`
+entry. Then confirm the IDE is linked to the Android Gradle root above and that
+the Gradle project model contains:
+
+```text
+Root project 'BestarNativeScan'
++--- Project ':app'
+\--- Project ':react-native-async-storage_async-storage'
+```
+
+The command-line verification is:
+
+```bash
+cd apps/mobile-scan-app/android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+ANDROID_HOME="$HOME/Library/Android/sdk" \
+./gradlew projects
+```
+
+If the command above shows `:app` but Quail still reports the same
+`Missing ExternalProject for :`, close Android Studio and force a clean IDE
+import by moving the local, ignored IDE caches aside:
+
+```bash
+mkdir -p /private/tmp/bestar-androidstudio-cache
+mv apps/mobile-scan-app/android/.idea /private/tmp/bestar-androidstudio-cache/android.idea 2>/dev/null || true
+mv apps/mobile-scan-app/android/.gradle /private/tmp/bestar-androidstudio-cache/android.gradle 2>/dev/null || true
+mv "$HOME/Library/Caches/Google/AndroidStudio2026.1.1/projects/android.b0fcbd39" \
+  /private/tmp/bestar-androidstudio-cache/androidstudio-project-cache 2>/dev/null || true
+open -a "Android Studio" apps/mobile-scan-app/android
+```
+
+Those directories are local IDE/build caches and must stay out of git.
 
 ### Camera Permission
 
@@ -232,7 +315,7 @@ Scanner-gun and manual input must still work when camera permission is denied.
 
 ### Debug APK
 
-From the repository root:
+From the repository root, start Metro for device install/run workflows:
 
 ```bash
 pnpm --filter mobile-scan-app start
@@ -248,10 +331,22 @@ Gradle debug package:
 
 ```bash
 cd apps/mobile-scan-app/android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+ANDROID_HOME="$HOME/Library/Android/sdk" \
 ./gradlew assembleDebug
 ```
 
-Typical debug artifact:
+On Windows PowerShell, use the Android Studio JBR and SDK paths from that
+machine:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+cd apps\mobile-scan-app\android
+.\gradlew.bat assembleDebug
+```
+
+Debug artifact:
 
 ```text
 apps/mobile-scan-app/android/app/build/outputs/apk/debug/app-debug.apk
@@ -380,9 +475,10 @@ If a release fails:
 
 ## Known Limits At P6-MOBILE-08
 
-- The shared TypeScript native scan app is implemented, but generated
-  `android/`, `ios/`, and `windows/` platform projects may still need to be
-  created on the matching build machines.
+- The Android platform project is generated and `assembleDebug` has produced a
+  debug APK locally.
+- The `ios/` and `windows/` platform projects may still need to be generated on
+  their matching build machines.
 - Native camera module implementation must be wired in platform code before
   camera acceptance can pass.
 - Secure token storage still needs platform-specific implementation before

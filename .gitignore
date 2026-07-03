@@ -88,3 +88,9 @@ prompts/tasks/*
 !prompts/tasks/P6-MOBILE*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
+apps/mobile-scan-app/.gradle-user-home/
+apps/mobile-scan-app/android/.gradle/
+apps/mobile-scan-app/android/app/.cxx/
+apps/mobile-scan-app/android/build/
+apps/mobile-scan-app/android/app/build/
+apps/mobile-scan-app/android/local.properties

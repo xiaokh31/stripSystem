@@ -218,11 +218,11 @@
           standalone native scan app 已进入实现阶段：架构决策、workspace scaffold、
           LAN API 设置、登录/session、open load job list、scan workflow、offline
           queue、supervisor override、dock update、complete loading、三端 release
-          runbook 和 packaging readiness check 已完成。
+          runbook、packaging readiness check 和 Android debug APK 构建已完成。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
-          P6 Exit Gate 当前结论为有条件阻塞：MSIX/APK/IPA 三端扫码 App 仍需在
-          对应平台构建机生成原生工程、接入 native camera/secure token storage，
-          并完成真实设备安装扫码验收。
+          P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
+          debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
+          module、secure token storage 和真实设备安装扫码验收仍未完成。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -239,7 +239,7 @@
           </dl>
           <dl class="metric">
             <dt>Native App</dt>
-            <dd>90%</dd>
+            <dd>92%</dd>
           </dl>
         </div>
       </header>
@@ -256,7 +256,7 @@
           docs/product/01-cross-platform-mobile-scan-app.md、docs/adr/0003-native-scan-app.md
           和 P6-MOBILE 任务拆解，并已完成 P6-MOBILE-01 至 P6-MOBILE-08。
           当前未完成项主要是 native camera platform module wiring、
-          Android/iOS/Windows generated platform project hardening、真正的
+          iOS/Windows generated platform project hardening、Android 真机扫码验收、真正的
           异步队列化、自动打印代理实现、集中监控告警和更深的端到端业务流程回归。
         </p>
       </section>
@@ -267,9 +267,10 @@
           P6-MOBILE 工程和文档任务已完成到当前仓库可验证范围：standalone native app
           不包含 office/admin/import/report/label 页面，使用真实 API client，离线队列不伪造库存，
           duplicate/override/complete loading 规则由后端 scan transaction 和权限审计保护。
-          Gate 不能标记为完全通过，原因是三端 native platform projects 仍是 placeholder，
+          Gate 不能标记为完全通过，原因是 Android native platform project 已生成并通过
+          `assembleDebug` 产出 APK，但 Windows/iOS native platform projects 仍是 placeholder，
           `BestarQrScanner` native module 尚未接入，secure token storage 尚未替换 AsyncStorage fallback，
-          且未在 Windows 或 Android 真实设备完成安装和真实 QR smoke test。
+          且未在真实设备完成安装和真实 QR smoke test。
         </p>
         <table>
           <thead>
@@ -298,7 +299,7 @@
             <tr>
               <td>Platform device readiness</td>
               <td><span class="badge partial">Blocked</span></td>
-              <td>`package:check` 显示 Android/iOS/Windows 仅有 placeholder directory，尚未生成真实 native projects；未完成 camera module、secure token storage 和真机安装扫码。</td>
+              <td>Android platform project 已生成，`./gradlew assembleDebug` 已产出 `app-debug.apk`；Windows/iOS 仍是 placeholder；未完成 camera module、secure token storage 和真机安装扫码。</td>
             </tr>
             <tr>
               <td>Automated checks</td>
@@ -460,9 +461,9 @@
               <td>P6-MOBILE</td>
               <td>Standalone native scan app：只包含登录和 mobile scan，面向 Windows MSIX、Android APK、iOS IPA 三端。</td>
               <td><span class="badge partial">Gate Blocked</span></td>
-              <td>90%</td>
-              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
-              <td>Exit Gate 剩余阻塞项：尚未在平台构建机生成并验收 Android/iOS/Windows native projects；platform native camera module wiring、secure token storage、真实设备安装扫码仍未完成。</td>
+              <td>92%</td>
+              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
+              <td>Exit Gate 剩余阻塞项：Windows/iOS native projects 尚未生成验收；platform native camera module wiring、secure token storage、真实设备安装扫码仍未完成。</td>
             </tr>
           </tbody>
         </table>
@@ -577,8 +578,8 @@
             <tr>
               <td>Standalone native scan app</td>
               <td><span class="badge partial">Gate Blocked</span></td>
-              <td>新增需求要求 MSIX/APK/IPA 三端独立原生 App，只包含登录和 mobile scan；目标是绕开浏览器 HTTPS/camera 限制。目前已完成 PRD、ADR、任务拆解、scaffold、LAN settings、login/session、open load job list、scan workflow、offline queue、supervisor override、complete loading、release runbook 和 packaging readiness check。</td>
-              <td>补齐 Exit Gate 剩余阻塞项：在真实平台构建机生成 native project，接入 camera module 和 secure token storage，完成 MSIX/APK/IPA 打包和设备 smoke test。</td>
+              <td>新增需求要求 MSIX/APK/IPA 三端独立原生 App，只包含登录和 mobile scan；目标是绕开浏览器 HTTPS/camera 限制。目前已完成 PRD、ADR、任务拆解、scaffold、LAN settings、login/session、open load job list、scan workflow、offline queue、supervisor override、complete loading、release runbook、packaging readiness check 和 Android debug APK。</td>
+              <td>补齐 Exit Gate 剩余阻塞项：生成并验收 Windows/iOS native project，接入 camera module 和 secure token storage，完成 MSIX/IPA 打包以及 Android/Windows/iOS 设备 smoke test。</td>
             </tr>
             <tr>
               <td>外部身份集成 / SSO</td>
@@ -683,7 +684,7 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
-          <li>P6 Exit Gate 当前仍为 Gate Blocked：在 platform camera wiring、secure token storage 与真实设备打包验收完成前，仓库移动扫码仍可使用现有 Web/PWA mobile scan，但要注意 LAN 浏览器摄像头可能受 HTTPS 限制。</li>
+          <li>P6 Exit Gate 当前仍为 Gate Blocked：Android debug APK 已可构建，但在 platform camera wiring、secure token storage 与真实设备打包验收完成前，仓库移动扫码仍可使用现有 Web/PWA mobile scan，但要注意 LAN 浏览器摄像头可能受 HTTPS 限制。</li>
           <li>先创建 ADMIN、OFFICE、WAREHOUSE 三类真实账号，验证权限不足和审计 userId。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>

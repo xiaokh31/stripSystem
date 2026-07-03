@@ -146,8 +146,8 @@ importers:
         specifier: 0.84.0
         version: 0.84.0(@babel/core@7.29.7)
       '@react-native/gradle-plugin':
-        specifier: 0.84.0
-        version: 0.84.0
+        specifier: 0.84.1
+        version: 0.84.1
       '@types/node':
         specifier: ^20
         version: 20.19.43
