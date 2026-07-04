@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 import { RolesModule } from './roles/roles.module';
 import { SettingsModule } from './settings/settings.module';
+import { UnloadingWageModule } from './unloading-wage/unloading-wage.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     RolesModule,
     SettingsModule,
+    UnloadingWageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
