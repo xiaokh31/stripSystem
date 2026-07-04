@@ -7,7 +7,6 @@ import {
   completePayContainer,
   createPayContainer,
   generateUnloadingWageSettlement,
-  updateContainerPayClassification,
   type ContainerPayClassification,
   type PayAllocationMethod,
   type PayContainerResponse,
@@ -28,104 +27,6 @@ interface ActionState {
 }
 
 const idleState: ActionState = { message: "", status: "idle" };
-
-export function ContainerPayClassificationForm({
-  containerId,
-  currentClassification,
-  currentTrailerNumber,
-}: {
-  containerId: string;
-  currentClassification: string | null;
-  currentTrailerNumber: string | null;
-}) {
-  const router = useRouter();
-  const [classification, setClassification] =
-    useState<ContainerPayClassification>(
-      isClassification(currentClassification)
-        ? currentClassification
-        : "OCEAN_CONTAINER",
-    );
-  const [trailerNumber, setTrailerNumber] = useState(
-    currentTrailerNumber ?? "",
-  );
-  const [reason, setReason] = useState("Container pay classification review");
-  const [state, setState] = useState<ActionState>(idleState);
-
-  async function save() {
-    if (classification === "US_TO_CANADA_TRANSFER" && !trailerNumber.trim()) {
-      setState({
-        message: "US-to-Canada transfer requires a trailer number.",
-        status: "error",
-      });
-      return;
-    }
-
-    setState({ message: "Saving pay classification.", status: "running" });
-    try {
-      await updateContainerPayClassification(containerId, {
-        classification,
-        reason,
-        trailerNumber:
-          classification === "US_TO_CANADA_TRANSFER" ? trailerNumber : null,
-      });
-      setState({ message: "Pay classification saved.", status: "success" });
-      router.refresh();
-    } catch (error) {
-      setState({ message: apiErrorMessage(error), status: "error" });
-    }
-  }
-
-  return (
-    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-zinc-950">
-        Container pay classification
-      </h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Classification</span>
-          <select
-            className="min-h-10 border border-zinc-300 bg-white px-3 text-sm"
-            onChange={(event) =>
-              setClassification(event.target.value as ContainerPayClassification)
-            }
-            value={classification}
-          >
-            <option value="OCEAN_CONTAINER">Ocean container</option>
-            <option value="US_TO_CANADA_TRANSFER">US-to-Canada transfer</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Trailer number</span>
-          <input
-            className="min-h-10 border border-zinc-300 px-3 text-sm"
-            onChange={(event) => setTrailerNumber(event.target.value)}
-            placeholder="Required for transfer"
-            value={trailerNumber}
-          />
-        </label>
-        <label className="grid gap-1 text-sm md:col-span-2">
-          <span className="font-semibold text-zinc-700">Audit reason</span>
-          <input
-            className="min-h-10 border border-zinc-300 px-3 text-sm"
-            onChange={(event) => setReason(event.target.value)}
-            value={reason}
-          />
-        </label>
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-          disabled={state.status === "running"}
-          onClick={() => void save()}
-          type="button"
-        >
-          Save classification
-        </button>
-        <ActionMessage state={state} />
-      </div>
-    </section>
-  );
-}
 
 export function CreatePayContainerPanel({
   defaultClassification = "OCEAN_CONTAINER",
@@ -585,8 +486,4 @@ function apiErrorMessage(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : "The request failed.";
-}
-
-function isClassification(value: string | null): value is ContainerPayClassification {
-  return value === "OCEAN_CONTAINER" || value === "US_TO_CANADA_TRANSFER";
 }

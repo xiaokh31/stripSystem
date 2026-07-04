@@ -365,7 +365,7 @@
               <td>Stage 5: Office Web UI / Review Workflow</td>
               <td><span class="badge done">Done</span></td>
               <td>P2</td>
-              <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes、容器列表/详情工资分类展示、容器详情 pay classification / pay container / complete unloading 控件、Reports 入口；API 补齐 `GET /api/pay-containers` 和 wage generated file download；已通过 `pnpm --filter api typecheck/test/lint`、`pnpm --filter web typecheck/test/lint/build`。</td>
+              <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes 和 Reports 入口；API 补齐 `GET /api/pay-containers` 和 wage generated file download；已收敛 UI 影响，移除全局导航、容器列表和容器详情里的嵌入式工资控件，P2 review workflow 保持在独立页面；已通过 `pnpm --filter api typecheck/test/lint`、`pnpm --filter web typecheck/test/lint/build`。</td>
               <td>工资 P2 Web review workflow 完成；建议下一步用 Docker full-stack 做真实浏览器手工验收，并补 Playwright wage smoke。</td>
             </tr>
           </tbody>

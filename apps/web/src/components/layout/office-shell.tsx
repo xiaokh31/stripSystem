@@ -5,8 +5,6 @@ import type { AuthUserResponse } from "@/lib/api-client";
 import {
   canManageAccounts,
   canManageOfficeLoadJobs,
-  canReviewUnloadingWage,
-  canReviewWorkHours,
   hasPermission,
 } from "@/lib/permissions";
 import { OfficeNavigation, type OfficeNavItem } from "./office-navigation";
@@ -31,16 +29,6 @@ const navItems: PermissionAwareNavItem[] = [
     href: "/load-jobs",
     label: "Load Jobs",
     requiredPermissions: ["load_jobs.create"],
-  },
-  {
-    href: "/work-hours",
-    label: "Work Hours",
-    requiredPermissions: ["attendance.read"],
-  },
-  {
-    href: "/unloading-wage",
-    label: "Unloading Wage",
-    requiredPermissions: ["unloading_wage.read"],
   },
   {
     href: "/reports",
@@ -122,14 +110,6 @@ function visibleNavItems(user: AuthUserResponse): OfficeNavItem[] {
 
       if (item.href === "/load-jobs") {
         return canManageOfficeLoadJobs(user);
-      }
-
-      if (item.href === "/work-hours") {
-        return canReviewWorkHours(user);
-      }
-
-      if (item.href === "/unloading-wage") {
-        return canReviewUnloadingWage(user);
       }
 
       return (

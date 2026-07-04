@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
 import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
 import { ContainerStatusControl } from "@/components/containers/container-status-control";
-import { ContainerWageControls } from "@/components/wage/container-wage-controls";
 import {
   formatIssueSummary,
   formatNullable,
@@ -111,14 +110,6 @@ export default async function ContainerDetailPage({
               label="Parser"
               value={formatNullable(state.container.parserVersion)}
             />
-            <DetailRow
-              label="Pay class"
-              value={formatNullable(state.container.payClassification)}
-            />
-            <DetailRow
-              label="Pay trailer"
-              value={formatNullable(state.container.payTrailerNumber)}
-            />
           </dl>
         </div>
 
@@ -199,14 +190,6 @@ export default async function ContainerDetailPage({
           initialFiles={state.files}
         />
       )}
-
-      <ContainerWageControls
-        containerId={state.container.id}
-        containerNo={state.container.containerNo}
-        payClassification={state.container.payClassification}
-        payContainers={state.container.payContainers}
-        payTrailerNumber={state.container.payTrailerNumber}
-      />
 
       <ContainerDestinationCorrections
         containerId={state.container.id}
