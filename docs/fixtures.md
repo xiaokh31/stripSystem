@@ -4,6 +4,10 @@ Phase 0 uses real unloading plan Excel files from `samples/unloading-plans`.
 These files are the fixture source of truth for parser discovery and regression
 tests. They must not be replaced by hand-written mock spreadsheets.
 
+WAGE-P0 also uses real legacy Excel files from `samples/wage` for attendance
+record parsing and wage record generation. These files are `.xls` BIFF
+workbooks and must stay byte-preserved.
+
 ## Fixture Policy
 
 - Keep original fixture filenames and file bytes unchanged.
@@ -14,7 +18,7 @@ tests. They must not be replaced by hand-written mock spreadsheets.
 - Do not store generated parsed JSON, reports, labels, or task reports in this
   directory.
 
-## Manifest
+## Unloading Manifest
 
 Generated on 2026-06-25 from `samples/unloading-plans`.
 
@@ -54,3 +58,18 @@ Generated on 2026-06-25 from `samples/unloading-plans`.
 - Registered fixture count: 28.
 - Duplicate SHA-256 count: 0.
 - Parser implementation starts after this manifest is covered by tests.
+
+## Wage Manifest
+
+Generated on 2026-07-04 from `samples/wage`.
+
+| Path | Bytes | SHA-256 | Source type |
+| --- | ---: | --- | --- |
+| samples/wage/workAttendanceRecordForm_June.xls | 45056 | 4c3a5c0750e04f99cd614da033d54d948b5fd1b72e0ffec4f19a3d35c9f682b3 | real attendance record |
+| samples/wage/20260601-0630_wageRecords.xls | 76288 | 6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a | real wage record template |
+
+## Wage Acceptance Notes
+
+- Registered wage fixture count: 2.
+- Duplicate wage SHA-256 count: 0.
+- Wage parser and generator implementation starts after this manifest is covered by tests.

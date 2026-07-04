@@ -33,17 +33,28 @@ def compute_sha256(path: Path) -> str:
 
 
 class ImportRegistry:
-    def __init__(self, original_files_dir: Path) -> None:
+    def __init__(
+        self,
+        original_files_dir: Path,
+        *,
+        allowed_suffixes: tuple[str, ...] = (".xlsx",),
+        file_kind: str = "unloading files",
+    ) -> None:
         self.original_files_dir = original_files_dir
         self.files_dir = original_files_dir / ORIGINALS_DIRNAME
         self.manifest_path = original_files_dir / MANIFEST_FILENAME
+        self.allowed_suffixes = tuple(suffix.lower() for suffix in allowed_suffixes)
+        self.file_kind = file_kind
 
     def import_file(self, source_path: Path) -> ImportResult:
         source_path = source_path.resolve()
         if not source_path.is_file():
             raise FileNotFoundError(f"Import source does not exist: {source_path}")
-        if source_path.suffix.lower() != ".xlsx":
-            raise ValueError(f"Only .xlsx unloading files can be imported: {source_path}")
+        if source_path.suffix.lower() not in self.allowed_suffixes:
+            allowed = ", ".join(self.allowed_suffixes)
+            raise ValueError(
+                f"Only {allowed} {self.file_kind} can be imported: {source_path}"
+            )
 
         sha256 = compute_sha256(source_path)
         size_bytes = source_path.stat().st_size

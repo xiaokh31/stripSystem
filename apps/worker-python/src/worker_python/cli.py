@@ -23,6 +23,7 @@ from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 from worker_python.time_utils import operational_now
+from worker_python.wage import run_wage_p0
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -75,6 +76,47 @@ def batch(
     typer.echo(f"Labels: {result.labelDir}")
     typer.echo(f"Task report: {result.taskReport.htmlPath}")
     typer.echo(f"Corrections JSON: {result.taskReport.correctionsPath}")
+
+
+@app.command("wage-p0")
+def wage_p0(
+    attendance_file: Path = typer.Option(
+        ...,
+        "--attendance-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage attendance workbook to parse.",
+    ),
+    wage_template: Path = typer.Option(
+        ...,
+        "--wage-template",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage record template workbook.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="WAGE-P0 output storage directory.",
+    ),
+) -> None:
+    result = run_wage_p0(
+        attendance_file=attendance_file,
+        template_path=wage_template,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command("parse-file")
