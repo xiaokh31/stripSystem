@@ -9,7 +9,7 @@ from worker_python.imports import compute_sha256
 from worker_python.wage import (
     WageFormatType,
     calculate_paired_work_hours,
-    calculate_work_hours_after_fixed_lunch,
+    calculate_work_hours_after_lunch,
     detect_attendance_workbook,
     generate_wage_record,
     parse_attendance_workbook,
@@ -53,7 +53,7 @@ def test_wage_attendance_parser_outputs_employee_days_hours_and_raw_rows() -> No
     )
     assert deng_june_1.punchTimes == ("08:36", "17:52")
     assert deng_june_1.pairedGrossHours == 9.27
-    assert deng_june_1.fixedLunchHours == 0.5
+    assert deng_june_1.lunchHours == 0.5
     assert deng_june_1.calculatedHours == 8.77
     assert deng_june_1.rawCellValues == ("08:36\n17:52",)
 
@@ -71,7 +71,7 @@ def test_wage_attendance_parser_outputs_employee_days_hours_and_raw_rows() -> No
         if day.employeeName == "anita" and day.workDate == date(2026, 6, 1)
     )
     assert anita_june_1.punchTimes == ()
-    assert anita_june_1.fixedLunchHours == 0.0
+    assert anita_june_1.lunchHours == 0.0
     assert anita_june_1.calculatedHours == 0.0
     assert anita_june_1.warnings[0].code == "MISSING_PUNCH_TIMES"
 
@@ -85,8 +85,7 @@ def test_wage_attendance_parser_outputs_employee_days_hours_and_raw_rows() -> No
 def test_wage_attendance_calculates_four_punch_day_by_pairing() -> None:
     assert calculate_paired_work_hours(("08:00", "12:00", "13:00", "17:30")) == 8.5
     assert (
-        calculate_work_hours_after_fixed_lunch(("08:00", "12:00", "13:00", "17:30"))
-        == 8.0
+        calculate_work_hours_after_lunch(("08:00", "12:00", "13:00", "17:30")) == 8.0
     )
 
 

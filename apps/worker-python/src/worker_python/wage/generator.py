@@ -10,7 +10,7 @@ from xlutils.copy import copy as copy_workbook  # type: ignore[import-untyped]
 
 from worker_python.time_utils import operational_now
 from worker_python.wage.attendance import (
-    FIXED_LUNCH_HOURS,
+    LUNCH_HOURS,
     AttendanceDay,
     AttendanceParseResult,
     WageIssue,
@@ -169,7 +169,7 @@ def _write_employee_sheet(
             continue
 
         writable_sheet.write(row_index, 2, attendance_day.calculatedHours)
-        writable_sheet.write(row_index, 3, FIXED_LUNCH_HOURS)
+        writable_sheet.write(row_index, 3, LUNCH_HOURS)
         writable_sheet.write(row_index, 4, _excel_time_fraction(attendance_day.firstPunch))
         writable_sheet.write(row_index, 5, _excel_time_fraction(attendance_day.lastPunch))
         written += 1

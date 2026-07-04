@@ -11,10 +11,10 @@ import xlrd  # type: ignore[import-untyped]
 
 
 ATTENDANCE_PARSER_VERSION = "wage-attendance-v1"
-FIXED_LUNCH_HOURS = 0.5
+LUNCH_HOURS = 0.5
 ATTENDANCE_ASSUMPTIONS = (
     "Punch times are paired in chronological order per employee-day.",
-    "Each worked employee-day subtracts a fixed 0.5 lunch hour.",
+    "Lunch hours / 午休 are fixed at 0.5 hours for each worked employee-day.",
     "No overtime, tax, statutory holiday, or vacation calculations are applied.",
     "Blank punch cells are emitted as zero-hour days with review warnings.",
 )
@@ -72,7 +72,7 @@ class AttendanceDay:
     dayNumber: int
     punchTimes: tuple[str, ...]
     pairedGrossHours: float | None
-    fixedLunchHours: float
+    lunchHours: float
     calculatedHours: float | None
     firstPunch: str | None
     lastPunch: str | None
@@ -285,8 +285,8 @@ def calculate_paired_work_hours(punch_times: tuple[str, ...]) -> float:
     return round(total_minutes / 60, 2)
 
 
-def calculate_work_hours_after_fixed_lunch(punch_times: tuple[str, ...]) -> float:
-    return round(max(calculate_paired_work_hours(punch_times) - FIXED_LUNCH_HOURS, 0), 2)
+def calculate_work_hours_after_lunch(punch_times: tuple[str, ...]) -> float:
+    return round(max(calculate_paired_work_hours(punch_times) - LUNCH_HOURS, 0), 2)
 
 
 def _parse_employee_days(
@@ -324,7 +324,7 @@ def _parse_employee_days(
         day_warnings: list[WageIssue] = []
         day_errors: list[WageIssue] = []
         paired_gross_hours: float | None
-        fixed_lunch_hours = 0.0
+        lunch_hours = 0.0
         calculated_hours: float | None
 
         if not punch_times:
@@ -353,8 +353,8 @@ def _parse_employee_days(
             )
         else:
             paired_gross_hours = calculate_paired_work_hours(punch_times)
-            fixed_lunch_hours = FIXED_LUNCH_HOURS
-            calculated_hours = calculate_work_hours_after_fixed_lunch(punch_times)
+            lunch_hours = LUNCH_HOURS
+            calculated_hours = calculate_work_hours_after_lunch(punch_times)
 
         days.append(
             AttendanceDay(
@@ -365,7 +365,7 @@ def _parse_employee_days(
                 dayNumber=day_number,
                 punchTimes=punch_times,
                 pairedGrossHours=paired_gross_hours,
-                fixedLunchHours=fixed_lunch_hours,
+                lunchHours=lunch_hours,
                 calculatedHours=calculated_hours,
                 firstPunch=punch_times[0] if punch_times else None,
                 lastPunch=punch_times[-1] if punch_times else None,

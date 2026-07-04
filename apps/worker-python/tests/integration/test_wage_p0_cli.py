@@ -52,9 +52,10 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
     parsed_payload = json.loads(Path(payload["parsedJsonPath"]).read_text(encoding="utf-8"))
     assert parsed_payload["parsed_result"]["periodStart"] == "2026-06-01"
     assert parsed_payload["parsed_result"]["periodEnd"] == "2026-06-30"
-    assert "Each worked employee-day subtracts a fixed 0.5 lunch hour." in parsed_payload[
-        "parsed_result"
-    ]["assumptions"]
+    assert (
+        "Lunch hours / 午休 are fixed at 0.5 hours for each worked employee-day."
+        in parsed_payload["parsed_result"]["assumptions"]
+    )
     assert parsed_payload["parsed_result"]["employees"]
     assert parsed_payload["parsed_result"]["days"]
     deng_june_1 = next(
@@ -63,7 +64,7 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
         if day["employeeName"] == "deng wei" and day["workDate"] == "2026-06-01"
     )
     assert deng_june_1["pairedGrossHours"] == 9.27
-    assert deng_june_1["fixedLunchHours"] == 0.5
+    assert deng_june_1["lunchHours"] == 0.5
     assert deng_june_1["calculatedHours"] == 8.77
     assert parsed_payload["wage_record_result"]["writtenEmployeeCount"] >= 6
 
