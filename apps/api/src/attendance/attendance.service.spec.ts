@@ -171,6 +171,27 @@ describe('AttendanceService', () => {
     expect(prisma.attendanceImport.create).not.toHaveBeenCalled();
   });
 
+  it('returns duplicate conflict when a concurrent insert hits the SHA unique key', async () => {
+    const file = await loadFixtureFile();
+    const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
+    prisma.attendanceImport.create.mockImplementationOnce(() => {
+      importRecord = {
+        id: 'race-attendance-import',
+        originalFilename: file.originalname,
+        fileSha256,
+      };
+      const error = new Error('Unique constraint failed') as Error & {
+        code: string;
+      };
+      error.code = 'P2002';
+      return Promise.reject(error);
+    });
+
+    await expect(service.importFile(file, officeActor)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
   it('rejects non-xls uploads', async () => {
     const file = {
       originalname: 'attendance.xlsx',

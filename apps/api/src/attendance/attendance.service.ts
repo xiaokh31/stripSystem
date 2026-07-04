@@ -128,15 +128,7 @@ export class AttendanceService {
     });
 
     if (duplicate) {
-      throw new ConflictException({
-        code: 'DUPLICATE_ATTENDANCE_IMPORT',
-        message: 'Attendance file content already exists by SHA-256.',
-        details: {
-          existingImportId: duplicate.id,
-          fileSha256,
-          originalFilename: duplicate.originalFilename,
-        },
-      });
+      this.throwDuplicate(duplicate);
     }
 
     const storedPath = await this.preserveOriginalFile(file, fileSha256);
@@ -160,6 +152,16 @@ export class AttendanceService {
 
       return this.toImportResponse(record);
     } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        const existing = await this.prisma.attendanceImport.findUnique({
+          where: { fileSha256 },
+        });
+
+        if (existing) {
+          this.throwDuplicate(existing);
+        }
+      }
+
       throw new InternalServerErrorException({
         code: 'ATTENDANCE_IMPORT_CREATE_FAILED',
         message:
@@ -599,6 +601,22 @@ export class AttendanceService {
     }
   }
 
+  private throwDuplicate(record: {
+    id: string;
+    fileSha256: string;
+    originalFilename: string;
+  }): never {
+    throw new ConflictException({
+      code: 'DUPLICATE_ATTENDANCE_IMPORT',
+      message: 'Attendance file content already exists by SHA-256.',
+      details: {
+        existingImportId: record.id,
+        fileSha256: record.fileSha256,
+        originalFilename: record.originalFilename,
+      },
+    });
+  }
+
   private async preserveOriginalFile(
     file: Express.Multer.File,
     fileSha256: string,
@@ -852,5 +870,14 @@ export class AttendanceService {
       return error.message;
     }
     return 'Unknown attendance processing error';
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 }

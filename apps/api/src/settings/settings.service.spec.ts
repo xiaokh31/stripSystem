@@ -28,6 +28,22 @@ describe('SettingsService', () => {
       value: '100',
       editable: false,
     });
+    expect(
+      settings.fields.find(
+        (field) => field.key === 'unloadingWageOceanContainerRateCad',
+      ),
+    ).toMatchObject({
+      value: '300',
+      editable: true,
+    });
+    expect(
+      settings.fields.find(
+        (field) => field.key === 'unloadingWageUsToCanadaTransferRateCad',
+      ),
+    ).toMatchObject({
+      value: '360',
+      editable: true,
+    });
     expect(settings.updatedAt).toBeNull();
   });
 

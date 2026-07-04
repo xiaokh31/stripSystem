@@ -828,8 +828,12 @@ export class UnloadingWageService {
   private async rateForClassification(
     classification: ClassificationValue,
   ): Promise<number> {
+    const key =
+      classification === ContainerPayClassification.OCEAN_CONTAINER
+        ? 'unloadingWageOceanContainerRateCad'
+        : 'unloadingWageUsToCanadaTransferRateCad';
     const setting = await this.prisma.operationalSetting.findUnique({
-      where: { key: `unloading_wage.rate.${classification}` },
+      where: { key },
     });
     const configured = this.numberValue(setting?.value);
     if (configured > 0) {
