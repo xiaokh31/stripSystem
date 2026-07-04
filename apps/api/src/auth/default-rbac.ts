@@ -89,6 +89,46 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
     'settings',
     'Update operational settings.',
   ),
+  permission(
+    PERMISSIONS.attendance.read,
+    'attendance',
+    'Read attendance imports and parse results.',
+  ),
+  permission(
+    PERMISSIONS.attendance.create,
+    'attendance',
+    'Upload attendance files.',
+  ),
+  permission(
+    PERMISSIONS.attendance.parse,
+    'attendance',
+    'Parse attendance files.',
+  ),
+  permission(
+    PERMISSIONS.attendance.generate,
+    'attendance',
+    'Generate wage record workbooks.',
+  ),
+  permission(
+    PERMISSIONS.unloadingWage.read,
+    'unloading_wage',
+    'Read unloading wage pay containers and settlements.',
+  ),
+  permission(
+    PERMISSIONS.unloadingWage.classify,
+    'unloading_wage',
+    'Classify containers for unloading wage settlement.',
+  ),
+  permission(
+    PERMISSIONS.unloadingWage.complete,
+    'unloading_wage',
+    'Complete unloading work and assign unloaders.',
+  ),
+  permission(
+    PERMISSIONS.unloadingWage.settle,
+    'unloading_wage',
+    'Generate monthly unloading wage settlements.',
+  ),
 ];
 
 export const DEFAULT_ROLES: DefaultRole[] = [
@@ -130,6 +170,14 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.override,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.settings.read,
+      PERMISSIONS.attendance.read,
+      PERMISSIONS.attendance.create,
+      PERMISSIONS.attendance.parse,
+      PERMISSIONS.attendance.generate,
+      PERMISSIONS.unloadingWage.read,
+      PERMISSIONS.unloadingWage.classify,
+      PERMISSIONS.unloadingWage.complete,
+      PERMISSIONS.unloadingWage.settle,
     ],
     [ROLE_CODES.warehouse]: [
       PERMISSIONS.loadJobs.read,
@@ -139,6 +187,8 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.reverse,
       PERMISSIONS.inventory.read,
       PERMISSIONS.settings.read,
+      PERMISSIONS.unloadingWage.read,
+      PERMISSIONS.unloadingWage.complete,
     ],
     [ROLE_CODES.system]: [
       PERMISSIONS.imports.parse,
@@ -146,6 +196,9 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.labels.generate,
       PERMISSIONS.inventory.read,
       PERMISSIONS.settings.read,
+      PERMISSIONS.attendance.parse,
+      PERMISSIONS.attendance.generate,
+      PERMISSIONS.unloadingWage.settle,
     ],
   };
 

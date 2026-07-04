@@ -54,6 +54,18 @@ export const PERMISSIONS = {
     read: 'settings.read',
     update: 'settings.update',
   },
+  attendance: {
+    read: 'attendance.read',
+    create: 'attendance.create',
+    parse: 'attendance.parse',
+    generate: 'attendance.generate',
+  },
+  unloadingWage: {
+    read: 'unloading_wage.read',
+    classify: 'unloading_wage.classify',
+    complete: 'unloading_wage.complete',
+    settle: 'unloading_wage.settle',
+  },
 } as const;
 
 export type PermissionCode = LeafValues<typeof PERMISSIONS>;

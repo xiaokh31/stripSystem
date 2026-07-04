@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-02</p>
+        <p class="small">Generated: 2026-07-04</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -222,7 +222,9 @@
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
           debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
-          module、secure token storage 和真实设备安装扫码验收仍未完成。
+          module、secure token storage 和真实设备安装扫码验收仍未完成。新增
+          Work Hours / Unloading Wage P1 扩展已开始执行，当前完成 schema、migration
+          和权限边界，后续阶段继续补 attendance API 与 unloading wage API。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -305,6 +307,56 @@
               <td>Automated checks</td>
               <td><span class="badge done">Pass</span></td>
               <td>`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm --filter api test:e2e`、mobile app build/package:check 和 Docker healthcheck 均已通过。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>工资 P1 扩展进度</h2>
+        <p class="note">
+          本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
+          新增的 Work Hours Settlement 与 Unloading Wage Settlement P1 扩展；
+          不改变既有卸柜核心 P1 已完成结论。按用户要求，每个阶段完成后更新本 HTML。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Stage 1: Schema / Migration / Permissions</td>
+              <td><span class="badge done">Done</span></td>
+              <td>25%</td>
+              <td>新增 attendance_imports、attendance_rows、wage_generated_files、pay_containers、unloader_assignments、unloading_wage_settlements 和结算快照行模型；新增 wage/unloading_wage 权限；Prisma generate 已通过。</td>
+              <td>实现 attendance upload、parse、generate wage record API，并记录解析 JSON、工资 workbook 和 HTML task report。</td>
+            </tr>
+            <tr>
+              <td>Stage 2: Attendance API</td>
+              <td><span class="badge partial">In Progress</span></td>
+              <td>0%</td>
+              <td>尚未开始服务层实现。</td>
+              <td>复用 WAGE-P0 worker CLI，保存原始 .xls，SHA-256 去重，持久化 employee-day rows。</td>
+            </tr>
+            <tr>
+              <td>Stage 3: Unloading Wage API</td>
+              <td><span class="badge deferred">Pending</span></td>
+              <td>0%</td>
+              <td>schema 已提供 pay container、unloader assignment 和 settlement snapshot 表。</td>
+              <td>实现 container classification、pay container grouping、completion/unloader assignment 和 monthly settlement API。</td>
+            </tr>
+            <tr>
+              <td>Stage 4: Regression / Final Report</td>
+              <td><span class="badge deferred">Pending</span></td>
+              <td>0%</td>
+              <td>最终全量检查尚未执行。</td>
+              <td>跑 API/worker 检查，更新最终完成度和已知限制。</td>
             </tr>
           </tbody>
         </table>

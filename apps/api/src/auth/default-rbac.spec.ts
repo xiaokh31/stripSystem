@@ -51,6 +51,14 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.scan.override,
         PERMISSIONS.scan.reverse,
         PERMISSIONS.settings.read,
+        PERMISSIONS.attendance.read,
+        PERMISSIONS.attendance.create,
+        PERMISSIONS.attendance.parse,
+        PERMISSIONS.attendance.generate,
+        PERMISSIONS.unloadingWage.read,
+        PERMISSIONS.unloadingWage.classify,
+        PERMISSIONS.unloadingWage.complete,
+        PERMISSIONS.unloadingWage.settle,
       ]),
     );
     expect(officePermissions.has(PERMISSIONS.users.manage)).toBe(false);
@@ -70,6 +78,8 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.scan.reverse,
         PERMISSIONS.inventory.read,
         PERMISSIONS.settings.read,
+        PERMISSIONS.unloadingWage.read,
+        PERMISSIONS.unloadingWage.complete,
       ]),
     );
   });

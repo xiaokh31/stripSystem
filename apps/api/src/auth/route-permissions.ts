@@ -64,4 +64,28 @@ export const ROUTE_PERMISSIONS = {
     read: [PERMISSIONS.settings.read],
     update: [PERMISSIONS.settings.update],
   },
+  attendance: {
+    upload: [PERMISSIONS.attendance.create],
+    list: [PERMISSIONS.attendance.read],
+    getById: [PERMISSIONS.attendance.read],
+    parse: [PERMISSIONS.attendance.parse],
+    getParseResult: [PERMISSIONS.attendance.read],
+    generateWageRecord: [PERMISSIONS.attendance.generate],
+    listFiles: [PERMISSIONS.attendance.read],
+  },
+  unloadingWage: {
+    classifyContainer: [
+      PERMISSIONS.unloadingWage.classify,
+      PERMISSIONS.corrections.create,
+    ],
+    createPayContainer: [PERMISSIONS.unloadingWage.classify],
+    readPayContainer: [PERMISSIONS.unloadingWage.read],
+    completePayContainer: [
+      PERMISSIONS.unloadingWage.complete,
+      PERMISSIONS.corrections.create,
+    ],
+    generateSettlement: [PERMISSIONS.unloadingWage.settle],
+    listSettlements: [PERMISSIONS.unloadingWage.read],
+    getSettlement: [PERMISSIONS.unloadingWage.read],
+  },
 } as const;
