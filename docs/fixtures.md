@@ -8,6 +8,11 @@ WAGE-P0 also uses real legacy Excel files from `samples/wage` for attendance
 record parsing and wage record generation. These files are `.xls` BIFF
 workbooks and must stay byte-preserved.
 
+UNLOAD-WAGE-P0 uses a small reviewed JSON fixture from `samples/unloading-wage`
+for settlement rule validation. It references real container numbers from
+`samples/unloading-plans`; prototype worker IDs and assignments are not real
+payroll data.
+
 ## Fixture Policy
 
 - Keep original fixture filenames and file bytes unchanged.
@@ -73,3 +78,17 @@ Generated on 2026-07-04 from `samples/wage`.
 - Registered wage fixture count: 2.
 - Duplicate wage SHA-256 count: 0.
 - Wage parser and generator implementation starts after this manifest is covered by tests.
+
+## Unloading Wage Manifest
+
+Generated on 2026-07-04 from `samples/unloading-wage`.
+
+| Path | Bytes | SHA-256 | Source type |
+| --- | ---: | --- | --- |
+| samples/unloading-wage/unload_wage_p0.json | 2606 | ce0b03113ead110b314c44a1bd822964b56bde737eb626646e39e7bd8a01806e | reviewed unloading wage prototype fixture |
+
+## Unloading Wage Acceptance Notes
+
+- Registered unloading wage fixture count: 1.
+- The fixture references real container numbers from the unloading plan manifest.
+- Worker IDs and assignments are prototype data for rule validation, not real payroll data.

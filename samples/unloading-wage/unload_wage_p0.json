@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "source_note": "UNLOAD-WAGE-P0 reviewed prototype fixture. Container numbers reference real unloading-plan fixtures; worker IDs and assignments are prototype data for rule validation.",
+  "settlement_month": "2026-06",
+  "currency": "CAD",
+  "rate_settings": {
+    "OCEAN_CONTAINER": {
+      "amount": 300.0,
+      "effective_date": "2026-06-01"
+    },
+    "US_TO_CANADA_TRANSFER": {
+      "amount": 360.0,
+      "effective_date": "2026-06-01"
+    }
+  },
+  "work_items": [
+    {
+      "work_item_id": "UW-P0-001",
+      "container_number": "CAAU8011090",
+      "classification": "OCEAN_CONTAINER",
+      "completed_at": "2026-06-03T16:20:00",
+      "completed_by": "P0-MANAGER",
+      "unloaders": [
+        {
+          "worker_id": "P0-WORKER-A",
+          "worker_name": "Prototype Worker A"
+        },
+        {
+          "worker_id": "P0-WORKER-B",
+          "worker_name": "Prototype Worker B"
+        }
+      ]
+    },
+    {
+      "work_item_id": "UW-P0-002",
+      "container_number": "ZCSU9025988B",
+      "classification": "US_TO_CANADA_TRANSFER",
+      "trailer_number": "TR-P0-0604",
+      "completed_at": "2026-06-04T17:10:00",
+      "completed_by": "P0-MANAGER",
+      "unloaders": [
+        {
+          "worker_id": "P0-WORKER-A",
+          "worker_name": "Prototype Worker A"
+        },
+        {
+          "worker_id": "P0-WORKER-C",
+          "worker_name": "Prototype Worker C"
+        }
+      ]
+    },
+    {
+      "work_item_id": "UW-P0-003",
+      "container_number": "TXGU5580229",
+      "classification": "US_TO_CANADA_TRANSFER",
+      "trailer_number": "TR-P0-0604",
+      "completed_at": "2026-06-04T17:10:00",
+      "completed_by": "P0-MANAGER",
+      "unloaders": [
+        {
+          "worker_id": "P0-WORKER-A",
+          "worker_name": "Prototype Worker A"
+        },
+        {
+          "worker_id": "P0-WORKER-C",
+          "worker_name": "Prototype Worker C"
+        }
+      ]
+    },
+    {
+      "work_item_id": "UW-P0-004",
+      "container_number": "CSNU8877228",
+      "classification": "OCEAN_CONTAINER",
+      "completed_at": "2026-06-07T16:30:00",
+      "completed_by": "P0-MANAGER",
+      "unloaders": [
+        {
+          "worker_id": "P0-WORKER-B",
+          "worker_name": "Prototype Worker B"
+        },
+        {
+          "worker_id": "P0-WORKER-C",
+          "worker_name": "Prototype Worker C"
+        }
+      ],
+      "manual_allocations": [
+        {
+          "worker_id": "P0-WORKER-B",
+          "amount": 175.0
+        },
+        {
+          "worker_id": "P0-WORKER-C",
+          "amount": 125.0
+        }
+      ]
+    }
+  ]
+}

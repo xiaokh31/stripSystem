@@ -23,6 +23,7 @@ from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 from worker_python.time_utils import operational_now
+from worker_python.unloading_wage import run_unload_wage_p0
 from worker_python.wage import run_wage_p0
 
 
@@ -108,6 +109,38 @@ def wage_p0(
     result = run_wage_p0(
         attendance_file=attendance_file,
         template_path=wage_template,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("unload-wage-p0")
+def unload_wage_p0(
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="UNLOAD-WAGE-P0 JSON input file.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="UNLOAD-WAGE-P0 output storage directory.",
+    ),
+) -> None:
+    result = run_unload_wage_p0(
+        input_file=input_file,
         output_dir=output_dir,
     )
     typer.echo(
