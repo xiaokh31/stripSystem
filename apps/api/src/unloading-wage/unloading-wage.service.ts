@@ -1,12 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import {
@@ -24,6 +25,8 @@ import {
   CompleteUnloadingDto,
   CreatePayContainerDto,
   GenerateUnloadingWageSettlementDto,
+  ListPayContainersQueryDto,
+  PayContainerListResponseDto,
   PayContainerResponseDto,
   UpdateContainerPayClassificationDto,
   UnloadingWageSettlementListResponseDto,
@@ -116,7 +119,16 @@ interface WageGeneratedFileRecord {
   fileType: string;
   storagePath: string;
   fileSha256: string | null;
+  mimeType?: string | null;
+  fileSizeBytes?: bigint | number | string | null;
   status: string;
+}
+
+interface WageGeneratedFileDownload {
+  buffer: Buffer;
+  filename: string;
+  fileSizeBytes: number;
+  mimeType: string;
 }
 
 interface SettlementIssue {
@@ -293,6 +305,39 @@ export class UnloadingWageService {
 
   async getPayContainer(id: string): Promise<PayContainerResponseDto> {
     return this.toPayContainerResponse(await this.findPayContainerOrThrow(id));
+  }
+
+  async listPayContainers(
+    query: ListPayContainersQueryDto,
+  ): Promise<PayContainerListResponseDto> {
+    const where: Prisma.PayContainerWhereInput = {};
+    if (query.status) {
+      where.status = this.payContainerStatus(query.status);
+    }
+    if (query.settlementMonth) {
+      where.completedAt = this.monthRange(query.settlementMonth);
+    }
+
+    const records = (await this.prisma.payContainer.findMany({
+      where,
+      include: {
+        sourceContainers: { orderBy: { containerNo: 'asc' } },
+        unloaders: { orderBy: { workerCode: 'asc' } },
+      },
+      orderBy: [
+        { completedAt: 'desc' },
+        { createdAt: 'desc' },
+        { payContainerNo: 'asc' },
+      ],
+      skip: query.offset,
+      take: query.limit,
+    })) as PayContainerRecord[];
+
+    return {
+      items: records.map((record) => this.toPayContainerResponse(record)),
+      limit: query.limit,
+      offset: query.offset,
+    };
   }
 
   async completePayContainer(
@@ -533,6 +578,34 @@ export class UnloadingWageService {
 
   async getSettlement(id: string): Promise<UnloadingWageSettlementResponseDto> {
     return this.toSettlementResponse(await this.findSettlementOrThrow(id));
+  }
+
+  async downloadSettlementFile(
+    settlementId: string,
+    fileId: string,
+  ): Promise<WageGeneratedFileDownload> {
+    await this.findSettlementOrThrow(settlementId);
+    const record = (await this.prisma.wageGeneratedFile.findFirst({
+      where: { id: fileId, unloadingWageSettlementId: settlementId },
+    })) as WageGeneratedFileRecord | null;
+
+    if (!record) {
+      throw new NotFoundException({
+        code: 'WAGE_GENERATED_FILE_NOT_FOUND',
+        message: `Generated wage file ${fileId} was not found for settlement ${settlementId}.`,
+        details: { settlementId, fileId },
+      });
+    }
+
+    if (record.status !== GeneratedFileStatus.GENERATED) {
+      throw new BadRequestException({
+        code: 'WAGE_GENERATED_FILE_NOT_DOWNLOADABLE',
+        message: `Generated wage file ${fileId} is not downloadable because its status is ${record.status}.`,
+        details: { settlementId, fileId, status: record.status },
+      });
+    }
+
+    return this.downloadWageGeneratedFile(record, { settlementId, fileId });
   }
 
   private settlementInputs(
@@ -932,6 +1005,22 @@ export class UnloadingWageService {
     });
   }
 
+  private payContainerStatus(value: string): PayContainerStatus {
+    if (
+      value === PayContainerStatus.DRAFT ||
+      value === PayContainerStatus.COMPLETED ||
+      value === PayContainerStatus.SETTLED ||
+      value === PayContainerStatus.NEEDS_REVIEW
+    ) {
+      return value;
+    }
+    throw new BadRequestException({
+      code: 'INVALID_PAY_CONTAINER_STATUS',
+      message: `Unsupported pay container status: ${value}`,
+      details: { status: value },
+    });
+  }
+
   private trailerNumberOrNull(
     classification: ClassificationValue,
     value: string | null | undefined,
@@ -1084,6 +1173,81 @@ export class UnloadingWageService {
     }
   }
 
+  private async downloadWageGeneratedFile(
+    record: WageGeneratedFileRecord,
+    details: Record<string, string>,
+  ): Promise<WageGeneratedFileDownload> {
+    const storagePath = this.resolveDownloadStoragePath(record.storagePath);
+
+    try {
+      const fileStat = await stat(storagePath);
+      if (!fileStat.isFile()) {
+        throw new Error('Generated path is not a file.');
+      }
+
+      return {
+        buffer: await readFile(storagePath),
+        filename: basename(storagePath),
+        fileSizeBytes: fileStat.size,
+        mimeType: record.mimeType ?? 'application/octet-stream',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        code: 'WAGE_GENERATED_FILE_STORAGE_MISSING',
+        message:
+          'The generated wage file record exists, but the file cannot be read.',
+        details: {
+          ...details,
+          storagePath: record.storagePath,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
+  }
+
+  private resolveDownloadStoragePath(storagePath: string): string {
+    const resolvedStorageRoot = resolve(this.storageRoot);
+    const resolvedPath = resolve(storagePath);
+    if (
+      resolvedPath === resolvedStorageRoot ||
+      resolvedPath.startsWith(`${resolvedStorageRoot}${sep}`)
+    ) {
+      return resolvedPath;
+    }
+
+    const remappedPath = this.remapLegacyStoragePath(storagePath);
+    if (remappedPath) {
+      return remappedPath;
+    }
+
+    throw new BadRequestException({
+      code: 'WAGE_GENERATED_FILE_STORAGE_PATH_INVALID',
+      message: 'Generated wage file storage path is outside storage root.',
+      details: { storagePath },
+    });
+  }
+
+  private remapLegacyStoragePath(storagePath: string): string | null {
+    const normalizedPath = storagePath.replace(/\\/g, '/');
+    const marker = '/storage/';
+    const markerIndex = normalizedPath.lastIndexOf(marker);
+    if (markerIndex === -1) {
+      return null;
+    }
+
+    const relativePath = normalizedPath.slice(markerIndex + marker.length);
+    const candidate = resolve(this.storageRoot, relativePath);
+    const resolvedStorageRoot = resolve(this.storageRoot);
+    if (
+      candidate === resolvedStorageRoot ||
+      candidate.startsWith(`${resolvedStorageRoot}${sep}`)
+    ) {
+      return candidate;
+    }
+
+    return null;
+  }
+
   private toPayContainerResponse(
     record: PayContainerRecord,
   ): PayContainerResponseDto {
@@ -1186,5 +1350,9 @@ export class UnloadingWageService {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;');
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

@@ -1,12 +1,14 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsInt,
   IsIn,
   IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -14,6 +16,7 @@ import { Type } from 'class-transformer';
 import {
   ContainerPayClassification,
   PayAllocationMethod,
+  PayContainerStatus,
 } from '../../generated/prisma/enums';
 
 const CLASSIFICATIONS = Object.values(ContainerPayClassification);
@@ -115,6 +118,29 @@ export class GenerateUnloadingWageSettlementDto {
   settlementMonth!: string;
 }
 
+export class ListPayContainersQueryDto {
+  @IsOptional()
+  @IsIn(Object.values(PayContainerStatus))
+  status?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}$/)
+  settlementMonth?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 50;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset = 0;
+}
+
 export interface PayContainerResponseDto {
   id: string;
   payContainerNo: string;
@@ -143,6 +169,12 @@ export interface PayContainerResponseDto {
   }>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PayContainerListResponseDto {
+  items: PayContainerResponseDto[];
+  limit: number;
+  offset: number;
 }
 
 export interface UnloadingWageSettlementResponseDto {

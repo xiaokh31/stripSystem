@@ -8,6 +8,8 @@ export interface ContainerSummaryItemDto extends PalletStatsDto {
   containerId: string;
   containerNo: string;
   status: string;
+  payClassification: string | null;
+  payTrailerNumber: string | null;
 }
 
 export interface DestinationSummaryItemDto extends PalletStatsDto {

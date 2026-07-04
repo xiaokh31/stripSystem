@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import {
   AttendanceImportListResponseDto,
   AttendanceImportResponseDto,
@@ -102,6 +102,13 @@ interface WageGeneratedFileRecord {
   errorMessage: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+interface WageGeneratedFileDownload {
+  buffer: Buffer;
+  filename: string;
+  fileSizeBytes: number;
+  mimeType: string;
 }
 
 @Injectable()
@@ -335,6 +342,37 @@ export class AttendanceService {
     };
   }
 
+  async downloadFile(
+    attendanceImportId: string,
+    fileId: string,
+  ): Promise<WageGeneratedFileDownload> {
+    await this.findImportOrThrow(attendanceImportId);
+    const record = (await this.prisma.wageGeneratedFile.findFirst({
+      where: { id: fileId, attendanceImportId },
+    })) as WageGeneratedFileRecord | null;
+
+    if (!record) {
+      throw new NotFoundException({
+        code: 'WAGE_GENERATED_FILE_NOT_FOUND',
+        message: `Generated wage file ${fileId} was not found for attendance import ${attendanceImportId}.`,
+        details: { attendanceImportId, fileId },
+      });
+    }
+
+    if (record.status !== GeneratedFileStatus.GENERATED) {
+      throw new BadRequestException({
+        code: 'WAGE_GENERATED_FILE_NOT_DOWNLOADABLE',
+        message: `Generated wage file ${fileId} is not downloadable because its status is ${record.status}.`,
+        details: { attendanceImportId, fileId, status: record.status },
+      });
+    }
+
+    return this.downloadWageGeneratedFile(record, {
+      attendanceImportId,
+      fileId,
+    });
+  }
+
   private async persistParsePayload(
     record: AttendanceImportRecord,
     payload: WorkerWagePayload,
@@ -501,6 +539,81 @@ export class AttendanceService {
     } catch {
       return { fileSha256: null, fileSizeBytes: null };
     }
+  }
+
+  private async downloadWageGeneratedFile(
+    record: WageGeneratedFileRecord,
+    details: Record<string, string>,
+  ): Promise<WageGeneratedFileDownload> {
+    const storagePath = this.resolveDownloadStoragePath(record.storagePath);
+
+    try {
+      const fileStat = await stat(storagePath);
+      if (!fileStat.isFile()) {
+        throw new Error('Generated path is not a file.');
+      }
+
+      return {
+        buffer: await readFile(storagePath),
+        filename: basename(storagePath),
+        fileSizeBytes: fileStat.size,
+        mimeType: record.mimeType ?? 'application/octet-stream',
+      };
+    } catch (error) {
+      throw new InternalServerErrorException({
+        code: 'WAGE_GENERATED_FILE_STORAGE_MISSING',
+        message:
+          'The generated wage file record exists, but the file cannot be read.',
+        details: {
+          ...details,
+          storagePath: record.storagePath,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
+  }
+
+  private resolveDownloadStoragePath(storagePath: string): string {
+    const resolvedStorageRoot = resolve(this.storageRoot);
+    const resolvedPath = resolve(storagePath);
+    if (
+      resolvedPath === resolvedStorageRoot ||
+      resolvedPath.startsWith(`${resolvedStorageRoot}${sep}`)
+    ) {
+      return resolvedPath;
+    }
+
+    const remappedPath = this.remapLegacyStoragePath(storagePath);
+    if (remappedPath) {
+      return remappedPath;
+    }
+
+    throw new BadRequestException({
+      code: 'WAGE_GENERATED_FILE_STORAGE_PATH_INVALID',
+      message: 'Generated wage file storage path is outside storage root.',
+      details: { storagePath },
+    });
+  }
+
+  private remapLegacyStoragePath(storagePath: string): string | null {
+    const normalizedPath = storagePath.replace(/\\/g, '/');
+    const marker = '/storage/';
+    const markerIndex = normalizedPath.lastIndexOf(marker);
+    if (markerIndex === -1) {
+      return null;
+    }
+
+    const relativePath = normalizedPath.slice(markerIndex + marker.length);
+    const candidate = resolve(this.storageRoot, relativePath);
+    const resolvedStorageRoot = resolve(this.storageRoot);
+    if (
+      candidate === resolvedStorageRoot ||
+      candidate.startsWith(`${resolvedStorageRoot}${sep}`)
+    ) {
+      return candidate;
+    }
+
+    return null;
   }
 
   private async findImportOrThrow(id: string): Promise<AttendanceImportRecord> {

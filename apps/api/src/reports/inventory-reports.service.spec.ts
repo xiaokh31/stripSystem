@@ -18,6 +18,8 @@ interface DestinationRecord {
 interface ContainerRecord {
   id: string;
   containerNo: string;
+  payClassification?: string | null;
+  payTrailerNumber?: string | null;
   status: string;
   destinations: DestinationRecord[];
 }
@@ -80,6 +82,8 @@ describe('InventoryReportsService', () => {
       {
         containerId: 'container-1',
         containerNo: 'CSNU8877228',
+        payClassification: null,
+        payTrailerNumber: null,
         status: 'LOADING_IN_PROGRESS',
         totalPallets: 3,
         loadedPallets: 1,
@@ -141,6 +145,8 @@ describe('InventoryReportsService', () => {
       {
         containerId: 'container-1',
         containerNo: 'CSNU8877228',
+        payClassification: null,
+        payTrailerNumber: null,
         status: 'LOADING_IN_PROGRESS',
         totalPallets: 1,
         loadedPallets: 1,

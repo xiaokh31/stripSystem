@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UnloadingWageService } from './unloading-wage.service';
@@ -197,6 +197,16 @@ describe('UnloadingWageService', () => {
         }),
       },
       wageGeneratedFile: {
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            generatedFiles.find(
+              (file) =>
+                file.id === where.id &&
+                file.unloadingWageSettlementId ===
+                  where.unloadingWageSettlementId,
+            ) ?? null,
+          ),
+        ),
         create: jest.fn(({ data }) => {
           const record = {
             id: `generated-file-${generatedFiles.length + 1}`,
@@ -244,6 +254,33 @@ describe('UnloadingWageService', () => {
         payContainerId: 'pay-container-1',
         fieldName: 'created',
       }),
+    });
+  });
+
+  it('lists pay containers for office review', async () => {
+    await service.createPayContainer(
+      {
+        classification: 'US_TO_CANADA_TRANSFER',
+        containerIds: ['container-zcsu', 'container-txgu'],
+        trailerNumber: 'TR-P0-0604',
+      },
+      officeActor,
+    );
+
+    const response = await service.listPayContainers({
+      limit: 25,
+      offset: 0,
+      settlementMonth: undefined,
+      status: undefined,
+    });
+
+    expect(response.limit).toBe(25);
+    expect(response.offset).toBe(0);
+    expect(response.items).toHaveLength(1);
+    expect(response.items[0]).toMatchObject({
+      id: 'pay-container-1',
+      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      status: 'DRAFT',
     });
   });
 
@@ -333,5 +370,42 @@ describe('UnloadingWageService', () => {
         '2026-06',
       );
     }
+  });
+
+  it('downloads a generated settlement artifact by settlement id and file id', async () => {
+    await service.createPayContainer(
+      {
+        classification: 'US_TO_CANADA_TRANSFER',
+        containerIds: ['container-zcsu', 'container-txgu'],
+        trailerNumber: 'TR-P0-0604',
+      },
+      officeActor,
+    );
+    await service.completePayContainer(
+      'pay-container-1',
+      {
+        completedAt: '2026-06-04T17:10:00.000Z',
+        allocationMethod: 'EQUAL_SPLIT',
+        unloaders: [
+          { workerCode: 'P0-WORKER-A', workerName: 'Prototype Worker A' },
+          { workerCode: 'P0-WORKER-C', workerName: 'Prototype Worker C' },
+        ],
+      },
+      officeActor,
+    );
+    const generated = await service.generateSettlement(
+      { settlementMonth: '2026-06' },
+      officeActor,
+    );
+    const file = generated.generatedFiles[0];
+    await writeFile(file.storagePath, 'download bytes');
+
+    const download = await service.downloadSettlementFile(
+      generated.id,
+      file.id,
+    );
+
+    expect(download.filename).toBe(file.storagePath.split('/').pop());
+    expect(download.buffer.toString()).toBe('download bytes');
   });
 });

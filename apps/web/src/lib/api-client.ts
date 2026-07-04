@@ -185,6 +185,230 @@ export interface OperationalSettingsMutationResponse {
   };
 }
 
+export interface AttendanceImportResponse {
+  id: string;
+  originalFilename: string;
+  storedPath: string;
+  fileSha256: string;
+  mimeType: string | null;
+  fileSizeBytes: string | null;
+  importStatus: string;
+  parseStatus: string;
+  parserVersion: string | null;
+  settlementMonth: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employeeCount: number;
+  dayCount: number;
+  warningCount: number;
+  errorCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceImportListResponse {
+  items: AttendanceImportResponse[];
+  limit: number;
+  offset: number;
+}
+
+export interface AttendanceImportListFilters {
+  limit?: number;
+  offset?: number;
+}
+
+export interface AttendanceRowResponse {
+  id: string;
+  rowKey: string;
+  employeeId: string | null;
+  employeeName: string | null;
+  department: string | null;
+  workDate: string;
+  dayNumber: number;
+  punchTimes: unknown;
+  pairedGrossHours: string | null;
+  lunchHours: string;
+  calculatedHours: string | null;
+  firstPunch: string | null;
+  lastPunch: string | null;
+  rawJson: unknown;
+  warnings: unknown;
+  errors: unknown;
+}
+
+export interface WageGeneratedFileResponse {
+  id: string;
+  attendanceImportId: string | null;
+  unloadingWageSettlementId: string | null;
+  fileType: string;
+  storagePath: string;
+  fileSha256: string | null;
+  mimeType: string | null;
+  fileSizeBytes: string | null;
+  status: string;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceParseResultResponse {
+  attendanceImport: AttendanceImportResponse;
+  rows: AttendanceRowResponse[];
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+export interface WageGeneratedFileListResponse {
+  items: WageGeneratedFileResponse[];
+}
+
+export interface GenerateWageRecordResponse {
+  generatedFile: WageGeneratedFileResponse;
+  taskReport: WageGeneratedFileResponse | null;
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+export type ContainerPayClassification =
+  | "OCEAN_CONTAINER"
+  | "US_TO_CANADA_TRANSFER";
+
+export type PayAllocationMethod =
+  | "EQUAL_SPLIT"
+  | "MANUAL_AMOUNT"
+  | "MANUAL_PERCENT";
+
+export interface UpdateContainerPayClassificationRequest {
+  classification: ContainerPayClassification;
+  note?: string | null;
+  reason?: string | null;
+  trailerNumber?: string | null;
+}
+
+export interface ContainerPayClassificationMutationResponse {
+  container: {
+    id: string;
+    containerNo: string;
+    payClassification: string | null;
+    payTrailerNumber: string | null;
+  };
+}
+
+export interface CreatePayContainerRequest {
+  classification: ContainerPayClassification;
+  containerIds: string[];
+  rateAmount?: number;
+  reason?: string | null;
+  trailerNumber?: string | null;
+}
+
+export interface CompleteUnloadingUnloaderRequest {
+  allocationAmount?: number | null;
+  allocationPercent?: number | null;
+  note?: string | null;
+  workerCode: string;
+  workerName: string;
+  workerUserId?: string | null;
+}
+
+export interface CompleteUnloadingRequest {
+  allocationMethod: PayAllocationMethod;
+  completedAt: string;
+  note?: string | null;
+  reason?: string | null;
+  unloaders: CompleteUnloadingUnloaderRequest[];
+}
+
+export interface PayContainerResponse {
+  id: string;
+  payContainerNo: string;
+  classification: string;
+  trailerNumber: string | null;
+  status: string;
+  currency: string;
+  rateAmount: string;
+  allocationMethod: string;
+  completedAt: string | null;
+  completedById: string | null;
+  completionNote: string | null;
+  containers: Array<{
+    id: string;
+    containerId: string;
+    containerNo: string;
+  }>;
+  unloaders: Array<{
+    id: string;
+    workerUserId: string | null;
+    workerCode: string;
+    workerName: string;
+    allocationAmount: string | null;
+    allocationPercent: string | null;
+    note: string | null;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayContainerListFilters {
+  limit?: number;
+  offset?: number;
+  settlementMonth?: string;
+  status?: string;
+}
+
+export interface PayContainerListResponse {
+  items: PayContainerResponse[];
+  limit: number;
+  offset: number;
+}
+
+export interface GenerateUnloadingWageSettlementRequest {
+  settlementMonth: string;
+}
+
+export interface UnloadingWageSettlementResponse {
+  id: string;
+  settlementMonth: string;
+  currency: string;
+  status: string;
+  totalAmount: string;
+  warningCount: number;
+  errorCount: number;
+  workers: Array<{
+    id: string;
+    workerCode: string;
+    workerName: string;
+    payContainerCount: number;
+    totalAmount: string;
+  }>;
+  lines: Array<{
+    id: string;
+    workerCode: string;
+    workerName: string;
+    payContainerNo: string;
+    classification: string;
+    trailerNumber: string | null;
+    containerNumbers: unknown;
+    amount: string;
+  }>;
+  generatedFiles: Array<{
+    id: string;
+    fileType: string;
+    storagePath: string;
+    fileSha256: string | null;
+    status: string;
+  }>;
+  warnings: unknown[];
+  errors: unknown[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UnloadingWageSettlementListResponse {
+  items: UnloadingWageSettlementResponse[];
+}
+
 export interface ImportFileResponse {
   id: string;
   originalFilename: string;
@@ -301,6 +525,14 @@ export interface ContainerDetailResponse {
   sourceFormat: string;
   parserVersion: string | null;
   status: string;
+  payClassification: string | null;
+  payTrailerNumber: string | null;
+  payContainers: Array<{
+    id: string;
+    payContainerId: string;
+    payContainerNo: string;
+    status: string;
+  }>;
   totalCartons: number;
   totalVolumeCbm: string;
   rawJson: unknown;
@@ -419,6 +651,8 @@ export interface ContainerCorrectionResponse {
     dockNo: string | null;
     company: string | null;
     status: string;
+    payClassification: string | null;
+    payTrailerNumber: string | null;
     updatedAt: string;
   };
   corrections: CorrectionFeedbackResponse[];
@@ -512,6 +746,8 @@ export interface PalletStatsResponse {
 export interface ContainerSummaryItemResponse extends PalletStatsResponse {
   containerId: string;
   containerNo: string;
+  payClassification: string | null;
+  payTrailerNumber: string | null;
   status: string;
 }
 
@@ -944,6 +1180,60 @@ export function updateOperationalSettings(
   );
 }
 
+export function listAttendanceImports(
+  filters: AttendanceImportListFilters = {},
+  options: ApiClientOptions = {},
+): Promise<AttendanceImportListResponse> {
+  return createApiClient(options).get<AttendanceImportListResponse>(
+    `/attendance-imports${toAttendanceImportListQueryString(filters)}`,
+  );
+}
+
+export function getAttendanceImport(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AttendanceImportResponse> {
+  return createApiClient(options).get<AttendanceImportResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}`,
+  );
+}
+
+export function parseAttendanceImport(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AttendanceParseResultResponse> {
+  return createApiClient(options).post<AttendanceParseResultResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/parse`,
+  );
+}
+
+export function getAttendanceParseResult(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AttendanceParseResultResponse> {
+  return createApiClient(options).get<AttendanceParseResultResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/parse-result`,
+  );
+}
+
+export function generateAttendanceWageRecord(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<GenerateWageRecordResponse> {
+  return createApiClient(options).post<GenerateWageRecordResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/generate-wage-record`,
+  );
+}
+
+export function listAttendanceImportFiles(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<WageGeneratedFileListResponse> {
+  return createApiClient(options).get<WageGeneratedFileListResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/files`,
+  );
+}
+
 export function getImportFile(
   id: string,
   options: ApiClientOptions = {},
@@ -1008,6 +1298,82 @@ export function updateContainer(
   return createApiClient(options).patch<ContainerCorrectionResponse>(
     `/containers/${encodeURIComponent(id)}`,
     { ...body },
+  );
+}
+
+export function updateContainerPayClassification(
+  id: string,
+  body: UpdateContainerPayClassificationRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerPayClassificationMutationResponse> {
+  return createApiClient(options).patch<ContainerPayClassificationMutationResponse>(
+    `/containers/${encodeURIComponent(id)}/pay-classification`,
+    { ...body },
+  );
+}
+
+export function createPayContainer(
+  body: CreatePayContainerRequest,
+  options: ApiClientOptions = {},
+): Promise<PayContainerResponse> {
+  return createApiClient(options).post<PayContainerResponse>("/pay-containers", {
+    ...body,
+  });
+}
+
+export function listPayContainers(
+  filters: PayContainerListFilters = {},
+  options: ApiClientOptions = {},
+): Promise<PayContainerListResponse> {
+  return createApiClient(options).get<PayContainerListResponse>(
+    `/pay-containers${toPayContainerListQueryString(filters)}`,
+  );
+}
+
+export function getPayContainer(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<PayContainerResponse> {
+  return createApiClient(options).get<PayContainerResponse>(
+    `/pay-containers/${encodeURIComponent(id)}`,
+  );
+}
+
+export function completePayContainer(
+  id: string,
+  body: CompleteUnloadingRequest,
+  options: ApiClientOptions = {},
+): Promise<PayContainerResponse> {
+  return createApiClient(options).post<PayContainerResponse>(
+    `/pay-containers/${encodeURIComponent(id)}/complete-unloading`,
+    { ...body },
+  );
+}
+
+export function generateUnloadingWageSettlement(
+  body: GenerateUnloadingWageSettlementRequest,
+  options: ApiClientOptions = {},
+): Promise<UnloadingWageSettlementResponse> {
+  return createApiClient(options).post<UnloadingWageSettlementResponse>(
+    "/unloading-wage-settlements",
+    { ...body },
+  );
+}
+
+export function listUnloadingWageSettlements(
+  options: ApiClientOptions = {},
+): Promise<UnloadingWageSettlementListResponse> {
+  return createApiClient(options).get<UnloadingWageSettlementListResponse>(
+    "/unloading-wage-settlements",
+  );
+}
+
+export function getUnloadingWageSettlement(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<UnloadingWageSettlementResponse> {
+  return createApiClient(options).get<UnloadingWageSettlementResponse>(
+    `/unloading-wage-settlements/${encodeURIComponent(id)}`,
   );
 }
 
@@ -1255,6 +1621,34 @@ export function getGeneratedFileDownloadUrl(
   );
 }
 
+export function getAttendanceGeneratedFileDownloadUrl(
+  attendanceImportId: string,
+  fileId: string,
+  baseUrl = getPublicApiBaseUrl(),
+): string {
+  const encodedImportId = encodeURIComponent(attendanceImportId);
+  const encodedFileId = encodeURIComponent(fileId);
+
+  return buildWebUrl(
+    `/work-hours/${encodedImportId}/files/${encodedFileId}/download`,
+    apiBaseToWebBaseUrl(baseUrl),
+  );
+}
+
+export function getUnloadingWageSettlementFileDownloadUrl(
+  settlementId: string,
+  fileId: string,
+  baseUrl = getPublicApiBaseUrl(),
+): string {
+  const encodedSettlementId = encodeURIComponent(settlementId);
+  const encodedFileId = encodeURIComponent(fileId);
+
+  return buildWebUrl(
+    `/unloading-wage/settlements/${encodedSettlementId}/files/${encodedFileId}/download`,
+    apiBaseToWebBaseUrl(baseUrl),
+  );
+}
+
 export function uploadImportFile(
   file: File,
   options: UploadImportFileOptions = {},
@@ -1263,6 +1657,20 @@ export function uploadImportFile(
   formData.append("file", file);
 
   return uploadFormData<ImportFileResponse>("/imports", formData, options);
+}
+
+export function uploadAttendanceImportFile(
+  file: File,
+  options: UploadImportFileOptions = {},
+): Promise<AttendanceImportResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return uploadFormData<AttendanceImportResponse>(
+    "/attendance-imports",
+    formData,
+    options,
+  );
 }
 
 export class ApiClient {
@@ -1446,6 +1854,32 @@ function toImportListQueryString(filters: ImportListFilters): string {
 
   appendNumberQueryParam(params, "limit", filters.limit);
   appendNumberQueryParam(params, "offset", filters.offset);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toAttendanceImportListQueryString(
+  filters: AttendanceImportListFilters,
+): string {
+  const params = new URLSearchParams();
+
+  appendNumberQueryParam(params, "limit", filters.limit);
+  appendNumberQueryParam(params, "offset", filters.offset);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toPayContainerListQueryString(
+  filters: PayContainerListFilters,
+): string {
+  const params = new URLSearchParams();
+
+  appendNumberQueryParam(params, "limit", filters.limit);
+  appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "settlementMonth", filters.settlementMonth);
+  appendQueryParam(params, "status", filters.status);
 
   const query = params.toString();
   return query ? `?${query}` : "";

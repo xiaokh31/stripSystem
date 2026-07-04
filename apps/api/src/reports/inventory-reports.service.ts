@@ -17,6 +17,8 @@ interface ContainerRecord {
   id: string;
   containerNo: string;
   status: string;
+  payClassification?: string | null;
+  payTrailerNumber?: string | null;
   destinations?: ContainerDestinationRecord[];
 }
 
@@ -175,6 +177,8 @@ export class InventoryReportsService {
         container.status,
         container.destinations ?? [],
       ),
+      payClassification: container.payClassification ?? null,
+      payTrailerNumber: container.payTrailerNumber ?? null,
       ...stats,
     };
   }

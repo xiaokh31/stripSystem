@@ -56,6 +56,16 @@ interface ContainerRecord {
   sourceFormat?: string;
   parserVersion?: string | null;
   status: string;
+  payClassification?: string | null;
+  payTrailerNumber?: string | null;
+  payContainerLinks?: Array<{
+    id: string;
+    payContainerId: string;
+    payContainer: {
+      payContainerNo: string;
+      status: string;
+    };
+  }>;
   rawJson?: unknown;
   warnings?: unknown;
   errors?: unknown;
@@ -143,6 +153,17 @@ export class CorrectionsService {
               },
             },
           },
+        },
+        payContainerLinks: {
+          include: {
+            payContainer: {
+              select: {
+                payContainerNo: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
         },
       },
     })) as ContainerRecord | null;
@@ -1051,6 +1072,8 @@ export class CorrectionsService {
       dockNo: record.dockNo,
       company: record.company,
       status: record.status,
+      payClassification: record.payClassification ?? null,
+      payTrailerNumber: record.payTrailerNumber ?? null,
       updatedAt: this.toIsoString(record.updatedAt),
     };
   }
@@ -1105,6 +1128,15 @@ export class CorrectionsService {
       sourceFormat: record.sourceFormat ?? 'UNKNOWN',
       parserVersion: record.parserVersion ?? null,
       status,
+      payClassification: record.payClassification ?? null,
+      payTrailerNumber: record.payTrailerNumber ?? null,
+      payContainers:
+        record.payContainerLinks?.map((link) => ({
+          id: link.id,
+          payContainerId: link.payContainerId,
+          payContainerNo: link.payContainer.payContainerNo,
+          status: link.payContainer.status,
+        })) ?? [],
       totalCartons: destinations.reduce(
         (total, destination) => total + destination.cartons,
         0,

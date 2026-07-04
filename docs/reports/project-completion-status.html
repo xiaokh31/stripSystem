@@ -223,9 +223,11 @@
           P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
           debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
           module、secure token storage 和真实设备安装扫码验收仍未完成。新增
-          Work Hours / Unloading Wage P1 扩展已完成到 API/DB 范围：attendance
-          upload/parse/generate、unloading pay container、completion/unloader
-          assignment 和 monthly settlement 已落库并通过回归检查；Web UI 仍属 P2。
+          Work Hours / Unloading Wage P1/P2 扩展已完成到 API/DB/Web review
+          workflow 范围：attendance upload/parse/generate、unloading pay
+          container、completion/unloader assignment、monthly settlement、
+          HR Work Hours Settlement 页面和 Warehouse Unloading Wage Settlement
+          页面已接入真实 API 并通过回归检查。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -314,10 +316,10 @@
       </section>
 
       <section>
-        <h2>工资 P1 扩展进度</h2>
+        <h2>工资 P1/P2 扩展进度</h2>
         <p class="note">
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
-          新增的 Work Hours Settlement 与 Unloading Wage Settlement P1 扩展；
+          新增的 Work Hours Settlement 与 Unloading Wage Settlement P1/P2 扩展；
           不改变既有卸柜核心 P1 已完成结论。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
@@ -356,8 +358,15 @@
               <td>Stage 4: Regression / Final Report</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
-              <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api lint`、`pnpm --filter api prisma validate`、`pnpm --filter api prisma generate` 和 worker `uv run pytest`。API 单测 83 个通过，worker 测试 80 个通过。</td>
-              <td>工资 P1 扩展完成；下一步进入 P2 Office Web UI 页面和人工 review workflow。</td>
+              <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api lint`、`pnpm --filter api prisma validate`、`pnpm --filter api prisma generate` 和 worker `uv run pytest`。当前 API 单测 86 个通过，worker 测试 80 个通过。</td>
+              <td>工资 P1 扩展完成；已进入 P2 Office Web UI 页面和人工 review workflow。</td>
+            </tr>
+            <tr>
+              <td>Stage 5: Office Web UI / Review Workflow</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2</td>
+              <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes、容器列表/详情工资分类展示、容器详情 pay classification / pay container / complete unloading 控件、Reports 入口；API 补齐 `GET /api/pay-containers` 和 wage generated file download；已通过 `pnpm --filter api typecheck/test/lint`、`pnpm --filter web typecheck/test/lint/build`。</td>
+              <td>工资 P2 Web review workflow 完成；建议下一步用 Docker full-stack 做真实浏览器手工验收，并补 Playwright wage smoke。</td>
             </tr>
           </tbody>
         </table>
@@ -480,10 +489,10 @@
             </tr>
             <tr>
               <td>P2</td>
-              <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表、登录和账号管理 UI。</td>
+              <td>Office Web：上传、导入详情、解析触发、柜子详情、修正、生成报告/面单、库存报表、HR 工时结算、仓库卸柜工资结算、登录和账号管理 UI。</td>
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
-              <td>Next.js routes: imports, containers, reports/inventory, settings, login, admin/users, admin/roles；真实 API client；Playwright desktop/mobile E2E。</td>
+              <td>Next.js routes: imports, containers, reports/inventory, work-hours, unloading-wage, settings, login, admin/users, admin/roles；真实 API client；Playwright desktop/mobile E2E。</td>
               <td>当前 P2 范围无剩余；未来可继续扩展导入、报告、面单、扫码的深度浏览器业务流 E2E。</td>
             </tr>
             <tr>

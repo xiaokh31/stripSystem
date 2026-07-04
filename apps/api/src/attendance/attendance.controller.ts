@@ -5,10 +5,13 @@ import {
   Param,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
@@ -94,5 +97,29 @@ export class AttendanceController {
     @Param('id') id: string,
   ): Promise<WageGeneratedFileListResponseDto> {
     return this.attendanceService.listFiles(id);
+  }
+
+  @Get(':id/files/:fileId/download')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.listFiles)
+  async downloadFile(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const download = await this.attendanceService.downloadFile(id, fileId);
+    response.set({
+      'Content-Disposition': this.contentDisposition(download.filename),
+      'Content-Length': download.fileSizeBytes.toString(),
+      'Content-Type': download.mimeType,
+    });
+
+    return new StreamableFile(download.buffer);
+  }
+
+  private contentDisposition(filename: string): string {
+    const fallback = filename.replace(/[^A-Za-z0-9._-]+/g, '_');
+    return `attachment; filename="${fallback || 'download'}"; filename*=UTF-8''${encodeURIComponent(
+      filename,
+    )}`;
   }
 }

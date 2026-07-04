@@ -90,6 +90,17 @@ describe('CorrectionsService', () => {
           },
           orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
         },
+        payContainerLinks: {
+          include: {
+            payContainer: {
+              select: {
+                payContainerNo: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
   });

@@ -113,11 +113,12 @@ function ContainerTable({
       </div>
 
       <div className="mt-5 overflow-x-auto">
-        <table className="min-w-[760px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[900px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
               <th className="px-3 py-3 font-semibold">Container</th>
               <th className="px-3 py-3 font-semibold">Status</th>
+              <th className="px-3 py-3 font-semibold">Pay class</th>
               <th className="px-3 py-3 text-right font-semibold">Pallets</th>
               <th className="px-3 py-3 text-right font-semibold">Loaded</th>
               <th className="px-3 py-3 text-right font-semibold">Remaining</th>
@@ -132,6 +133,12 @@ function ContainerTable({
                 </td>
                 <td className="px-3 py-4">
                   <StatusBadge status={container.status} />
+                </td>
+                <td className="px-3 py-4">
+                  <PayClassBadge
+                    classification={container.payClassification}
+                    trailerNumber={container.payTrailerNumber}
+                  />
                 </td>
                 <td className="px-3 py-4 text-right font-medium">
                   {container.totalPallets}
@@ -156,6 +163,29 @@ function ContainerTable({
         </table>
       </div>
     </section>
+  );
+}
+
+function PayClassBadge({
+  classification,
+  trailerNumber,
+}: {
+  classification: string | null;
+  trailerNumber: string | null;
+}) {
+  if (!classification) {
+    return (
+      <span className="inline-flex min-h-7 items-center rounded border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold uppercase text-amber-800">
+        Unclassified
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex min-h-7 items-center rounded border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold uppercase text-emerald-800">
+      {classification}
+      {trailerNumber ? ` / ${trailerNumber}` : ""}
+    </span>
   );
 }
 

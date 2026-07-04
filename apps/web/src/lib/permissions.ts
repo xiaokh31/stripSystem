@@ -13,6 +13,9 @@ export const SCAN_CREATE_PERMISSION = "scan.create";
 export const SCAN_OVERRIDE_PERMISSION = "scan.override";
 export const SCAN_REVERSE_PERMISSION = "scan.reverse";
 export const SETTINGS_UPDATE_PERMISSION = "settings.update";
+export const ATTENDANCE_READ_PERMISSION = "attendance.read";
+export const UNLOADING_WAGE_READ_PERMISSION = "unloading_wage.read";
+export const UNLOADING_WAGE_SETTLE_PERMISSION = "unloading_wage.settle";
 
 export function hasRole(
   user: AuthUserResponse | null,
@@ -97,4 +100,20 @@ export function canReprintLabels(user: AuthUserResponse | null): boolean {
 
 export function canUpdateSettings(user: AuthUserResponse | null): boolean {
   return hasPermission(user, SETTINGS_UPDATE_PERMISSION);
+}
+
+export function canReviewWorkHours(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, ATTENDANCE_READ_PERMISSION);
+}
+
+export function canReviewUnloadingWage(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, UNLOADING_WAGE_READ_PERMISSION);
+}
+
+export function canSettleUnloadingWage(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, UNLOADING_WAGE_SETTLE_PERMISSION);
 }

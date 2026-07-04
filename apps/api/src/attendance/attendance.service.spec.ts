@@ -101,6 +101,15 @@ describe('AttendanceService', () => {
         findMany: jest.fn(() => Promise.resolve(rowRecords)),
       },
       wageGeneratedFile: {
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            generatedFiles.find(
+              (file) =>
+                file.id === where.id &&
+                file.attendanceImportId === where.attendanceImportId,
+            ) ?? null,
+          ),
+        ),
         create: jest.fn(({ data }) => {
           const record = {
             id: `wage-file-${generatedFiles.length + 1}`,
@@ -276,6 +285,31 @@ describe('AttendanceService', () => {
       fileType: 'TASK_REPORT_HTML',
       storagePath: taskReportPath,
     });
+  });
+
+  it('downloads a generated attendance wage file', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const wageRecordPath = join(storageRoot, 'wage-record.xls');
+    const taskReportPath = join(storageRoot, 'wage-report.html');
+    await writeFile(wageRecordPath, 'download xls', 'utf8');
+    await writeFile(taskReportPath, '<html></html>', 'utf8');
+    workerAttendance.generateWageRecord.mockResolvedValue(
+      generatePayload(wageRecordPath, taskReportPath),
+    );
+    const generated = await service.generateWageRecord(
+      importRecord.id,
+      officeActor,
+    );
+
+    const download = await service.downloadFile(
+      importRecord.id,
+      generated.generatedFile.id,
+    );
+
+    expect(download.filename).toBe('wage-record.xls');
+    expect(download.buffer.toString()).toBe('download xls');
+    expect(download.mimeType).toBe('application/vnd.ms-excel');
   });
 
   async function loadFixtureFile(): Promise<Express.Multer.File> {

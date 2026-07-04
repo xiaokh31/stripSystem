@@ -28,6 +28,8 @@ export interface ContainerCorrectionResponseDto {
     dockNo: string | null;
     company: string | null;
     status: string;
+    payClassification: string | null;
+    payTrailerNumber: string | null;
     updatedAt: string;
   };
   corrections: CorrectionFeedbackResponseDto[];
@@ -76,6 +78,14 @@ export interface ContainerDetailResponseDto {
   sourceFormat: string;
   parserVersion: string | null;
   status: string;
+  payClassification: string | null;
+  payTrailerNumber: string | null;
+  payContainers: Array<{
+    id: string;
+    payContainerId: string;
+    payContainerNo: string;
+    status: string;
+  }>;
   totalCartons: number;
   totalVolumeCbm: string;
   rawJson: unknown;

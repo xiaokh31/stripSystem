@@ -7,9 +7,12 @@ import {
   canManageOfficeLoadJobs,
   canCompleteMobileLoadJob,
   canReprintLabels,
+  canReviewUnloadingWage,
+  canReviewWorkHours,
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
+  canSettleUnloadingWage,
   canSupervisorOverrideScans,
   canUpdateSettings,
   canViewMobileLoadJobs,
@@ -234,4 +237,33 @@ test("settings updates require explicit settings update permission", () => {
   assert.equal(canUpdateSettings(settingsAdmin), true);
   assert.equal(canUpdateSettings(adminUser), true);
   assert.equal(canUpdateSettings(null), false);
+});
+
+test("wage review navigation follows attendance and unloading wage permissions", () => {
+  const officeWageUser: AuthUserResponse = {
+    id: "office-wage-1",
+    email: "office-wage@example.com",
+    name: "Office Wage",
+    roles: ["OFFICE"],
+    permissions: [
+      "attendance.read",
+      "attendance.create",
+      "unloading_wage.read",
+      "unloading_wage.settle",
+    ],
+  };
+  const warehouseUser: AuthUserResponse = {
+    id: "warehouse-wage-1",
+    email: "warehouse-wage@example.com",
+    name: "Warehouse Wage",
+    roles: ["WAREHOUSE"],
+    permissions: ["unloading_wage.read", "unloading_wage.complete"],
+  };
+
+  assert.equal(canReviewWorkHours(officeWageUser), true);
+  assert.equal(canReviewUnloadingWage(officeWageUser), true);
+  assert.equal(canSettleUnloadingWage(officeWageUser), true);
+  assert.equal(canReviewWorkHours(warehouseUser), false);
+  assert.equal(canReviewUnloadingWage(warehouseUser), true);
+  assert.equal(canSettleUnloadingWage(warehouseUser), false);
 });

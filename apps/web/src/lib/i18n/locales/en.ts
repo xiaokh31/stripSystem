@@ -739,6 +739,143 @@ export const enMessages = {
     "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.",
   "I confirm this supervisor override should move the pallet to the current load job and create an audit event.":
     "I confirm this supervisor override should move the pallet to the current load job and create an audit event.",
+  "Add at least one unloader.": "Add at least one unloader.",
+  "Add unloader": "Add unloader",
+  "Allocation amount and percent must be 0 or greater.":
+    "Allocation amount and percent must be 0 or greater.",
+  "Allocation method": "Allocation method",
+  "Attendance imports": "Attendance imports",
+  "Attendance imports could not be loaded":
+    "Attendance imports could not be loaded",
+  "Attendance imports must use the legacy .xls time-clock workbook.":
+    "Attendance imports must use the legacy .xls time-clock workbook.",
+  "Attendance parse result could not be loaded":
+    "Attendance parse result could not be loaded",
+  "Audit reason": "Audit reason",
+  "Blank uses operational setting": "Blank uses operational setting",
+  "Complete unloading": "Complete unloading",
+  "Complete unloading by pay container id":
+    "Complete unloading by pay container id",
+  "Complete unloading for pay container":
+    "Complete unloading for pay container",
+  "Completed at": "Completed at",
+  "Completed date and time are required.":
+    "Completed date and time are required.",
+  "Completed date and time must be valid.":
+    "Completed date and time must be valid.",
+  "Completing unloading.": "Completing unloading.",
+  "Completion note": "Completion note",
+  "Container IDs": "Container IDs",
+  "Container pay classification": "Container pay classification",
+  "Create pay container": "Create pay container",
+  "Create pay container by container ids":
+    "Create pay container by container ids",
+  "Create pay container for this container":
+    "Create pay container for this container",
+  "Create pay containers from reviewed container records before monthly settlement.":
+    "Create pay containers from reviewed container records before monthly settlement.",
+  "Creating pay container.": "Creating pay container.",
+  "Each unloader requires both worker code and worker name.":
+    "Each unloader requires both worker code and worker name.",
+  "Enter at least one container id.": "Enter at least one container id.",
+  "Equal split": "Equal split",
+  "Files could not be loaded": "Files could not be loaded",
+  "Generate monthly settlement": "Generate monthly settlement",
+  "Generate settlement": "Generate settlement",
+  "Generate wage record": "Generate wage record",
+  "Generated settlement files": "Generated settlement files",
+  "Generating unloading wage settlement.":
+    "Generating unloading wage settlement.",
+  "Generating wage record workbook.": "Generating wage record workbook.",
+  "HR Work Hours Settlement": "HR Work Hours Settlement",
+  "Manual amount": "Manual amount",
+  "Manual amount allocation requires every amount.":
+    "Manual amount allocation requires every amount.",
+  "Manual percent": "Manual percent",
+  "Manual percent allocation requires every percent.":
+    "Manual percent allocation requires every percent.",
+  "No attendance imports": "No attendance imports",
+  "No generated settlement files are recorded.":
+    "No generated settlement files are recorded.",
+  "No parsed rows are stored yet. Run Parse to populate employee-day rows.":
+    "No parsed rows are stored yet. Run Parse to populate employee-day rows.",
+  "No pay container has been created for": "No pay container has been created for",
+  "No pay containers": "No pay containers",
+  "No settlement is selected for review.":
+    "No settlement is selected for review.",
+  "No unloading wage settlements generated yet.":
+    "No unloading wage settlements generated yet.",
+  "No wage files generated yet.": "No wage files generated yet.",
+  "Ocean container": "Ocean container",
+  "Ocean container pay units require exactly one container id.":
+    "Ocean container pay units require exactly one container id.",
+  "Override rate": "Override rate",
+  "Parsed employee-day rows": "Parsed employee-day rows",
+  "Parsing attendance workbook.": "Parsing attendance workbook.",
+  "Paste one or more container database ids":
+    "Paste one or more container database ids",
+  "Pay class": "Pay class",
+  "Pay classification saved.": "Pay classification saved.",
+  "Pay container": "Pay container",
+  "Pay container id": "Pay container id",
+  "Pay container id is required.": "Pay container id is required.",
+  "Pay container id:": "Pay container id:",
+  "Pay container links": "Pay container links",
+  "Pay containers": "Pay containers",
+  "Pay containers could not be loaded": "Pay containers could not be loaded",
+  "Recent pay units from the unloading wage API.":
+    "Recent pay units from the unloading wage API.",
+  "Required for transfer": "Required for transfer",
+  "Review issues": "Review issues",
+  "Review month filter": "Review month filter",
+  "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
+    "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.",
+  "Save classification": "Save classification",
+  "Saving pay classification.": "Saving pay classification.",
+  "Select one legacy .xls attendance workbook.":
+    "Select one legacy .xls attendance workbook.",
+  "Select or upload an attendance import to review parsed rows.":
+    "Select or upload an attendance import to review parsed rows.",
+  "Settlement detail rows": "Settlement detail rows",
+  "Settlement history": "Settlement history",
+  "Settlement month": "Settlement month",
+  "Settlement month must use YYYY-MM.": "Settlement month must use YYYY-MM.",
+  "Settlements could not be loaded": "Settlements could not be loaded",
+  "Showing first 100 of": "Showing first 100 of",
+  "Sign in before downloading generated wage files.":
+    "Sign in before downloading generated wage files.",
+  "Trailer number": "Trailer number",
+  "US-to-Canada transfer": "US-to-Canada transfer",
+  "US-to-Canada transfer pay units require a trailer number.":
+    "US-to-Canada transfer pay units require a trailer number.",
+  "US-to-Canada transfer requires a trailer number.":
+    "US-to-Canada transfer requires a trailer number.",
+  "Unloading Wage": "Unloading Wage",
+  "Upload .xls": "Upload .xls",
+  "Upload a real monthly .xls attendance workbook to start HR work hours settlement.":
+    "Upload a real monthly .xls attendance workbook to start HR work hours settlement.",
+  "Upload attendance workbook": "Upload attendance workbook",
+  "Upload monthly attendance, review parsed employee-day rows, and generate the wage record workbook through the attendance API.":
+    "Upload monthly attendance, review parsed employee-day rows, and generate the wage record workbook through the attendance API.",
+  "Uploading attendance workbook.": "Uploading attendance workbook.",
+  "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.":
+    "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.",
+  "Wage record generated. File history refreshed.":
+    "Wage record generated. File history refreshed.",
+  "Warehouse Unloading Wage Settlement":
+    "Warehouse Unloading Wage Settlement",
+  "Work Hours": "Work Hours",
+  "Work Hours Settlement": "Work Hours Settlement",
+  "Worker code": "Worker code",
+  "Worker name": "Worker name",
+  "Worker summary": "Worker summary",
+  "allocation line(s)": "allocation line(s)",
+  "employee(s)": "employee(s)",
+  "latest attendance workbook(s).": "latest attendance workbook(s).",
+  "parsed rows.": "parsed rows.",
+  "pay container(s)": "pay container(s)",
+  "row(s) from": "row(s) from",
+  "worker(s),": "worker(s),",
   "pallets, loaded": "pallets, loaded",
   "status": "status",
   "container(s)": "container(s)",
