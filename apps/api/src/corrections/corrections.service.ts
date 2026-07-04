@@ -99,6 +99,9 @@ interface CorrectionFeedbackRecord {
   containerDestinationId: string | null;
   palletId: string | null;
   generatedFileId: string | null;
+  attendanceImportId: string | null;
+  payContainerId: string | null;
+  unloadingWageSettlementId: string | null;
   fieldName: string;
   oldValue: unknown;
   newValue: unknown;
@@ -116,6 +119,9 @@ const TARGET_ID_FIELDS = [
   'containerDestinationId',
   'palletId',
   'generatedFileId',
+  'attendanceImportId',
+  'payContainerId',
+  'unloadingWageSettlementId',
 ] as const;
 
 @Injectable()
@@ -958,6 +964,12 @@ export class CorrectionsService {
       record = await tx.pallet.findUnique({ where: { id } });
     } else if (targetType === CorrectionTargetType.GENERATED_FILE) {
       record = await tx.generatedFile.findUnique({ where: { id } });
+    } else if (targetType === CorrectionTargetType.ATTENDANCE_IMPORT) {
+      record = await tx.attendanceImport.findUnique({ where: { id } });
+    } else if (targetType === CorrectionTargetType.PAY_CONTAINER) {
+      record = await tx.payContainer.findUnique({ where: { id } });
+    } else if (targetType === CorrectionTargetType.UNLOADING_WAGE_SETTLEMENT) {
+      record = await tx.unloadingWageSettlement.findUnique({ where: { id } });
     }
 
     if (!record) {
@@ -979,6 +991,10 @@ export class CorrectionsService {
       [CorrectionTargetType.CONTAINER_DESTINATION]: 'containerDestinationId',
       [CorrectionTargetType.PALLET]: 'palletId',
       [CorrectionTargetType.GENERATED_FILE]: 'generatedFileId',
+      [CorrectionTargetType.ATTENDANCE_IMPORT]: 'attendanceImportId',
+      [CorrectionTargetType.PAY_CONTAINER]: 'payContainerId',
+      [CorrectionTargetType.UNLOADING_WAGE_SETTLEMENT]:
+        'unloadingWageSettlementId',
     } as const;
 
     return fieldByTargetType[targetType];
@@ -991,7 +1007,10 @@ export class CorrectionsService {
       value === CorrectionTargetType.CONTAINER_LINE ||
       value === CorrectionTargetType.CONTAINER_DESTINATION ||
       value === CorrectionTargetType.PALLET ||
-      value === CorrectionTargetType.GENERATED_FILE
+      value === CorrectionTargetType.GENERATED_FILE ||
+      value === CorrectionTargetType.ATTENDANCE_IMPORT ||
+      value === CorrectionTargetType.PAY_CONTAINER ||
+      value === CorrectionTargetType.UNLOADING_WAGE_SETTLEMENT
     ) {
       return value;
     }
@@ -1261,6 +1280,9 @@ export class CorrectionsService {
       containerDestinationId: record.containerDestinationId,
       palletId: record.palletId,
       generatedFileId: record.generatedFileId,
+      attendanceImportId: record.attendanceImportId,
+      payContainerId: record.payContainerId,
+      unloadingWageSettlementId: record.unloadingWageSettlementId,
       fieldName: record.fieldName,
       oldValue: record.oldValue,
       newValue: record.newValue,

@@ -11,6 +11,11 @@ from worker_python.wage.attendance import (
     detect_attendance_workbook,
     parse_attendance_workbook,
 )
+from worker_python.wage.api import (
+    WAGE_API_BATCH_VERSION,
+    run_wage_generate_record_api,
+    run_wage_parse_api,
+)
 from worker_python.wage.batch import WAGE_P0_BATCH_VERSION, WageP0BatchResult, run_wage_p0
 from worker_python.wage.generator import (
     WageRecordGenerationResult,
@@ -22,6 +27,7 @@ __all__ = [
     "AttendanceDay",
     "AttendanceEmployeeSummary",
     "AttendanceParseResult",
+    "WAGE_API_BATCH_VERSION",
     "WAGE_P0_BATCH_VERSION",
     "WageDetectionResult",
     "WageFormatType",
@@ -33,5 +39,7 @@ __all__ = [
     "detect_attendance_workbook",
     "generate_wage_record",
     "parse_attendance_workbook",
+    "run_wage_generate_record_api",
     "run_wage_p0",
+    "run_wage_parse_api",
 ]

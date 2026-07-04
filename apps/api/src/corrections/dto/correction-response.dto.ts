@@ -7,6 +7,9 @@ export interface CorrectionFeedbackResponseDto {
   containerDestinationId: string | null;
   palletId: string | null;
   generatedFileId: string | null;
+  attendanceImportId: string | null;
+  payContainerId: string | null;
+  unloadingWageSettlementId: string | null;
   fieldName: string;
   oldValue: unknown;
   newValue: unknown;

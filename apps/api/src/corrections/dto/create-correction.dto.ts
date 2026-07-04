@@ -31,6 +31,18 @@ export class CreateCorrectionDto {
   @IsString()
   generatedFileId?: string;
 
+  @IsOptional()
+  @IsString()
+  attendanceImportId?: string;
+
+  @IsOptional()
+  @IsString()
+  payContainerId?: string;
+
+  @IsOptional()
+  @IsString()
+  unloadingWageSettlementId?: string;
+
   @IsString()
   fieldName!: string;
 

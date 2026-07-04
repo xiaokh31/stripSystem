@@ -10,6 +10,7 @@ export interface AppConfiguration {
   storageRoot: string;
   workerPythonDir: string;
   reportTemplatePath: string;
+  wageTemplatePath: string;
   jwtSecret?: string;
   jwtExpiresInSeconds: number;
 }
@@ -26,6 +27,8 @@ export const appConfig = (): { app: AppConfiguration } => ({
     workerPythonDir: process.env.WORKER_PYTHON_DIR ?? defaultWorkerPythonDir(),
     reportTemplatePath:
       process.env.REPORT_TEMPLATE_PATH ?? defaultReportTemplatePath(),
+    wageTemplatePath:
+      process.env.WAGE_TEMPLATE_PATH ?? defaultWageTemplatePath(),
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresInSeconds: Number.parseInt(
       process.env.JWT_EXPIRES_IN_SECONDS ?? '28800',
@@ -44,6 +47,15 @@ function defaultWorkerPythonDir(): string {
 
 function defaultReportTemplatePath(): string {
   return resolve(defaultRepoRoot(), 'samples', 'templates', '卸柜报告-En.xlsx');
+}
+
+function defaultWageTemplatePath(): string {
+  return resolve(
+    defaultRepoRoot(),
+    'samples',
+    'wage',
+    '20260601-0630_wageRecords.xls',
+  );
 }
 
 function defaultRepoRoot(): string {

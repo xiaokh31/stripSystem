@@ -334,19 +334,19 @@
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
-              <td>新增 attendance_imports、attendance_rows、wage_generated_files、pay_containers、unloader_assignments、unloading_wage_settlements 和结算快照行模型；新增 wage/unloading_wage 权限；Prisma generate 已通过。</td>
-              <td>实现 attendance upload、parse、generate wage record API，并记录解析 JSON、工资 workbook 和 HTML task report。</td>
+              <td>新增 attendance_imports、attendance_rows、wage_generated_files、pay_containers、unloader_assignments、unloading_wage_settlements、结算快照行和 wage audit target 模型；新增 wage/unloading_wage 权限；Prisma generate 已通过。</td>
+              <td>进入 unloading wage API：container classification、pay container grouping、completion 和 monthly settlement。</td>
             </tr>
             <tr>
               <td>Stage 2: Attendance API</td>
-              <td><span class="badge partial">In Progress</span></td>
-              <td>0%</td>
-              <td>尚未开始服务层实现。</td>
-              <td>复用 WAGE-P0 worker CLI，保存原始 .xls，SHA-256 去重，持久化 employee-day rows。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>25%</td>
+              <td>新增 worker `wage-parse-file` / `wage-generate-record` 窄命令；新增 `/api/attendance-imports` upload/list/get/parse/parse-result/generate-wage-record/files；保存原始 `.xls`、SHA-256 去重、持久化 employee-day rows，并记录 parsed JSON、wage record 和 HTML task report。</td>
+              <td>继续实现卸柜工资 API，不进入 Web UI。</td>
             </tr>
             <tr>
               <td>Stage 3: Unloading Wage API</td>
-              <td><span class="badge deferred">Pending</span></td>
+              <td><span class="badge partial">In Progress</span></td>
               <td>0%</td>
               <td>schema 已提供 pay container、unloader assignment 和 settlement snapshot 表。</td>
               <td>实现 container classification、pay container grouping、completion/unloader assignment 和 monthly settlement API。</td>

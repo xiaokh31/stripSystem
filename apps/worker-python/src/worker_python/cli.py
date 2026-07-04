@@ -24,7 +24,11 @@ from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 from worker_python.time_utils import operational_now
 from worker_python.unloading_wage import run_unload_wage_p0
-from worker_python.wage import run_wage_p0
+from worker_python.wage import (
+    run_wage_generate_record_api,
+    run_wage_p0,
+    run_wage_parse_api,
+)
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -107,6 +111,79 @@ def wage_p0(
     ),
 ) -> None:
     result = run_wage_p0(
+        attendance_file=attendance_file,
+        template_path=wage_template,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("wage-parse-file")
+def wage_parse_file(
+    attendance_file: Path = typer.Option(
+        ...,
+        "--attendance-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage attendance workbook to parse for API persistence.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Wage parse output directory.",
+    ),
+) -> None:
+    result = run_wage_parse_api(
+        attendance_file=attendance_file,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("wage-generate-record")
+def wage_generate_record(
+    attendance_file: Path = typer.Option(
+        ...,
+        "--attendance-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage attendance workbook to generate a wage record from.",
+    ),
+    wage_template: Path = typer.Option(
+        ...,
+        "--wage-template",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage record template workbook.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Wage record output directory.",
+    ),
+) -> None:
+    result = run_wage_generate_record_api(
         attendance_file=attendance_file,
         template_path=wage_template,
         output_dir=output_dir,
