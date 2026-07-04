@@ -223,8 +223,9 @@
           P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
           debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
           module、secure token storage 和真实设备安装扫码验收仍未完成。新增
-          Work Hours / Unloading Wage P1 扩展已开始执行，当前完成 schema、migration
-          和权限边界，后续阶段继续补 attendance API 与 unloading wage API。
+          Work Hours / Unloading Wage P1 扩展已完成到 API/DB 范围：attendance
+          upload/parse/generate、unloading pay container、completion/unloader
+          assignment 和 monthly settlement 已落库并通过回归检查；Web UI 仍属 P2。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -353,10 +354,10 @@
             </tr>
             <tr>
               <td>Stage 4: Regression / Final Report</td>
-              <td><span class="badge partial">In Progress</span></td>
-              <td>0%</td>
-              <td>最终全量检查尚未执行。</td>
-              <td>跑 API/worker 检查，更新最终完成度和已知限制。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>25%</td>
+              <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api lint`、`pnpm --filter api prisma validate`、`pnpm --filter api prisma generate` 和 worker `uv run pytest`。API 单测 82 个通过，worker 测试 80 个通过。</td>
+              <td>工资 P1 扩展完成；下一步进入 P2 Office Web UI 页面和人工 review workflow。</td>
             </tr>
           </tbody>
         </table>
