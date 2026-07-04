@@ -106,6 +106,7 @@ services:
       - bestar_node_modules:/workspace/node_modules
       - bestar_api_node_modules:/workspace/apps/api/node_modules
       - bestar_web_node_modules:/workspace/apps/web/node_modules
+      - bestar_web_next:/workspace/apps/web/.next
     command: >
       sh -lc "corepack enable &&
       pnpm install --frozen-lockfile=false &&
@@ -179,4 +180,5 @@ volumes:
   bestar_node_modules:
   bestar_api_node_modules:
   bestar_web_node_modules:
+  bestar_web_next:
   bestar_worker_venv:

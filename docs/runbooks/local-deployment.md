@@ -95,6 +95,10 @@ Node dependency folders, pnpm store, and the worker Python `.venv` are also
 stored in Docker named volumes. This keeps the local compose runtime from
 deleting or rewriting host machine dependency directories.
 
+The web service also stores its runtime `.next` build output in a Docker named
+volume. This keeps a host-side `pnpm --filter web build` from overwriting the
+static chunks used by the running Docker web process.
+
 ## Start Full Stack
 
 ```bash

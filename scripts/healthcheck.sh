@@ -38,7 +38,27 @@ echo "Checking API health: $API_HEALTH_URL"
 curl --fail --show-error --silent "$API_HEALTH_URL" >/dev/null
 
 echo "Checking Web: $WEB_URL"
-curl --fail --show-error --silent "$WEB_URL" >/dev/null
+WEB_HTML="$(curl --fail --location --show-error --silent "$WEB_URL")"
+WEB_ORIGIN="$(printf '%s\n' "$WEB_URL" | sed -E 's#^(https?://[^/]+).*#\1#')"
+NEXT_STATIC_ASSETS="$(
+  printf '%s' "$WEB_HTML" |
+    grep -oE '(href|src)="/_next/static/[^"]+"' |
+    sed -E 's#^(href|src)="([^"]+)".*#\2#' |
+    sort -u || true
+)"
+
+if [[ -z "$NEXT_STATIC_ASSETS" ]]; then
+  echo "No Next.js static assets found in web HTML." >&2
+  exit 1
+fi
+
+echo "Checking Next.js static assets"
+while IFS= read -r asset_path; do
+  [[ -z "$asset_path" ]] && continue
+  echo "Checking Next.js static asset: $asset_path"
+  curl --fail --show-error --silent --output /dev/null \
+    "$WEB_ORIGIN$asset_path"
+done <<<"$NEXT_STATIC_ASSETS"
 
 echo "Checking storage writability: $STORAGE_ROOT"
 mkdir -p "$STORAGE_ROOT"
