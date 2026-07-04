@@ -7,6 +7,7 @@ from worker_python.wage.attendance import (
     WageFormatType,
     WageIssue,
     calculate_paired_work_hours,
+    calculate_work_hours_after_fixed_lunch,
     detect_attendance_workbook,
     parse_attendance_workbook,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "WageP0BatchResult",
     "WageRecordGenerationResult",
     "calculate_paired_work_hours",
+    "calculate_work_hours_after_fixed_lunch",
     "detect_attendance_workbook",
     "generate_wage_record",
     "parse_attendance_workbook",

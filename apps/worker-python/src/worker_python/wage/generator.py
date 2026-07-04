@@ -9,7 +9,12 @@ import xlrd  # type: ignore[import-untyped]
 from xlutils.copy import copy as copy_workbook  # type: ignore[import-untyped]
 
 from worker_python.time_utils import operational_now
-from worker_python.wage.attendance import AttendanceDay, AttendanceParseResult, WageIssue
+from worker_python.wage.attendance import (
+    FIXED_LUNCH_HOURS,
+    AttendanceDay,
+    AttendanceParseResult,
+    WageIssue,
+)
 
 
 @dataclass(frozen=True)
@@ -54,15 +59,7 @@ def generate_wage_record(
             message=f"Wage template does not exist: {template_path}",
         )
 
-    warnings: list[WageIssue] = [
-        WageIssue(
-            code="WAGE_GENERATOR_ASSUMPTION",
-            message=(
-                "Generated workbook writes paired-punch work hours without lunch "
-                "deduction because the payroll rule is not confirmed."
-            ),
-        )
-    ]
+    warnings: list[WageIssue] = []
     errors: list[WageIssue] = []
 
     try:
@@ -172,7 +169,7 @@ def _write_employee_sheet(
             continue
 
         writable_sheet.write(row_index, 2, attendance_day.calculatedHours)
-        writable_sheet.write(row_index, 3, "/")
+        writable_sheet.write(row_index, 3, FIXED_LUNCH_HOURS)
         writable_sheet.write(row_index, 4, _excel_time_fraction(attendance_day.firstPunch))
         writable_sheet.write(row_index, 5, _excel_time_fraction(attendance_day.lastPunch))
         written += 1

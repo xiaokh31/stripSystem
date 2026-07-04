@@ -11,9 +11,11 @@ import xlrd  # type: ignore[import-untyped]
 
 
 ATTENDANCE_PARSER_VERSION = "wage-attendance-v1"
+FIXED_LUNCH_HOURS = 0.5
 ATTENDANCE_ASSUMPTIONS = (
     "Punch times are paired in chronological order per employee-day.",
-    "Calculated hours do not subtract lunch break because the rule is not confirmed.",
+    "Each worked employee-day subtracts a fixed 0.5 lunch hour.",
+    "No overtime, tax, statutory holiday, or vacation calculations are applied.",
     "Blank punch cells are emitted as zero-hour days with review warnings.",
 )
 
@@ -69,6 +71,8 @@ class AttendanceDay:
     workDate: date
     dayNumber: int
     punchTimes: tuple[str, ...]
+    pairedGrossHours: float | None
+    fixedLunchHours: float
     calculatedHours: float | None
     firstPunch: str | None
     lastPunch: str | None
@@ -281,6 +285,10 @@ def calculate_paired_work_hours(punch_times: tuple[str, ...]) -> float:
     return round(total_minutes / 60, 2)
 
 
+def calculate_work_hours_after_fixed_lunch(punch_times: tuple[str, ...]) -> float:
+    return round(max(calculate_paired_work_hours(punch_times) - FIXED_LUNCH_HOURS, 0), 2)
+
+
 def _parse_employee_days(
     sheet: Any,
     block: _EmployeeBlock,
@@ -315,9 +323,12 @@ def _parse_employee_days(
         )
         day_warnings: list[WageIssue] = []
         day_errors: list[WageIssue] = []
+        paired_gross_hours: float | None
+        fixed_lunch_hours = 0.0
         calculated_hours: float | None
 
         if not punch_times:
+            paired_gross_hours = 0.0
             calculated_hours = 0.0
             day_warnings.append(
                 _day_issue(
@@ -329,6 +340,7 @@ def _parse_employee_days(
                 )
             )
         elif len(punch_times) % 2:
+            paired_gross_hours = None
             calculated_hours = None
             day_warnings.append(
                 _day_issue(
@@ -340,7 +352,9 @@ def _parse_employee_days(
                 )
             )
         else:
-            calculated_hours = calculate_paired_work_hours(punch_times)
+            paired_gross_hours = calculate_paired_work_hours(punch_times)
+            fixed_lunch_hours = FIXED_LUNCH_HOURS
+            calculated_hours = calculate_work_hours_after_fixed_lunch(punch_times)
 
         days.append(
             AttendanceDay(
@@ -350,6 +364,8 @@ def _parse_employee_days(
                 workDate=work_date,
                 dayNumber=day_number,
                 punchTimes=punch_times,
+                pairedGrossHours=paired_gross_hours,
+                fixedLunchHours=fixed_lunch_hours,
                 calculatedHours=calculated_hours,
                 firstPunch=punch_times[0] if punch_times else None,
                 lastPunch=punch_times[-1] if punch_times else None,
