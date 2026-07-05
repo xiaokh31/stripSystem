@@ -390,6 +390,13 @@
               <td>继续 WAGE-QA-01：Work Hours 端到端回归与 Docker full-stack 手工验收；必要时补 Playwright smoke。</td>
             </tr>
             <tr>
+              <td>Stage 2.2: WAGE-QA-01 Work Hours End-to-End Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA-01</td>
+              <td>新增 `/work-hours` Playwright smoke，覆盖真实 `.xls` 上传、`.xlsx` 拒绝、SHA-256 展示、重复上传复用既有 import、parse 后 390 employee-day rows 与 warning/error review、wage record 生成、generated files SHA-256/size/MIME/download link、UI 不暴露内部 storage path；read-only `attendance.read` 用户可查看但隐藏 upload/parse/generate；QA 发现持久化数据库缺少工资扩展 RBAC 权限，新增 `20260705001000_wage_rbac_permissions` migration 补齐 `attendance.*` 与 `unloading_wage.*` 权限及默认角色映射；API 侧继续覆盖 upload/duplicate/parse/generate/download 和 403；新增 Work Hours regression runbook 记录 Docker full-stack 手工验收、fixture SHA、migration deploy 和生成文件审计元数据检查。</td>
+              <td>WAGE-QA-01 回归完成；后续工资任务可以在该 smoke 与 runbook 基础上继续扩展，不改变 P0/P1/P2 已验收业务规则。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
