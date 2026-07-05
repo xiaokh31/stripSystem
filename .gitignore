@@ -86,7 +86,8 @@ prompts/tasks/*
 !prompts/tasks/P4-AUTH-01Permissioned Reprint Audit Controls.md
 !prompts/tasks/P5-AUTH-01Auth Deployment Runbook + Initial Admin Setup.md
 !prompts/tasks/P6-MOBILE*.md
-!prompts/tasks/WAGE-P0*.md
+!prompts/tasks/WAGE-P*.md
+!prompts/tasks/WAGE-QA*.md
 !prompts/tasks/UNLOAD-WAGE*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
