@@ -1,0 +1,84 @@
+{
+  "id": "cmr84xbyo000f77o0282b58c1",
+  "settlementMonth": "2026-07",
+  "currency": "CAD",
+  "status": "GENERATED",
+  "totalAmount": "600",
+  "warningCount": 0,
+  "errorCount": 0,
+  "workers": [
+    {
+      "id": "cmr84xbyt000h77o0rgmckma1",
+      "workerCode": "NAME:ASD",
+      "workerName": "asd",
+      "payContainerCount": 1,
+      "totalAmount": "150"
+    },
+    {
+      "id": "cmr84xbyr000g77o0xhuubenv",
+      "workerCode": "NAME:LEO",
+      "workerName": "Leo",
+      "payContainerCount": 1,
+      "totalAmount": "150"
+    },
+    {
+      "id": "cmr84xbyv000i77o0odtlohmn",
+      "workerCode": "USER:cmr84x9rc000277o01u9ti4t9",
+      "workerName": "Smoke Warehouse Worker 76733011",
+      "payContainerCount": 1,
+      "totalAmount": "300"
+    }
+  ],
+  "lines": [
+    {
+      "id": "cmr84xbz2000k77o01we4ly5y",
+      "workerCode": "NAME:ASD",
+      "workerName": "asd",
+      "payContainerNo": "PC-OCEAN-CAAU8011090",
+      "classification": "OCEAN_CONTAINER",
+      "trailerNumber": null,
+      "containerNumbers": [
+        "CAAU8011090"
+      ],
+      "completedAt": "2026-07-05T04:19:00.000Z",
+      "rateAmount": "300",
+      "allocationMethod": "EQUAL_SPLIT",
+      "amount": "150"
+    },
+    {
+      "id": "cmr84xbyz000j77o0jak1lhl1",
+      "workerCode": "NAME:LEO",
+      "workerName": "Leo",
+      "payContainerNo": "PC-OCEAN-CAAU8011090",
+      "classification": "OCEAN_CONTAINER",
+      "trailerNumber": null,
+      "containerNumbers": [
+        "CAAU8011090"
+      ],
+      "completedAt": "2026-07-05T04:19:00.000Z",
+      "rateAmount": "300",
+      "allocationMethod": "EQUAL_SPLIT",
+      "amount": "150"
+    },
+    {
+      "id": "cmr84xbz9000l77o0tvfexeiz",
+      "workerCode": "USER:cmr84x9rc000277o01u9ti4t9",
+      "workerName": "Smoke Warehouse Worker 76733011",
+      "payContainerNo": "PC-OCEAN-SMK76733011A",
+      "classification": "OCEAN_CONTAINER",
+      "trailerNumber": null,
+      "containerNumbers": [
+        "SMK76733011A"
+      ],
+      "completedAt": "2026-07-05T17:30:00.000Z",
+      "rateAmount": "300",
+      "allocationMethod": "EQUAL_SPLIT",
+      "amount": "300"
+    }
+  ],
+  "generatedFiles": [],
+  "warnings": [],
+  "errors": [],
+  "createdAt": "2026-07-05T18:38:56.208Z",
+  "updatedAt": "2026-07-05T18:38:56.208Z"
+}

@@ -16,6 +16,11 @@ container wage tag, trailer number for US-to-Canada transfer work, associated
 container numbers for combined transfer work, unloading completion status, and
 one or more unloader names.
 
+The system must separate these two wage workflows by role. The HR manager role
+manages only work hours settlement. The warehouse manager role manages only
+container-detail unloading wage information and monthly unloading wage
+settlement.
+
 Ocean containers pay CAD 300 per container number. US-to-Canada transfer work
 pays CAD 360 per paid transfer unit. US-to-Canada transfer work often combines
 multiple container numbers, for example `ZCSU1234567B+TGBU1234567B`, and that
@@ -42,12 +47,16 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 
 ## Actors
 
-- HR manager: uploads attendance records and reviews generated wage records.
-- Warehouse manager: opens container detail, classifies the container, records
-  trailer/association data, marks unloading as completed, assigns unloaders,
-  and generates monthly unloading wage settlement.
+- HR manager (`HR_MANAGER`): uploads attendance records, parses attendance,
+  reviews employee-day rows, and generates work hours wage records.
+- Warehouse manager (`WAREHOUSE_MANAGER`): opens container detail, classifies
+  the container, records trailer/association data, marks unloading as
+  completed, assigns unloaders, and generates monthly unloading wage
+  settlement.
 - Office user: imports or manually creates containers in the existing office
-  workflow.
+  workflow, but does not receive wage-settlement authority by default.
+- Warehouse user: scans loading work and may complete loading jobs, but does
+  not receive unloading wage settlement authority by default.
 - Admin: manages worker names/users and pay-rate settings.
 - Developer: implements parser, calculation, persistence, APIs, and UI.
 
@@ -94,8 +103,45 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
     checked against the unloading report.
 17. As an admin, I want pay rates stored as settings, so that CAD 300 and CAD
     360 can change later without changing code.
+18. As an admin, I want a dedicated HR manager role, so that work hours
+    settlement is not granted to all office users by default.
+19. As an admin, I want a dedicated warehouse manager role, so that unloading
+    wage settlement is not granted to all warehouse users by default.
 
 ## Business Rules
+
+### Role and Permission Rules
+
+- Add two default RBAC role records:
+  - `HR_MANAGER` / Human Resources Manager
+  - `WAREHOUSE_MANAGER` / Warehouse Manager
+- `HR_MANAGER` manages only work hours settlement:
+  - can access `/work-hours`
+  - can upload attendance workbooks
+  - can parse attendance imports
+  - can view parsed attendance rows and generated attendance files
+  - can generate wage record workbooks
+  - must not manage unloading wage classification, completion, unloaders, or
+    settlement unless another role explicitly grants those permissions
+- `WAREHOUSE_MANAGER` manages only unloading wage settlement:
+  - can read container detail needed for unloading wage work
+  - can edit the container detail unloading wage section
+  - can set `海柜` / `美转加`, trailer number, associated containers,
+    unloaders, and `已拆完`
+  - can access `/unloading-wage`
+  - can generate monthly unloading wage settlements
+  - must not upload, parse, or generate HR attendance wage records unless
+    another role explicitly grants those permissions
+- `ADMIN` keeps all permissions.
+- `OFFICE` keeps normal office import, correction, reporting, label, inventory,
+  and load-job planning permissions, but must not receive `attendance.*` or
+  `unloading_wage.*` permissions by default after this role split.
+- `WAREHOUSE` keeps normal loading scan permissions, but must not receive
+  `unloading_wage.*` permissions by default after this role split.
+- If a user has multiple roles, effective permissions are the union of all
+  assigned active roles.
+- API guards are the source of truth. Frontend navigation and buttons must
+  mirror API permissions, but hiding UI is not sufficient authorization.
 
 ### Attendance Record Rules
 
@@ -228,6 +274,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Add or adjust schema so existing container records can expose unloading wage
   tag, trailer number, associated container numbers, unloading completion, and
   unloaders through container detail.
+- Add default RBAC role records for `HR_MANAGER` and `WAREHOUSE_MANAGER`, and
+  map wage permissions to those manager roles.
 - Add API behavior for saving the unloading wage section from container detail.
 - Add API behavior for generating monthly unloading wage settlement from saved
   container detail data.
@@ -270,6 +318,8 @@ using the existing container detail.
 
 ### Work Hours Settlement Page
 
+- Only `HR_MANAGER` and `ADMIN` should see or execute work hours settlement
+  actions by default.
 - Upload one monthly `.xls` attendance workbook.
 - Display filename, SHA-256, parse status, warning count, and error count.
 - Show parsed employee/day rows before generation.
@@ -281,6 +331,11 @@ using the existing container detail.
 ### Container Detail Unloading Wage Section
 
 Add this section to existing `/containers/[id]`.
+
+Only `WAREHOUSE_MANAGER` and `ADMIN` should edit unloading wage information by
+default. Users without unloading wage permissions may see the underlying
+container detail if they have container read access, but the wage editing
+actions should be hidden or read-only.
 
 Required controls:
 
@@ -310,6 +365,8 @@ Required controls:
 
 ### Unloading Wage Settlement Page
 
+- Only `WAREHOUSE_MANAGER` and `ADMIN` should see or execute unloading wage
+  settlement actions by default.
 - Filter by month.
 - Generate settlement from container detail data for that month.
 - Show summary by worker: worker name, paid unit count, wage amount, and review
@@ -340,10 +397,10 @@ Required controls:
 - Settlement generation should snapshot rates, associations, unloaders, and
   included container numbers so later changes do not silently rewrite
   historical wages.
-- Permissions should follow existing roles: `ADMIN` and `OFFICE` can manage
-  settings; warehouse-manager access may need a permission; ordinary
-  `WAREHOUSE` users should not edit rates or approve settlement unless the
-  business explicitly allows it.
+- Permissions should use dedicated wage manager roles. `HR_MANAGER` owns work
+  hours settlement. `WAREHOUSE_MANAGER` owns unloading wage settlement.
+  Ordinary `OFFICE` and `WAREHOUSE` users should not receive wage-settlement
+  permissions by default.
 
 ## Testing Decisions
 
@@ -363,6 +420,13 @@ Required controls:
 - UI tests should verify the container detail unloading wage section, trailer
   number conditional display, association add/remove, `已拆完`, unloader
   add/remove, monthly filter, settlement generation, and settlement detail.
+- Role tests should verify that `HR_MANAGER` can perform attendance settlement
+  but cannot perform unloading wage settlement, and that `WAREHOUSE_MANAGER`
+  can perform unloading wage settlement but cannot perform attendance
+  settlement.
+- Frontend permission tests should verify that `/work-hours`, `/unloading-wage`,
+  and container-detail wage actions are visible only to the matching manager
+  role or `ADMIN`.
 
 ## Acceptance Criteria
 
@@ -371,6 +435,10 @@ Required controls:
   JSON plus a generated wage workbook.
 - Existing container detail includes unloading wage tag, trailer number,
   associated containers, unloading completion, and unloader rows.
+- `HR_MANAGER` can manage work hours settlement and does not receive unloading
+  wage settlement permissions by default.
+- `WAREHOUSE_MANAGER` can manage unloading wage settlement and does not receive
+  work hours settlement permissions by default.
 - `海柜` uses one container number as one CAD 300 paid unit.
 - `美转加` requires trailer number and can associate multiple container numbers
   as one CAD 360 paid unit.
@@ -407,5 +475,6 @@ Required controls:
   always correct, or do managers need percentage/amount allocation from day one?
 - Can one trailer number be reused for different transfer groups in the same
   month, or is trailer number unique enough to identify one combined paid unit?
-- Who is allowed to mark `已拆完` and who is allowed to approve the monthly
-  settlement?
+- Should `HR_MANAGER` and `WAREHOUSE_MANAGER` be seeded as built-in role
+  assignments for existing users during deployment, or should admins assign
+  them manually after migration?

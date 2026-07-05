@@ -36,10 +36,22 @@ The generated monthly workbook that summarizes each employee's payable work
 hours from an attendance record.
 _Avoid_: Attendance record, punch log
 
+**HR Manager**:
+The business role that owns work hours settlement. This role can upload and
+parse attendance records and generate wage records. It should not manage
+unloading wage settlement by default.
+_Avoid_: Office user, admin, warehouse manager
+
 **Unloading Wage Settlement**:
 The monthly settlement that calculates unloading pay for warehouse workers from
 completed unloading work and the container pay classification.
 _Avoid_: Payroll, attendance wage record
+
+**Warehouse Manager**:
+The business role that owns unloading wage settlement. This role can manage
+container-detail unloading wage data and generate monthly unloading wage
+settlements. It should not manage HR attendance wage records by default.
+_Avoid_: Warehouse scan operator, HR manager
 
 **Container Wage Tag**:
 The business tag shown on a container detail page that classifies the container

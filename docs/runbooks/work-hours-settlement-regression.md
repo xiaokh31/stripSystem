@@ -27,7 +27,7 @@ DATABASE_URL='postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unl
 ```
 
 - Open the web app through nginx: `http://127.0.0.1/`.
-- Use an admin or HR account with attendance permissions.
+- Use an admin or `HR_MANAGER` account with attendance permissions.
 - Keep the real wage fixtures unchanged:
 
 | Fixture | SHA-256 |
@@ -63,8 +63,8 @@ E2E_ADMIN_EMAIL=admin@bestarcca.com E2E_ADMIN_PASSWORD='Bestar-Admin-Local-2026!
 
 ## Manual Web Verification
 
-1. Log in to `http://127.0.0.1/` as an admin or HR user with attendance
-   permissions.
+1. Log in to `http://127.0.0.1/` as an admin or `HR_MANAGER` user with
+   attendance permissions.
 2. Open `/work-hours`.
 3. Try uploading an `.xlsx` workbook, for example
    `samples/unloading-plans/BEAU5601716 UNLOADING PLAN.xlsx`.
@@ -95,14 +95,17 @@ E2E_ADMIN_EMAIL=admin@bestarcca.com E2E_ADMIN_PASSWORD='Bestar-Admin-Local-2026!
 2. Open `/work-hours?attendanceImportId=<existing-id>`.
 3. Confirm the page can show read-only import/parse data, but does not show the
    upload input, Upload `.xls`, Parse, or Generate wage record actions.
-4. Log in as a user without `attendance.read`.
-5. Confirm direct access to `/work-hours` shows the permission message and does
+4. Log in as `WAREHOUSE_MANAGER`.
+5. Confirm `/work-hours` does not expose executable attendance actions and the
+   attendance API returns 403 for upload, parse, and wage generation.
+6. Log in as a user without `attendance.read`.
+7. Confirm direct access to `/work-hours` shows the permission message and does
    not fetch attendance data.
-6. Confirm API regression includes 403 coverage for unauthorized attendance
+8. Confirm API regression includes 403 coverage for unauthorized attendance
    parse and generated file download attempts.
-7. Confirm `attendance.*` and `unloading_wage.*` permissions exist in the
-   database after migrations, and that default ADMIN/OFFICE/SYSTEM/WAREHOUSE
-   role mappings match `apps/api/src/auth/default-rbac.ts`.
+9. Confirm `HR_MANAGER` owns `attendance.*` by default, `WAREHOUSE_MANAGER`
+   owns `unloading_wage.*` by default, and ordinary `OFFICE` / `WAREHOUSE`
+   roles do not receive wage-settlement permissions by default.
 
 ## Fixture Preservation Check
 

@@ -8,6 +8,7 @@ docs/adr/*
 !docs/adr/0003-native-scan-app.md
 !docs/architecture/
 docs/architecture/*
+!docs/architecture/09-account-role-permission-management.md
 !docs/architecture/10-native-scan-app-architecture.md
 !docs/product/
 !docs/product/01-cross-platform-mobile-scan-app.md
