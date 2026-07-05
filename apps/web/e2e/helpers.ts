@@ -7,7 +7,7 @@ export const E2E_BASE_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1";
 export async function loginThroughApi(
   page: Page,
   request: APIRequestContext,
-): Promise<void> {
+): Promise<string> {
   const response = await request.post("/api/auth/login", {
     data: {
       email: E2E_ADMIN_EMAIL,
@@ -34,6 +34,7 @@ export async function loginThroughApi(
       value: body.accessToken,
     },
   ]);
+  return body.accessToken;
 }
 
 export async function expectNoPageError(page: Page): Promise<void> {

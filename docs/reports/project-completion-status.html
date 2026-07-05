@@ -365,8 +365,8 @@
               <td>Stage 5: Office Web UI / Review Workflow</td>
               <td><span class="badge done">Done</span></td>
               <td>P2</td>
-              <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes 和 Reports 入口；UNLOAD-WAGE-04 已将 `/unloading-wage` 收敛为月度结算 review workflow：按月份加载 container detail 已拆完来源记录、生成当月结算、显示 worker paid unit / wage amount / review status、显示海柜柜号或美转加 trailer、完整关联柜号、完成日期、rate、拆柜人、worker amount，并提供 JSON / HTML task report 下载；页面显示无已拆完记录空状态、API 错误和 NEEDS_REVIEW / SUPERSEDED warning；已通过 `pnpm --filter web lint/typecheck/test`，当前 web 单测 125 个通过。</td>
-              <td>UNLOAD-WAGE-04 完成；建议下一步用 Docker full-stack 做真实浏览器手工验收，并补 Playwright wage smoke。</td>
+              <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes 和 Reports 入口；UNLOAD-WAGE-04 已将 `/unloading-wage` 收敛为月度结算 review workflow：按月份加载 container detail 已拆完来源记录、生成当月结算、显示 worker paid unit / wage amount / review status、显示海柜柜号或美转加 trailer、完整关联柜号、完成日期、rate、拆柜人、worker amount，并提供 JSON / HTML task report 下载；页面显示无已拆完记录空状态、API 错误和 NEEDS_REVIEW / SUPERSEDED warning；新增 Playwright unloading-wage smoke，使用真实 API 创建临时美转加关联柜、生成旧版本、从页面重新生成结算并验证 warning、汇总、明细和下载链接；已通过 `pnpm --filter web lint/typecheck/test`、`pnpm --filter web exec playwright test e2e/unloading-wage.spec.ts`，当前 web 单测 125 个通过，unloading-wage Playwright smoke 2 个通过。</td>
+              <td>UNLOAD-WAGE-04 和 Playwright wage smoke 完成；建议下一步把 smoke 纳入常规 Docker full-stack 回归批次。</td>
             </tr>
           </tbody>
         </table>
