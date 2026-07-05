@@ -348,6 +348,13 @@
               <td>继续 WAGE-P0-03：从 parsed JSON 生成工资工时表 `.xls` 和 HTML task report；仍不进入 API/Web。</td>
             </tr>
             <tr>
+              <td>Stage 0.2: WAGE-P0-03 Wage Record / Task Report</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P0-03</td>
+              <td>WAGE-P0 full worker flow 已使用 `samples/wage/20260601-0630_wageRecords.xls` 作为真实 `.xls` 模板复制生成工资工时表，不修改原模板；生成的 wage record 可由 workbook reader 打开；新增 `wage_record_manifest.json` 记录生成文件 path、SHA-256、byte size、type、template path 和 template SHA；HTML task report 显示输入文件名、SHA-256、parse status、employee count、total calculated hours、warning/error 汇总和 generated wage record path。</td>
+              <td>WAGE-P0 worker 原型已覆盖 fixture、parser、hours JSON、wage record 和 task report；下一步按任务队列进入后续 wage P1/P2 或指定的新切片。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>

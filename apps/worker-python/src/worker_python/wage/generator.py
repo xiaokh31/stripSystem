@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import xlrd  # type: ignore[import-untyped]
 from xlutils.copy import copy as copy_workbook  # type: ignore[import-untyped]
 
+from worker_python.imports import compute_sha256
 from worker_python.time_utils import operational_now
 from worker_python.wage.attendance import (
     LUNCH_HOURS,
@@ -17,11 +20,19 @@ from worker_python.wage.attendance import (
 )
 
 
+WAGE_RECORD_MANIFEST_FILENAME = "wage_record_manifest.json"
+WAGE_RECORD_FILE_TYPE = "wage_record_xls"
+
+
 @dataclass(frozen=True)
 class WageRecordGenerationResult:
     outputPath: Path
     templatePath: Path
     generatedFilename: str
+    manifestPath: Path
+    outputSha256: str | None
+    outputSizeBytes: int | None
+    fileType: str
     writtenEmployeeCount: int
     writtenDayCount: int
     unmatchedEmployees: tuple[str, ...]
@@ -125,11 +136,28 @@ def generate_wage_record(
         generated_at,
     )
     writable.save(output_path)
+    output_sha256 = compute_sha256(output_path)
+    output_size_bytes = output_path.stat().st_size
+    manifest_path = output_dir / WAGE_RECORD_MANIFEST_FILENAME
+    _append_manifest_record(
+        manifest_path=manifest_path,
+        output_path=output_path,
+        template_path=template_path,
+        output_sha256=output_sha256,
+        output_size_bytes=output_size_bytes,
+        generated_at=generated_at,
+        attendance_result=attendance_result,
+        warnings=warnings,
+    )
 
     return WageRecordGenerationResult(
         outputPath=output_path,
         templatePath=template_path,
         generatedFilename=output_path.name,
+        manifestPath=manifest_path,
+        outputSha256=output_sha256,
+        outputSizeBytes=output_size_bytes,
+        fileType=WAGE_RECORD_FILE_TYPE,
         writtenEmployeeCount=len(matched_employee_keys),
         writtenDayCount=written_day_count,
         unmatchedEmployees=unmatched_employees,
@@ -216,6 +244,10 @@ def _generation_error(
         outputPath=output_path,
         templatePath=template_path,
         generatedFilename=output_path.name,
+        manifestPath=output_dir / WAGE_RECORD_MANIFEST_FILENAME,
+        outputSha256=None,
+        outputSizeBytes=None,
+        fileType=WAGE_RECORD_FILE_TYPE,
         writtenEmployeeCount=0,
         writtenDayCount=0,
         unmatchedEmployees=(),
@@ -336,6 +368,61 @@ def _output_filename(
 
 def _tokens(value: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", value.lower()))
+
+
+def _append_manifest_record(
+    *,
+    manifest_path: Path,
+    output_path: Path,
+    template_path: Path,
+    output_sha256: str,
+    output_size_bytes: int,
+    generated_at: datetime,
+    attendance_result: AttendanceParseResult,
+    warnings: list[WageIssue],
+) -> None:
+    manifest = _load_manifest(manifest_path)
+    record = {
+        "generated_at": generated_at.isoformat(),
+        "path": str(output_path),
+        "sha256": output_sha256,
+        "size_bytes": output_size_bytes,
+        "type": WAGE_RECORD_FILE_TYPE,
+        "template_path": str(template_path),
+        "template_sha256": compute_sha256(template_path),
+        "period_start": attendance_result.periodStart.isoformat()
+        if attendance_result.periodStart
+        else None,
+        "period_end": attendance_result.periodEnd.isoformat()
+        if attendance_result.periodEnd
+        else None,
+        "parser_version": attendance_result.parserVersion,
+        "warnings": [warning.message for warning in warnings],
+    }
+    manifest["records"] = [
+        existing
+        for existing in manifest["records"]
+        if existing.get("path") != str(output_path)
+    ]
+    manifest["records"].append(record)
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _load_manifest(manifest_path: Path) -> dict[str, Any]:
+    if not manifest_path.exists():
+        return {"schema_version": 1, "records": []}
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != 1:
+        raise ValueError(f"Unsupported wage record manifest schema: {manifest_path}")
+    if not isinstance(manifest.get("records"), list):
+        raise ValueError(
+            f"Wage record manifest records must be a list: {manifest_path}"
+        )
+    return manifest
 
 
 def _cell_text(value: object) -> str:

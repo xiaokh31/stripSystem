@@ -35,6 +35,7 @@ class WageP0BatchResult:
     taskStatus: str
     parsedJsonPath: Path
     wageRecordPath: Path | None
+    wageRecordManifestPath: Path | None
     taskReportPath: Path
     employeeCount: int
     dayCount: int
@@ -172,6 +173,9 @@ def run_wage_p0(
         taskStatus=task_status,
         parsedJsonPath=parsed_json_path,
         wageRecordPath=wage_result.outputPath if not wage_result.errors else None,
+        wageRecordManifestPath=wage_result.manifestPath
+        if not wage_result.errors
+        else None,
         taskReportPath=task_report.htmlPath,
         employeeCount=len(parsed_result.employees),
         dayCount=len(parsed_result.days),

@@ -77,6 +77,12 @@ def _render_html(
         if generation_result and not generation_result.errors
         else "Not generated"
     )
+    task_status = _task_status(warnings, errors)
+    employee_count = len(attendance_result.employees)
+    total_calculated_hours = round(
+        sum(employee.totalCalculatedHours for employee in attendance_result.employees),
+        2,
+    )
     return f"""<!doctype html>
 <html lang="en">
   <head>
@@ -97,6 +103,11 @@ def _render_html(
     <p class="meta">SHA-256: {html.escape(sha256)}</p>
     <p class="meta">Period: {html.escape(str(attendance_result.periodStart))}
       to {html.escape(str(attendance_result.periodEnd))}</p>
+    <p class="meta">Parse status: {html.escape(task_status)}</p>
+    <p class="meta">Employee count: {employee_count}</p>
+    <p class="meta">Total calculated hours: {total_calculated_hours:.2f}</p>
+    <p class="meta">Warnings: {len(warnings)}</p>
+    <p class="meta">Errors: {len(errors)}</p>
     <p class="meta">Generated wage record: {html.escape(wage_record_path)}</p>
 
     <h2>Employee Hours</h2>
@@ -170,3 +181,11 @@ def _issue_row(issue: WageIssue) -> str:
   <td>{html.escape(str(issue.rowNumber or ""))}</td>
   <td>{html.escape(issue.message)}</td>
 </tr>"""
+
+
+def _task_status(warnings: tuple[WageIssue, ...], errors: tuple[WageIssue, ...]) -> str:
+    if errors:
+        return "ERROR"
+    if warnings:
+        return "WARNING"
+    return "SUCCESS"

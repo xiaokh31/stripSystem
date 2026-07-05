@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 
@@ -155,9 +156,23 @@ def test_wage_record_generator_copies_template_and_writes_matched_employee_hours
     assert result.errors == ()
     assert result.outputPath.is_file()
     assert compute_sha256(WAGE_TEMPLATE) == template_sha_before
+    assert result.manifestPath.is_file()
+    assert result.outputSha256 == compute_sha256(result.outputPath)
+    assert result.outputSizeBytes == result.outputPath.stat().st_size
+    assert result.fileType == "wage_record_xls"
     assert "FANGLEI XIAO (lay)" in result.matchedSheets
     assert "Wei Deng" in result.matchedSheets
     assert any(employee.endswith("ray") for employee in result.unmatchedEmployees)
+
+    manifest = json.loads(result.manifestPath.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 1
+    manifest_record = manifest["records"][0]
+    assert manifest_record["path"] == str(result.outputPath)
+    assert manifest_record["sha256"] == result.outputSha256
+    assert manifest_record["size_bytes"] == result.outputSizeBytes
+    assert manifest_record["type"] == "wage_record_xls"
+    assert manifest_record["template_path"] == str(WAGE_TEMPLATE)
+    assert manifest_record["template_sha256"] == template_sha_before
 
     workbook = xlrd.open_workbook(result.outputPath)
     lay_sheet = workbook.sheet_by_name("FANGLEI XIAO (lay)")

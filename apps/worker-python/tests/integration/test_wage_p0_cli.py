@@ -118,6 +118,7 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
     assert payload["errorCount"] == 0
     assert Path(payload["parsedJsonPath"]).is_file()
     assert Path(payload["wageRecordPath"]).is_file()
+    assert Path(payload["wageRecordManifestPath"]).is_file()
     assert Path(payload["taskReportPath"]).is_file()
 
     parsed_payload = json.loads(Path(payload["parsedJsonPath"]).read_text(encoding="utf-8"))
@@ -138,6 +139,19 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
     assert deng_june_1["lunchHours"] == 0.5
     assert deng_june_1["calculatedHours"] == 8.77
     assert parsed_payload["wage_record_result"]["writtenEmployeeCount"] >= 6
+    assert parsed_payload["wage_record_result"]["manifestPath"] == payload[
+        "wageRecordManifestPath"
+    ]
+
+    wage_manifest = json.loads(
+        Path(payload["wageRecordManifestPath"]).read_text(encoding="utf-8")
+    )
+    wage_record = wage_manifest["records"][0]
+    assert wage_record["path"] == payload["wageRecordPath"]
+    assert wage_record["sha256"] == parsed_payload["wage_record_result"]["outputSha256"]
+    assert wage_record["size_bytes"] == Path(payload["wageRecordPath"]).stat().st_size
+    assert wage_record["type"] == "wage_record_xls"
+    assert wage_record["template_path"] == str(WAGE_TEMPLATE)
 
     import_manifest = json.loads(
         (output_dir / "original_files" / "import_manifest.json").read_text(
@@ -150,6 +164,11 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
     html = Path(payload["taskReportPath"]).read_text(encoding="utf-8")
     assert "WAGE-P0 Task Report" in html
     assert ATTENDANCE_FIXTURE.name in html
+    assert "Parse status: WARNING" in html
+    assert "Employee count: 13" in html
+    assert "Total calculated hours:" in html
+    assert "Generated wage record:" in html
+    assert payload["wageRecordPath"] in html
     assert "ODD_PUNCH_COUNT" in html
 
 
