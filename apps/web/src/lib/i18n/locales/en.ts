@@ -775,6 +775,10 @@ export const enMessages = {
   "Create pay containers from reviewed container records before monthly settlement.":
     "Create pay containers from reviewed container records before monthly settlement.",
   "Creating pay container.": "Creating pay container.",
+  "CAD 300 / container": "CAD 300 / container",
+  "CAD 360 / transfer group": "CAD 360 / transfer group",
+  "Each unloader row requires a worker name.":
+    "Each unloader row requires a worker name.",
   "Each unloader requires both worker code and worker name.":
     "Each unloader requires both worker code and worker name.",
   "Enter at least one container id.": "Enter at least one container id.",
@@ -806,9 +810,11 @@ export const enMessages = {
   "No unloading wage settlements generated yet.":
     "No unloading wage settlements generated yet.",
   "No wage files generated yet.": "No wage files generated yet.",
+  "Not required": "Not required",
   "Ocean container": "Ocean container",
   "Ocean container pay units require exactly one container id.":
     "Ocean container pay units require exactly one container id.",
+  "One or more container numbers": "One or more container numbers",
   "Override rate": "Override rate",
   "Parsed employee-day rows": "Parsed employee-day rows",
   "Parsing attendance workbook.": "Parsing attendance workbook.",
@@ -831,7 +837,12 @@ export const enMessages = {
   "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
     "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.",
   "Save classification": "Save classification",
+  "Saved. Refreshing from API.": "Saved. Refreshing from API.",
   "Saving pay classification.": "Saving pay classification.",
+  "Saving unloaders.": "Saving unloaders.",
+  "Saving unloading completion.": "Saving unloading completion.",
+  "Saving unloading wage information.":
+    "Saving unloading wage information.",
   "Select one legacy .xls attendance workbook.":
     "Select one legacy .xls attendance workbook.",
   "Select or upload an attendance import to review parsed rows.":
@@ -851,6 +862,8 @@ export const enMessages = {
   "US-to-Canada transfer requires a trailer number.":
     "US-to-Canada transfer requires a trailer number.",
   "Unloading Wage": "Unloading Wage",
+  "Unloading wage information could not be saved.":
+    "Unloading wage information could not be saved.",
   "Upload .xls": "Upload .xls",
   "Upload a real monthly .xls attendance workbook to start HR work hours settlement.":
     "Upload a real monthly .xls attendance workbook to start HR work hours settlement.",

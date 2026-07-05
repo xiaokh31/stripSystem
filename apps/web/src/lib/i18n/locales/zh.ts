@@ -719,6 +719,10 @@ export const zhMessages = {
   "Create pay containers from reviewed container records before monthly settlement.":
     "月度结算前，请先从已复核的柜记录创建 pay container。",
   "Creating pay container.": "正在创建 pay container。",
+  "CAD 300 / container": "CAD 300 / 条",
+  "CAD 360 / transfer group": "CAD 360 / 组",
+  "Each unloader row requires a worker name.":
+    "每行拆柜人都必须填写员工姓名。",
   "Each unloader requires both worker code and worker name.":
     "每名卸柜员工都必须填写员工编号和姓名。",
   "Enter at least one container id.": "请至少输入一个柜记录 ID。",
@@ -746,9 +750,11 @@ export const zhMessages = {
   "No settlement is selected for review.": "尚未选择要复核的结算。",
   "No unloading wage settlements generated yet.": "尚未生成卸柜工资结算。",
   "No wage files generated yet.": "尚未生成工资文件。",
+  "Not required": "不需要",
   "Ocean container": "海运柜",
   "Ocean container pay units require exactly one container id.":
     "海运柜工资单位必须且只能包含一个柜记录 ID。",
+  "One or more container numbers": "一个或多个柜号",
   "Override rate": "覆盖费率",
   "Parsed employee-day rows": "已解析员工日工时行",
   "Parsing attendance workbook.": "正在解析考勤工作簿。",
@@ -770,7 +776,11 @@ export const zhMessages = {
   "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
     "从工资 API 复核 pay container、完成卸柜人员分配并生成月度员工结算。",
   "Save classification": "保存分类",
+  "Saved. Refreshing from API.": "已保存，正在从 API 刷新。",
   "Saving pay classification.": "正在保存工资分类。",
+  "Saving unloaders.": "正在保存拆柜人。",
+  "Saving unloading completion.": "正在保存拆柜完成状态。",
+  "Saving unloading wage information.": "正在保存拆柜工资信息。",
   "Select one legacy .xls attendance workbook.": "请选择一个旧版 .xls 考勤工作簿。",
   "Select or upload an attendance import to review parsed rows.":
     "请选择或上传考勤导入以复核解析行。",
@@ -789,6 +799,8 @@ export const zhMessages = {
   "US-to-Canada transfer requires a trailer number.":
     "美加转运必须填写拖车号。",
   "Unloading Wage": "卸柜工资",
+  "Unloading wage information could not be saved.":
+    "无法保存拆柜工资信息。",
   "Upload .xls": "上传 .xls",
   "Upload a real monthly .xls attendance workbook to start HR work hours settlement.":
     "上传真实的月度 .xls 考勤工作簿以开始 HR 工时结算。",

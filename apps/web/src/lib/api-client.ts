@@ -295,6 +295,86 @@ export interface ContainerPayClassificationMutationResponse {
   };
 }
 
+export interface ContainerUnloadingWageAssociatedContainerResponse {
+  id: string;
+  containerId: string;
+  containerNo: string;
+}
+
+export interface ContainerUnloadingWageUnloaderResponse {
+  id: string;
+  workerUserId: string | null;
+  workerCode: string;
+  workerName: string;
+  note: string | null;
+}
+
+export interface ContainerDetailUnloadingWageResponse {
+  payContainerId: string;
+  payContainerNo: string;
+  classification: ContainerPayClassification;
+  trailerNumber: string | null;
+  status: string;
+  currency: string;
+  rateAmount: string;
+  completedAt: string | null;
+  completedById: string | null;
+  completionNote: string | null;
+  associatedContainers: ContainerUnloadingWageAssociatedContainerResponse[];
+  unloaders: ContainerUnloadingWageUnloaderResponse[];
+}
+
+export interface ContainerUnloadingWageResponse {
+  associatedContainers: ContainerUnloadingWageAssociatedContainerResponse[];
+  completedAt: string | null;
+  completedById: string | null;
+  completionNote: string | null;
+  containerId: string;
+  containerNo: string;
+  classification: ContainerPayClassification | null;
+  currency: string | null;
+  payContainerId: string | null;
+  payContainerNo: string | null;
+  rateAmount: string | null;
+  status: string | null;
+  trailerNumber: string | null;
+  unloaders: ContainerUnloadingWageUnloaderResponse[];
+}
+
+export interface SaveContainerUnloadingWageRequest {
+  classification: ContainerPayClassification;
+  note?: string | null;
+  reason?: string | null;
+  trailerNumber?: string | null;
+}
+
+export interface UpdateContainerUnloadingWageAssociationsRequest {
+  associatedContainerIds?: string[];
+  associatedContainerNos?: string[];
+  note?: string | null;
+  reason?: string | null;
+  trailerNumber?: string | null;
+}
+
+export interface CompleteContainerUnloadingRequest {
+  completedAt: string;
+  note?: string | null;
+  reason?: string | null;
+}
+
+export interface UpdateContainerUnloaderRequest {
+  note?: string | null;
+  workerCode?: string | null;
+  workerName: string;
+  workerUserId?: string | null;
+}
+
+export interface UpdateContainerUnloadersRequest {
+  note?: string | null;
+  reason?: string | null;
+  unloaders: UpdateContainerUnloaderRequest[];
+}
+
 export interface CreatePayContainerRequest {
   classification: ContainerPayClassification;
   containerIds: string[];
@@ -533,6 +613,7 @@ export interface ContainerDetailResponse {
     payContainerNo: string;
     status: string;
   }>;
+  unloadingWage: ContainerDetailUnloadingWageResponse | null;
   totalCartons: number;
   totalVolumeCbm: string;
   rawJson: unknown;
@@ -1309,6 +1390,50 @@ export function updateContainerPayClassification(
   return createApiClient(options).patch<ContainerPayClassificationMutationResponse>(
     `/containers/${encodeURIComponent(id)}/pay-classification`,
     { ...body },
+  );
+}
+
+export function saveContainerUnloadingWage(
+  id: string,
+  body: SaveContainerUnloadingWageRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerUnloadingWageResponse> {
+  return createApiClient(options).patch<ContainerUnloadingWageResponse>(
+    `/containers/${encodeURIComponent(id)}/unloading-wage`,
+    { ...body },
+  );
+}
+
+export function updateContainerUnloadingWageAssociations(
+  id: string,
+  body: UpdateContainerUnloadingWageAssociationsRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerUnloadingWageResponse> {
+  return createApiClient(options).patch<ContainerUnloadingWageResponse>(
+    `/containers/${encodeURIComponent(id)}/unloading-wage-associations`,
+    { ...body },
+  );
+}
+
+export function completeContainerUnloading(
+  id: string,
+  body: CompleteContainerUnloadingRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerUnloadingWageResponse> {
+  return createApiClient(options).post<ContainerUnloadingWageResponse>(
+    `/containers/${encodeURIComponent(id)}/complete-unloading`,
+    { ...body },
+  );
+}
+
+export function updateContainerUnloaders(
+  id: string,
+  body: UpdateContainerUnloadersRequest,
+  options: ApiClientOptions = {},
+): Promise<ContainerUnloadingWageResponse> {
+  return createApiClient(options).request<ContainerUnloadingWageResponse>(
+    `/containers/${encodeURIComponent(id)}/unloaders`,
+    { body: { ...body }, method: "PUT" },
   );
 }
 

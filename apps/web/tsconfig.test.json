@@ -13,6 +13,7 @@
   "include": [
     "src/components/containers/container-files-flow.ts",
     "src/components/containers/container-detail-flow.ts",
+    "src/components/containers/container-unloading-wage-flow.ts",
     "src/components/imports/import-detail-flow.ts",
     "src/components/imports/import-upload-flow.ts",
     "src/components/load-jobs/load-job-planning-flow.ts",

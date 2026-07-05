@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  completeContainerUnloading,
   completePayContainer,
   createPayContainer,
   generateAttendanceWageRecord,
@@ -10,7 +11,10 @@ import {
   listAttendanceImports,
   listPayContainers,
   parseAttendanceImport,
+  saveContainerUnloadingWage,
+  updateContainerUnloaders,
   updateContainerPayClassification,
+  updateContainerUnloadingWageAssociations,
 } from "../src/lib/api-client";
 
 test("attendance API client calls P1 attendance endpoints", async () => {
@@ -162,6 +166,106 @@ test("unloading wage API client calls pay container and settlement endpoints", a
       body: { settlementMonth: "2026-06" },
       method: "POST",
       url: "http://api.local/api/unloading-wage-settlements",
+    },
+  ]);
+});
+
+test("container detail unloading wage API client calls container-scoped endpoints", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        associatedContainers: [],
+        containerId: "container-1",
+        containerNo: "ZCSU9025988B",
+        unloaders: [],
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  await saveContainerUnloadingWage(
+    "container 1",
+    {
+      classification: "OCEAN_CONTAINER",
+      trailerNumber: null,
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await updateContainerUnloadingWageAssociations(
+    "container 1",
+    {
+      associatedContainerNos: ["TXGU5580229"],
+      trailerNumber: "TR-0604",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await updateContainerUnloaders(
+    "container 1",
+    {
+      unloaders: [
+        {
+          note: "Confirmed",
+          workerName: "Worker One",
+        },
+      ],
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await completeContainerUnloading(
+    "container 1",
+    {
+      completedAt: "2026-06-04T17:10:00.000Z",
+      note: "Finished",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: {
+        classification: "OCEAN_CONTAINER",
+        trailerNumber: null,
+      },
+      method: "PATCH",
+      url: "http://api.local/api/containers/container%201/unloading-wage",
+    },
+    {
+      body: {
+        associatedContainerNos: ["TXGU5580229"],
+        trailerNumber: "TR-0604",
+      },
+      method: "PATCH",
+      url: "http://api.local/api/containers/container%201/unloading-wage-associations",
+    },
+    {
+      body: {
+        unloaders: [
+          {
+            note: "Confirmed",
+            workerName: "Worker One",
+          },
+        ],
+      },
+      method: "PUT",
+      url: "http://api.local/api/containers/container%201/unloaders",
+    },
+    {
+      body: {
+        completedAt: "2026-06-04T17:10:00.000Z",
+        note: "Finished",
+      },
+      method: "POST",
+      url: "http://api.local/api/containers/container%201/complete-unloading",
     },
   ]);
 });

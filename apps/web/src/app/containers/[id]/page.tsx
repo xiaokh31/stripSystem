@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
 import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
 import { ContainerStatusControl } from "@/components/containers/container-status-control";
+import { ContainerUnloadingWagePanel } from "@/components/containers/container-unloading-wage-panel";
 import {
   formatIssueSummary,
   formatNullable,
@@ -172,6 +173,11 @@ export default async function ContainerDetailPage({
         </section>
       ) : null}
 
+      <ContainerUnloadingWagePanel
+        container={state.container}
+        key={unloadingWageVersion(state.container)}
+      />
+
       <ContainerStatusControl
         containerId={state.container.id}
         currentStatus={state.container.status}
@@ -271,6 +277,28 @@ function destinationIdsVersion(
   destinations: ContainerDetailResponse["destinations"],
 ): string {
   return destinations.map((destination) => destination.id).join("|");
+}
+
+function unloadingWageVersion(container: ContainerDetailResponse): string {
+  const wage = container.unloadingWage;
+  if (!wage) {
+    return `${container.id}:empty:${container.payClassification ?? ""}:${
+      container.payTrailerNumber ?? ""
+    }`;
+  }
+
+  return [
+    container.id,
+    wage.payContainerId,
+    wage.classification,
+    wage.trailerNumber ?? "",
+    wage.status,
+    wage.completedAt ?? "",
+    wage.associatedContainers.map((item) => item.containerNo).join(","),
+    wage.unloaders
+      .map((item) => `${item.workerCode}:${item.workerName}:${item.note ?? ""}`)
+      .join(","),
+  ].join("|");
 }
 
 function ContainerDetailError({
