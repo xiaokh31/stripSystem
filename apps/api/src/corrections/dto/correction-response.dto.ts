@@ -86,6 +86,30 @@ export interface ContainerDetailResponseDto {
     payContainerNo: string;
     status: string;
   }>;
+  unloadingWage: {
+    payContainerId: string;
+    payContainerNo: string;
+    classification: string;
+    trailerNumber: string | null;
+    status: string;
+    currency: string;
+    rateAmount: string;
+    completedAt: string | null;
+    completedById: string | null;
+    completionNote: string | null;
+    associatedContainers: Array<{
+      id: string;
+      containerId: string;
+      containerNo: string;
+    }>;
+    unloaders: Array<{
+      id: string;
+      workerUserId: string | null;
+      workerCode: string;
+      workerName: string;
+      note: string | null;
+    }>;
+  } | null;
   totalCartons: number;
   totalVolumeCbm: string;
   rawJson: unknown;

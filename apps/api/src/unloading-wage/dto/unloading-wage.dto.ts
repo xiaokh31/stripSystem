@@ -39,6 +39,93 @@ export class UpdateContainerPayClassificationDto {
   note?: string | null;
 }
 
+export class SaveContainerUnloadingWageDto {
+  @IsIn(CLASSIFICATIONS)
+  classification!: string;
+
+  @IsOptional()
+  @IsString()
+  trailerNumber?: string | null;
+
+  @IsOptional()
+  @IsString()
+  reason?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
+export class UpdateContainerUnloadingWageAssociationsDto {
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  associatedContainerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  associatedContainerNos?: string[];
+
+  @IsOptional()
+  @IsString()
+  trailerNumber?: string | null;
+
+  @IsOptional()
+  @IsString()
+  reason?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
+export class CompleteContainerUnloadingDto {
+  @IsISO8601()
+  completedAt!: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
+export class ContainerUnloaderDto {
+  @IsOptional()
+  @IsString()
+  workerUserId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  workerCode?: string | null;
+
+  @IsString()
+  workerName!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
+export class UpdateContainerUnloadersDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ContainerUnloaderDto)
+  unloaders!: ContainerUnloaderDto[];
+
+  @IsOptional()
+  @IsString()
+  reason?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
 export class CreatePayContainerDto {
   @IsIn(CLASSIFICATIONS)
   classification!: string;
@@ -169,6 +256,33 @@ export interface PayContainerResponseDto {
   }>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContainerUnloadingWageResponseDto {
+  containerId: string;
+  containerNo: string;
+  classification: string | null;
+  trailerNumber: string | null;
+  payContainerId: string | null;
+  payContainerNo: string | null;
+  status: string | null;
+  currency: string | null;
+  rateAmount: string | null;
+  completedAt: string | null;
+  completedById: string | null;
+  completionNote: string | null;
+  associatedContainers: Array<{
+    id: string;
+    containerId: string;
+    containerNo: string;
+  }>;
+  unloaders: Array<{
+    id: string;
+    workerUserId: string | null;
+    workerCode: string;
+    workerName: string;
+    note: string | null;
+  }>;
 }
 
 export interface PayContainerListResponseDto {

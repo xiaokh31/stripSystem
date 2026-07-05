@@ -62,8 +62,28 @@ interface ContainerRecord {
     id: string;
     payContainerId: string;
     payContainer: {
+      id?: string;
       payContainerNo: string;
+      classification?: string;
+      trailerNumber?: string | null;
       status: string;
+      currency?: string;
+      rateAmount?: { toString(): string } | number | string;
+      completedAt?: Date | string | null;
+      completedById?: string | null;
+      completionNote?: string | null;
+      sourceContainers?: Array<{
+        id: string;
+        containerId: string;
+        containerNo: string;
+      }>;
+      unloaders?: Array<{
+        id: string;
+        workerUserId: string | null;
+        workerCode: string;
+        workerName: string;
+        note: string | null;
+      }>;
     };
   }>;
   rawJson?: unknown;
@@ -157,9 +177,9 @@ export class CorrectionsService {
         payContainerLinks: {
           include: {
             payContainer: {
-              select: {
-                payContainerNo: true,
-                status: true,
+              include: {
+                sourceContainers: { orderBy: { containerNo: 'asc' } },
+                unloaders: { orderBy: { workerName: 'asc' } },
               },
             },
           },
@@ -1137,6 +1157,7 @@ export class CorrectionsService {
           payContainerNo: link.payContainer.payContainerNo,
           status: link.payContainer.status,
         })) ?? [],
+      unloadingWage: this.toContainerUnloadingWageResponse(record),
       totalCartons: destinations.reduce(
         (total, destination) => total + destination.cartons,
         0,
@@ -1165,6 +1186,44 @@ export class CorrectionsService {
         ),
         updatedAt: this.toIsoString(destination.updatedAt),
       })),
+    };
+  }
+
+  private toContainerUnloadingWageResponse(
+    record: ContainerRecord,
+  ): ContainerDetailResponseDto['unloadingWage'] {
+    const payContainer = record.payContainerLinks?.[0]?.payContainer;
+    if (!payContainer?.id) {
+      return null;
+    }
+
+    return {
+      payContainerId: payContainer.id,
+      payContainerNo: payContainer.payContainerNo,
+      classification: payContainer.classification ?? '',
+      trailerNumber: payContainer.trailerNumber ?? null,
+      status: payContainer.status,
+      currency: payContainer.currency ?? 'CAD',
+      rateAmount: payContainer.rateAmount?.toString() ?? '0.00',
+      completedAt: payContainer.completedAt
+        ? this.toIsoString(payContainer.completedAt)
+        : null,
+      completedById: payContainer.completedById ?? null,
+      completionNote: payContainer.completionNote ?? null,
+      associatedContainers:
+        payContainer.sourceContainers?.map((container) => ({
+          id: container.id,
+          containerId: container.containerId,
+          containerNo: container.containerNo,
+        })) ?? [],
+      unloaders:
+        payContainer.unloaders?.map((unloader) => ({
+          id: unloader.id,
+          workerUserId: unloader.workerUserId,
+          workerCode: unloader.workerCode,
+          workerName: unloader.workerName,
+          note: unloader.note,
+        })) ?? [],
     };
   }
 

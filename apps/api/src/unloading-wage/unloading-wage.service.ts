@@ -22,13 +22,19 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CompleteContainerUnloadingDto,
   CompleteUnloadingDto,
+  ContainerUnloaderDto,
+  ContainerUnloadingWageResponseDto,
   CreatePayContainerDto,
   GenerateUnloadingWageSettlementDto,
   ListPayContainersQueryDto,
   PayContainerListResponseDto,
   PayContainerResponseDto,
+  SaveContainerUnloadingWageDto,
   UpdateContainerPayClassificationDto,
+  UpdateContainerUnloadersDto,
+  UpdateContainerUnloadingWageAssociationsDto,
   UnloadingWageSettlementListResponseDto,
   UnloadingWageSettlementResponseDto,
 } from './dto/unloading-wage.dto';
@@ -43,6 +49,14 @@ interface ContainerRecord {
   containerNo: string;
   payClassification: string | null;
   payTrailerNumber: string | null;
+}
+
+interface ContainerUnloadingWageRecord extends ContainerRecord {
+  payContainerLinks?: Array<{
+    id: string;
+    payContainerId: string;
+    payContainer: PayContainerRecord;
+  }>;
 }
 
 interface PayContainerRecord {
@@ -150,6 +164,24 @@ interface SettlementInput {
   allocations: SettlementAllocation[];
 }
 
+interface ExistingPayContainerLinkRecord {
+  id: string;
+  payContainerId: string;
+  containerId: string;
+  containerNo: string;
+  payContainer: PayContainerRecord;
+}
+
+type UnloadingWageTransaction = Pick<
+  PrismaService,
+  | 'container'
+  | 'correctionFeedback'
+  | 'payContainer'
+  | 'payContainerContainer'
+  | 'unloaderAssignment'
+  | 'unloadingWageSettlement'
+>;
+
 @Injectable()
 export class UnloadingWageService {
   private readonly storageRoot: string;
@@ -208,6 +240,198 @@ export class UnloadingWageService {
     })) as ContainerRecord;
 
     return { container };
+  }
+
+  async saveContainerUnloadingWage(
+    containerId: string,
+    dto: SaveContainerUnloadingWageDto,
+    actor: AuthenticatedUser,
+  ): Promise<ContainerUnloadingWageResponseDto> {
+    const classification = this.classification(dto.classification);
+    const trailerNumber = this.trailerNumberOrNull(
+      classification,
+      dto.trailerNumber,
+    );
+    const container = await this.findContainerOrThrow(containerId);
+    const rateAmount = this.moneyString(
+      await this.rateForClassification(classification),
+    );
+    const correctedById = auditUserId(actor);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.syncContainerDetailPayUnit(tx, {
+        classification,
+        containers: [container],
+        correctedById,
+        fieldName: 'unloadingWage',
+        note: this.stringOrNull(dto.note),
+        rateAmount,
+        reason:
+          this.stringOrNull(dto.reason) ??
+          'Container detail unloading wage saved',
+        trailerNumber,
+      });
+    });
+
+    return this.getContainerUnloadingWage(containerId);
+  }
+
+  async updateContainerUnloadingWageAssociations(
+    containerId: string,
+    dto: UpdateContainerUnloadingWageAssociationsDto,
+    actor: AuthenticatedUser,
+  ): Promise<ContainerUnloadingWageResponseDto> {
+    const primaryContainer = await this.findContainerOrThrow(containerId);
+    const trailerNumber = this.trailerNumberOrNull(
+      ContainerPayClassification.US_TO_CANADA_TRANSFER,
+      dto.trailerNumber ?? primaryContainer.payTrailerNumber,
+    );
+    const associatedContainers = await this.findAssociatedContainersOrThrow(
+      dto.associatedContainerIds ?? [],
+      dto.associatedContainerNos ?? [],
+    );
+    const containers = this.uniqueContainers([
+      primaryContainer,
+      ...associatedContainers,
+    ]);
+    const correctedById = auditUserId(actor);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.syncContainerDetailPayUnit(tx, {
+        classification: ContainerPayClassification.US_TO_CANADA_TRANSFER,
+        containers,
+        correctedById,
+        fieldName: 'unloadingWageAssociations',
+        note: this.stringOrNull(dto.note),
+        rateAmount: this.moneyString(
+          await this.rateForClassification(
+            ContainerPayClassification.US_TO_CANADA_TRANSFER,
+          ),
+        ),
+        reason:
+          this.stringOrNull(dto.reason) ??
+          'Container detail unloading wage associations updated',
+        trailerNumber,
+      });
+    });
+
+    return this.getContainerUnloadingWage(containerId);
+  }
+
+  async completeContainerUnloading(
+    containerId: string,
+    dto: CompleteContainerUnloadingDto,
+    actor: AuthenticatedUser,
+  ): Promise<ContainerUnloadingWageResponseDto> {
+    const payContainer =
+      await this.findPayContainerForContainerOrThrow(containerId);
+    const completedAt = this.dateTime(dto.completedAt, 'completedAt');
+    const completedById = auditUserId(actor);
+    const nextStatus =
+      payContainer.status === PayContainerStatus.SETTLED
+        ? PayContainerStatus.NEEDS_REVIEW
+        : PayContainerStatus.COMPLETED;
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.markRelatedSettlementsNeedReview(tx, [payContainer.id]);
+      await tx.payContainer.update({
+        where: { id: payContainer.id },
+        data: {
+          completedAt,
+          completedById,
+          completionNote: this.stringOrNull(dto.note),
+          status: nextStatus,
+        },
+      });
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.PAY_CONTAINER,
+          payContainerId: payContainer.id,
+          fieldName: 'unloadingCompletion',
+          oldValue: this.nullableJsonValue({
+            status: payContainer.status,
+            completedAt: payContainer.completedAt,
+            completedById: payContainer.completedById,
+            completionNote: payContainer.completionNote,
+          }),
+          newValue: this.nullableJsonValue({
+            status: nextStatus,
+            completedAt: completedAt.toISOString(),
+            completedById,
+            completionNote: this.stringOrNull(dto.note),
+          }),
+          reason:
+            this.stringOrNull(dto.reason) ??
+            'Container detail unloading marked completed',
+          note: this.stringOrNull(dto.note),
+          correctedById: completedById,
+        },
+      });
+    });
+
+    return this.getContainerUnloadingWage(containerId);
+  }
+
+  async updateContainerUnloaders(
+    containerId: string,
+    dto: UpdateContainerUnloadersDto,
+    actor: AuthenticatedUser,
+  ): Promise<ContainerUnloadingWageResponseDto> {
+    const payContainer =
+      await this.findPayContainerForContainerOrThrow(containerId);
+    const unloaders = this.containerUnloaderInputs(dto.unloaders);
+    const correctedById = auditUserId(actor);
+    const nextStatus =
+      payContainer.status === PayContainerStatus.SETTLED
+        ? PayContainerStatus.NEEDS_REVIEW
+        : this.payContainerStatus(payContainer.status);
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.markRelatedSettlementsNeedReview(tx, [payContainer.id]);
+      await tx.unloaderAssignment.deleteMany({
+        where: { payContainerId: payContainer.id },
+      });
+      for (const unloader of unloaders) {
+        await tx.unloaderAssignment.create({
+          data: {
+            payContainerId: payContainer.id,
+            workerUserId: unloader.workerUserId,
+            workerCode: unloader.workerCode,
+            workerName: unloader.workerName,
+            note: unloader.note,
+          },
+        });
+      }
+      if (nextStatus !== payContainer.status) {
+        await tx.payContainer.update({
+          where: { id: payContainer.id },
+          data: { status: nextStatus },
+        });
+      }
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.PAY_CONTAINER,
+          payContainerId: payContainer.id,
+          fieldName: 'unloaders',
+          oldValue: this.nullableJsonValue(
+            payContainer.unloaders?.map((unloader) => ({
+              workerCode: unloader.workerCode,
+              workerName: unloader.workerName,
+              workerUserId: unloader.workerUserId,
+              note: unloader.note,
+            })) ?? [],
+          ),
+          newValue: this.nullableJsonValue(unloaders),
+          reason:
+            this.stringOrNull(dto.reason) ??
+            'Container detail unloaders updated',
+          note: this.stringOrNull(dto.note),
+          correctedById,
+        },
+      });
+    });
+
+    return this.getContainerUnloadingWage(containerId);
   }
 
   async createPayContainer(
@@ -606,6 +830,343 @@ export class UnloadingWageService {
     }
 
     return this.downloadWageGeneratedFile(record, { settlementId, fileId });
+  }
+
+  private async syncContainerDetailPayUnit(
+    tx: UnloadingWageTransaction,
+    input: {
+      classification: ClassificationValue;
+      containers: ContainerRecord[];
+      correctedById: string | null;
+      fieldName: string;
+      note: string | null;
+      rateAmount: string;
+      reason: string;
+      trailerNumber: string | null;
+    },
+  ): Promise<void> {
+    if (input.containers.length === 0) {
+      throw new BadRequestException({
+        code: 'NO_CONTAINERS_FOR_UNLOADING_WAGE',
+        message: 'At least one container is required.',
+        details: {},
+      });
+    }
+    this.assertContainerCount(
+      input.classification,
+      input.containers.map((c) => c.id),
+    );
+
+    const containerIds = input.containers.map((container) => container.id);
+    const primaryContainer = input.containers[0];
+    const existingLinks = (await tx.payContainerContainer.findMany({
+      where: { containerId: { in: containerIds } },
+      include: { payContainer: true },
+    })) as ExistingPayContainerLinkRecord[];
+    const primaryLink = existingLinks.find(
+      (link) => link.containerId === primaryContainer.id,
+    );
+    const targetPayContainer =
+      primaryLink?.payContainer ?? existingLinks[0]?.payContainer ?? null;
+    const payContainerNo = this.payContainerNo(
+      input.classification,
+      input.trailerNumber ?? primaryContainer.containerNo,
+    );
+    const stalePayContainerIds = [
+      ...new Set(
+        existingLinks
+          .map((link) => link.payContainerId)
+          .concat(targetPayContainer?.id ?? []),
+      ),
+    ].filter(Boolean);
+    await this.markRelatedSettlementsNeedReview(tx, stalePayContainerIds);
+
+    const payContainer = targetPayContainer
+      ? ((await tx.payContainer.update({
+          where: { id: targetPayContainer.id },
+          data: {
+            payContainerNo,
+            classification: input.classification,
+            trailerNumber: input.trailerNumber,
+            rateAmount: input.rateAmount,
+            status:
+              targetPayContainer.status === PayContainerStatus.SETTLED
+                ? PayContainerStatus.NEEDS_REVIEW
+                : this.payContainerStatus(targetPayContainer.status),
+          },
+        })) as PayContainerRecord)
+      : ((await tx.payContainer.create({
+          data: {
+            payContainerNo,
+            classification: input.classification,
+            trailerNumber: input.trailerNumber,
+            currency: 'CAD',
+            rateAmount: input.rateAmount,
+            allocationMethod: PayAllocationMethod.EQUAL_SPLIT,
+            status: PayContainerStatus.DRAFT,
+            createdById: input.correctedById,
+          },
+        })) as PayContainerRecord);
+
+    await tx.payContainerContainer.deleteMany({
+      where: {
+        OR: [
+          { payContainerId: payContainer.id },
+          { containerId: { in: containerIds } },
+        ],
+      },
+    });
+
+    for (const container of input.containers) {
+      await tx.container.update({
+        where: { id: container.id },
+        data: {
+          payClassification: input.classification,
+          payTrailerNumber: input.trailerNumber,
+        },
+      });
+      await tx.payContainerContainer.create({
+        data: {
+          payContainerId: payContainer.id,
+          containerId: container.id,
+          containerNo: container.containerNo,
+        },
+      });
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.CONTAINER,
+          containerId: container.id,
+          fieldName: input.fieldName,
+          oldValue: this.nullableJsonValue({
+            payClassification: container.payClassification,
+            payTrailerNumber: container.payTrailerNumber,
+            existingPayContainerIds: existingLinks
+              .filter((link) => link.containerId === container.id)
+              .map((link) => link.payContainerId),
+          }),
+          newValue: this.nullableJsonValue({
+            payClassification: input.classification,
+            payTrailerNumber: input.trailerNumber,
+            payContainerId: payContainer.id,
+            payContainerNo,
+            associatedContainerNos: input.containers.map(
+              (item) => item.containerNo,
+            ),
+          }),
+          reason: input.reason,
+          note: input.note,
+          correctedById: input.correctedById,
+        },
+      });
+    }
+
+    await tx.correctionFeedback.create({
+      data: {
+        targetType: CorrectionTargetType.PAY_CONTAINER,
+        payContainerId: payContainer.id,
+        fieldName: input.fieldName,
+        oldValue: this.nullableJsonValue({
+          payContainerId: targetPayContainer?.id ?? null,
+          sourceContainers: existingLinks.map((link) => ({
+            containerId: link.containerId,
+            containerNo: link.containerNo,
+            payContainerId: link.payContainerId,
+          })),
+        }),
+        newValue: this.nullableJsonValue({
+          payContainerNo,
+          classification: input.classification,
+          trailerNumber: input.trailerNumber,
+          sourceContainers: input.containers.map((container) => ({
+            containerId: container.id,
+            containerNo: container.containerNo,
+          })),
+        }),
+        reason: input.reason,
+        note: input.note,
+        correctedById: input.correctedById,
+      },
+    });
+  }
+
+  private async getContainerUnloadingWage(
+    containerId: string,
+  ): Promise<ContainerUnloadingWageResponseDto> {
+    const record = (await this.prisma.container.findUnique({
+      where: { id: containerId },
+      include: {
+        payContainerLinks: {
+          include: {
+            payContainer: {
+              include: {
+                sourceContainers: { orderBy: { containerNo: 'asc' } },
+                unloaders: { orderBy: { workerName: 'asc' } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })) as ContainerUnloadingWageRecord | null;
+
+    if (!record) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${containerId} was not found.`,
+        details: { id: containerId },
+      });
+    }
+
+    return this.toContainerUnloadingWageResponse(record);
+  }
+
+  private async findPayContainerForContainerOrThrow(
+    containerId: string,
+  ): Promise<PayContainerRecord> {
+    const link = (await this.prisma.payContainerContainer.findFirst({
+      where: { containerId },
+      include: {
+        payContainer: {
+          include: {
+            sourceContainers: { orderBy: { containerNo: 'asc' } },
+            unloaders: { orderBy: { workerName: 'asc' } },
+          },
+        },
+      },
+    })) as ExistingPayContainerLinkRecord | null;
+
+    if (!link) {
+      throw new BadRequestException({
+        code: 'CONTAINER_UNLOADING_WAGE_NOT_CONFIGURED',
+        message:
+          'Container unloading wage information must be saved before this action.',
+        details: { containerId },
+      });
+    }
+
+    return link.payContainer;
+  }
+
+  private async findAssociatedContainersOrThrow(
+    associatedContainerIds: string[],
+    associatedContainerNos: string[],
+  ): Promise<ContainerRecord[]> {
+    const ids = [
+      ...new Set(associatedContainerIds.map((id) => id.trim())),
+    ].filter(Boolean);
+    const containerNos = [
+      ...new Set(
+        associatedContainerNos.map((containerNo) => containerNo.trim()),
+      ),
+    ].filter(Boolean);
+    if (ids.length === 0 && containerNos.length === 0) {
+      return [];
+    }
+
+    const records = (await this.prisma.container.findMany({
+      where: {
+        OR: [
+          ...(ids.length > 0 ? [{ id: { in: ids } }] : []),
+          ...(containerNos.length > 0
+            ? [{ containerNo: { in: containerNos } }]
+            : []),
+        ],
+      },
+      orderBy: { containerNo: 'asc' },
+    })) as ContainerRecord[];
+    const foundIds = new Set(records.map((record) => record.id));
+    const foundNos = new Set(records.map((record) => record.containerNo));
+    const missingIds = ids.filter((id) => !foundIds.has(id));
+    const missingNos = containerNos.filter(
+      (containerNo) => !foundNos.has(containerNo),
+    );
+
+    if (missingIds.length > 0 || missingNos.length > 0) {
+      throw new NotFoundException({
+        code: 'ASSOCIATED_CONTAINER_NOT_FOUND',
+        message: 'One or more associated containers were not found.',
+        details: { missingIds, missingContainerNos: missingNos },
+      });
+    }
+
+    return records;
+  }
+
+  private uniqueContainers(containers: ContainerRecord[]): ContainerRecord[] {
+    const byId = new Map<string, ContainerRecord>();
+    for (const container of containers) {
+      if (!byId.has(container.id)) {
+        byId.set(container.id, container);
+      }
+    }
+    return [...byId.values()];
+  }
+
+  private containerUnloaderInputs(unloaders: ContainerUnloaderDto[]): Array<{
+    workerUserId: string | null;
+    workerCode: string;
+    workerName: string;
+    note: string | null;
+  }> {
+    const seenNames = new Set<string>();
+    const seenCodes = new Set<string>();
+
+    return unloaders.map((unloader) => {
+      const workerName = this.requiredString(unloader.workerName, 'workerName');
+      const normalizedName = this.normalizedWorkerName(workerName);
+      if (seenNames.has(normalizedName)) {
+        throw new BadRequestException({
+          code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+          message: `Duplicate unloader assignment: ${workerName}.`,
+          details: { workerName },
+        });
+      }
+      seenNames.add(normalizedName);
+
+      const workerCode =
+        this.stringOrNull(unloader.workerCode) ??
+        this.workerCodeFromName(workerName);
+      if (seenCodes.has(workerCode)) {
+        throw new BadRequestException({
+          code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+          message: `Duplicate unloader assignment: ${workerCode}.`,
+          details: { workerCode },
+        });
+      }
+      seenCodes.add(workerCode);
+
+      return {
+        workerUserId: this.stringOrNull(unloader.workerUserId),
+        workerCode,
+        workerName,
+        note: this.stringOrNull(unloader.note),
+      };
+    });
+  }
+
+  private normalizedWorkerName(workerName: string): string {
+    return workerName.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+  }
+
+  private workerCodeFromName(workerName: string): string {
+    return `NAME:${workerName.replace(/\s+/g, ' ').trim().toLocaleUpperCase()}`;
+  }
+
+  private async markRelatedSettlementsNeedReview(
+    tx: UnloadingWageTransaction,
+    payContainerIds: string[],
+  ): Promise<void> {
+    const uniqueIds = [...new Set(payContainerIds)].filter(Boolean);
+    if (uniqueIds.length === 0) {
+      return;
+    }
+    await tx.unloadingWageSettlement.updateMany({
+      where: {
+        status: UnloadingWageSettlementStatus.GENERATED,
+        lines: { some: { payContainerId: { in: uniqueIds } } },
+      },
+      data: { status: UnloadingWageSettlementStatus.NEEDS_REVIEW },
+    });
   }
 
   private settlementInputs(
@@ -1281,6 +1842,59 @@ export class UnloadingWageService {
         })) ?? [],
       createdAt: this.iso(record.createdAt),
       updatedAt: this.iso(record.updatedAt),
+    };
+  }
+
+  private toContainerUnloadingWageResponse(
+    record: ContainerUnloadingWageRecord,
+  ): ContainerUnloadingWageResponseDto {
+    const payContainer = record.payContainerLinks?.[0]?.payContainer ?? null;
+    if (!payContainer) {
+      return {
+        containerId: record.id,
+        containerNo: record.containerNo,
+        classification: record.payClassification,
+        trailerNumber: record.payTrailerNumber,
+        payContainerId: null,
+        payContainerNo: null,
+        status: null,
+        currency: null,
+        rateAmount: null,
+        completedAt: null,
+        completedById: null,
+        completionNote: null,
+        associatedContainers: [],
+        unloaders: [],
+      };
+    }
+
+    return {
+      containerId: record.id,
+      containerNo: record.containerNo,
+      classification: payContainer.classification,
+      trailerNumber: payContainer.trailerNumber,
+      payContainerId: payContainer.id,
+      payContainerNo: payContainer.payContainerNo,
+      status: payContainer.status,
+      currency: payContainer.currency,
+      rateAmount: payContainer.rateAmount.toString(),
+      completedAt: this.isoOrNull(payContainer.completedAt),
+      completedById: payContainer.completedById,
+      completionNote: payContainer.completionNote,
+      associatedContainers:
+        payContainer.sourceContainers?.map((container) => ({
+          id: container.id,
+          containerId: container.containerId,
+          containerNo: container.containerNo,
+        })) ?? [],
+      unloaders:
+        payContainer.unloaders?.map((unloader) => ({
+          id: unloader.id,
+          workerUserId: unloader.workerUserId,
+          workerCode: unloader.workerCode,
+          workerName: unloader.workerName,
+          note: unloader.note,
+        })) ?? [],
     };
   }
 

@@ -62,6 +62,7 @@ describe('CorrectionsService', () => {
       status: 'PARSED',
       totalCartons: 40,
       totalVolumeCbm: '5.250',
+      unloadingWage: null,
       destinations: [
         {
           id: 'destination-1',
@@ -93,9 +94,17 @@ describe('CorrectionsService', () => {
         payContainerLinks: {
           include: {
             payContainer: {
-              select: {
-                payContainerNo: true,
-                status: true,
+              include: {
+                sourceContainers: {
+                  orderBy: {
+                    containerNo: 'asc',
+                  },
+                },
+                unloaders: {
+                  orderBy: {
+                    workerName: 'asc',
+                  },
+                },
               },
             },
           },

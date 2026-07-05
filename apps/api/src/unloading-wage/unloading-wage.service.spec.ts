@@ -45,19 +45,58 @@ describe('UnloadingWageService', () => {
     workerSummaries = [];
     settlementLines = [];
     generatedFiles = [];
+    const payContainerSnapshot = () =>
+      payContainer
+        ? {
+            ...payContainer,
+            sourceContainers: payContainer.sourceContainers,
+            unloaders,
+          }
+        : null;
+    const payContainerLinksFor = (containerId: string) =>
+      payContainer
+        ? payContainer.sourceContainers
+            .filter((link: any) => link.containerId === containerId)
+            .map((link: any) => ({
+              id: link.id,
+              payContainerId: link.payContainerId,
+              containerId: link.containerId,
+              containerNo: link.containerNo,
+              payContainer: payContainerSnapshot(),
+            }))
+        : [];
     prisma = {
       $transaction: jest.fn((callback) => callback(prisma)),
       container: {
-        findUnique: jest.fn(({ where }) =>
-          Promise.resolve(
-            containers.find((item) => item.id === where.id) ?? null,
-          ),
-        ),
-        findMany: jest.fn(({ where }) =>
-          Promise.resolve(
+        findUnique: jest.fn(({ where, include }) => {
+          const record = containers.find((item) => item.id === where.id);
+          if (!record) {
+            return Promise.resolve(null);
+          }
+          if (include?.payContainerLinks) {
+            return Promise.resolve({
+              ...record,
+              payContainerLinks: payContainerLinksFor(record.id),
+            });
+          }
+          return Promise.resolve(record);
+        }),
+        findMany: jest.fn(({ where }) => {
+          if (where?.OR) {
+            return Promise.resolve(
+              containers.filter((item) =>
+                where.OR.some(
+                  (condition: any) =>
+                    condition.id?.in?.includes(item.id) ||
+                    condition.containerNo?.in?.includes(item.containerNo),
+                ),
+              ),
+            );
+          }
+          return Promise.resolve(
             containers.filter((item) => where.id.in.includes(item.id)),
-          ),
-        ),
+          );
+        }),
         update: jest.fn(({ where, data }) => {
           const container = containers.find((item) => item.id === where.id);
           Object.assign(container, data);
@@ -71,6 +110,9 @@ describe('UnloadingWageService', () => {
         create: jest.fn(({ data }) => {
           payContainer = {
             id: 'pay-container-1',
+            completedAt: null,
+            completedById: null,
+            completionNote: null,
             ...data,
             sourceContainers: [],
             unloaders,
@@ -79,25 +121,9 @@ describe('UnloadingWageService', () => {
           };
           return Promise.resolve(payContainer);
         }),
-        findUnique: jest.fn(() =>
-          Promise.resolve(
-            payContainer
-              ? {
-                  ...payContainer,
-                  sourceContainers: payContainer.sourceContainers,
-                  unloaders,
-                }
-              : null,
-          ),
-        ),
+        findUnique: jest.fn(() => Promise.resolve(payContainerSnapshot())),
         findMany: jest.fn(() =>
-          Promise.resolve([
-            {
-              ...payContainer,
-              sourceContainers: payContainer.sourceContainers,
-              unloaders,
-            },
-          ]),
+          Promise.resolve(payContainer ? [payContainerSnapshot()] : []),
         ),
         update: jest.fn(({ data }) => {
           Object.assign(payContainer, data, {
@@ -107,6 +133,54 @@ describe('UnloadingWageService', () => {
         }),
       },
       payContainerContainer: {
+        findMany: jest.fn(({ where }) =>
+          Promise.resolve(
+            payContainer
+              ? payContainer.sourceContainers
+                  .filter((link: any) =>
+                    where.containerId.in.includes(link.containerId),
+                  )
+                  .map((link: any) => ({
+                    ...link,
+                    payContainer: payContainerSnapshot(),
+                  }))
+              : [],
+          ),
+        ),
+        findFirst: jest.fn(({ where }) => {
+          const link = payContainer?.sourceContainers.find(
+            (item: any) => item.containerId === where.containerId,
+          );
+          return Promise.resolve(
+            link
+              ? {
+                  ...link,
+                  payContainer: payContainerSnapshot(),
+                }
+              : null,
+          );
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          if (!payContainer) {
+            return Promise.resolve({ count: 0 });
+          }
+          const before = payContainer.sourceContainers.length;
+          payContainer.sourceContainers = payContainer.sourceContainers.filter(
+            (link: any) => {
+              const matchesPayContainer = where.OR?.some(
+                (condition: any) =>
+                  condition.payContainerId === link.payContainerId,
+              );
+              const matchesContainer = where.OR?.some((condition: any) =>
+                condition.containerId?.in?.includes(link.containerId),
+              );
+              return !(matchesPayContainer || matchesContainer);
+            },
+          );
+          return Promise.resolve({
+            count: before - payContainer.sourceContainers.length,
+          });
+        }),
         create: jest.fn(({ data }) => {
           const record = {
             id: `pay-container-link-${payContainer.sourceContainers.length + 1}`,
@@ -255,6 +329,156 @@ describe('UnloadingWageService', () => {
         fieldName: 'created',
       }),
     });
+  });
+
+  it('saves ocean unloading wage from container detail, completes unloading, and stores multiple unloaders', async () => {
+    const saved = await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      {
+        classification: 'OCEAN_CONTAINER',
+        reason: 'Container detail review',
+      },
+      officeActor,
+    );
+
+    expect(saved).toMatchObject({
+      containerId: 'container-zcsu',
+      classification: 'OCEAN_CONTAINER',
+      trailerNumber: null,
+      payContainerNo: 'PC-OCEAN-ZCSU9025988B',
+      status: 'DRAFT',
+      rateAmount: '300.00',
+    });
+    expect(saved.associatedContainers.map((item) => item.containerNo)).toEqual([
+      'ZCSU9025988B',
+    ]);
+
+    const completed = await service.completeContainerUnloading(
+      'container-zcsu',
+      {
+        completedAt: '2026-06-04T17:10:00.000Z',
+        reason: 'Unloading finished',
+      },
+      officeActor,
+    );
+    expect(completed).toMatchObject({
+      status: 'COMPLETED',
+      completedAt: '2026-06-04T17:10:00.000Z',
+      completedById: 'auth-office',
+    });
+
+    const unloadersResponse = await service.updateContainerUnloaders(
+      'container-zcsu',
+      {
+        unloaders: [
+          { workerName: 'Prototype Worker A' },
+          { workerName: 'Prototype Worker B' },
+        ],
+        reason: 'Workers confirmed',
+      },
+      officeActor,
+    );
+
+    expect(unloadersResponse.unloaders.map((item) => item.workerName)).toEqual([
+      'Prototype Worker A',
+      'Prototype Worker B',
+    ]);
+    expect(prisma.correctionFeedback.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        targetType: 'PAY_CONTAINER',
+        fieldName: 'unloaders',
+      }),
+    });
+  });
+
+  it('rejects US-to-Canada container detail wage without trailer number', async () => {
+    await expect(
+      service.saveContainerUnloadingWage(
+        'container-zcsu',
+        { classification: 'US_TO_CANADA_TRANSFER' },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'MISSING_TRAILER_NUMBER',
+      }),
+    });
+  });
+
+  it('associates US-to-Canada containers from container detail as one paid unit', async () => {
+    const response = await service.updateContainerUnloadingWageAssociations(
+      'container-zcsu',
+      {
+        associatedContainerNos: ['TXGU5580229'],
+        trailerNumber: 'TR-P0-0604',
+      },
+      officeActor,
+    );
+
+    expect(response).toMatchObject({
+      classification: 'US_TO_CANADA_TRANSFER',
+      trailerNumber: 'TR-P0-0604',
+      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      rateAmount: '360.00',
+    });
+    expect(
+      response.associatedContainers.map((item) => item.containerNo),
+    ).toEqual(['ZCSU9025988B', 'TXGU5580229']);
+    expect(containers.map((item) => item.payTrailerNumber)).toEqual([
+      'TR-P0-0604',
+      'TR-P0-0604',
+    ]);
+  });
+
+  it('rejects duplicate unloader names for the same container detail wage unit', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+
+    await expect(
+      service.updateContainerUnloaders(
+        'container-zcsu',
+        {
+          unloaders: [
+            { workerName: 'Prototype Worker A' },
+            { workerName: ' prototype   worker a ' },
+          ],
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+      }),
+    });
+  });
+
+  it('marks generated settlements as needing review when a settled wage unit changes', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+    payContainer.status = 'SETTLED';
+
+    await service.updateContainerUnloaders(
+      'container-zcsu',
+      {
+        unloaders: [{ workerName: 'Prototype Worker A' }],
+      },
+      officeActor,
+    );
+
+    expect(prisma.unloadingWageSettlement.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: 'GENERATED',
+        lines: { some: { payContainerId: { in: ['pay-container-1'] } } },
+      },
+      data: { status: 'NEEDS_REVIEW' },
+    });
+    expect(payContainer.status).toBe('NEEDS_REVIEW');
   });
 
   it('lists pay containers for office review', async () => {
