@@ -163,6 +163,8 @@ describe('AttendanceService', () => {
     await expect(stat(response.storedPath)).resolves.toBeDefined();
     await expect(readFile(response.storedPath)).resolves.toEqual(file.buffer);
     expect(importRecord.importedById).toBe('auth-office');
+    expect(workerAttendance.parseAttendance).not.toHaveBeenCalled();
+    expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate attendance uploads before writing metadata', async () => {
@@ -178,6 +180,36 @@ describe('AttendanceService', () => {
       ConflictException,
     );
     expect(prisma.attendanceImport.create).not.toHaveBeenCalled();
+  });
+
+  it('returns list and detail import state without parsing', async () => {
+    const file = await loadFixtureFile();
+    const uploaded = await service.importFile(file, officeActor);
+
+    const list = await service.list({ limit: 25, offset: 0 });
+    const detail = await service.getById(uploaded.id);
+
+    expect(list).toMatchObject({
+      limit: 25,
+      offset: 0,
+      items: [
+        {
+          id: uploaded.id,
+          importStatus: 'UPLOADED',
+          parseStatus: 'NOT_PARSED',
+          warningCount: 0,
+          errorCount: 0,
+        },
+      ],
+    });
+    expect(detail).toMatchObject({
+      id: uploaded.id,
+      originalFilename: 'workAttendanceRecordForm_June.xls',
+      importStatus: 'UPLOADED',
+      parseStatus: 'NOT_PARSED',
+      warningCount: 0,
+      errorCount: 0,
+    });
   });
 
   it('returns duplicate conflict when a concurrent insert hits the SHA unique key', async () => {
@@ -208,6 +240,20 @@ describe('AttendanceService', () => {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       size: 4,
       buffer: Buffer.from('xlsx'),
+    } as Express.Multer.File;
+
+    await expect(service.importFile(file, officeActor)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.attendanceImport.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('rejects xls filenames whose bytes are not legacy Excel workbook bytes', async () => {
+    const file = {
+      originalname: 'attendance.xls',
+      mimetype: 'application/vnd.ms-excel',
+      size: 12,
+      buffer: Buffer.from('not real xls'),
     } as Express.Multer.File;
 
     await expect(service.importFile(file, officeActor)).rejects.toBeInstanceOf(

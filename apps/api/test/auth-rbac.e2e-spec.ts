@@ -59,6 +59,13 @@ describe('RBAC route guards (e2e)', () => {
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('UNAUTHENTICATED');
       });
+
+    await request(app.getHttpServer())
+      .get('/api/attendance-imports')
+      .expect(401)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('UNAUTHENTICATED');
+      });
   });
 
   it('rejects invalid tokens and inactive users before business handlers run', async () => {
@@ -90,6 +97,36 @@ describe('RBAC route guards (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/imports')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
+  it('allows OFFICE attendance upload permission but blocks WAREHOUSE attendance upload', async () => {
+    await request(app.getHttpServer())
+      .post('/api/attendance-imports')
+      .set('Authorization', officeAuthHeader())
+      .expect(400)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe(
+          'ATTENDANCE_FILE_REQUIRED',
+        );
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/attendance-imports')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
+  it('blocks WAREHOUSE from attendance read routes', async () => {
+    await request(app.getHttpServer())
+      .get('/api/attendance-imports')
       .set('Authorization', warehouseAuthHeader())
       .expect(403)
       .expect((response) => {

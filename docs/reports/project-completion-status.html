@@ -355,6 +355,13 @@
               <td>WAGE-P0 worker 原型已覆盖 fixture、parser、hours JSON、wage record 和 task report；下一步按任务队列进入后续 wage P1/P2 或指定的新切片。</td>
             </tr>
             <tr>
+              <td>Stage 1.0: WAGE-P1-01 Attendance Schema / Upload API</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P1-01</td>
+              <td>已复核并补齐 attendance_imports / attendance_rows / wage_generated_files schema 与 `20260704120000_wage_p1_schema` migration；`POST /api/attendance-imports` 只接受 legacy OLE `.xls`、保存原始字节、计算 SHA-256、拒绝重复 SHA 并返回已有 import 状态摘要，上传接口不调用 parser；`GET /api/attendance-imports` 和 `GET /api/attendance-imports/:id` 返回 import status / parse status；attendance create/read 权限已由 API guard 覆盖，新增无 token 与 WAREHOUSE forbidden E2E。</td>
+              <td>继续 WAGE-P1-02：attendance parse persistence API；不进入 Web UI。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>

@@ -44,6 +44,10 @@ type WageGeneratedFileTypeValue =
 type GeneratedFileStatusValue =
   (typeof GeneratedFileStatus)[keyof typeof GeneratedFileStatus];
 
+const LEGACY_XLS_SIGNATURE = Buffer.from([
+  0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+]);
+
 interface AttendanceImportRecord {
   id: string;
   originalFilename: string;
@@ -712,12 +716,28 @@ export class AttendanceService {
         details: { originalFilename: file.originalname },
       });
     }
+    if (
+      file.buffer.length < LEGACY_XLS_SIGNATURE.length ||
+      !file.buffer
+        .subarray(0, LEGACY_XLS_SIGNATURE.length)
+        .equals(LEGACY_XLS_SIGNATURE)
+    ) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_FILE_TYPE_UNSUPPORTED',
+        message: 'Attendance imports must be legacy Excel .xls workbook bytes.',
+        details: { originalFilename: file.originalname },
+      });
+    }
   }
 
   private throwDuplicate(record: {
     id: string;
     fileSha256: string;
     originalFilename: string;
+    importStatus?: string | null;
+    parseStatus?: string | null;
+    warningCount?: number | null;
+    errorCount?: number | null;
   }): never {
     throw new ConflictException({
       code: 'DUPLICATE_ATTENDANCE_IMPORT',
@@ -726,6 +746,15 @@ export class AttendanceService {
         existingImportId: record.id,
         fileSha256: record.fileSha256,
         originalFilename: record.originalFilename,
+        existingImport: {
+          id: record.id,
+          originalFilename: record.originalFilename,
+          fileSha256: record.fileSha256,
+          importStatus: record.importStatus ?? null,
+          parseStatus: record.parseStatus ?? null,
+          warningCount: record.warningCount ?? null,
+          errorCount: record.errorCount ?? null,
+        },
       },
     });
   }
