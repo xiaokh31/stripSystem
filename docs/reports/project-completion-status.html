@@ -229,7 +229,9 @@
           HR Work Hours Settlement 页面和 Warehouse Unloading Wage Settlement
           页面已接入真实 API 并通过回归检查；UNLOAD-WAGE-05 已补齐真实
           unloader directory 和 container detail worker selector，拆柜人保存改为
-          使用系统用户 ID 并保留结算快照。
+          使用系统用户 ID 并保留结算快照；2026-07-05 Docker full-stack smoke
+          已通过 nginx 路径验证 ADMIN/WAREHOUSE_MANAGER container detail、
+          legacy 重选和月结快照。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -444,8 +446,8 @@
               <td>Stage 6: UNLOAD-WAGE-05 Unloader Directory / Worker Selector</td>
               <td><span class="badge done">Done</span></td>
               <td>P2</td>
-              <td>新增 `GET /api/unloading-wage/workers`，按 `unloading_wage.read` 暴露真实 active WAREHOUSE / WAREHOUSE_MANAGER 用户目录，返回 user id、display name、稳定 `USER:{id}` worker code、email 和 roles；`PUT /api/containers/:id/unloaders` 改为要求 `workerUserId`，服务端解析并写入 worker code/name 快照，拒绝缺失用户、inactive 用户、非可选角色和同一 pay unit 重复工人；container detail 拆柜工资面板改为真实 worker select，旧 `workerName` only 记录继续展示为 legacy/needs reselection，保存前必须重选系统用户；关联 transfer containers 仍共享同一 pay container/unloader list，月结继续使用保存时的 worker code/name 快照；RBAC e2e 覆盖 ADMIN / WAREHOUSE_MANAGER 可读目录、HR/OFFICE/WAREHOUSE 被 403；已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`、`pnpm --filter web build`。</td>
-              <td>UNLOAD-WAGE-05 完成；下一步建议做 Docker full-stack 手工 smoke，覆盖真实账号目录、container detail 重选 legacy 拆柜人、保存后月结快照不随用户资料变更。</td>
+              <td>新增 `GET /api/unloading-wage/workers`，按 `unloading_wage.read` 暴露真实 active WAREHOUSE / WAREHOUSE_MANAGER 用户目录，返回 user id、display name、稳定 `USER:{id}` worker code、email 和 roles；`PUT /api/containers/:id/unloaders` 改为要求 `workerUserId`，服务端解析并写入 worker code/name 快照，拒绝缺失用户、inactive 用户、非可选角色和同一 pay unit 重复工人；container detail 拆柜工资面板改为真实 worker select，旧 `workerName` only 记录继续展示为 legacy/needs reselection，保存前必须重选系统用户；关联 transfer containers 仍共享同一 pay container/unloader list，月结继续使用保存时的 worker code/name 快照；RBAC e2e 覆盖 ADMIN / WAREHOUSE_MANAGER 可读目录、HR/OFFICE/WAREHOUSE 被 403；已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`、`pnpm --filter web build`；2026-07-05 Docker full-stack smoke 已通过 `docker compose -f infra/docker/compose.local.yml up -d --build --force-recreate web nginx`、`scripts/healthcheck.sh` 和 nginx `http://127.0.0.1/` Playwright smoke：真实 ADMIN 可看到 legacy 提示与 worker directory，真实 WAREHOUSE_MANAGER 可重选 legacy 拆柜人并保存，月结 worker name 使用保存时快照且不跟随后续用户姓名变更。</td>
+              <td>UNLOAD-WAGE-05 和 Docker full-stack smoke 完成；后续建议把该 smoke 固化为正式 Playwright 用例，并增加测试数据清理策略，避免持久库长期累积 smoke 记录。</td>
             </tr>
           </tbody>
         </table>
