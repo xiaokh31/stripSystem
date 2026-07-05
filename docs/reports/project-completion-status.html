@@ -351,15 +351,15 @@
               <td>Stage 3: Unloading Wage API</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
-              <td>新增 `/api/containers/:id/pay-classification`、`/api/pay-containers`、`/api/pay-containers/:id/complete-unloading`、`/api/unloading-wage-settlements`；支持 ocean / US-to-Canada trailer grouping、completion user、unloader assignment、equal split/manual allocation validation、monthly settlement snapshot、JSON/HTML artifact 记录和 audit target。</td>
-              <td>进入最终回归：API typecheck/lint/test、worker pytest、migration/status 和最终 HTML 报告。</td>
+              <td>新增 `/api/containers/:id/pay-classification`、`/api/pay-containers`、`/api/pay-containers/:id/complete-unloading`、`/api/unloading-wage-settlements`；UNLOAD-WAGE-03 已从 container detail 拆柜工资数据生成月度结算，按 completedAt 归月，只纳入 COMPLETED/SETTLED pay containers，支持 ocean CAD 300 / container、US-to-Canada CAD 360 / trailer association、均分/手工金额/手工比例、worker 汇总、detail lines、历史结算 superseded、JSON/HTML task report 记录与下载。</td>
+              <td>UNLOAD-WAGE-03 API 已完成；下一步按 UNLOAD-WAGE-04 接入月度卸柜工资结算 UI。</td>
             </tr>
             <tr>
               <td>Stage 4: Regression / Final Report</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
-              <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api lint`、`pnpm --filter api prisma validate`、`pnpm --filter api prisma generate` 和 worker `uv run pytest`。当前 API 单测 86 个通过，worker 测试 80 个通过。</td>
-              <td>工资 P1 扩展完成；已进入 P2 Office Web UI 页面和人工 review workflow。</td>
+              <td>UNLOAD-WAGE-03 已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`；当前 API unit 16 suites / 94 tests passed，API E2E 11 suites / 56 tests passed；`git diff --check` 已通过。</td>
+              <td>工资月度结算 API 验收完成；继续保持 Docker full-stack 手工验收和后续 Web UI smoke 覆盖。</td>
             </tr>
             <tr>
               <td>Stage 5: Office Web UI / Review Workflow</td>
