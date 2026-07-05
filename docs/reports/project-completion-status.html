@@ -231,7 +231,10 @@
           unloader directory 和 container detail worker selector，拆柜人保存改为
           使用系统用户 ID 并保留结算快照；2026-07-05 Docker full-stack smoke
           已通过 nginx 路径验证 ADMIN/WAREHOUSE_MANAGER container detail、
-          legacy 重选和月结快照。
+          legacy 重选和月结快照；WAGE-QA-02 full wage module regression 已完成，
+          HR work hours、warehouse unloading wage、manager role isolation、真实
+          worker selector、generated files/downloads/audit metadata、Docker nginx
+          full-stack 路径和 wage Playwright smoke 均已验证，工资模块当前结论为 complete。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -447,7 +450,14 @@
               <td><span class="badge done">Done</span></td>
               <td>P2</td>
               <td>新增 `GET /api/unloading-wage/workers`，按 `unloading_wage.read` 暴露真实 active WAREHOUSE / WAREHOUSE_MANAGER 用户目录，返回 user id、display name、稳定 `USER:{id}` worker code、email 和 roles；`PUT /api/containers/:id/unloaders` 改为要求 `workerUserId`，服务端解析并写入 worker code/name 快照，拒绝缺失用户、inactive 用户、非可选角色和同一 pay unit 重复工人；container detail 拆柜工资面板改为真实 worker select，旧 `workerName` only 记录继续展示为 legacy/needs reselection，保存前必须重选系统用户；关联 transfer containers 仍共享同一 pay container/unloader list，月结继续使用保存时的 worker code/name 快照；RBAC e2e 覆盖 ADMIN / WAREHOUSE_MANAGER 可读目录、HR/OFFICE/WAREHOUSE 被 403；已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`、`pnpm --filter web build`；2026-07-05 Docker full-stack smoke 已通过 `docker compose -f infra/docker/compose.local.yml up -d --build --force-recreate web nginx`、`scripts/healthcheck.sh` 和 nginx `http://127.0.0.1/` Playwright smoke：真实 ADMIN 可看到 legacy 提示与 worker directory，真实 WAREHOUSE_MANAGER 可重选 legacy 拆柜人并保存，月结 worker name 使用保存时快照且不跟随后续用户姓名变更。</td>
-              <td>UNLOAD-WAGE-05 和 Docker full-stack smoke 完成；后续建议把该 smoke 固化为正式 Playwright 用例，并增加测试数据清理策略，避免持久库长期累积 smoke 记录。</td>
+              <td>UNLOAD-WAGE-05 和 Docker full-stack smoke 完成；WAGE-QA-02 已把真实 worker directory / workerUserId 保存 / manager role 隔离固化进正式 wage Playwright smoke。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.1: WAGE-QA-02 Full Wage Module End-to-End Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA-02</td>
+              <td>最终工资模块回归已完成：`/work-hours` Playwright smoke 改为真实 `HR_MANAGER` 登录，覆盖 legacy `.xls` 上传、重复 SHA 复用、parse、390 employee-day rows、午休 0.50 小时展示、wage record 生成、generated files SHA-256/size/MIME/download link 和内部 storage path 不暴露；`WAREHOUSE_MANAGER` 调 attendance API 返回 403。`/unloading-wage` Playwright smoke 改为真实 `WAREHOUSE_MANAGER` 登录，动态准备真实 `WAREHOUSE` worker 用户，验证 `GET /api/unloading-wage/workers` worker directory、HR 调 unloading wage API 403、重复 `workerUserId` 返回 `DUPLICATE_UNLOADER_ASSIGNMENT`、container detail worker select 回显真实用户且无 legacy 提示、transfer group 完成卸柜、生成并再生成月结、superseded warning、worker summary、monthly detail、CAD 360 总额、CAD 180 均分和 JSON/HTML 下载链接。完整检查已通过 `uv run pytest`、`pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh` 和 `pnpm --filter web exec playwright test e2e/work-hours.spec.ts e2e/unloading-wage.spec.ts`；Docker services 均 healthy，nginx 静态 chunk healthcheck 通过。Playwright 失败的未升级首次运行是 macOS sandbox Mach port 权限问题，升级后 wage smoke 6/6 passed。attendance/unloading wage runtime storage artifacts 保留在本地用于审计复查，并已加入 `.gitignore` 防止提交。</td>
+              <td>wage module complete；后续只建议做生产 pilot 前的数据清理/归档策略和现场账号分配手册，不再新增工资业务功能。</td>
             </tr>
           </tbody>
         </table>

@@ -2,11 +2,17 @@ import {
   expect,
   test,
   type APIRequestContext,
-  type Page,
 } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { E2E_BASE_URL, expectNoPageError, loginThroughApi } from "./helpers";
+import {
+  authHeaders,
+  ensureTestUser,
+  expectNoPageError,
+  loginForAccessToken,
+  loginThroughApi,
+  loginWithCredentials,
+} from "./helpers";
 
 const repoRoot = path.resolve(process.cwd(), "../..");
 const attendanceFixturePath = path.join(
@@ -28,7 +34,27 @@ test("HR can review attendance import, parse rows, generate wage file, and use d
   page,
   request,
 }) => {
-  const token = await loginThroughApi(page, request);
+  const adminToken = await loginThroughApi(page, request);
+  const hrManager = await ensureTestUser(request, adminToken, {
+    email: "e2e-hr-manager@bestarcca.com",
+    name: "E2E HR Manager",
+    password: "Bestar-E2E-HR-123!",
+    roleCodes: ["HR_MANAGER"],
+  });
+  const warehouseManager = await ensureTestUser(request, adminToken, {
+    email: "e2e-work-hours-warehouse-manager@bestarcca.com",
+    name: "E2E Work Hours Warehouse Manager",
+    password: "Bestar-E2E-WM-123!",
+    roleCodes: ["WAREHOUSE_MANAGER"],
+  });
+  const warehouseToken = await loginForAccessToken(request, warehouseManager);
+  const blockedAttendanceResponse = await request.get(
+    "/api/attendance-imports?limit=1&offset=0",
+    { headers: authHeaders(warehouseToken) },
+  );
+  expect(blockedAttendanceResponse.status()).toBe(403);
+
+  const token = await loginWithCredentials(page, request, hrManager);
 
   await page.goto("/work-hours");
 
@@ -323,32 +349,6 @@ async function roleIdFromCreateResponse(response: {
   const roleId = body.role?.id ?? body.id;
   expect(roleId, "role id missing from create role response").toBeTruthy();
   return roleId!;
-}
-
-async function loginWithCredentials(
-  page: Page,
-  request: APIRequestContext,
-  credentials: { email: string; password: string },
-): Promise<void> {
-  const response = await request.post("/api/auth/login", {
-    data: credentials,
-  });
-  expect(response.status()).toBe(201);
-  const body = (await response.json()) as { accessToken: string };
-  await page.context().addCookies([
-    {
-      httpOnly: false,
-      name: "bestar_auth_token",
-      sameSite: "Lax",
-      secure: false,
-      url: E2E_BASE_URL,
-      value: body.accessToken,
-    },
-  ]);
-}
-
-function authHeaders(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}` };
 }
 
 function uniqueSuffix(projectName: string): string {

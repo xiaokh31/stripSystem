@@ -63,6 +63,9 @@ storage/reports/*
 storage/labels/*
 storage/task_reports/*
 storage/corrections/*
+storage/attendance_imports/*
+storage/attendance_original_files/*
+storage/unloading_wage_settlements/*
 
 # keep directory placeholders
 !storage/**/.gitkeep
