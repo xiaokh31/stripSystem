@@ -10,6 +10,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
+import { ROLE_CODES } from '../auth/permissions';
 import {
   ContainerPayClassification,
   CorrectionTargetType,
@@ -32,6 +33,8 @@ import {
   PayContainerListResponseDto,
   PayContainerResponseDto,
   SaveContainerUnloadingWageDto,
+  UnloadingWageWorkerListResponseDto,
+  UnloadingWageWorkerResponseDto,
   UpdateContainerPayClassificationDto,
   UpdateContainerUnloadersDto,
   UpdateContainerUnloadingWageAssociationsDto,
@@ -175,6 +178,27 @@ interface ExistingPayContainerLinkRecord {
   payContainer: PayContainerRecord;
 }
 
+interface WorkerRoleAssignmentRecord {
+  role?: {
+    code: string;
+    isActive: boolean;
+  } | null;
+}
+
+interface WorkerUserRecord {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role?: string | null;
+  isActive: boolean;
+  roleAssignments?: WorkerRoleAssignmentRecord[];
+}
+
+const SELECTABLE_UNLOADER_ROLE_CODES = new Set<string>([
+  ROLE_CODES.warehouse,
+  ROLE_CODES.warehouseManager,
+]);
+
 type UnloadingWageTransaction = Pick<
   PrismaService,
   | 'container'
@@ -194,6 +218,37 @@ export class UnloadingWageService {
     configService: ConfigService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
+  }
+
+  async listWorkers(): Promise<UnloadingWageWorkerListResponseDto> {
+    const users = (await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          {
+            roleAssignments: {
+              some: {
+                role: {
+                  code: { in: [...SELECTABLE_UNLOADER_ROLE_CODES] },
+                  isActive: true,
+                },
+              },
+            },
+          },
+          { role: ROLE_CODES.warehouse },
+        ],
+      },
+      include: {
+        roleAssignments: { include: { role: true } },
+      },
+      orderBy: [{ name: 'asc' }, { email: 'asc' }, { id: 'asc' }],
+    })) as WorkerUserRecord[];
+
+    return {
+      items: users
+        .filter((user) => this.isSelectableUnloaderUser(user))
+        .map((user) => this.toWorkerResponse(user)),
+    };
   }
 
   async updateContainerPayClassification(
@@ -382,7 +437,7 @@ export class UnloadingWageService {
   ): Promise<ContainerUnloadingWageResponseDto> {
     const payContainer =
       await this.findPayContainerForContainerOrThrow(containerId);
-    const unloaders = this.containerUnloaderInputs(dto.unloaders);
+    const unloaders = await this.containerUnloaderInputs(dto.unloaders);
     const correctedById = auditUserId(actor);
     const nextStatus =
       payContainer.status === PayContainerStatus.SETTLED
@@ -1108,54 +1163,137 @@ export class UnloadingWageService {
     return [...byId.values()];
   }
 
-  private containerUnloaderInputs(unloaders: ContainerUnloaderDto[]): Array<{
-    workerUserId: string | null;
-    workerCode: string;
-    workerName: string;
-    note: string | null;
-  }> {
-    const seenNames = new Set<string>();
-    const seenCodes = new Set<string>();
-
-    return unloaders.map((unloader) => {
-      const workerName = this.requiredString(unloader.workerName, 'workerName');
-      const normalizedName = this.normalizedWorkerName(workerName);
-      if (seenNames.has(normalizedName)) {
+  private async containerUnloaderInputs(
+    unloaders: ContainerUnloaderDto[],
+  ): Promise<
+    Array<{
+      workerUserId: string;
+      workerCode: string;
+      workerName: string;
+      note: string | null;
+    }>
+  > {
+    const requested = unloaders.map((unloader, index) => {
+      const workerUserId = this.stringOrNull(unloader.workerUserId);
+      if (!workerUserId) {
         throw new BadRequestException({
-          code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
-          message: `Duplicate unloader assignment: ${workerName}.`,
-          details: { workerName },
+          code: 'UNLOADER_WORKER_USER_REQUIRED',
+          message:
+            'Each container detail unloader must be selected from the worker directory.',
+          details: {
+            index,
+            workerName: this.stringOrNull(unloader.workerName),
+          },
         });
       }
-      seenNames.add(normalizedName);
-
-      const workerCode =
-        this.stringOrNull(unloader.workerCode) ??
-        this.workerCodeFromName(workerName);
-      if (seenCodes.has(workerCode)) {
-        throw new BadRequestException({
-          code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
-          message: `Duplicate unloader assignment: ${workerCode}.`,
-          details: { workerCode },
-        });
-      }
-      seenCodes.add(workerCode);
 
       return {
-        workerUserId: this.stringOrNull(unloader.workerUserId),
-        workerCode,
-        workerName,
+        index,
         note: this.stringOrNull(unloader.note),
+        workerUserId,
+      };
+    });
+
+    const seenUserIds = new Set<string>();
+    for (const unloader of requested) {
+      if (seenUserIds.has(unloader.workerUserId)) {
+        throw new BadRequestException({
+          code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+          message: `Duplicate unloader assignment: ${unloader.workerUserId}.`,
+          details: { workerUserId: unloader.workerUserId },
+        });
+      }
+      seenUserIds.add(unloader.workerUserId);
+    }
+
+    const users = (await this.prisma.user.findMany({
+      where: { id: { in: [...seenUserIds] } },
+      include: {
+        roleAssignments: { include: { role: true } },
+      },
+    })) as WorkerUserRecord[];
+    const usersById = new Map(users.map((user) => [user.id, user]));
+
+    return requested.map((unloader) => {
+      const user = usersById.get(unloader.workerUserId);
+      if (!user) {
+        throw new BadRequestException({
+          code: 'UNLOADER_WORKER_NOT_FOUND',
+          message: 'Selected unloader user was not found.',
+          details: { workerUserId: unloader.workerUserId },
+        });
+      }
+
+      if (!user.isActive) {
+        throw new BadRequestException({
+          code: 'UNLOADER_WORKER_INACTIVE',
+          message: 'Selected unloader user is inactive.',
+          details: { workerUserId: user.id },
+        });
+      }
+
+      if (!this.isSelectableUnloaderUser(user)) {
+        throw new BadRequestException({
+          code: 'UNLOADER_WORKER_NOT_SELECTABLE',
+          message:
+            'Selected user is not a warehouse worker selectable for unloading wage.',
+          details: { workerUserId: user.id, roles: this.workerRoleCodes(user) },
+        });
+      }
+
+      return {
+        note: unloader.note,
+        workerCode: this.workerCodeFromUser(user),
+        workerName: this.workerDisplayName(user),
+        workerUserId: user.id,
       };
     });
   }
 
-  private normalizedWorkerName(workerName: string): string {
-    return workerName.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+  private toWorkerResponse(
+    user: WorkerUserRecord,
+  ): UnloadingWageWorkerResponseDto {
+    return {
+      displayName: this.workerDisplayName(user),
+      email: this.stringOrNull(user.email),
+      id: user.id,
+      roles: this.workerRoleCodes(user),
+      workerCode: this.workerCodeFromUser(user),
+    };
   }
 
-  private workerCodeFromName(workerName: string): string {
-    return `NAME:${workerName.replace(/\s+/g, ' ').trim().toLocaleUpperCase()}`;
+  private isSelectableUnloaderUser(user: WorkerUserRecord): boolean {
+    if (!user.isActive) {
+      return false;
+    }
+    return this.workerRoleCodes(user).some((roleCode) =>
+      SELECTABLE_UNLOADER_ROLE_CODES.has(roleCode),
+    );
+  }
+
+  private workerRoleCodes(user: WorkerUserRecord): string[] {
+    const codes = new Set<string>();
+    for (const assignment of user.roleAssignments ?? []) {
+      const role = assignment.role;
+      if (role?.isActive && role.code) {
+        codes.add(role.code);
+      }
+    }
+    const legacyRole = this.stringOrNull(user.role);
+    if (legacyRole) {
+      codes.add(legacyRole);
+    }
+    return [...codes].sort();
+  }
+
+  private workerCodeFromUser(user: WorkerUserRecord): string {
+    return `USER:${user.id}`;
+  }
+
+  private workerDisplayName(user: WorkerUserRecord): string {
+    return (
+      this.stringOrNull(user.name) ?? this.stringOrNull(user.email) ?? user.id
+    );
   }
 
   private async markRelatedSettlementsNeedReview(

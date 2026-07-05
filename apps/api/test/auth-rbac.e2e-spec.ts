@@ -194,6 +194,16 @@ describe('RBAC route guards (e2e)', () => {
 
   it('allows WAREHOUSE_MANAGER unloading wage actions but blocks non-warehouse-manager wage roles', async () => {
     await request(app.getHttpServer())
+      .get('/api/unloading-wage/workers')
+      .set('Authorization', adminAuthHeader())
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/unloading-wage/workers')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .expect(200);
+
+    await request(app.getHttpServer())
       .patch('/api/containers/container-1/unloading-wage')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({})
@@ -216,6 +226,14 @@ describe('RBAC route guards (e2e)', () => {
       officeAuthHeader(),
       warehouseAuthHeader(),
     ]) {
+      await request(app.getHttpServer())
+        .get('/api/unloading-wage/workers')
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+
       await request(app.getHttpServer())
         .patch('/api/containers/container-1/unloading-wage')
         .set('Authorization', authorization)

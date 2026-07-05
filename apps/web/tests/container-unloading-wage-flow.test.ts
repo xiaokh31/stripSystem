@@ -98,34 +98,34 @@ test("container detail wage draft starts from API unloading wage data", () => {
   });
 });
 
-test("duplicate unloader names are rejected before API submit", () => {
+test("duplicate unloader users are rejected before API submit", () => {
   const request = buildContainerUnloadersRequest(
     [
       {
         initialWorkerName: "",
         note: "",
-        workerCode: "",
+        workerCode: "USER:user-1",
         workerName: "Prototype Worker A",
-        workerUserId: null,
+        workerUserId: "user-1",
       },
       {
         initialWorkerName: "",
         note: "",
-        workerCode: "",
-        workerName: " prototype   worker a ",
-        workerUserId: null,
+        workerCode: "USER:user-1",
+        workerName: "Prototype Worker A",
+        workerUserId: "user-1",
       },
     ],
     "Workers confirmed",
   );
 
   assert.deepEqual(request, {
-    error: "Duplicate unloader: prototype   worker a.",
+    error: "Duplicate unloader: Prototype Worker A.",
     ok: false,
   });
 });
 
-test("existing unloader code is preserved only while worker name is unchanged", () => {
+test("selected unloaders submit worker user ids and legacy names require reselection", () => {
   const drafts = unloaderDraftsFromContainer(
     containerRecord({
       unloadingWage: {
@@ -160,8 +160,6 @@ test("existing unloader code is preserved only while worker name is unchanged", 
       unloaders: [
         {
           note: null,
-          workerCode: "W1",
-          workerName: "Worker One",
           workerUserId: "user-1",
         },
       ],
@@ -170,22 +168,21 @@ test("existing unloader code is preserved only while worker name is unchanged", 
 
   assert.deepEqual(
     buildContainerUnloadersRequest(
-      [{ ...drafts[0], workerName: "Worker Two" }],
+      [
+        {
+          ...drafts[0],
+          initialWorkerName: "Worker Two",
+          workerCode: "NAME:WORKER TWO",
+          workerName: "Worker Two",
+          workerUserId: null,
+        },
+      ],
       "Workers confirmed",
     ),
     {
-      ok: true,
-      payload: {
-        reason: "Workers confirmed",
-        unloaders: [
-          {
-            note: null,
-            workerCode: null,
-            workerName: "Worker Two",
-            workerUserId: null,
-          },
-        ],
-      },
+      error:
+        'Legacy unloader "Worker Two" must be reselected from the worker directory before saving.',
+      ok: false,
     },
   );
 });

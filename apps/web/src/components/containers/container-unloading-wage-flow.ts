@@ -155,35 +155,40 @@ export function buildContainerUnloadersRequest(
 ): BuildResult<UpdateContainerUnloadersRequest> {
   const unloaders = drafts
     .map((draft) => ({
-      initialWorkerName: draft.initialWorkerName,
       note: nullableTrimmedString(draft.note),
-      workerCode: nullableTrimmedString(draft.workerCode),
       workerName: draft.workerName.trim(),
-      workerUserId: draft.workerUserId,
+      workerUserId: nullableTrimmedString(draft.workerUserId),
     }))
     .filter(
       (draft) =>
-        draft.workerName || draft.note || draft.workerCode || draft.workerUserId,
+        draft.workerName || draft.note || draft.workerUserId,
     );
 
   if (unloaders.length === 0) {
     return { error: "Add at least one unloader.", ok: false };
   }
 
-  const seenNames = new Set<string>();
+  const seenUserIds = new Set<string>();
   for (const unloader of unloaders) {
-    if (!unloader.workerName) {
-      return { error: "Each unloader row requires a worker name.", ok: false };
+    if (!unloader.workerUserId) {
+      if (unloader.workerName) {
+        return {
+          error: `Legacy unloader "${unloader.workerName}" must be reselected from the worker directory before saving.`,
+          ok: false,
+        };
+      }
+      return { error: "Each unloader row requires a selected worker.", ok: false };
     }
 
-    const normalizedName = normalizedWorkerName(unloader.workerName);
-    if (seenNames.has(normalizedName)) {
+    if (seenUserIds.has(unloader.workerUserId)) {
       return {
-        error: `Duplicate unloader: ${unloader.workerName}.`,
+        error: `Duplicate unloader: ${
+          unloader.workerName || unloader.workerUserId
+        }.`,
         ok: false,
       };
     }
-    seenNames.add(normalizedName);
+    seenUserIds.add(unloader.workerUserId);
   }
 
   return {
@@ -192,15 +197,7 @@ export function buildContainerUnloadersRequest(
       reason: nullableTrimmedString(reason),
       unloaders: unloaders.map((unloader) => ({
         note: unloader.note,
-        workerCode:
-          unloader.workerName === unloader.initialWorkerName
-            ? unloader.workerCode
-            : null,
-        workerName: unloader.workerName,
-        workerUserId:
-          unloader.workerName === unloader.initialWorkerName
-            ? unloader.workerUserId
-            : null,
+        workerUserId: unloader.workerUserId,
       })),
     },
   };
@@ -299,15 +296,11 @@ function datetimeLocalInput(value: string | null | undefined, fallback: Date) {
   return local.toISOString().slice(0, 16);
 }
 
-function nullableTrimmedString(value: string): string | null {
-  const trimmed = value.trim();
+function nullableTrimmedString(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
   return trimmed ? trimmed : null;
 }
 
 function normalizeContainerNo(value: string): string {
   return value.trim().toUpperCase();
-}
-
-function normalizedWorkerName(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
 }

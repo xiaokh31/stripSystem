@@ -24,6 +24,7 @@ import {
   PayContainerListResponseDto,
   PayContainerResponseDto,
   SaveContainerUnloadingWageDto,
+  UnloadingWageWorkerListResponseDto,
   UnloadingWageSettlementListResponseDto,
   UnloadingWageSettlementResponseDto,
   UpdateContainerUnloadersDto,
@@ -35,6 +36,12 @@ import { UnloadingWageService } from './unloading-wage.service';
 @Controller()
 export class UnloadingWageController {
   constructor(private readonly unloadingWageService: UnloadingWageService) {}
+
+  @Get('unloading-wage/workers')
+  @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.listWorkers)
+  listWorkers(): Promise<UnloadingWageWorkerListResponseDto> {
+    return this.unloadingWageService.listWorkers();
+  }
 
   @Patch('containers/:id/unloading-wage')
   @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.classifyContainer)

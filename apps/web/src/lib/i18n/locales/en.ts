@@ -811,6 +811,8 @@ export const enMessages = {
   "CAD 360 / transfer group": "CAD 360 / transfer group",
   "Each unloader row requires a worker name.":
     "Each unloader row requires a worker name.",
+  "Each unloader row requires a selected worker.":
+    "Each unloader row requires a selected worker.",
   "Each unloader requires both worker code and worker name.":
     "Each unloader requires both worker code and worker name.",
   "Enter at least one container id.": "Enter at least one container id.",
@@ -828,6 +830,9 @@ export const enMessages = {
     "Generating unloading wage settlement.",
   "Generating wage record workbook.": "Generating wage record workbook.",
   "HTML task report": "HTML task report",
+  "Legacy worker:": "Legacy worker:",
+  "Load worker options before saving unloaders.":
+    "Load worker options before saving unloaders.",
   "HR Work Hours Settlement": "HR Work Hours Settlement",
   "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.":
     "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.",
@@ -955,9 +960,18 @@ export const enMessages = {
   "Work Hours Settlement": "Work Hours Settlement",
   "Work type": "Work type",
   "Worker amount": "Worker amount",
+  "Worker": "Worker",
   "Worker code": "Worker code",
+  "Worker directory could not be loaded.":
+    "Worker directory could not be loaded.",
   "Worker name": "Worker name",
   "Worker summary": "Worker summary",
+  "Saved worker is no longer selectable. Select an active worker before saving.":
+    "Saved worker is no longer selectable. Select an active worker before saving.",
+  "Saved worker unavailable:": "Saved worker unavailable:",
+  "Select a system worker before saving.":
+    "Select a system worker before saving.",
+  "Select worker": "Select worker",
   "allocation line(s)": "allocation line(s)",
   "detail line(s)": "detail line(s)",
   "employee(s)": "employee(s)",

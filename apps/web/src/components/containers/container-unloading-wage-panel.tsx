@@ -10,6 +10,7 @@ import {
   updateContainerUnloadingWageAssociations,
   type ContainerDetailResponse,
   type ContainerPayClassification,
+  type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
 import {
   buildContainerUnloadersRequest,
@@ -42,9 +43,13 @@ const idleState: ActionState = {
 export function ContainerUnloadingWagePanel({
   canEdit,
   container,
+  workerOptions,
+  workerOptionsError,
 }: {
   canEdit: boolean;
   container: ContainerDetailResponse;
+  workerOptions: UnloadingWageWorkerResponse[];
+  workerOptionsError: ApiClientError | null;
 }) {
   const router = useRouter();
   const [wageDraft, setWageDraft] = useState<ContainerUnloadingWageDraft>(() =>
@@ -82,6 +87,23 @@ export function ContainerUnloadingWagePanel({
           ? {
               ...unloader,
               [key]: value,
+            }
+          : unloader,
+      ),
+    );
+  }
+
+  function selectUnloaderWorker(index: number, workerUserId: string) {
+    const worker =
+      workerOptions.find((item) => item.id === workerUserId) ?? null;
+    setUnloaderDrafts((current) =>
+      current.map((unloader, unloaderIndex) =>
+        unloaderIndex === index
+          ? {
+              ...unloader,
+              workerCode: worker?.workerCode ?? "",
+              workerName: worker?.displayName ?? "",
+              workerUserId: worker?.id ?? null,
             }
           : unloader,
       ),
@@ -132,6 +154,39 @@ export function ContainerUnloadingWagePanel({
   }
 
   async function saveUnloaders() {
+    if (workerOptionsError) {
+      setUnloaderState({
+        code: workerOptionsError.code,
+        message: "Worker directory could not be loaded.",
+        status: "error",
+      });
+      return;
+    }
+
+    if (workerOptions.length === 0) {
+      setUnloaderState({
+        code: null,
+        message: "Load worker options before saving unloaders.",
+        status: "error",
+      });
+      return;
+    }
+
+    const missingWorker = unloaderDrafts.find(
+      (unloader) =>
+        unloader.workerUserId &&
+        !workerOptions.some((worker) => worker.id === unloader.workerUserId),
+    );
+    if (missingWorker) {
+      setUnloaderState({
+        code: null,
+        message:
+          "Saved worker is no longer selectable. Select an active worker before saving.",
+        status: "error",
+      });
+      return;
+    }
+
     const request = buildContainerUnloadersRequest(
       unloaderDrafts,
       "Container detail unloaders updated",
@@ -341,61 +396,104 @@ export function ContainerUnloadingWagePanel({
               <table className="min-w-[620px] w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                    <th className="px-3 py-3 font-semibold">Worker name</th>
+                    <th className="px-3 py-3 font-semibold">Worker</th>
                     <th className="px-3 py-3 font-semibold">Note</th>
                     <th className="px-3 py-3 font-semibold">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {unloaderDrafts.map((unloader, index) => (
-                    <tr className="border-b border-zinc-100" key={index}>
-                      <td className="px-3 py-3">
-                        <input
-                          className="min-h-10 w-full border border-zinc-300 px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
-                          onChange={(event) =>
-                            updateUnloader(
-                              index,
-                              "workerName",
-                              event.target.value,
-                            )
-                          }
-                          value={unloader.workerName}
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <input
-                          className="min-h-10 w-full border border-zinc-300 px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
-                          onChange={(event) =>
-                            updateUnloader(index, "note", event.target.value)
-                          }
-                          value={unloader.note}
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <button
-                          className="min-h-9 border border-zinc-300 bg-white px-3 text-xs font-semibold uppercase text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
-                          disabled={unloaderDrafts.length === 1}
-                          onClick={() =>
-                            setUnloaderDrafts((current) =>
-                              current.filter(
-                                (_item, itemIndex) => itemIndex !== index,
-                              ),
-                            )
-                          }
-                          type="button"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {unloaderDrafts.map((unloader, index) => {
+                    const selectedWorker = workerOptions.find(
+                      (worker) => worker.id === unloader.workerUserId,
+                    );
+                    const hasLegacyName =
+                      !unloader.workerUserId && unloader.initialWorkerName;
+                    const hasMissingWorker =
+                      unloader.workerUserId && !selectedWorker;
+
+                    return (
+                      <tr className="border-b border-zinc-100" key={index}>
+                        <td className="px-3 py-3">
+                          <select
+                            className="min-h-10 w-full border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                            onChange={(event) =>
+                              selectUnloaderWorker(index, event.target.value)
+                            }
+                            value={unloader.workerUserId ?? ""}
+                          >
+                            <option value="">Select worker</option>
+                            {hasMissingWorker ? (
+                              <option value={unloader.workerUserId ?? ""}>
+                                Saved worker unavailable: {unloader.workerName}
+                              </option>
+                            ) : null}
+                            {workerOptions.map((worker) => (
+                              <option key={worker.id} value={worker.id}>
+                                {workerOptionLabel(worker)}
+                              </option>
+                            ))}
+                          </select>
+                          {hasLegacyName ? (
+                            <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
+                              Legacy worker: {unloader.initialWorkerName}. Select a system worker before saving.
+                            </p>
+                          ) : null}
+                          {hasMissingWorker ? (
+                            <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
+                              Saved worker is no longer selectable. Select an active worker before saving.
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3">
+                          <input
+                            className="min-h-10 w-full border border-zinc-300 px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                            onChange={(event) =>
+                              updateUnloader(index, "note", event.target.value)
+                            }
+                            value={unloader.note}
+                          />
+                        </td>
+                        <td className="px-3 py-3">
+                          <button
+                            className="min-h-9 border border-zinc-300 bg-white px-3 text-xs font-semibold uppercase text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            disabled={unloaderDrafts.length === 1}
+                            onClick={() =>
+                              setUnloaderDrafts((current) =>
+                                current.filter(
+                                  (_item, itemIndex) => itemIndex !== index,
+                                ),
+                              )
+                            }
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            {workerOptionsError ? (
+              <div
+                className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
+                role="alert"
+              >
+                <p className="font-medium">
+                  Worker directory could not be loaded.
+                </p>
+                <p className="mt-1 text-xs font-semibold uppercase">
+                  {workerOptionsError.code}
+                </p>
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-                disabled={unloaderState.status === "running"}
+                disabled={
+                  unloaderState.status === "running" || Boolean(workerOptionsError)
+                }
                 onClick={() => void saveUnloaders()}
                 type="button"
               >
@@ -461,6 +559,16 @@ function PermissionRequiredPanel() {
       </p>
     </div>
   );
+}
+
+function workerOptionLabel(worker: UnloadingWageWorkerResponse): string {
+  return [
+    worker.displayName,
+    worker.workerCode,
+    worker.email ? `<${worker.email}>` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function SummaryItem({

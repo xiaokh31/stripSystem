@@ -9,6 +9,7 @@ import {
   getAttendanceGeneratedFileDownloadUrl,
   getUnloadingWageSettlementFileDownloadUrl,
   listAttendanceImports,
+  listUnloadingWageWorkers,
   listPayContainers,
   parseAttendanceImport,
   saveContainerUnloadingWage,
@@ -193,6 +194,10 @@ test("container detail unloading wage API client calls container-scoped endpoint
     );
   };
 
+  await listUnloadingWageWorkers({
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
   await saveContainerUnloadingWage(
     "container 1",
     {
@@ -215,7 +220,7 @@ test("container detail unloading wage API client calls container-scoped endpoint
       unloaders: [
         {
           note: "Confirmed",
-          workerName: "Worker One",
+          workerUserId: "worker-1",
         },
       ],
     },
@@ -231,6 +236,11 @@ test("container detail unloading wage API client calls container-scoped endpoint
   );
 
   assert.deepEqual(requests, [
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/unloading-wage/workers",
+    },
     {
       body: {
         classification: "OCEAN_CONTAINER",
@@ -252,7 +262,7 @@ test("container detail unloading wage API client calls container-scoped endpoint
         unloaders: [
           {
             note: "Confirmed",
-            workerName: "Worker One",
+            workerUserId: "worker-1",
           },
         ],
       },

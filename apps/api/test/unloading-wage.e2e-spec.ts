@@ -15,6 +15,29 @@ import {
   warehouseManagerAuthHeader,
 } from './auth-test-helpers';
 
+function workerUser(
+  id: string,
+  name: string,
+  roleCode: string,
+  isActive = true,
+) {
+  return {
+    email: `${id}@example.com`,
+    id,
+    isActive,
+    name,
+    role: null,
+    roleAssignments: [
+      {
+        role: {
+          code: roleCode,
+          isActive: true,
+        },
+      },
+    ],
+  };
+}
+
 describe('Container detail unloading wage API (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: any;
@@ -51,6 +74,16 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('saves ocean wage, marks unloading completed, and stores multiple unloaders from container detail routes', async () => {
+    const workers = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .get('/api/unloading-wage/workers')
+      .expect(200);
+
+    expect(workers.body.items.map((worker: any) => worker.id)).toEqual([
+      'worker-a',
+      'worker-b',
+      'worker-c',
+    ]);
+
     const saved = await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({
@@ -86,10 +119,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: 'Prototype Worker B' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-b' }],
       })
       .expect(200);
 
@@ -128,10 +158,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: 'Prototype Worker C' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
       })
       .expect(200);
 
@@ -160,7 +187,7 @@ describe('Container detail unloading wage API (e2e)', () => {
     ).toEqual(['Prototype Worker A', 'Prototype Worker C']);
   });
 
-  it('rejects duplicate unloader names from the container detail route', async () => {
+  it('rejects duplicate unloader users from the container detail route', async () => {
     await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'OCEAN_CONTAINER' })
@@ -170,15 +197,43 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: ' prototype   worker a ' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-a' }],
       })
       .expect(400);
 
     expect(response.body).toMatchObject({
       code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+    });
+  });
+
+  it('rejects non-selectable or inactive workers from the container detail route', async () => {
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage')
+      .send({ classification: 'OCEAN_CONTAINER' })
+      .expect(200);
+
+    const officeWorker = await request(app.getHttpServer())
+      .put('/api/containers/container-zcsu/unloaders')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({
+        unloaders: [{ workerUserId: 'worker-office' }],
+      })
+      .expect(400);
+
+    expect(officeWorker.body).toMatchObject({
+      code: 'UNLOADER_WORKER_NOT_SELECTABLE',
+    });
+
+    const inactiveWorker = await request(app.getHttpServer())
+      .put('/api/containers/container-zcsu/unloaders')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({
+        unloaders: [{ workerUserId: 'worker-inactive' }],
+      })
+      .expect(400);
+
+    expect(inactiveWorker.body).toMatchObject({
+      code: 'UNLOADER_WORKER_INACTIVE',
     });
   });
 
@@ -195,10 +250,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: 'Prototype Worker C' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
       })
       .expect(200);
 
@@ -303,6 +355,13 @@ describe('Container detail unloading wage API (e2e)', () => {
     const workerSummaries: any[] = [];
     const settlementLines: any[] = [];
     const generatedFiles: any[] = [];
+    const users = [
+      workerUser('worker-a', 'Prototype Worker A', 'WAREHOUSE'),
+      workerUser('worker-b', 'Prototype Worker B', 'WAREHOUSE'),
+      workerUser('worker-c', 'Prototype Worker C', 'WAREHOUSE_MANAGER'),
+      workerUser('worker-office', 'Office Worker', 'OFFICE'),
+      workerUser('worker-inactive', 'Inactive Worker', 'WAREHOUSE', false),
+    ];
 
     const payContainerSnapshot = () =>
       payContainer
@@ -327,6 +386,20 @@ describe('Container detail unloading wage API (e2e)', () => {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       operationalSetting: {
         findUnique: jest.fn().mockResolvedValue(null),
+      },
+      user: {
+        findMany: jest.fn(({ where }) => {
+          let records = users;
+          if (where?.id?.in) {
+            records = records.filter((user) => where.id.in.includes(user.id));
+          }
+          if (where?.isActive !== undefined) {
+            records = records.filter(
+              (user) => user.isActive === where.isActive,
+            );
+          }
+          return Promise.resolve(records);
+        }),
       },
       container: {
         findUnique: jest.fn(({ where, include }) => {

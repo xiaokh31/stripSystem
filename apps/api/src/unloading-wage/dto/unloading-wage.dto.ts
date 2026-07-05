@@ -102,8 +102,9 @@ export class ContainerUnloaderDto {
   @IsString()
   workerCode?: string | null;
 
+  @IsOptional()
   @IsString()
-  workerName!: string;
+  workerName?: string | null;
 
   @IsOptional()
   @IsString()
@@ -124,6 +125,18 @@ export class UpdateContainerUnloadersDto {
   @IsOptional()
   @IsString()
   note?: string | null;
+}
+
+export interface UnloadingWageWorkerResponseDto {
+  id: string;
+  displayName: string;
+  workerCode: string;
+  email: string | null;
+  roles: string[];
+}
+
+export interface UnloadingWageWorkerListResponseDto {
+  items: UnloadingWageWorkerResponseDto[];
 }
 
 export class CreatePayContainerDto {

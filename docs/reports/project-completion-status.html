@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-04</p>
+        <p class="small">Generated: 2026-07-05</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -227,7 +227,9 @@
           workflow 范围：attendance upload/parse/generate、unloading pay
           container、completion/unloader assignment、monthly settlement、
           HR Work Hours Settlement 页面和 Warehouse Unloading Wage Settlement
-          页面已接入真实 API 并通过回归检查。
+          页面已接入真实 API 并通过回归检查；UNLOAD-WAGE-05 已补齐真实
+          unloader directory 和 container detail worker selector，拆柜人保存改为
+          使用系统用户 ID 并保留结算快照。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -437,6 +439,13 @@
               <td>P2</td>
               <td>新增 `/work-hours` HR 工时结算页面、`/unloading-wage` 仓库卸柜工资结算页面、wage API client、下载 proxy routes 和 Reports 入口；UNLOAD-WAGE-04 已将 `/unloading-wage` 收敛为月度结算 review workflow：按月份加载 container detail 已拆完来源记录、生成当月结算、显示 worker paid unit / wage amount / review status、显示海柜柜号或美转加 trailer、完整关联柜号、完成日期、rate、拆柜人、worker amount，并提供 JSON / HTML task report 下载；页面显示无已拆完记录空状态、API 错误和 NEEDS_REVIEW / SUPERSEDED warning；新增 Playwright unloading-wage smoke，使用真实 API 创建临时美转加关联柜、生成旧版本、从页面重新生成结算并验证 warning、汇总、明细和下载链接；已通过 `pnpm --filter web lint/typecheck/test`、`pnpm --filter web exec playwright test e2e/unloading-wage.spec.ts`，当前 web 单测 125 个通过，unloading-wage Playwright smoke 2 个通过。</td>
               <td>UNLOAD-WAGE-04 和 Playwright wage smoke 完成；建议下一步把 smoke 纳入常规 Docker full-stack 回归批次。</td>
+            </tr>
+            <tr>
+              <td>Stage 6: UNLOAD-WAGE-05 Unloader Directory / Worker Selector</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2</td>
+              <td>新增 `GET /api/unloading-wage/workers`，按 `unloading_wage.read` 暴露真实 active WAREHOUSE / WAREHOUSE_MANAGER 用户目录，返回 user id、display name、稳定 `USER:{id}` worker code、email 和 roles；`PUT /api/containers/:id/unloaders` 改为要求 `workerUserId`，服务端解析并写入 worker code/name 快照，拒绝缺失用户、inactive 用户、非可选角色和同一 pay unit 重复工人；container detail 拆柜工资面板改为真实 worker select，旧 `workerName` only 记录继续展示为 legacy/needs reselection，保存前必须重选系统用户；关联 transfer containers 仍共享同一 pay container/unloader list，月结继续使用保存时的 worker code/name 快照；RBAC e2e 覆盖 ADMIN / WAREHOUSE_MANAGER 可读目录、HR/OFFICE/WAREHOUSE 被 403；已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`、`pnpm --filter web build`。</td>
+              <td>UNLOAD-WAGE-05 完成；下一步建议做 Docker full-stack 手工 smoke，覆盖真实账号目录、container detail 重选 legacy 拆柜人、保存后月结快照不随用户资料变更。</td>
             </tr>
           </tbody>
         </table>

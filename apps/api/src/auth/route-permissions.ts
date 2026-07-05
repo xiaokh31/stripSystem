@@ -74,6 +74,7 @@ export const ROUTE_PERMISSIONS = {
     listFiles: [PERMISSIONS.attendance.read],
   },
   unloadingWage: {
+    listWorkers: [PERMISSIONS.unloadingWage.read],
     classifyContainer: [
       PERMISSIONS.unloadingWage.classify,
       PERMISSIONS.corrections.create,

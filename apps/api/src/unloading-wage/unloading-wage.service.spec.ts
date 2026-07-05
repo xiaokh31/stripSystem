@@ -4,6 +4,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UnloadingWageService } from './unloading-wage.service';
 
+function workerUser(
+  id: string,
+  name: string,
+  roleCode: string,
+  isActive = true,
+) {
+  return {
+    email: `${id}@example.com`,
+    id,
+    isActive,
+    name,
+    role: null,
+    roleAssignments: [
+      {
+        role: {
+          code: roleCode,
+          isActive: true,
+        },
+      },
+    ],
+  };
+}
+
 describe('UnloadingWageService', () => {
   const officeActor = {
     id: 'auth-office',
@@ -22,6 +45,7 @@ describe('UnloadingWageService', () => {
   let workerSummaries: any[];
   let settlementLines: any[];
   let generatedFiles: any[];
+  let users: any[];
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'unloading-wage-service-'));
@@ -45,6 +69,13 @@ describe('UnloadingWageService', () => {
     workerSummaries = [];
     settlementLines = [];
     generatedFiles = [];
+    users = [
+      workerUser('worker-a', 'Prototype Worker A', 'WAREHOUSE'),
+      workerUser('worker-b', 'Prototype Worker B', 'WAREHOUSE'),
+      workerUser('worker-c', 'Prototype Worker C', 'WAREHOUSE_MANAGER'),
+      workerUser('worker-office', 'Office Worker', 'OFFICE'),
+      workerUser('worker-inactive', 'Inactive Worker', 'WAREHOUSE', false),
+    ];
     const payContainerSnapshot = () =>
       payContainer
         ? {
@@ -105,6 +136,20 @@ describe('UnloadingWageService', () => {
       },
       operationalSetting: {
         findUnique: jest.fn(() => Promise.resolve(null)),
+      },
+      user: {
+        findMany: jest.fn(({ where }) => {
+          let records = users;
+          if (where?.id?.in) {
+            records = records.filter((user) => where.id.in.includes(user.id));
+          }
+          if (where?.isActive !== undefined) {
+            records = records.filter(
+              (user) => user.isActive === where.isActive,
+            );
+          }
+          return Promise.resolve(records);
+        }),
       },
       payContainer: {
         create: jest.fn(({ data }) => {
@@ -327,6 +372,22 @@ describe('UnloadingWageService', () => {
     } as unknown as ConfigService);
   });
 
+  it('lists active warehouse users as unloading wage worker options', async () => {
+    const response = await service.listWorkers();
+
+    expect(response.items.map((worker) => worker.id)).toEqual([
+      'worker-a',
+      'worker-b',
+      'worker-c',
+    ]);
+    expect(response.items[0]).toMatchObject({
+      displayName: 'Prototype Worker A',
+      email: 'worker-a@example.com',
+      roles: ['WAREHOUSE'],
+      workerCode: 'USER:worker-a',
+    });
+  });
+
   it('creates a US-to-Canada pay container and audits container classification', async () => {
     const response = await service.createPayContainer(
       {
@@ -396,10 +457,7 @@ describe('UnloadingWageService', () => {
     const unloadersResponse = await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: 'Prototype Worker B' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-b' }],
         reason: 'Workers confirmed',
       },
       officeActor,
@@ -456,7 +514,7 @@ describe('UnloadingWageService', () => {
     ]);
   });
 
-  it('rejects duplicate unloader names for the same container detail wage unit', async () => {
+  it('rejects duplicate unloader users for the same container detail wage unit', async () => {
     await service.saveContainerUnloadingWage(
       'container-zcsu',
       { classification: 'OCEAN_CONTAINER' },
@@ -468,8 +526,8 @@ describe('UnloadingWageService', () => {
         'container-zcsu',
         {
           unloaders: [
-            { workerName: 'Prototype Worker A' },
-            { workerName: ' prototype   worker a ' },
+            { workerUserId: 'worker-a' },
+            { workerUserId: 'worker-a' },
           ],
         },
         officeActor,
@@ -492,7 +550,7 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerName: 'Prototype Worker A' }],
+        unloaders: [{ workerUserId: 'worker-a' }],
       },
       officeActor,
     );
@@ -580,10 +638,7 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [
-          { workerName: 'Prototype Worker A' },
-          { workerName: 'Prototype Worker C' },
-        ],
+        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
       },
       officeActor,
     );
@@ -618,8 +673,8 @@ describe('UnloadingWageService', () => {
     expect(
       response.workers.map((worker) => [worker.workerCode, worker.totalAmount]),
     ).toEqual([
-      ['NAME:PROTOTYPE WORKER A', '180.00'],
-      ['NAME:PROTOTYPE WORKER C', '180.00'],
+      ['USER:worker-a', '180.00'],
+      ['USER:worker-c', '180.00'],
     ]);
     expect(response.lines).toEqual([
       expect.objectContaining({
@@ -664,7 +719,7 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerName: 'Prototype Worker A' }],
+        unloaders: [{ workerUserId: 'worker-a' }],
       },
       officeActor,
     );

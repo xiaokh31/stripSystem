@@ -295,6 +295,18 @@ export interface ContainerPayClassificationMutationResponse {
   };
 }
 
+export interface UnloadingWageWorkerResponse {
+  id: string;
+  displayName: string;
+  workerCode: string;
+  email: string | null;
+  roles: string[];
+}
+
+export interface UnloadingWageWorkerListResponse {
+  items: UnloadingWageWorkerResponse[];
+}
+
 export interface ContainerUnloadingWageAssociatedContainerResponse {
   id: string;
   containerId: string;
@@ -365,7 +377,7 @@ export interface CompleteContainerUnloadingRequest {
 export interface UpdateContainerUnloaderRequest {
   note?: string | null;
   workerCode?: string | null;
-  workerName: string;
+  workerName?: string | null;
   workerUserId?: string | null;
 }
 
@@ -1437,6 +1449,14 @@ export function updateContainerUnloaders(
   return createApiClient(options).request<ContainerUnloadingWageResponse>(
     `/containers/${encodeURIComponent(id)}/unloaders`,
     { body: { ...body }, method: "PUT" },
+  );
+}
+
+export function listUnloadingWageWorkers(
+  options: ApiClientOptions = {},
+): Promise<UnloadingWageWorkerListResponse> {
+  return createApiClient(options).get<UnloadingWageWorkerListResponse>(
+    "/unloading-wage/workers",
   );
 }
 

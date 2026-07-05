@@ -14,8 +14,10 @@ import {
   ApiClientError,
   getContainerDetail,
   getContainerGeneratedFiles,
+  listUnloadingWageWorkers,
   type ContainerDetailResponse,
   type GeneratedFileResponse,
+  type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
 import {
   canManageContainerUnloadingWage,
@@ -50,6 +52,10 @@ export default async function ContainerDetailPage({
   }
 
   const currentUser = await getServerCurrentUser();
+  const canEditUnloadingWage = canManageContainerUnloadingWage(currentUser);
+  const workerDirectory = canEditUnloadingWage
+    ? await loadUnloadingWageWorkers()
+    : { error: null, items: [] };
   const containerIssues = [
     ...summarizeIssues(state.container.warnings),
     ...summarizeIssues(state.container.errors),
@@ -177,9 +183,11 @@ export default async function ContainerDetailPage({
       ) : null}
 
       <ContainerUnloadingWagePanel
-        canEdit={canManageContainerUnloadingWage(currentUser)}
+        canEdit={canEditUnloadingWage}
         container={state.container}
         key={unloadingWageVersion(state.container)}
+        workerOptions={workerDirectory.items}
+        workerOptionsError={workerDirectory.error}
       />
 
       <ContainerStatusControl
@@ -227,6 +235,19 @@ async function loadContainerDetail(id: string): Promise<ContainerDetailState> {
     return { container, files, filesError, ok: true };
   } catch (error) {
     return { error: toApiClientError(error), ok: false };
+  }
+}
+
+async function loadUnloadingWageWorkers(): Promise<{
+  error: ApiClientError | null;
+  items: UnloadingWageWorkerResponse[];
+}> {
+  try {
+    const apiOptions = await getServerApiOptions();
+    const response = await listUnloadingWageWorkers(apiOptions);
+    return { error: null, items: response.items };
+  } catch (error) {
+    return { error: toApiClientError(error), items: [] };
   }
 }
 
