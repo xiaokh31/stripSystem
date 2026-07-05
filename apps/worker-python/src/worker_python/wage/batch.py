@@ -24,6 +24,7 @@ from worker_python.wage.report import WageTaskReportResult, generate_wage_html_t
 
 
 WAGE_P0_BATCH_VERSION = "wage-p0-batch-v1"
+WAGE_P0_PARSE_BATCH_VERSION = "wage-p0-02-parse-v1"
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,70 @@ class WageP0BatchResult:
     dayCount: int
     warningCount: int
     errorCount: int
+
+
+@dataclass(frozen=True)
+class WageP0ParseResult:
+    originalFilename: str
+    sha256: str
+    duplicate: bool
+    taskStatus: str
+    parsedJsonPath: Path
+    employeeCount: int
+    dayCount: int
+    warningCount: int
+    errorCount: int
+
+
+def run_wage_p0_parse(
+    *,
+    attendance_file: Path,
+    output_dir: Path,
+    generated_at: datetime | None = None,
+) -> WageP0ParseResult:
+    attendance_file = attendance_file.resolve()
+    output_dir = output_dir.resolve()
+    generated_at = generated_at or operational_now()
+
+    original_files_dir = output_dir / "original_files"
+    parsed_json_dir = output_dir / "parsed_json"
+
+    sha256 = compute_sha256(attendance_file)
+    registry = ImportRegistry(
+        original_files_dir,
+        allowed_suffixes=(".xls",),
+        file_kind="wage attendance files",
+    )
+    imported = registry.import_file(attendance_file)
+    detection = detect_attendance_workbook(imported.stored_path)
+    parsed_result = parse_attendance_workbook(imported.stored_path)
+    warnings = _parse_warnings(imported, parsed_result)
+    errors = tuple(parsed_result.errors)
+    task_status = _task_status(warnings, errors)
+    parsed_json_path = _write_parse_only_json(
+        parsed_json_dir=parsed_json_dir,
+        attendance_file=attendance_file,
+        sha256=sha256,
+        imported=imported,
+        detection=detection,
+        parsed_result=parsed_result,
+        task_status=task_status,
+        warnings=warnings,
+        errors=errors,
+        generated_at=generated_at,
+    )
+
+    return WageP0ParseResult(
+        originalFilename=attendance_file.name,
+        sha256=sha256,
+        duplicate=imported.duplicate,
+        taskStatus=task_status,
+        parsedJsonPath=parsed_json_path,
+        employeeCount=len(parsed_result.employees),
+        dayCount=len(parsed_result.days),
+        warningCount=len(warnings),
+        errorCount=len(errors),
+    )
 
 
 def run_wage_p0(
@@ -84,7 +149,7 @@ def run_wage_p0(
 
     warnings = _warnings(imported, parsed_result, wage_result)
     errors = tuple(parsed_result.errors) + tuple(wage_result.errors)
-    task_status = "ERROR" if errors else "WARNING" if warnings else "SUCCESS"
+    task_status = _task_status(warnings, errors)
     parsed_json_path = _write_parsed_json(
         parsed_json_dir=parsed_json_dir,
         attendance_file=attendance_file,
@@ -120,7 +185,17 @@ def _warnings(
     parsed_result: AttendanceParseResult,
     wage_result: WageRecordGenerationResult,
 ) -> tuple[WageIssue, ...]:
-    warnings = list(parsed_result.warnings) + list(wage_result.warnings)
+    warnings = list(_parse_warnings(imported, parsed_result)) + list(
+        wage_result.warnings
+    )
+    return tuple(warnings)
+
+
+def _parse_warnings(
+    imported: ImportResult,
+    parsed_result: AttendanceParseResult,
+) -> tuple[WageIssue, ...]:
+    warnings = list(parsed_result.warnings)
     if imported.duplicate:
         warnings.insert(
             0,
@@ -130,6 +205,57 @@ def _warnings(
             ),
         )
     return tuple(warnings)
+
+
+def _task_status(
+    warnings: tuple[WageIssue, ...],
+    errors: tuple[WageIssue, ...],
+) -> str:
+    if errors:
+        return "ERROR"
+    if warnings:
+        return "WARNING"
+    return "SUCCESS"
+
+
+def _write_parse_only_json(
+    *,
+    parsed_json_dir: Path,
+    attendance_file: Path,
+    sha256: str,
+    imported: ImportResult,
+    detection: WageDetectionResult,
+    parsed_result: AttendanceParseResult,
+    task_status: str,
+    warnings: tuple[WageIssue, ...],
+    errors: tuple[WageIssue, ...],
+    generated_at: datetime,
+) -> Path:
+    parsed_json_dir.mkdir(parents=True, exist_ok=True)
+    output_path = parsed_json_dir / _parsed_json_filename(attendance_file, sha256)
+    payload = {
+        "schema_version": 1,
+        "batch_version": WAGE_P0_PARSE_BATCH_VERSION,
+        "generated_at": generated_at.isoformat(),
+        "source_file": str(attendance_file),
+        "original_filename": attendance_file.name,
+        "sha256": sha256,
+        "parse_scope": "attendance-parser-hours-json",
+        "import": _json_ready(imported),
+        "detection": _json_ready(detection),
+        "parsed_result": _json_ready(parsed_result),
+        "wage_record_result": None,
+        "task_report": None,
+        "task_status": task_status,
+        "warnings": _json_ready(warnings),
+        "errors": _json_ready(errors),
+        "exception": None,
+    }
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return output_path
 
 
 def _write_parsed_json(

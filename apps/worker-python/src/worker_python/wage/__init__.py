@@ -16,7 +16,14 @@ from worker_python.wage.api import (
     run_wage_generate_record_api,
     run_wage_parse_api,
 )
-from worker_python.wage.batch import WAGE_P0_BATCH_VERSION, WageP0BatchResult, run_wage_p0
+from worker_python.wage.batch import (
+    WAGE_P0_BATCH_VERSION,
+    WAGE_P0_PARSE_BATCH_VERSION,
+    WageP0BatchResult,
+    WageP0ParseResult,
+    run_wage_p0,
+    run_wage_p0_parse,
+)
 from worker_python.wage.generator import (
     WageRecordGenerationResult,
     generate_wage_record,
@@ -29,10 +36,12 @@ __all__ = [
     "AttendanceParseResult",
     "WAGE_API_BATCH_VERSION",
     "WAGE_P0_BATCH_VERSION",
+    "WAGE_P0_PARSE_BATCH_VERSION",
     "WageDetectionResult",
     "WageFormatType",
     "WageIssue",
     "WageP0BatchResult",
+    "WageP0ParseResult",
     "WageRecordGenerationResult",
     "calculate_paired_work_hours",
     "calculate_work_hours_after_lunch",
@@ -41,5 +50,6 @@ __all__ = [
     "parse_attendance_workbook",
     "run_wage_generate_record_api",
     "run_wage_p0",
+    "run_wage_p0_parse",
     "run_wage_parse_api",
 ]

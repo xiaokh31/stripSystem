@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 import xlrd
+import xlwt
 
 from worker_python.imports import compute_sha256
 from worker_python.wage import (
@@ -45,6 +46,8 @@ def test_wage_attendance_parser_outputs_employee_days_hours_and_raw_rows() -> No
     assert len(result.days) == 13 * 30
     assert result.rawRows
     assert any("工号" in cell.value for row in result.rawRows for cell in row.cells)
+    assert any("制表时间" in cell.value for row in result.rawRows for cell in row.cells)
+    assert any("部门" in cell.value for row in result.rawRows for cell in row.cells)
 
     deng_june_1 = next(
         day
@@ -89,6 +92,54 @@ def test_wage_attendance_calculates_four_punch_day_by_pairing() -> None:
     )
 
 
+def test_wage_attendance_detector_returns_error_for_unsupported_xls(
+    tmp_path: Path,
+) -> None:
+    unsupported_path = tmp_path / "unsupported.xls"
+    _write_xls(
+        unsupported_path,
+        [
+            ["not an attendance workbook"],
+            ["DATE", "HOURS"],
+        ],
+    )
+
+    detection = detect_attendance_workbook(unsupported_path)
+    parsed = parse_attendance_workbook(unsupported_path)
+
+    assert detection.format_type == WageFormatType.UNKNOWN
+    assert detection.reason == "Unsupported wage attendance workbook layout."
+    assert "Missing wage attendance title row." in detection.errors
+    assert "Missing wage attendance employee headers." in detection.errors
+    assert parsed.errors
+    assert parsed.errors[0].code == "DETECTOR_ERROR"
+    assert "Missing wage attendance title row." in parsed.errors[0].message
+
+
+def test_wage_attendance_parser_errors_when_attendance_period_is_missing(
+    tmp_path: Path,
+) -> None:
+    missing_period_path = tmp_path / "missing-period.xls"
+    _write_xls(
+        missing_period_path,
+        [
+            ["员 工 刷 卡 记 录 表"],
+            ["工号：", "42", "姓名：", "manual edge", "部门：", "公司"],
+            [1, 2],
+            ["08:00\n17:00", ""],
+        ],
+    )
+
+    detection = detect_attendance_workbook(missing_period_path)
+    parsed = parse_attendance_workbook(missing_period_path)
+
+    assert detection.format_type == WageFormatType.WAGE_ATTENDANCE
+    assert "Attendance period was not found in the workbook." in detection.warnings
+    assert parsed.days == ()
+    assert parsed.rawRows
+    assert parsed.errors[0].code == "ATTENDANCE_PERIOD_MISSING"
+
+
 def test_wage_record_generator_copies_template_and_writes_matched_employee_hours(
     tmp_path: Path,
 ) -> None:
@@ -117,3 +168,12 @@ def test_wage_record_generator_copies_template_and_writes_matched_employee_hours
     assert round(lay_sheet.cell_value(3, 5) * 24 * 60) == 1098
     assert lay_sheet.cell_value(34, 0) == "TOTAL HOURS"
     assert lay_sheet.cell_value(34, 2) > 0
+
+
+def _write_xls(path: Path, rows: list[list[object]]) -> None:
+    workbook = xlwt.Workbook()
+    sheet = workbook.add_sheet("Sheet1")
+    for row_index, row in enumerate(rows):
+        for column_index, value in enumerate(row):
+            sheet.write(row_index, column_index, value)
+    workbook.save(str(path))

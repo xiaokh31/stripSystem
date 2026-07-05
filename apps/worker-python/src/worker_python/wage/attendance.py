@@ -165,11 +165,17 @@ def detect_attendance_workbook(path: Path) -> WageDetectionResult:
         matched_headers.extend(("工号", "姓名"))
 
     if title_row is None or not employee_rows:
+        layout_errors = []
+        if title_row is None:
+            layout_errors.append("Missing wage attendance title row.")
+        if not employee_rows:
+            layout_errors.append("Missing wage attendance employee headers.")
         return WageDetectionResult(
             format_type=WageFormatType.UNKNOWN,
             confidence=0.0,
-            reason="No wage attendance header pattern found.",
-            warnings=("Unsupported wage attendance workbook layout.",),
+            reason="Unsupported wage attendance workbook layout.",
+            errors=tuple(layout_errors) or ("Unsupported wage attendance workbook layout.",),
+            matched_sheet=sheet.name,
         )
 
     confidence = 0.99 if period_start and period_end else 0.85

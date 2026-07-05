@@ -341,6 +341,13 @@
               <td>继续 WAGE-P0-02 attendance parser + hours JSON；本阶段不进入 API、Web 或工资金额计算。</td>
             </tr>
             <tr>
+              <td>Stage 0.1: WAGE-P0-02 Attendance Parser / Hours JSON</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P0-02</td>
+              <td>新增 WAGE-P0 parse-only `wage-p0-parse` worker 命令：保存原始 `.xls`、按 SHA-256 去重、识别真实打卡表、输出可复现 parsed JSON，包含 parser version、employee/day rows、raw rows、warnings、errors、午休 0.5 小时假设和每人每日 calculated hours；unsupported `.xls` layout 现在返回明确 detector error；已通过相关 worker 单测和 CLI 集成测试。</td>
+              <td>继续 WAGE-P0-03：从 parsed JSON 生成工资工时表 `.xls` 和 HTML task report；仍不进入 API/Web。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>

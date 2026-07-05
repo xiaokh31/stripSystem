@@ -27,6 +27,7 @@ from worker_python.unloading_wage import run_unload_wage_p0
 from worker_python.wage import (
     run_wage_generate_record_api,
     run_wage_p0,
+    run_wage_p0_parse,
     run_wage_parse_api,
 )
 
@@ -113,6 +114,38 @@ def wage_p0(
     result = run_wage_p0(
         attendance_file=attendance_file,
         template_path=wage_template,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("wage-p0-parse")
+def wage_p0_parse(
+    attendance_file: Path = typer.Option(
+        ...,
+        "--attendance-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Legacy .xls wage attendance workbook to parse for WAGE-P0-02.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="WAGE-P0-02 parsed JSON output directory.",
+    ),
+) -> None:
+    result = run_wage_p0_parse(
+        attendance_file=attendance_file,
         output_dir=output_dir,
     )
     typer.echo(
