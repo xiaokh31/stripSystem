@@ -1,5 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -15,9 +18,14 @@ import {
 describe('Container detail unloading wage API (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: any;
+  let originalStorageRoot: string | undefined;
+  let storageRoot: string;
 
   beforeEach(async () => {
     configureAuthTestEnv();
+    originalStorageRoot = process.env.STORAGE_ROOT;
+    storageRoot = await mkdtemp(join(tmpdir(), 'unloading-wage-e2e-'));
+    process.env.STORAGE_ROOT = storageRoot;
     prisma = createPrismaMock();
     installAuthMock(prisma);
 
@@ -35,6 +43,11 @@ describe('Container detail unloading wage API (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    if (originalStorageRoot === undefined) {
+      delete process.env.STORAGE_ROOT;
+    } else {
+      process.env.STORAGE_ROOT = originalStorageRoot;
+    }
   });
 
   it('saves ocean wage, marks unloading completed, and stores multiple unloaders from container detail routes', async () => {
@@ -166,6 +179,82 @@ describe('Container detail unloading wage API (e2e)', () => {
     });
   });
 
+  it('generates, reads, and downloads a monthly settlement from container detail wage data', async () => {
+    await authorizedRequest(app, officeAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage-associations')
+      .send({
+        associatedContainerNos: ['TXGU5580229'],
+        trailerNumber: 'TR-P0-0604',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/api/containers/container-zcsu/unloaders')
+      .set('Authorization', officeAuthHeader())
+      .send({
+        unloaders: [
+          { workerName: 'Prototype Worker A' },
+          { workerName: 'Prototype Worker C' },
+        ],
+      })
+      .expect(200);
+
+    await authorizedRequest(app, officeAuthHeader())
+      .post('/api/containers/container-zcsu/complete-unloading')
+      .send({ completedAt: '2026-06-04T17:10:00.000Z' })
+      .expect(201);
+
+    const generated = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/unloading-wage-settlements')
+      .send({ settlementMonth: '2026-06' })
+      .expect(201);
+
+    expect(generated.body).toMatchObject({
+      settlementMonth: '2026-06',
+      status: 'GENERATED',
+      totalAmount: '360.00',
+    });
+    expect(
+      generated.body.workers.map((worker: any) => [
+        worker.workerName,
+        worker.totalAmount,
+      ]),
+    ).toEqual([
+      ['Prototype Worker A', '180.00'],
+      ['Prototype Worker C', '180.00'],
+    ]);
+    expect(generated.body.lines[0]).toMatchObject({
+      completedAt: '2026-06-04T17:10:00.000Z',
+      containerNumbers: ['ZCSU9025988B', 'TXGU5580229'],
+      rateAmount: '360.00',
+      trailerNumber: 'TR-P0-0604',
+    });
+    expect(
+      generated.body.generatedFiles.map((file: any) => file.fileType),
+    ).toEqual([
+      'UNLOADING_WAGE_SETTLEMENT_JSON',
+      'UNLOADING_WAGE_TASK_REPORT_HTML',
+    ]);
+
+    const listed = await authorizedRequest(app, officeAuthHeader())
+      .get('/api/unloading-wage-settlements')
+      .expect(200);
+    expect(listed.body.items).toHaveLength(1);
+
+    const detail = await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/unloading-wage-settlements/${generated.body.id}`)
+      .expect(200);
+    expect(detail.body.lines).toHaveLength(2);
+
+    const fileId = generated.body.generatedFiles[0].id;
+    const download = await authorizedRequest(app, officeAuthHeader())
+      .get(
+        `/api/unloading-wage-settlements/${generated.body.id}/files/${fileId}/download`,
+      )
+      .expect(200);
+    expect(download.text).toContain('"settlementMonth": "2026-06"');
+  });
+
   function createPrismaMock() {
     const containers = [
       {
@@ -207,6 +296,10 @@ describe('Container detail unloading wage API (e2e)', () => {
     ];
     let payContainer: any;
     let unloaders: any[] = [];
+    let settlement: any;
+    const workerSummaries: any[] = [];
+    const settlementLines: any[] = [];
+    const generatedFiles: any[] = [];
 
     const payContainerSnapshot = () =>
       payContainer
@@ -295,9 +388,28 @@ describe('Container detail unloading wage API (e2e)', () => {
           return Promise.resolve(payContainer);
         }),
         findUnique: jest.fn(() => Promise.resolve(payContainerSnapshot())),
-        findMany: jest.fn(() =>
-          Promise.resolve(payContainer ? [payContainerSnapshot()] : []),
-        ),
+        findMany: jest.fn(({ where }) => {
+          const snapshot = payContainerSnapshot();
+          if (!snapshot) {
+            return Promise.resolve([]);
+          }
+          if (where?.status?.in && !where.status.in.includes(snapshot.status)) {
+            return Promise.resolve([]);
+          }
+          if (where?.completedAt) {
+            const completedAt = snapshot.completedAt
+              ? new Date(snapshot.completedAt).getTime()
+              : Number.NaN;
+            if (
+              Number.isNaN(completedAt) ||
+              completedAt < where.completedAt.gte.getTime() ||
+              completedAt >= where.completedAt.lt.getTime()
+            ) {
+              return Promise.resolve([]);
+            }
+          }
+          return Promise.resolve([snapshot]);
+        }),
       },
       payContainerContainer: {
         findMany: jest.fn(({ where }) =>
@@ -375,7 +487,90 @@ describe('Container detail unloading wage API (e2e)', () => {
         }),
       },
       unloadingWageSettlement: {
-        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        updateMany: jest.fn(({ data }) => {
+          if (settlement) {
+            Object.assign(settlement, data);
+          }
+          return Promise.resolve({ count: settlement ? 1 : 0 });
+        }),
+        create: jest.fn(({ data }) => {
+          settlement = {
+            id: 'settlement-1',
+            ...data,
+            workerSummaries,
+            lines: settlementLines,
+            generatedFiles,
+            createdAt: new Date('2026-07-04T10:00:00.000Z'),
+            updatedAt: new Date('2026-07-04T10:00:00.000Z'),
+          };
+          return Promise.resolve(settlement);
+        }),
+        findUnique: jest.fn(() =>
+          Promise.resolve(
+            settlement
+              ? {
+                  ...settlement,
+                  workerSummaries,
+                  lines: settlementLines,
+                  generatedFiles,
+                }
+              : null,
+          ),
+        ),
+        findMany: jest.fn(() =>
+          Promise.resolve(
+            settlement
+              ? [
+                  {
+                    ...settlement,
+                    workerSummaries,
+                    lines: settlementLines,
+                    generatedFiles,
+                  },
+                ]
+              : [],
+          ),
+        ),
+      },
+      unloadingWageWorkerSettlement: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `worker-summary-${workerSummaries.length + 1}`,
+            ...data,
+          };
+          workerSummaries.push(record);
+          return Promise.resolve(record);
+        }),
+      },
+      unloadingWageSettlementLine: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `settlement-line-${settlementLines.length + 1}`,
+            ...data,
+          };
+          settlementLines.push(record);
+          return Promise.resolve(record);
+        }),
+      },
+      wageGeneratedFile: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `generated-file-${generatedFiles.length + 1}`,
+            ...data,
+          };
+          generatedFiles.push(record);
+          return Promise.resolve(record);
+        }),
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            generatedFiles.find(
+              (file) =>
+                file.id === where.id &&
+                file.unloadingWageSettlementId ===
+                  where.unloadingWageSettlementId,
+            ) ?? null,
+          ),
+        ),
       },
       correctionFeedback: {
         create: jest.fn(({ data }) =>

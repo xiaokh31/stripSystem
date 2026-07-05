@@ -125,6 +125,9 @@ interface SettlementLineRecord {
   classification: string;
   trailerNumber: string | null;
   containerNumbers: unknown;
+  completedAt: Date | string;
+  rateAmount: { toString(): string } | number | string;
+  allocationMethod: string;
   amount: { toString(): string } | number | string;
 }
 
@@ -709,6 +712,9 @@ export class UnloadingWageService {
             warnings,
             errors,
             payContainerCount: settlementInputs.length,
+            payContainers: settlementInputs.map((input) =>
+              this.settlementInputSnapshot(input),
+            ),
           }),
           generatedById,
         },
@@ -1323,6 +1329,44 @@ export class UnloadingWageService {
     return totals;
   }
 
+  private settlementInputSnapshot(
+    input: SettlementInput,
+  ): Record<string, unknown> {
+    return {
+      payContainerId: input.payContainer.id,
+      payContainerNo: input.payContainer.payContainerNo,
+      classification: input.payContainer.classification,
+      trailerNumber: input.payContainer.trailerNumber,
+      containerNumbers: input.containerNumbers,
+      completedAt: this.iso(
+        this.dateTimeRequired(input.payContainer.completedAt),
+      ),
+      rateAmount: this.moneyString(input.payContainer.rateAmount),
+      allocationMethod: input.payContainer.allocationMethod,
+      unloaders:
+        input.payContainer.unloaders?.map((unloader) => ({
+          workerCode: unloader.workerCode,
+          workerName: unloader.workerName,
+          allocationAmount:
+            unloader.allocationAmount === null ||
+            unloader.allocationAmount === undefined
+              ? null
+              : this.moneyString(unloader.allocationAmount),
+          allocationPercent:
+            unloader.allocationPercent === null ||
+            unloader.allocationPercent === undefined
+              ? null
+              : this.percentString(unloader.allocationPercent),
+          note: unloader.note,
+        })) ?? [],
+      allocations: input.allocations.map((allocation) => ({
+        workerCode: allocation.workerCode,
+        workerName: allocation.workerName,
+        amount: this.moneyString(allocation.amountCents / 100),
+      })),
+    };
+  }
+
   private async writeSettlementArtifacts(
     settlement: SettlementRecord,
     warnings: SettlementIssue[],
@@ -1378,11 +1422,25 @@ export class UnloadingWageService {
           )}</td><td>${worker.payContainerCount}</td><td>${worker.totalAmount}</td></tr>`,
       )
       .join('');
+    const detailRows = payload.lines
+      .map(
+        (line) =>
+          `<tr><td>${this.escapeHtml(line.payContainerNo)}</td><td>${this.escapeHtml(
+            line.classification,
+          )}</td><td>${this.escapeHtml(line.trailerNumber ?? '')}</td><td>${this.escapeHtml(
+            this.containerNumbersText(line.containerNumbers),
+          )}</td><td>${this.escapeHtml(line.completedAt)}</td><td>${this.escapeHtml(
+            line.rateAmount,
+          )}</td><td>${this.escapeHtml(line.workerName)}</td><td>${this.escapeHtml(
+            line.amount,
+          )}</td></tr>`,
+      )
+      .join('');
     return `<!doctype html><html><head><meta charset="utf-8"><title>Unloading Wage Settlement</title></head><body><h1>Unloading Wage Settlement ${this.escapeHtml(
       payload.settlementMonth,
     )}</h1><p>Total: ${this.escapeHtml(payload.currency)} ${this.escapeHtml(
       payload.totalAmount,
-    )}</p><table><thead><tr><th>Worker</th><th>Name</th><th>Pay containers</th><th>Total</th></tr></thead><tbody>${workerRows}</tbody></table></body></html>`;
+    )}</p><h2>Worker Summary</h2><table><thead><tr><th>Worker</th><th>Name</th><th>Pay units</th><th>Total</th></tr></thead><tbody>${workerRows}</tbody></table><h2>Detail Lines</h2><table><thead><tr><th>Pay unit</th><th>Classification</th><th>Trailer</th><th>Containers</th><th>Completed at</th><th>Rate</th><th>Worker</th><th>Worker amount</th></tr></thead><tbody>${detailRows}</tbody></table></body></html>`;
   }
 
   private async findContainerOrThrow(id: string): Promise<ContainerRecord> {
@@ -1809,6 +1867,16 @@ export class UnloadingWageService {
     return null;
   }
 
+  private containerNumbersText(value: unknown): string {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item)).join(', ');
+    }
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  }
+
   private toPayContainerResponse(
     record: PayContainerRecord,
   ): PayContainerResponseDto {
@@ -1930,6 +1998,9 @@ export class UnloadingWageService {
           classification: line.classification,
           trailerNumber: line.trailerNumber,
           containerNumbers: line.containerNumbers,
+          completedAt: this.iso(line.completedAt),
+          rateAmount: line.rateAmount.toString(),
+          allocationMethod: line.allocationMethod,
           amount: line.amount.toString(),
         })) ?? [],
       generatedFiles:

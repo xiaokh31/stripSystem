@@ -122,9 +122,35 @@ describe('UnloadingWageService', () => {
           return Promise.resolve(payContainer);
         }),
         findUnique: jest.fn(() => Promise.resolve(payContainerSnapshot())),
-        findMany: jest.fn(() =>
-          Promise.resolve(payContainer ? [payContainerSnapshot()] : []),
-        ),
+        findMany: jest.fn(({ where }) => {
+          const snapshot = payContainerSnapshot();
+          if (!snapshot) {
+            return Promise.resolve([]);
+          }
+          if (where?.status?.in && !where.status.in.includes(snapshot.status)) {
+            return Promise.resolve([]);
+          }
+          if (
+            where?.status &&
+            !where.status.in &&
+            snapshot.status !== where.status
+          ) {
+            return Promise.resolve([]);
+          }
+          if (where?.completedAt) {
+            const completedAt = snapshot.completedAt
+              ? new Date(snapshot.completedAt).getTime()
+              : Number.NaN;
+            if (
+              Number.isNaN(completedAt) ||
+              completedAt < where.completedAt.gte.getTime() ||
+              completedAt >= where.completedAt.lt.getTime()
+            ) {
+              return Promise.resolve([]);
+            }
+          }
+          return Promise.resolve([snapshot]);
+        }),
         update: jest.fn(({ data }) => {
           Object.assign(payContainer, data, {
             updatedAt: new Date('2026-06-04T17:30:00.000Z'),
@@ -542,24 +568,29 @@ describe('UnloadingWageService', () => {
     ]);
   });
 
-  it('generates a monthly settlement snapshot and records JSON/HTML artifacts', async () => {
-    await service.createPayContainer(
+  it('generates a monthly settlement snapshot from container detail wage data and records JSON/HTML artifacts', async () => {
+    await service.updateContainerUnloadingWageAssociations(
+      'container-zcsu',
       {
-        classification: 'US_TO_CANADA_TRANSFER',
-        containerIds: ['container-zcsu', 'container-txgu'],
+        associatedContainerNos: ['TXGU5580229'],
         trailerNumber: 'TR-P0-0604',
       },
       officeActor,
     );
-    await service.completePayContainer(
-      'pay-container-1',
+    await service.updateContainerUnloaders(
+      'container-zcsu',
+      {
+        unloaders: [
+          { workerName: 'Prototype Worker A' },
+          { workerName: 'Prototype Worker C' },
+        ],
+      },
+      officeActor,
+    );
+    await service.completeContainerUnloading(
+      'container-zcsu',
       {
         completedAt: '2026-06-04T17:10:00.000Z',
-        allocationMethod: 'EQUAL_SPLIT',
-        unloaders: [
-          { workerCode: 'P0-WORKER-A', workerName: 'Prototype Worker A' },
-          { workerCode: 'P0-WORKER-C', workerName: 'Prototype Worker C' },
-        ],
       },
       officeActor,
     );
@@ -577,13 +608,35 @@ describe('UnloadingWageService', () => {
       warningCount: 0,
       errorCount: 0,
     });
+    expect(prisma.unloadingWageSettlement.updateMany).toHaveBeenCalledWith({
+      where: {
+        settlementMonth: '2026-06',
+        status: 'GENERATED',
+      },
+      data: { status: 'SUPERSEDED' },
+    });
     expect(
       response.workers.map((worker) => [worker.workerCode, worker.totalAmount]),
     ).toEqual([
-      ['P0-WORKER-A', '180.00'],
-      ['P0-WORKER-C', '180.00'],
+      ['NAME:PROTOTYPE WORKER A', '180.00'],
+      ['NAME:PROTOTYPE WORKER C', '180.00'],
     ]);
-    expect(response.lines).toHaveLength(2);
+    expect(response.lines).toEqual([
+      expect.objectContaining({
+        allocationMethod: 'EQUAL_SPLIT',
+        amount: '180.00',
+        completedAt: '2026-06-04T17:10:00.000Z',
+        containerNumbers: ['ZCSU9025988B', 'TXGU5580229'],
+        payContainerNo: 'PC-TRAILER-TR-P0-0604',
+        rateAmount: '360.00',
+        trailerNumber: 'TR-P0-0604',
+        workerName: 'Prototype Worker A',
+      }),
+      expect.objectContaining({
+        amount: '180.00',
+        workerName: 'Prototype Worker C',
+      }),
+    ]);
     expect(response.generatedFiles.map((file) => file.fileType)).toEqual([
       'UNLOADING_WAGE_SETTLEMENT_JSON',
       'UNLOADING_WAGE_TASK_REPORT_HTML',
@@ -594,6 +647,127 @@ describe('UnloadingWageService', () => {
         '2026-06',
       );
     }
+    await expect(
+      readFile(response.generatedFiles[0].storagePath, 'utf8'),
+    ).resolves.toContain('"rateAmount": "360.00"');
+    await expect(
+      readFile(response.generatedFiles[1].storagePath, 'utf8'),
+    ).resolves.toContain('Detail Lines');
+  });
+
+  it('generates an ocean container settlement as one CAD 300 paid unit', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+    await service.updateContainerUnloaders(
+      'container-zcsu',
+      {
+        unloaders: [{ workerName: 'Prototype Worker A' }],
+      },
+      officeActor,
+    );
+    await service.completeContainerUnloading(
+      'container-zcsu',
+      {
+        completedAt: '2026-06-04T17:10:00.000Z',
+      },
+      officeActor,
+    );
+
+    const response = await service.generateSettlement(
+      { settlementMonth: '2026-06' },
+      officeActor,
+    );
+
+    expect(response).toMatchObject({
+      totalAmount: '300.00',
+    });
+    expect(response.workers).toEqual([
+      expect.objectContaining({
+        payContainerCount: 1,
+        totalAmount: '300.00',
+        workerName: 'Prototype Worker A',
+      }),
+    ]);
+    expect(response.lines).toEqual([
+      expect.objectContaining({
+        amount: '300.00',
+        containerNumbers: ['ZCSU9025988B'],
+        rateAmount: '300.00',
+        trailerNumber: null,
+      }),
+    ]);
+  });
+
+  it('uses manual unloader amount allocations when they exist', async () => {
+    await service.createPayContainer(
+      {
+        classification: 'US_TO_CANADA_TRANSFER',
+        containerIds: ['container-zcsu', 'container-txgu'],
+        trailerNumber: 'TR-P0-0604',
+      },
+      officeActor,
+    );
+    await service.completePayContainer(
+      'pay-container-1',
+      {
+        allocationMethod: 'MANUAL_AMOUNT',
+        completedAt: '2026-06-04T17:10:00.000Z',
+        unloaders: [
+          {
+            allocationAmount: 100,
+            workerCode: 'P0-WORKER-A',
+            workerName: 'Prototype Worker A',
+          },
+          {
+            allocationAmount: 260,
+            workerCode: 'P0-WORKER-C',
+            workerName: 'Prototype Worker C',
+          },
+        ],
+      },
+      officeActor,
+    );
+
+    const response = await service.generateSettlement(
+      { settlementMonth: '2026-06' },
+      officeActor,
+    );
+
+    expect(
+      response.workers.map((worker) => [worker.workerCode, worker.totalAmount]),
+    ).toEqual([
+      ['P0-WORKER-A', '100.00'],
+      ['P0-WORKER-C', '260.00'],
+    ]);
+    expect(
+      response.lines.map((line) => [
+        line.workerCode,
+        line.allocationMethod,
+        line.amount,
+      ]),
+    ).toEqual([
+      ['P0-WORKER-A', 'MANUAL_AMOUNT', '100.00'],
+      ['P0-WORKER-C', 'MANUAL_AMOUNT', '260.00'],
+    ]);
+  });
+
+  it('does not include draft unloading wage records in monthly settlement', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+
+    await expect(
+      service.generateSettlement({ settlementMonth: '2026-06' }, officeActor),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'NO_COMPLETED_PAY_CONTAINERS',
+      }),
+    });
   });
 
   it('downloads a generated settlement artifact by settlement id and file id', async () => {

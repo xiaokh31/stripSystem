@@ -314,6 +314,9 @@ export interface UnloadingWageSettlementResponseDto {
     classification: string;
     trailerNumber: string | null;
     containerNumbers: unknown;
+    completedAt: string;
+    rateAmount: string;
+    allocationMethod: string;
     amount: string;
   }>;
   generatedFiles: Array<{
