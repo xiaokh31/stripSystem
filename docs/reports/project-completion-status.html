@@ -223,7 +223,7 @@
           P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
           debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
           module、secure token storage 和真实设备安装扫码验收仍未完成。新增
-          Work Hours / Unloading Wage P1/P2 扩展已完成到 API/DB/Web review
+          Work Hours / Unloading Wage P0/P1/P2 扩展已完成到 API/DB/Web review
           workflow 范围：attendance upload/parse/generate、unloading pay
           container、completion/unloader assignment、monthly settlement、
           HR Work Hours Settlement 页面和 Warehouse Unloading Wage Settlement
@@ -316,10 +316,10 @@
       </section>
 
       <section>
-        <h2>工资 P1/P2 扩展进度</h2>
+        <h2>工资 P0/P1/P2 扩展进度</h2>
         <p class="note">
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
-          新增的 Work Hours Settlement 与 Unloading Wage Settlement P1/P2 扩展；
+          新增的 Work Hours Settlement 与 Unloading Wage Settlement P0/P1/P2 扩展；
           不改变既有卸柜核心 P1 已完成结论。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
@@ -333,6 +333,13 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td>Stage 0: WAGE-P0-01 Fixtures / XLS Reader</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P0-01</td>
+              <td>`docs/fixtures.md` 已登记 `samples/wage/workAttendanceRecordForm_June.xls` 和 `samples/wage/20260601-0630_wageRecords.xls` 的 byte size 与 SHA-256；worker 依赖 `xlrd>=2.0.2`，单测已验证两个 legacy `.xls` 可直接打开、列出 sheet、读取关键单元格，并检测 wage fixture SHA-256 重复项。</td>
+              <td>继续 WAGE-P0-02 attendance parser + hours JSON；本阶段不进入 API、Web 或工资金额计算。</td>
+            </tr>
             <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
