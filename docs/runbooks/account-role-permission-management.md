@@ -23,6 +23,8 @@ The default role codes are:
 - `ADMIN`
 - `OFFICE`
 - `WAREHOUSE`
+- `HR_MANAGER`
+- `WAREHOUSE_MANAGER`
 - `SYSTEM`
 
 The canonical default role and permission matrix is defined in:
@@ -53,6 +55,8 @@ apps/api/prisma/seed.ts
 - Generate reports and labels.
 - Create, edit, start, and complete load jobs.
 - Review inventory and audit history.
+- Does not receive work hours settlement or unloading wage settlement
+  permissions by default.
 
 `WAREHOUSE`
 
@@ -61,6 +65,27 @@ apps/api/prisma/seed.ts
 - Reverse a scan with reason and confirmation.
 - View current job progress.
 - Cannot edit completed jobs, regenerate labels, or delete load jobs.
+- Does not receive unloading wage settlement permissions by default.
+
+`HR_MANAGER`
+
+- Manage HR work hours settlement.
+- Upload attendance workbooks.
+- Parse attendance imports.
+- Review parsed attendance rows.
+- Generate and download wage record workbooks.
+- Cannot manage unloading wage settlement unless another role grants those
+  permissions.
+
+`WAREHOUSE_MANAGER`
+
+- Manage unloading wage settlement from container detail.
+- Classify containers as ocean or US-to-Canada transfer for wage purposes.
+- Record trailer number and associated containers.
+- Mark unloading as completed and assign unloaders.
+- Generate and review monthly unloading wage settlements.
+- Cannot manage HR attendance settlement unless another role grants those
+  permissions.
 
 `SYSTEM`
 
@@ -91,6 +116,23 @@ apps/api/prisma/seed.ts
 | Manage users/roles        | yes   | no     | no                      | no          |
 | Backup/restore            | yes   | no     | no                      | scripted    |
 
+## Wage Permission Matrix
+
+| Area | ADMIN | HR_MANAGER | WAREHOUSE_MANAGER | OFFICE | WAREHOUSE | SYSTEM |
+| --- | --- | --- | --- | --- | --- | --- |
+| Read attendance imports | yes | yes | no | no | no | worker-only |
+| Upload attendance workbook | yes | yes | no | no | no | no |
+| Parse attendance workbook | yes | yes | no | no | no | worker-only |
+| Generate attendance wage record | yes | yes | no | no | no | worker-only |
+| Read unloading wage data | yes | no | yes | no | no | no |
+| Edit container unloading wage section | yes | no | yes | no | no | no |
+| Mark unloading as completed for wage | yes | no | yes | no | no | no |
+| Generate unloading wage settlement | yes | no | yes | no | no | worker-only |
+
+For production pilot account assignment, use
+[pilot-account-assignment.md](pilot-account-assignment.md). It explains how to
+assign named staff accounts without using shared, E2E, or smoke-test accounts.
+
 ## Seed Default Roles And Permissions
 
 Start the Docker full stack first. The API container runs committed migrations
@@ -104,7 +146,7 @@ docker compose -f infra/docker/compose.local.yml exec -T api \
 The seed is idempotent:
 
 - It upserts stable permission codes.
-- It upserts the four default roles.
+- It upserts the default roles.
 - It synchronizes default role permissions.
 - It does not create an administrator unless explicit seed variables are set.
 

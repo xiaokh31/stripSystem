@@ -17,6 +17,10 @@ for a usable system.
   - label PDFs
   - task reports
   - corrections JSON
+  - attendance original files
+  - attendance parsed JSON and generated wage record workbooks
+  - attendance task reports
+  - unloading wage settlement JSON and task reports
 
 The `.env` file is not part of the PostgreSQL dump. Preserve deployment
 secrets such as `JWT_SECRET` and database passwords in the warehouse password
@@ -197,6 +201,8 @@ Do not delete current `storage/` until the backup is confirmed.
 - `GET /api/users` works for an administrator and role assignments are present.
 - A known import file exists in storage.
 - A known generated report or label PDF exists.
+- A known attendance or unloading wage generated file exists when wage
+  workflows are in pilot scope.
 - Inventory reports can query pallets from the database.
 - A sample label QR payload resolves to a pallet.
 

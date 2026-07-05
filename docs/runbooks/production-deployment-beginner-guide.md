@@ -262,9 +262,11 @@ docker compose -f infra/docker/compose.local.yml exec -T `
   api pnpm --filter api prisma db seed
 ```
 
-After the administrator logs in, create office and warehouse accounts through
-the system user management screen or API. Do not manually edit password hashes
-in PostgreSQL.
+After the administrator logs in, create office, warehouse, HR manager, and
+warehouse manager accounts through the system user management screen or API.
+For production pilot roster and password handoff, follow
+[pilot-account-assignment.md](pilot-account-assignment.md). Do not manually edit
+password hashes in PostgreSQL.
 
 ### 8. Verify Windows Deployment
 

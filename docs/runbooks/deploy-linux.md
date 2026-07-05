@@ -196,7 +196,9 @@ The seed is idempotent, rejects weak administrator passwords, and only creates
 or updates the administrator when both `SEED_ADMIN_EMAIL` and
 `SEED_ADMIN_PASSWORD` are provided. Do not write production passwords into the
 repository or manually edit account tables. After the administrator logs in,
-create office and warehouse staff through the user management API.
+create office, warehouse, HR manager, and warehouse manager staff through the
+user management API. For production pilot roster and password handoff, follow
+[pilot-account-assignment.md](pilot-account-assignment.md).
 
 ## Verify Deployment
 

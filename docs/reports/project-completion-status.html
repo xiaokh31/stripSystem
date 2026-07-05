@@ -816,7 +816,7 @@
             <tr>
               <td>账号初始化</td>
               <td><span class="badge done">Ready</span></td>
-              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建或恢复 ADMIN，再通过 API 创建 OFFICE/WAREHOUSE。</td>
+              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建或恢复 ADMIN，再按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER 账号。</td>
             </tr>
             <tr>
               <td>业务 smoke test</td>
@@ -826,7 +826,17 @@
             <tr>
               <td>备份和恢复</td>
               <td><span class="badge partial">Needs Target Verification</span></td>
-              <td>在生产路径外配置 `BACKUP_DIR`，执行 PostgreSQL/storage backup 和 restore dry-run。</td>
+              <td>在生产路径外配置 `BACKUP_DIR`，执行 PostgreSQL/storage backup 和 restore dry-run；pilot 前按 `docs/runbooks/pilot-data-cleanup-archive.md` 完成数据清理/归档签字。</td>
+            </tr>
+            <tr>
+              <td>生产 pilot 数据清理/归档</td>
+              <td><span class="badge done">Ready</span></td>
+              <td>新增 `docs/runbooks/pilot-data-cleanup-archive.md`：先备份 PostgreSQL 与 `storage/`，优先使用干净 pilot 环境，不把选择性 DELETE 业务表作为常规路径，保留原始上传文件、generated files、wage artifacts 和审计关系。</td>
+            </tr>
+            <tr>
+              <td>现场账号分配手册</td>
+              <td><span class="badge done">Ready</span></td>
+              <td>新增 `docs/runbooks/pilot-account-assignment.md`：按真实个人账号分配 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER，禁止共享账号和 E2E/smoke/test 账号参与 pilot，并覆盖 worker directory 的 active WAREHOUSE 用户要求。</td>
             </tr>
           </tbody>
         </table>
@@ -838,7 +848,8 @@
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
           <li>P6 Exit Gate 当前仍为 Gate Blocked：Android debug APK 已可构建，但在 platform camera wiring、secure token storage 与真实设备打包验收完成前，仓库移动扫码仍可使用现有 Web/PWA mobile scan，但要注意 LAN 浏览器摄像头可能受 HTTPS 限制。</li>
-          <li>先创建 ADMIN、OFFICE、WAREHOUSE 三类真实账号，验证权限不足和审计 userId。</li>
+          <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>
+          <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
           <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>

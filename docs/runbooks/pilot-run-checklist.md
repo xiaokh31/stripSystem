@@ -31,6 +31,8 @@ Record every failure in the issue log.
 | Backup directory | |
 | Printer model | |
 | Scanner / PDA model | |
+| Data cleanup/archive runbook owner | |
+| Account assignment runbook owner | |
 
 ## 1. Pre-Pilot Preparation
 
@@ -51,6 +53,11 @@ Record every failure in the issue log.
 | Scanner sends keyboard input plus Enter. | | |
 | Warehouse Wi-Fi coverage is acceptable at loading area. | | |
 | Staff know who can approve restore or No-Go decision. | | |
+| [pilot-data-cleanup-archive.md](pilot-data-cleanup-archive.md) has been completed or explicitly marked N/A by supervisor. | | |
+| PostgreSQL and `storage/` pre-pilot backups are stored outside the repository. | | |
+| Non-pilot E2E/smoke data has been archived by clean environment or approved cleanup path. | | |
+| No ad hoc SQL deletion was used against business/audit/wage tables. | | |
+| [pilot-account-assignment.md](pilot-account-assignment.md) roster has been completed. | | |
 
 ## 2. Account And Permission Test
 
@@ -60,6 +67,7 @@ Use real pilot accounts. Do not use mock users as evidence of readiness.
 | --- | --- | --- |
 | Default roles and permissions have been seeded. | | |
 | Initial `ADMIN` account can log in. | | |
+| Primary and backup real `ADMIN` accounts are assigned; no shared admin login is used. | | |
 | `ADMIN` can call `GET /api/auth/me`. | | |
 | `ADMIN` can call `GET /api/users`. | | |
 | `OFFICE` account can log in. | | |
@@ -67,6 +75,10 @@ Use real pilot accounts. Do not use mock users as evidence of readiness.
 | `WAREHOUSE` account can log in on the mobile/PDA page. | | |
 | `WAREHOUSE` can access assigned mobile load job and scan workflows. | | |
 | `WAREHOUSE` is rejected from user management and office-only actions. | | |
+| `HR_MANAGER` account can access Work Hours Settlement and is rejected from unloading wage actions. | | |
+| `WAREHOUSE_MANAGER` account can access Warehouse Unloading Wage Settlement and is rejected from HR attendance actions. | | |
+| Active unloaders who should appear in the unloading wage worker selector have named `WAREHOUSE` or `WAREHOUSE_MANAGER` accounts. | | |
+| E2E/smoke/test accounts are disabled or excluded from pilot use. | | |
 | Disabled employee account cannot log in. | | |
 | Password reset through API works and old password no longer works. | | |
 | A manual correction or scan event records the authenticated `userId`. | | |
@@ -308,6 +320,8 @@ Any one of these is an automatic No-Go:
 | Offline scan queue loses scans or confirms inventory incorrectly. | | |
 | Backup or restore dry-run cannot be executed. | | |
 | System cannot restart without losing database or `storage/` files. | | |
+| Pilot starts with unapproved E2E/smoke data in the active database or `storage/`. | | |
+| Pilot uses shared or test accounts for real operators. | | |
 
 ### Go Criteria
 
@@ -316,6 +330,9 @@ Any one of these is an automatic No-Go:
 | All blocker rows above are Pass or N/A with supervisor approval. | | |
 | All failed Major issues have owner and workaround. | | |
 | ADMIN, OFFICE, and WAREHOUSE role tests have passed. | | |
+| HR_MANAGER and WAREHOUSE_MANAGER wage role isolation tests have passed if wage workflows are in pilot scope. | | |
+| Pilot data cleanup/archive sign-off is complete. | | |
+| Named account roster and password handoff sign-off are complete. | | |
 | Office operator can complete upload, parse, correction, report, and labels. | | |
 | Warehouse operator can complete scan workflow on PDA/phone. | | |
 | Supervisor accepts one truck / multiple container workflow. | | |

@@ -141,8 +141,7 @@ nginx or browser routing problems.
 
 ## Initialize Accounts
 
-After the first start, seed the default permissions and the `ADMIN`, `OFFICE`,
-`WAREHOUSE`, and `SYSTEM` roles:
+After the first start, seed the default permissions and roles:
 
 ```bash
 docker compose -f infra/docker/compose.local.yml exec -T api \
@@ -162,9 +161,11 @@ docker compose -f infra/docker/compose.local.yml exec -T \
 
 The seed rejects weak administrator passwords and requires
 `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` together. After the first
-administrator logs in, create office and warehouse staff accounts through
-`POST /api/users`; do not manually insert users, roles, permissions, or password
-hashes in PostgreSQL.
+administrator logs in, create office, warehouse, HR manager, and warehouse
+manager staff accounts through `POST /api/users`; for production pilot roster
+and wage manager role assignment, follow
+[pilot-account-assignment.md](pilot-account-assignment.md). Do not manually
+insert users, roles, permissions, or password hashes in PostgreSQL.
 
 ## Verify
 

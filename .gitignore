@@ -23,6 +23,8 @@ docs/runbooks/*
 !docs/runbooks/production-deployment-beginner-guide.md
 !docs/runbooks/warehouse-operator-manual.md
 !docs/runbooks/pilot-run-checklist.md
+!docs/runbooks/pilot-data-cleanup-archive.md
+!docs/runbooks/pilot-account-assignment.md
 !docs/runbooks/native-scan-app-testing.md
 !docs/runbooks/native-scan-app-release.md
 !docs/runbooks/work-hours-settlement-regression.md
