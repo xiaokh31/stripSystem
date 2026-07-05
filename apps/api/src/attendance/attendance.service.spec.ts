@@ -88,9 +88,11 @@ describe('AttendanceService', () => {
         }),
       },
       attendanceRow: {
-        deleteMany: jest.fn(() =>
-          Promise.resolve({ count: rowRecords.length }),
-        ),
+        deleteMany: jest.fn(() => {
+          const count = rowRecords.length;
+          rowRecords = [];
+          return Promise.resolve({ count });
+        }),
         createMany: jest.fn(({ data }) => {
           rowRecords = data.map((row: any, index: number) => ({
             id: `attendance-row-${index + 1}`,
@@ -300,6 +302,108 @@ describe('AttendanceService', () => {
       'ATTENDANCE_PARSED_JSON',
       'TASK_REPORT_HTML',
     ]);
+    expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds attendance rows on repeat parse without duplicating rows', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const parsedJsonPath = join(storageRoot, 'repeat-parsed.json');
+    const taskReportPath = join(storageRoot, 'repeat-report.html');
+    await writeFile(parsedJsonPath, '{"ok": true}', 'utf8');
+    await writeFile(taskReportPath, '<html></html>', 'utf8');
+    const firstPayload = parsePayload(parsedJsonPath, taskReportPath);
+    const secondPayload = parsePayload(parsedJsonPath, taskReportPath);
+    secondPayload.employee_count = 2;
+    secondPayload.day_count = 2;
+    secondPayload.parsed_result?.days?.push({
+      employeeId: 'E-002',
+      employeeName: 'Second Worker',
+      department: 'Warehouse',
+      workDate: '2026-06-02',
+      dayNumber: 2,
+      punchTimes: ['09:00', '17:00'],
+      pairedGrossHours: 8,
+      lunchHours: 0.5,
+      calculatedHours: 7.5,
+      firstPunch: '09:00',
+      lastPunch: '17:00',
+      rawCellValues: ['09:00', '17:00'],
+      rowNumbers: [12, 13],
+      warnings: [],
+      errors: [],
+    });
+    workerAttendance.parseAttendance
+      .mockResolvedValueOnce(firstPayload)
+      .mockResolvedValueOnce(secondPayload);
+
+    await service.parse(importRecord.id);
+    const response = await service.parse(importRecord.id);
+
+    expect(prisma.attendanceRow.deleteMany).toHaveBeenCalledTimes(2);
+    expect(response.attendanceImport).toMatchObject({
+      employeeCount: 2,
+      dayCount: 2,
+    });
+    expect(response.rows).toHaveLength(2);
+    expect(rowRecords).toHaveLength(2);
+    expect(new Set(rowRecords.map((row) => row.rowKey)).size).toBe(2);
+  });
+
+  it('persists parser error status and generated diagnostics before returning an API error', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const parsedJsonPath = join(storageRoot, 'error-parsed.json');
+    const taskReportPath = join(storageRoot, 'error-report.html');
+    await writeFile(parsedJsonPath, '{"ok": false}', 'utf8');
+    await writeFile(taskReportPath, '<html></html>', 'utf8');
+    const payload = parsePayload(parsedJsonPath, taskReportPath);
+    payload.task_status = 'ERROR';
+    payload.employee_count = 0;
+    payload.day_count = 0;
+    payload.parsed_result!.days = [];
+    payload.errors = [
+      {
+        code: 'ATTENDANCE_PARSE_ERROR',
+        message: 'Workbook layout is unsupported.',
+      },
+    ];
+    payload.warnings = [];
+    workerAttendance.parseAttendance.mockResolvedValue(payload);
+
+    await expect(service.parse(importRecord.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    expect(importRecord).toMatchObject({
+      parseStatus: 'ERROR',
+      errorCount: 1,
+      warningCount: 0,
+      errorMessage: 'Workbook layout is unsupported.',
+    });
+    expect(rowRecords).toHaveLength(0);
+    expect(generatedFiles.map((file) => file.fileType)).toEqual([
+      'ATTENDANCE_PARSED_JSON',
+      'TASK_REPORT_HTML',
+    ]);
+  });
+
+  it('marks parse status as error when the worker invocation fails without clearing the original file', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const originalStoredPath = importRecord.storedPath;
+    workerAttendance.parseAttendance.mockRejectedValue(new Error('uv failed'));
+
+    await expect(service.parse(importRecord.id)).rejects.toThrow('uv failed');
+
+    expect(importRecord).toMatchObject({
+      storedPath: originalStoredPath,
+      parseStatus: 'ERROR',
+      errorCount: 1,
+      errorMessage: 'uv failed',
+    });
+    expect(rowRecords).toHaveLength(0);
+    expect(generatedFiles).toHaveLength(0);
   });
 
   it('records generated wage record and task report files', async () => {

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import {
   AttendanceImportListResponseDto,
@@ -231,7 +231,9 @@ export class AttendanceService {
     }
 
     await this.persistParsePayload(record, payload);
-    return this.getParseResult(id);
+    const result = await this.getParseResult(id);
+    this.throwIfParseFailed(payload, result);
+    return result;
   }
 
   async getParseResult(id: string): Promise<AttendanceParseResultResponseDto> {
@@ -487,6 +489,26 @@ export class AttendanceService {
       }));
   }
 
+  private throwIfParseFailed(
+    payload: WorkerWagePayload,
+    result: AttendanceParseResultResponseDto,
+  ): void {
+    const errors = this.issueArray(payload.errors);
+    if (payload.task_status !== 'ERROR' && errors.length === 0) {
+      return;
+    }
+
+    throw new BadRequestException({
+      code: 'ATTENDANCE_PARSE_FAILED',
+      message: 'The attendance file could not be parsed.',
+      details: {
+        attendanceImport: result.attendanceImport,
+        warnings: result.warnings,
+        errors: result.errors,
+      },
+    });
+  }
+
   private async recordGeneratedFile(input: {
     attendanceImportId: string;
     fileType: WageGeneratedFileTypeValue;
@@ -549,7 +571,9 @@ export class AttendanceService {
     record: WageGeneratedFileRecord,
     details: Record<string, string>,
   ): Promise<WageGeneratedFileDownload> {
-    const storagePath = this.resolveDownloadStoragePath(record.storagePath);
+    const storagePath = await this.resolveDownloadStoragePath(
+      record.storagePath,
+    );
 
     try {
       const fileStat = await stat(storagePath);
@@ -577,12 +601,19 @@ export class AttendanceService {
     }
   }
 
-  private resolveDownloadStoragePath(storagePath: string): string {
+  private async resolveDownloadStoragePath(
+    storagePath: string,
+  ): Promise<string> {
     const resolvedStorageRoot = resolve(this.storageRoot);
     const resolvedPath = resolve(storagePath);
+    const realStorageRoot = await this.realPathOrNull(this.storageRoot);
+    const realStoragePath = await this.realPathOrNull(storagePath);
+    if (this.isPathAtOrInside(realStoragePath, realStorageRoot)) {
+      return realStoragePath;
+    }
     if (
-      resolvedPath === resolvedStorageRoot ||
-      resolvedPath.startsWith(`${resolvedStorageRoot}${sep}`)
+      !realStoragePath &&
+      this.isPathAtOrInside(resolvedPath, resolvedStorageRoot)
     ) {
       return resolvedPath;
     }
@@ -610,14 +641,29 @@ export class AttendanceService {
     const relativePath = normalizedPath.slice(markerIndex + marker.length);
     const candidate = resolve(this.storageRoot, relativePath);
     const resolvedStorageRoot = resolve(this.storageRoot);
-    if (
-      candidate === resolvedStorageRoot ||
-      candidate.startsWith(`${resolvedStorageRoot}${sep}`)
-    ) {
+    if (this.isPathAtOrInside(candidate, resolvedStorageRoot)) {
       return candidate;
     }
 
     return null;
+  }
+
+  private async realPathOrNull(path: string): Promise<string | null> {
+    try {
+      return await realpath(path);
+    } catch {
+      return null;
+    }
+  }
+
+  private isPathAtOrInside(
+    candidate: string | null,
+    root: string | null,
+  ): candidate is string {
+    if (!candidate || !root) {
+      return false;
+    }
+    return candidate === root || candidate.startsWith(`${root}${sep}`);
   }
 
   private async findImportOrThrow(id: string): Promise<AttendanceImportRecord> {

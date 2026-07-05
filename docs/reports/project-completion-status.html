@@ -362,6 +362,13 @@
               <td>继续 WAGE-P1-02：attendance parse persistence API；不进入 Web UI。</td>
             </tr>
             <tr>
+              <td>Stage 1.1: WAGE-P1-02 Attendance Parse Persistence API</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P1-02</td>
+              <td>`POST /api/attendance-imports/:id/parse` 已接入 WAGE-P0 真实 worker parse，读取保存的原始 `.xls`，持久化 parser version、settlement month、period start/end、employee count、day count、warnings/errors、raw metadata 和 390 条 employee-day rows；`GET /parse-result` 返回 parsed rows，`GET /files` 与 `/files/:fileId/download` 可取回 ATTENDANCE_PARSED_JSON 和 TASK_REPORT_HTML；重复 parse 采用 rebuild rows 策略不产生重复行；worker 返回 ERROR payload 时 API 返回 `ATTENDANCE_PARSE_FAILED` 且 DB parseStatus/errorMessage 保留失败状态，原始文件不被清除。</td>
+              <td>继续 WAGE-P1-03：wage record generation API；不进入 Web UI。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
