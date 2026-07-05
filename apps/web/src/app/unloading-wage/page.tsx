@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { SettlementGeneratePanel } from "@/components/wage/unloading-wage-actions";
 import {
   selectSettlementForMonth,
@@ -20,7 +21,11 @@ import {
   type PayContainerResponse,
   type UnloadingWageSettlementResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import {
+  canReviewUnloadingWage,
+  canSettleUnloadingWage,
+} from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -47,40 +52,31 @@ export default async function UnloadingWagePage({
   const settlementMonth =
     firstSearchValue(params.settlementMonth) ?? currentSettlementMonth();
   const requestedSettlementId = firstSearchValue(params.settlementId);
+  const currentUser = await getServerCurrentUser();
+  const canRead = canReviewUnloadingWage(currentUser);
+  const canSettle = canSettleUnloadingWage(currentUser);
+
+  if (!canRead) {
+    return (
+      <UnloadingWagePageShell settlementMonth={settlementMonth}>
+        <PermissionRequiredPanel />
+      </UnloadingWagePageShell>
+    );
+  }
+
   const state = await loadUnloadingWageState(
     settlementMonth,
     requestedSettlementId,
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase text-teal-700">
-              Warehouse
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              Warehouse Unloading Wage Settlement
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-              Generate and review monthly worker settlement from completed
-              container detail unloading wage data.
-            </p>
-          </div>
-          <Link
-            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-            href={`/unloading-wage?settlementMonth=${encodeURIComponent(
-              settlementMonth,
-            )}`}
-          >
-            Refresh
-          </Link>
-        </div>
-      </section>
-
+    <UnloadingWagePageShell settlementMonth={settlementMonth}>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <SettlementGeneratePanel defaultSettlementMonth={settlementMonth} />
+        {canSettle ? (
+          <SettlementGeneratePanel defaultSettlementMonth={settlementMonth} />
+        ) : (
+          <SettlementPermissionPanel />
+        )}
         <SettlementMonthFilter settlementMonth={settlementMonth} />
       </section>
 
@@ -117,7 +113,73 @@ export default async function UnloadingWagePage({
           )}
         </section>
       )}
+    </UnloadingWagePageShell>
+  );
+}
+
+function UnloadingWagePageShell({
+  children,
+  settlementMonth,
+}: {
+  children: ReactNode;
+  settlementMonth: string;
+}) {
+  return (
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase text-teal-700">
+              Warehouse
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
+              Warehouse Unloading Wage Settlement
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
+              Generate and review monthly worker settlement from completed
+              container detail unloading wage data.
+            </p>
+          </div>
+          <Link
+            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+            href={`/unloading-wage?settlementMonth=${encodeURIComponent(
+              settlementMonth,
+            )}`}
+          >
+            Refresh
+          </Link>
+        </div>
+      </section>
+      {children}
     </main>
+  );
+}
+
+function PermissionRequiredPanel() {
+  return (
+    <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
+      <h2 className="text-base font-semibold">
+        Unloading wage read permission required
+      </h2>
+      <p className="mt-2 text-sm leading-6">
+        Ask an administrator for unloading_wage.read before opening Warehouse
+        Unloading Wage Settlement.
+      </p>
+    </section>
+  );
+}
+
+function SettlementPermissionPanel() {
+  return (
+    <section className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm">
+      <h2 className="text-base font-semibold">
+        Settlement generation permission required
+      </h2>
+      <p className="mt-2 leading-6">
+        This account can review unloading wage records but needs
+        unloading_wage.settle before generating a monthly settlement.
+      </p>
+    </section>
   );
 }
 

@@ -6,37 +6,133 @@ export async function createRbacManagementPrismaMock() {
   const passwordService = new PasswordService();
   const permissions: PermissionRecord[] = [
     permission('permission-imports-read', 'imports.read', 'imports'),
+    permission('permission-imports-create', 'imports.create', 'imports'),
+    permission('permission-imports-parse', 'imports.parse', 'imports'),
     permission('permission-reports-generate', 'reports.generate', 'reports'),
     permission('permission-users-manage', 'users.manage', 'users'),
     permission('permission-roles-manage', 'roles.manage', 'roles'),
     permission('permission-load-jobs-read', 'load_jobs.read', 'load_jobs'),
+    permission('permission-settings-read', 'settings.read', 'settings'),
+    permission('permission-containers-read', 'containers.read', 'containers'),
+    permission(
+      'permission-corrections-create',
+      'corrections.create',
+      'corrections',
+    ),
+    permission('permission-attendance-read', 'attendance.read', 'attendance'),
+    permission(
+      'permission-attendance-create',
+      'attendance.create',
+      'attendance',
+    ),
+    permission('permission-attendance-parse', 'attendance.parse', 'attendance'),
+    permission(
+      'permission-attendance-generate',
+      'attendance.generate',
+      'attendance',
+    ),
+    permission(
+      'permission-unloading-wage-read',
+      'unloading_wage.read',
+      'unloading_wage',
+    ),
+    permission(
+      'permission-unloading-wage-classify',
+      'unloading_wage.classify',
+      'unloading_wage',
+    ),
+    permission(
+      'permission-unloading-wage-complete',
+      'unloading_wage.complete',
+      'unloading_wage',
+    ),
+    permission(
+      'permission-unloading-wage-settle',
+      'unloading_wage.settle',
+      'unloading_wage',
+    ),
   ];
   const roles: RoleRecord[] = [
     role('role-admin', 'ADMIN', 'Administrator'),
+    role('role-hr-manager', 'HR_MANAGER', 'Human Resources Manager'),
     role('role-office', 'OFFICE', 'Office Staff'),
     role('role-warehouse', 'WAREHOUSE', 'Warehouse Staff'),
+    role('role-warehouse-manager', 'WAREHOUSE_MANAGER', 'Warehouse Manager'),
     role('role-system', 'SYSTEM', 'System Service'),
   ];
   const rolePermissions: RolePermissionRecord[] = [
+    ...permissions.map((item) =>
+      rolePermission(`role-permission-admin-${item.id}`, 'role-admin', item.id),
+    ),
     rolePermission(
       'role-permission-office-imports',
       'role-office',
       'permission-imports-read',
     ),
     rolePermission(
-      'role-permission-admin-users',
-      'role-admin',
-      'permission-users-manage',
-    ),
-    rolePermission(
-      'role-permission-admin-roles',
-      'role-admin',
-      'permission-roles-manage',
-    ),
-    rolePermission(
       'role-permission-warehouse-load-jobs',
       'role-warehouse',
       'permission-load-jobs-read',
+    ),
+    rolePermission(
+      'role-permission-hr-settings-read',
+      'role-hr-manager',
+      'permission-settings-read',
+    ),
+    rolePermission(
+      'role-permission-hr-attendance-read',
+      'role-hr-manager',
+      'permission-attendance-read',
+    ),
+    rolePermission(
+      'role-permission-hr-attendance-create',
+      'role-hr-manager',
+      'permission-attendance-create',
+    ),
+    rolePermission(
+      'role-permission-hr-attendance-parse',
+      'role-hr-manager',
+      'permission-attendance-parse',
+    ),
+    rolePermission(
+      'role-permission-hr-attendance-generate',
+      'role-hr-manager',
+      'permission-attendance-generate',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-settings-read',
+      'role-warehouse-manager',
+      'permission-settings-read',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-containers-read',
+      'role-warehouse-manager',
+      'permission-containers-read',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-corrections-create',
+      'role-warehouse-manager',
+      'permission-corrections-create',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-read',
+      'role-warehouse-manager',
+      'permission-unloading-wage-read',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-classify',
+      'role-warehouse-manager',
+      'permission-unloading-wage-classify',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-complete',
+      'role-warehouse-manager',
+      'permission-unloading-wage-complete',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-settle',
+      'role-warehouse-manager',
+      'permission-unloading-wage-settle',
     ),
   ];
   const users: UserRecord[] = [];

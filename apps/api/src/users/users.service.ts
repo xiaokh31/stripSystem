@@ -36,6 +36,21 @@ const USER_INCLUDE = {
   },
 };
 
+type LegacyRoleCode =
+  | typeof ROLE_CODES.admin
+  | typeof ROLE_CODES.office
+  | typeof ROLE_CODES.warehouse
+  | typeof ROLE_CODES.system;
+
+const LEGACY_ROLE_CODE_BY_ROLE_CODE: Record<RoleCode, LegacyRoleCode> = {
+  [ROLE_CODES.admin]: ROLE_CODES.admin,
+  [ROLE_CODES.hrManager]: ROLE_CODES.office,
+  [ROLE_CODES.office]: ROLE_CODES.office,
+  [ROLE_CODES.warehouse]: ROLE_CODES.warehouse,
+  [ROLE_CODES.warehouseManager]: ROLE_CODES.warehouse,
+  [ROLE_CODES.system]: ROLE_CODES.system,
+};
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -264,11 +279,13 @@ export class UsersService {
     return [...new Map(roles.map((role) => [role.id, role])).values()];
   }
 
-  private legacyRoleFor(roles: RoleRecord[]): RoleCode {
-    const firstLegacyRole = roles.find((role) =>
-      Object.values(ROLE_CODES).includes(role.code as RoleCode),
-    );
-    return (firstLegacyRole?.code as RoleCode | undefined) ?? ROLE_CODES.office;
+  private legacyRoleFor(roles: RoleRecord[]): LegacyRoleCode {
+    const firstMappedRoleCode = roles
+      .map((role) => role.code)
+      .find(isKnownRoleCode);
+    return firstMappedRoleCode
+      ? LEGACY_ROLE_CODE_BY_ROLE_CODE[firstMappedRoleCode]
+      : ROLE_CODES.office;
   }
 
   private toUserResponse(user: UserRecord): UserResponseDto {
@@ -383,4 +400,8 @@ interface UserRecord {
   }>;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+function isKnownRoleCode(value: string): value is RoleCode {
+  return (Object.values(ROLE_CODES) as string[]).includes(value);
 }

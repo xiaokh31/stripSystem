@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import type { AuthUserResponse } from "../src/lib/api-client";
 import {
   canManageAccounts,
+  canClassifyUnloadingWage,
   canDeleteImports,
+  canCompleteUnloadingWage,
+  canManageContainerUnloadingWage,
   canManageOfficeLoadJobs,
   canCompleteMobileLoadJob,
   canReprintLabels,
@@ -243,40 +246,81 @@ test("settings updates require explicit settings update permission", () => {
 });
 
 test("wage review navigation follows attendance and unloading wage permissions", () => {
-  const officeWageUser: AuthUserResponse = {
-    id: "office-wage-1",
-    email: "office-wage@example.com",
-    name: "Office Wage",
-    roles: ["OFFICE"],
+  const hrManagerUser: AuthUserResponse = {
+    id: "hr-manager-1",
+    email: "hr-manager@example.com",
+    name: "HR Manager",
+    roles: ["HR_MANAGER"],
     permissions: [
       "attendance.read",
       "attendance.create",
       "attendance.parse",
       "attendance.generate",
+    ],
+  };
+  const warehouseManagerUser: AuthUserResponse = {
+    id: "warehouse-manager-1",
+    email: "warehouse-manager@example.com",
+    name: "Warehouse Manager",
+    roles: ["WAREHOUSE_MANAGER"],
+    permissions: [
+      "containers.read",
+      "corrections.create",
       "unloading_wage.read",
+      "unloading_wage.classify",
+      "unloading_wage.complete",
       "unloading_wage.settle",
     ],
   };
-  const warehouseUser: AuthUserResponse = {
+  const ordinaryWarehouseUser: AuthUserResponse = {
     id: "warehouse-wage-1",
     email: "warehouse-wage@example.com",
     name: "Warehouse Wage",
     roles: ["WAREHOUSE"],
+    permissions: ["load_jobs.read", "inventory.read", "scan.create"],
+  };
+  const warehouseUser: AuthUserResponse = {
+    id: "warehouse-custom-1",
+    email: "warehouse-custom@example.com",
+    name: "Warehouse Custom",
+    roles: ["WAREHOUSE_MANAGER"],
     permissions: ["unloading_wage.read", "unloading_wage.complete"],
   };
+  const adminUser: AuthUserResponse = {
+    id: "admin-wage-1",
+    email: "admin-wage@example.com",
+    name: "Admin Wage",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
 
-  assert.equal(canReviewWorkHours(officeWageUser), true);
-  assert.equal(canUploadWorkHours(officeWageUser), true);
-  assert.equal(canParseWorkHours(officeWageUser), true);
-  assert.equal(canGenerateWorkHours(officeWageUser), true);
-  assert.equal(canReviewUnloadingWage(officeWageUser), true);
-  assert.equal(canSettleUnloadingWage(officeWageUser), true);
-  assert.equal(canReviewWorkHours(warehouseUser), false);
-  assert.equal(canUploadWorkHours(warehouseUser), false);
-  assert.equal(canParseWorkHours(warehouseUser), false);
-  assert.equal(canGenerateWorkHours(warehouseUser), false);
+  assert.equal(canReviewWorkHours(hrManagerUser), true);
+  assert.equal(canUploadWorkHours(hrManagerUser), true);
+  assert.equal(canParseWorkHours(hrManagerUser), true);
+  assert.equal(canGenerateWorkHours(hrManagerUser), true);
+  assert.equal(canReviewUnloadingWage(hrManagerUser), false);
+  assert.equal(canSettleUnloadingWage(hrManagerUser), false);
+  assert.equal(canManageContainerUnloadingWage(hrManagerUser), false);
+
+  assert.equal(canReviewWorkHours(warehouseManagerUser), false);
+  assert.equal(canUploadWorkHours(warehouseManagerUser), false);
+  assert.equal(canParseWorkHours(warehouseManagerUser), false);
+  assert.equal(canGenerateWorkHours(warehouseManagerUser), false);
+  assert.equal(canReviewUnloadingWage(warehouseManagerUser), true);
+  assert.equal(canClassifyUnloadingWage(warehouseManagerUser), true);
+  assert.equal(canCompleteUnloadingWage(warehouseManagerUser), true);
+  assert.equal(canSettleUnloadingWage(warehouseManagerUser), true);
+  assert.equal(canManageContainerUnloadingWage(warehouseManagerUser), true);
+
+  assert.equal(canReviewWorkHours(officeUser), false);
+  assert.equal(canReviewUnloadingWage(officeUser), false);
+  assert.equal(canReviewWorkHours(ordinaryWarehouseUser), false);
+  assert.equal(canReviewUnloadingWage(ordinaryWarehouseUser), false);
+
   assert.equal(canReviewUnloadingWage(warehouseUser), true);
   assert.equal(canSettleUnloadingWage(warehouseUser), false);
+  assert.equal(canManageContainerUnloadingWage(warehouseUser), false);
+  assert.equal(canManageContainerUnloadingWage(adminUser), true);
 });
 
 test("work hours actions follow attendance action permissions independently", () => {

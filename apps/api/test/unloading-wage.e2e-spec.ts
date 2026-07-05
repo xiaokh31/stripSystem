@@ -12,7 +12,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
-  officeAuthHeader,
+  warehouseManagerAuthHeader,
 } from './auth-test-helpers';
 
 describe('Container detail unloading wage API (e2e)', () => {
@@ -51,7 +51,7 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('saves ocean wage, marks unloading completed, and stores multiple unloaders from container detail routes', async () => {
-    const saved = await authorizedRequest(app, officeAuthHeader())
+    const saved = await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({
         classification: 'OCEAN_CONTAINER',
@@ -68,7 +68,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       rateAmount: '300.00',
     });
 
-    const completed = await authorizedRequest(app, officeAuthHeader())
+    const completed = await authorizedRequest(app, warehouseManagerAuthHeader())
       .post('/api/containers/container-zcsu/complete-unloading')
       .send({
         completedAt: '2026-06-04T17:10:00.000Z',
@@ -79,12 +79,12 @@ describe('Container detail unloading wage API (e2e)', () => {
     expect(completed.body).toMatchObject({
       status: 'COMPLETED',
       completedAt: '2026-06-04T17:10:00.000Z',
-      completedById: 'auth-office',
+      completedById: 'auth-warehouse-manager',
     });
 
     const unloaders = await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
-      .set('Authorization', officeAuthHeader())
+      .set('Authorization', warehouseManagerAuthHeader())
       .send({
         unloaders: [
           { workerName: 'Prototype Worker A' },
@@ -105,7 +105,7 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('rejects US-to-Canada wage without trailer number through DTO-backed route', async () => {
-    const response = await authorizedRequest(app, officeAuthHeader())
+    const response = await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'US_TO_CANADA_TRANSFER' })
       .expect(400);
@@ -116,7 +116,7 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('associates US-to-Canada containers and returns the same wage unit from each container detail', async () => {
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage-associations')
       .send({
         associatedContainerNos: ['TXGU5580229'],
@@ -126,7 +126,7 @@ describe('Container detail unloading wage API (e2e)', () => {
 
     await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
-      .set('Authorization', officeAuthHeader())
+      .set('Authorization', warehouseManagerAuthHeader())
       .send({
         unloaders: [
           { workerName: 'Prototype Worker A' },
@@ -135,7 +135,10 @@ describe('Container detail unloading wage API (e2e)', () => {
       })
       .expect(200);
 
-    const associatedDetail = await authorizedRequest(app, officeAuthHeader())
+    const associatedDetail = await authorizedRequest(
+      app,
+      warehouseManagerAuthHeader(),
+    )
       .get('/api/containers/container-txgu')
       .expect(200);
 
@@ -158,14 +161,14 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('rejects duplicate unloader names from the container detail route', async () => {
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'OCEAN_CONTAINER' })
       .expect(200);
 
     const response = await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
-      .set('Authorization', officeAuthHeader())
+      .set('Authorization', warehouseManagerAuthHeader())
       .send({
         unloaders: [
           { workerName: 'Prototype Worker A' },
@@ -180,7 +183,7 @@ describe('Container detail unloading wage API (e2e)', () => {
   });
 
   it('generates, reads, and downloads a monthly settlement from container detail wage data', async () => {
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage-associations')
       .send({
         associatedContainerNos: ['TXGU5580229'],
@@ -190,7 +193,7 @@ describe('Container detail unloading wage API (e2e)', () => {
 
     await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
-      .set('Authorization', officeAuthHeader())
+      .set('Authorization', warehouseManagerAuthHeader())
       .send({
         unloaders: [
           { workerName: 'Prototype Worker A' },
@@ -199,12 +202,12 @@ describe('Container detail unloading wage API (e2e)', () => {
       })
       .expect(200);
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, warehouseManagerAuthHeader())
       .post('/api/containers/container-zcsu/complete-unloading')
       .send({ completedAt: '2026-06-04T17:10:00.000Z' })
       .expect(201);
 
-    const generated = await authorizedRequest(app, officeAuthHeader())
+    const generated = await authorizedRequest(app, warehouseManagerAuthHeader())
       .post('/api/unloading-wage-settlements')
       .send({ settlementMonth: '2026-06' })
       .expect(201);
@@ -236,18 +239,18 @@ describe('Container detail unloading wage API (e2e)', () => {
       'UNLOADING_WAGE_TASK_REPORT_HTML',
     ]);
 
-    const listed = await authorizedRequest(app, officeAuthHeader())
+    const listed = await authorizedRequest(app, warehouseManagerAuthHeader())
       .get('/api/unloading-wage-settlements')
       .expect(200);
     expect(listed.body.items).toHaveLength(1);
 
-    const detail = await authorizedRequest(app, officeAuthHeader())
+    const detail = await authorizedRequest(app, warehouseManagerAuthHeader())
       .get(`/api/unloading-wage-settlements/${generated.body.id}`)
       .expect(200);
     expect(detail.body.lines).toHaveLength(2);
 
     const fileId = generated.body.generatedFiles[0].id;
-    const download = await authorizedRequest(app, officeAuthHeader())
+    const download = await authorizedRequest(app, warehouseManagerAuthHeader())
       .get(
         `/api/unloading-wage-settlements/${generated.body.id}/files/${fileId}/download`,
       )

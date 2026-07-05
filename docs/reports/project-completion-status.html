@@ -397,6 +397,13 @@
               <td>WAGE-QA-01 回归完成；后续工资任务可以在该 smoke 与 runbook 基础上继续扩展，不改变 P0/P1/P2 已验收业务规则。</td>
             </tr>
             <tr>
+              <td>Stage 2.3: WAGE-P2-03 Wage Manager Roles / Permission UX</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2-03</td>
+              <td>新增默认 RBAC 角色 `HR_MANAGER` 与 `WAREHOUSE_MANAGER`：HR manager 只拥有 `attendance.read/create/parse/generate` 与 `settings.read`，Warehouse manager 只拥有 `containers.read`、`corrections.create`、`unloading_wage.read/classify/complete/settle` 与 `settings.read`；`OFFICE` 默认撤销 `attendance.*` / `unloading_wage.*`，`WAREHOUSE` 默认撤销 `unloading_wage.*`，ADMIN 仍拥有全部权限；新增 `20260705003000_wage_manager_roles` data migration 并已对本地 Docker PostgreSQL 执行 `prisma migrate deploy`；`users.role` legacy enum 未新增值，新 manager 角色通过 `roles` / `user_roles` 保存，创建 HR manager 用户时 legacy role 写 `OFFICE`，创建 Warehouse manager 用户时 legacy role 写 `WAREHOUSE`；API e2e 覆盖 HR manager 可管理 attendance 且不能管理 unloading wage、Warehouse manager 可管理 unloading wage 且不能管理 attendance、普通 OFFICE/WAREHOUSE 被工资接口 403；Web Reports、Work Hours、Warehouse Unloading Wage 和 Container detail 拆柜工资面板已按权限显示入口、只读提示与操作按钮，缺权限直接访问不会加载或执行对应动作；新增/更新权限 helper、i18n 文案和 Web permission tests。</td>
+              <td>继续后续 wage 切片时，可在该 RBAC 基础上补管理员分配 manager role 的操作手册或 Playwright 覆盖。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>

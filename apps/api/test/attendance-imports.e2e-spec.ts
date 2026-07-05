@@ -12,7 +12,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
-  officeAuthHeader,
+  hrManagerAuthHeader,
 } from './auth-test-helpers';
 
 jest.setTimeout(30_000);
@@ -244,7 +244,7 @@ describe('AttendanceImportsController (e2e)', () => {
   });
 
   it('parses a real attendance fixture, persists rows, records parse files, and rebuilds rows on repeat parse', async () => {
-    const uploaded = await authorizedRequest(app, officeAuthHeader())
+    const uploaded = await authorizedRequest(app, hrManagerAuthHeader())
       .post('/api/attendance-imports')
       .attach('file', fixturePath)
       .expect(201);
@@ -258,7 +258,7 @@ describe('AttendanceImportsController (e2e)', () => {
     });
     await expect(stat(uploadedBody.storedPath)).resolves.toBeDefined();
 
-    const parsed = await authorizedRequest(app, officeAuthHeader())
+    const parsed = await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
       .expect(201);
     const parsedBody = parsed.body as AttendanceParseBody;
@@ -295,7 +295,7 @@ describe('AttendanceImportsController (e2e)', () => {
     expect(new Set(attendanceRows.map((row) => row.rowKey)).size).toBe(390);
     expect(attendanceImports[0].storedPath).toBe(uploadedBody.storedPath);
 
-    const files = await authorizedRequest(app, officeAuthHeader())
+    const files = await authorizedRequest(app, hrManagerAuthHeader())
       .get(`/api/attendance-imports/${uploadedBody.id}/files`)
       .expect(200);
     const filesBody = files.body as WageGeneratedFilesBody;
@@ -323,7 +323,7 @@ describe('AttendanceImportsController (e2e)', () => {
     expect(parsedJson).toBeDefined();
     expect(taskReport).toBeDefined();
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .get(
         `/api/attendance-imports/${uploadedBody.id}/files/${parsedJson!.id}/download`,
       )
@@ -337,7 +337,7 @@ describe('AttendanceImportsController (e2e)', () => {
         });
       });
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .get(
         `/api/attendance-imports/${uploadedBody.id}/files/${taskReport!.id}/download`,
       )
@@ -346,7 +346,7 @@ describe('AttendanceImportsController (e2e)', () => {
         expect(response.text).toContain('Parse status: WARNING');
       });
 
-    const reparsed = await authorizedRequest(app, officeAuthHeader())
+    const reparsed = await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
       .expect(201);
     const reparsedBody = reparsed.body as AttendanceParseBody;
@@ -365,13 +365,13 @@ describe('AttendanceImportsController (e2e)', () => {
   });
 
   it('blocks wage record generation until attendance parse has completed', async () => {
-    const uploaded = await authorizedRequest(app, officeAuthHeader())
+    const uploaded = await authorizedRequest(app, hrManagerAuthHeader())
       .post('/api/attendance-imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as AttendanceImportBody;
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
       .expect(400)
       .expect((response) => {
@@ -385,16 +385,16 @@ describe('AttendanceImportsController (e2e)', () => {
 
   it('generates and downloads a real wage record from a parsed attendance import without modifying the template', async () => {
     const templateSha256Before = await fileSha256(wageTemplatePath);
-    const uploaded = await authorizedRequest(app, officeAuthHeader())
+    const uploaded = await authorizedRequest(app, hrManagerAuthHeader())
       .post('/api/attendance-imports')
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as AttendanceImportBody;
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
       .expect(201);
 
-    const generated = await authorizedRequest(app, officeAuthHeader())
+    const generated = await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
       .expect(201);
     const generatedBody = generated.body as GenerateWageRecordBody;
@@ -429,10 +429,10 @@ describe('AttendanceImportsController (e2e)', () => {
     expect(wageRecord).toMatchObject({
       fileType: 'WAGE_RECORD_XLS',
       status: 'GENERATED',
-      generatedById: 'auth-office',
+      generatedById: 'auth-hr-manager',
     });
 
-    const files = await authorizedRequest(app, officeAuthHeader())
+    const files = await authorizedRequest(app, hrManagerAuthHeader())
       .get(`/api/attendance-imports/${uploadedBody.id}/files`)
       .expect(200);
     const filesBody = files.body as WageGeneratedFilesBody;
@@ -450,7 +450,7 @@ describe('AttendanceImportsController (e2e)', () => {
       ).size,
     ).toBe(2);
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .get(
         `/api/attendance-imports/${uploadedBody.id}/files/${generatedBody.generatedFile.id}/download`,
       )
@@ -462,7 +462,7 @@ describe('AttendanceImportsController (e2e)', () => {
         expect(Number(response.headers['content-length'])).toBeGreaterThan(0);
       });
 
-    await authorizedRequest(app, officeAuthHeader())
+    await authorizedRequest(app, hrManagerAuthHeader())
       .get(
         `/api/attendance-imports/${uploadedBody.id}/files/${generatedBody.taskReport!.id}/download`,
       )

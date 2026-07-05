@@ -9,11 +9,21 @@ export const TEST_JWT_SECRET = 'e2e-test-secret';
 
 export const authTestUsers = {
   admin: authUser('auth-admin', 'admin@example.com', ROLE_CODES.admin),
+  hrManager: authUser(
+    'auth-hr-manager',
+    'hr-manager@example.com',
+    ROLE_CODES.hrManager,
+  ),
   office: authUser('auth-office', 'office@example.com', ROLE_CODES.office),
   warehouse: authUser(
     'auth-warehouse',
     'warehouse@example.com',
     ROLE_CODES.warehouse,
+  ),
+  warehouseManager: authUser(
+    'auth-warehouse-manager',
+    'warehouse-manager@example.com',
+    ROLE_CODES.warehouseManager,
   ),
   inactive: {
     ...authUser('auth-inactive', 'inactive@example.com', ROLE_CODES.office),
@@ -79,8 +89,16 @@ export function officeAuthHeader(): string {
   return authHeaderFor(authTestUsers.office);
 }
 
+export function hrManagerAuthHeader(): string {
+  return authHeaderFor(authTestUsers.hrManager);
+}
+
 export function warehouseAuthHeader(): string {
   return authHeaderFor(authTestUsers.warehouse);
+}
+
+export function warehouseManagerAuthHeader(): string {
+  return authHeaderFor(authTestUsers.warehouseManager);
 }
 
 export function inactiveAuthHeader(): string {

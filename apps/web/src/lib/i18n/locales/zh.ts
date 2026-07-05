@@ -723,6 +723,10 @@ export const zhMessages = {
   "Audit reason": "审计原因",
   "Ask an administrator for attendance.read before opening Work Hours Settlement.":
     "打开工时结算前，请联系管理员分配 attendance.read 权限。",
+  "Ask an administrator for unloading_wage.classify, unloading_wage.complete, and corrections.create before editing container unloading wage information.":
+    "编辑柜子拆柜工资信息前，请联系管理员分配 unloading_wage.classify、unloading_wage.complete 和 corrections.create 权限。",
+  "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.":
+    "打开仓库拆柜工资结算前，请联系管理员分配 unloading_wage.read 权限。",
   "Blank uses operational setting": "留空使用运营设置",
   "Complete unloading": "完成卸柜",
   "Complete unloading by pay container id": "按 pay container ID 完成卸柜",
@@ -776,6 +780,8 @@ export const zhMessages = {
   "No attendance imports": "暂无考勤导入",
   "No completed unloading records for": "没有已拆完记录，月份：",
   "No generated settlement files are recorded.": "暂无已记录的结算文件。",
+  "No report permission is assigned to the current account.":
+    "当前账号未分配任何报表权限。",
   "No parsed rows are stored yet. Run Parse to populate employee-day rows.":
     "尚未存储解析行。请先执行 Parse 生成员工日工时行。",
   "No pay container has been created for": "尚未为以下柜子创建 pay container：",
@@ -824,6 +830,11 @@ export const zhMessages = {
   "Review status": "复核状态",
   "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
     "从工资 API 复核 pay container、完成卸柜人员分配并生成月度员工结算。",
+  "Settlement generation permission required": "需要结算生成权限",
+  "This account can review unloading wage records but needs unloading_wage.settle before generating a monthly settlement.":
+    "此账号可以复核拆柜工资记录，但生成月度结算前需要 unloading_wage.settle 权限。",
+  "Unloading wage read permission required": "需要拆柜工资读取权限",
+  "Warehouse manager permission required": "需要仓库经理权限",
   "Save classification": "保存分类",
   "Saved. Refreshing from API.": "已保存，正在从 API 刷新。",
   "Saving pay classification.": "正在保存工资分类。",

@@ -28,10 +28,12 @@ interface ErrorBody {
 
 describe('Users management API (e2e)', () => {
   let app: INestApplication<App>;
+  let persistedUsers: Array<{ email: string | null; role: string }>;
 
   beforeEach(async () => {
     configureAuthTestEnv();
     const fixture = await createRbacManagementPrismaMock();
+    persistedUsers = fixture.users;
     installAuthMock(fixture.prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -95,6 +97,45 @@ describe('Users management API (e2e)', () => {
         expect(response.body.items).toHaveLength(2);
         expect(JSON.stringify(response.body)).not.toContain('passwordHash');
       });
+  });
+
+  it('stores wage manager assignments in user_roles while keeping the legacy role enum compatible', async () => {
+    await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', adminAuthHeader())
+      .send({
+        email: 'hr-manager-created@example.com',
+        password: 'Start12345',
+        roleCodes: ['HR_MANAGER'],
+      })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.user.roles[0].code).toBe('HR_MANAGER');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', adminAuthHeader())
+      .send({
+        email: 'warehouse-manager-created@example.com',
+        password: 'Start12345',
+        roleCodes: ['WAREHOUSE_MANAGER'],
+      })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.user.roles[0].code).toBe('WAREHOUSE_MANAGER');
+      });
+
+    expect(
+      persistedUsers.find(
+        (user) => user.email === 'hr-manager-created@example.com',
+      )?.role,
+    ).toBe('OFFICE');
+    expect(
+      persistedUsers.find(
+        (user) => user.email === 'warehouse-manager-created@example.com',
+      )?.role,
+    ).toBe('WAREHOUSE');
   });
 
   it('rejects OFFICE and WAREHOUSE users from users management APIs', async () => {

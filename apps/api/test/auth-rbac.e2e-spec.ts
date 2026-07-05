@@ -9,10 +9,12 @@ import {
   adminAuthHeader,
   authTestUsers,
   configureAuthTestEnv,
+  hrManagerAuthHeader,
   inactiveAuthHeader,
   installAuthMock,
   officeAuthHeader,
   warehouseAuthHeader,
+  warehouseManagerAuthHeader,
 } from './auth-test-helpers';
 import { createRbacManagementPrismaMock } from './rbac-management-test-fixture';
 
@@ -104,10 +106,10 @@ describe('RBAC route guards (e2e)', () => {
       });
   });
 
-  it('allows OFFICE attendance upload permission but blocks WAREHOUSE attendance upload', async () => {
+  it('allows HR_MANAGER attendance upload permission but blocks non-HR wage roles', async () => {
     await request(app.getHttpServer())
       .post('/api/attendance-imports')
-      .set('Authorization', officeAuthHeader())
+      .set('Authorization', hrManagerAuthHeader())
       .expect(400)
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe(
@@ -115,51 +117,123 @@ describe('RBAC route guards (e2e)', () => {
         );
       });
 
-    await request(app.getHttpServer())
-      .post('/api/attendance-imports')
-      .set('Authorization', warehouseAuthHeader())
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
-      });
+    for (const authorization of [
+      officeAuthHeader(),
+      warehouseAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/attendance-imports')
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+    }
   });
 
-  it('blocks WAREHOUSE from attendance read routes', async () => {
-    await request(app.getHttpServer())
-      .get('/api/attendance-imports')
-      .set('Authorization', warehouseAuthHeader())
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
-      });
+  it('blocks non-HR wage roles from attendance read routes', async () => {
+    for (const authorization of [
+      officeAuthHeader(),
+      warehouseAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .get('/api/attendance-imports')
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
 
-    await request(app.getHttpServer())
-      .get('/api/attendance-imports/attendance-import-1/files/file-1/download')
-      .set('Authorization', warehouseAuthHeader())
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
-      });
+      await request(app.getHttpServer())
+        .get(
+          '/api/attendance-imports/attendance-import-1/files/file-1/download',
+        )
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+    }
   });
 
-  it('blocks WAREHOUSE from attendance parse routes', async () => {
-    await request(app.getHttpServer())
-      .post('/api/attendance-imports/attendance-import-1/parse')
-      .set('Authorization', warehouseAuthHeader())
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
-      });
+  it('blocks non-HR wage roles from attendance parse routes', async () => {
+    for (const authorization of [
+      officeAuthHeader(),
+      warehouseAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/attendance-imports/attendance-import-1/parse')
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+    }
   });
 
-  it('blocks WAREHOUSE from attendance wage record generation', async () => {
+  it('blocks non-HR wage roles from attendance wage record generation', async () => {
+    for (const authorization of [
+      officeAuthHeader(),
+      warehouseAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .post(
+          '/api/attendance-imports/attendance-import-1/generate-wage-record',
+        )
+        .set('Authorization', authorization)
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+    }
+  });
+
+  it('allows WAREHOUSE_MANAGER unloading wage actions but blocks non-warehouse-manager wage roles', async () => {
     await request(app.getHttpServer())
-      .post('/api/attendance-imports/attendance-import-1/generate-wage-record')
-      .set('Authorization', warehouseAuthHeader())
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
-      });
+      .patch('/api/containers/container-1/unloading-wage')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/containers/container-1/complete-unloading')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/unloading-wage-settlements')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({})
+      .expect(400);
+
+    for (const authorization of [
+      hrManagerAuthHeader(),
+      officeAuthHeader(),
+      warehouseAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .patch('/api/containers/container-1/unloading-wage')
+        .set('Authorization', authorization)
+        .send({})
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+
+      await request(app.getHttpServer())
+        .post('/api/unloading-wage-settlements')
+        .set('Authorization', authorization)
+        .send({})
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+    }
   });
 
   it('returns the current user profile for a valid token', async () => {
@@ -225,7 +299,14 @@ describe('RBAC route guards (e2e)', () => {
       .expect((response) => {
         expect(
           response.body.items.map((role: { code: string }) => role.code),
-        ).toEqual(['ADMIN', 'OFFICE', 'SYSTEM', 'WAREHOUSE']);
+        ).toEqual([
+          'ADMIN',
+          'HR_MANAGER',
+          'OFFICE',
+          'SYSTEM',
+          'WAREHOUSE',
+          'WAREHOUSE_MANAGER',
+        ]);
       });
 
     await request(app.getHttpServer())

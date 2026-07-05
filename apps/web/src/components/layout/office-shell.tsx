@@ -4,6 +4,8 @@ import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import type { AuthUserResponse } from "@/lib/api-client";
 import {
   ATTENDANCE_READ_PERMISSION,
+  INVENTORY_READ_PERMISSION,
+  UNLOADING_WAGE_READ_PERMISSION,
   canManageAccounts,
   canManageOfficeLoadJobs,
   hasPermission,
@@ -34,7 +36,11 @@ const navItems: PermissionAwareNavItem[] = [
   {
     href: "/reports",
     label: "Reports",
-    requiredPermissions: ["inventory.read"],
+    requiredPermissions: [
+      INVENTORY_READ_PERMISSION,
+      ATTENDANCE_READ_PERMISSION,
+      UNLOADING_WAGE_READ_PERMISSION,
+    ],
   },
   {
     href: "/work-hours",

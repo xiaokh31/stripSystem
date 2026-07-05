@@ -1,12 +1,15 @@
 import Link from "next/link";
 import {
+  INVENTORY_READ_PERMISSION,
   canReviewUnloadingWage,
   canReviewWorkHours,
+  hasPermission,
 } from "@/lib/permissions";
 import { getServerCurrentUser } from "@/lib/server-auth";
 
 export default async function ReportsPage() {
   const currentUser = await getServerCurrentUser();
+  const showInventory = hasPermission(currentUser, INVENTORY_READ_PERMISSION);
   const showWorkHours = canReviewWorkHours(currentUser);
   const showUnloadingWage = canReviewUnloadingWage(currentUser);
 
@@ -21,7 +24,9 @@ export default async function ReportsPage() {
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3">
-          <ReportLink href="/reports/inventory" title="Inventory report" />
+          {showInventory ? (
+            <ReportLink href="/reports/inventory" title="Inventory report" />
+          ) : null}
           {showWorkHours ? (
             <ReportLink href="/work-hours" title="HR Work Hours Settlement" />
           ) : null}
@@ -30,6 +35,11 @@ export default async function ReportsPage() {
               href="/unloading-wage"
               title="Warehouse Unloading Wage Settlement"
             />
+          ) : null}
+          {!showInventory && !showWorkHours && !showUnloadingWage ? (
+            <p className="border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              No report permission is assigned to the current account.
+            </p>
           ) : null}
         </div>
       </section>

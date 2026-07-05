@@ -776,6 +776,10 @@ export const enMessages = {
   "Audit reason": "Audit reason",
   "Ask an administrator for attendance.read before opening Work Hours Settlement.":
     "Ask an administrator for attendance.read before opening Work Hours Settlement.",
+  "Ask an administrator for unloading_wage.classify, unloading_wage.complete, and corrections.create before editing container unloading wage information.":
+    "Ask an administrator for unloading_wage.classify, unloading_wage.complete, and corrections.create before editing container unloading wage information.",
+  "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.":
+    "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.",
   "Blank uses operational setting": "Blank uses operational setting",
   "Complete unloading": "Complete unloading",
   "Complete unloading by pay container id":
@@ -838,6 +842,8 @@ export const enMessages = {
   "No completed unloading records for": "No completed unloading records for",
   "No generated settlement files are recorded.":
     "No generated settlement files are recorded.",
+  "No report permission is assigned to the current account.":
+    "No report permission is assigned to the current account.",
   "No parsed rows are stored yet. Run Parse to populate employee-day rows.":
     "No parsed rows are stored yet. Run Parse to populate employee-day rows.",
   "No pay container has been created for": "No pay container has been created for",
@@ -889,6 +895,14 @@ export const enMessages = {
   "Review status": "Review status",
   "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
     "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.",
+  "Settlement generation permission required":
+    "Settlement generation permission required",
+  "This account can review unloading wage records but needs unloading_wage.settle before generating a monthly settlement.":
+    "This account can review unloading wage records but needs unloading_wage.settle before generating a monthly settlement.",
+  "Unloading wage read permission required":
+    "Unloading wage read permission required",
+  "Warehouse manager permission required":
+    "Warehouse manager permission required",
   "Save classification": "Save classification",
   "Saved. Refreshing from API.": "Saved. Refreshing from API.",
   "Saving pay classification.": "Saving pay classification.",

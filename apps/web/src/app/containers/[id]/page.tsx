@@ -17,7 +17,10 @@ import {
   type ContainerDetailResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
-import { canReprintLabels } from "@/lib/permissions";
+import {
+  canManageContainerUnloadingWage,
+  canReprintLabels,
+} from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -174,6 +177,7 @@ export default async function ContainerDetailPage({
       ) : null}
 
       <ContainerUnloadingWagePanel
+        canEdit={canManageContainerUnloadingWage(currentUser)}
         container={state.container}
         key={unloadingWageVersion(state.container)}
       />

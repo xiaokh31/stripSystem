@@ -133,11 +133,23 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
 
 export const DEFAULT_ROLES: DefaultRole[] = [
   role(ROLE_CODES.admin, 'Administrator', 'Full system access.', true),
+  role(
+    ROLE_CODES.hrManager,
+    'Human Resources Manager',
+    'HR work hours settlement manager.',
+    true,
+  ),
   role(ROLE_CODES.office, 'Office Staff', 'Office unloading operations.', true),
   role(
     ROLE_CODES.warehouse,
     'Warehouse Staff',
     'Warehouse loading and scan operations.',
+    true,
+  ),
+  role(
+    ROLE_CODES.warehouseManager,
+    'Warehouse Manager',
+    'Container unloading wage settlement manager.',
     true,
   ),
   role(ROLE_CODES.system, 'System Service', 'Non-human worker account.', true),
@@ -170,14 +182,13 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.override,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.settings.read,
+    ],
+    [ROLE_CODES.hrManager]: [
+      PERMISSIONS.settings.read,
       PERMISSIONS.attendance.read,
       PERMISSIONS.attendance.create,
       PERMISSIONS.attendance.parse,
       PERMISSIONS.attendance.generate,
-      PERMISSIONS.unloadingWage.read,
-      PERMISSIONS.unloadingWage.classify,
-      PERMISSIONS.unloadingWage.complete,
-      PERMISSIONS.unloadingWage.settle,
     ],
     [ROLE_CODES.warehouse]: [
       PERMISSIONS.loadJobs.read,
@@ -187,8 +198,15 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.reverse,
       PERMISSIONS.inventory.read,
       PERMISSIONS.settings.read,
+    ],
+    [ROLE_CODES.warehouseManager]: [
+      PERMISSIONS.settings.read,
+      PERMISSIONS.containers.read,
+      PERMISSIONS.corrections.create,
       PERMISSIONS.unloadingWage.read,
+      PERMISSIONS.unloadingWage.classify,
       PERMISSIONS.unloadingWage.complete,
+      PERMISSIONS.unloadingWage.settle,
     ],
     [ROLE_CODES.system]: [
       PERMISSIONS.imports.parse,

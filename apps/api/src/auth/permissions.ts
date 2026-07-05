@@ -1,7 +1,9 @@
 export const ROLE_CODES = {
   admin: 'ADMIN',
+  hrManager: 'HR_MANAGER',
   office: 'OFFICE',
   warehouse: 'WAREHOUSE',
+  warehouseManager: 'WAREHOUSE_MANAGER',
   system: 'SYSTEM',
 } as const;
 
