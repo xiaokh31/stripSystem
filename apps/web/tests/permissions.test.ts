@@ -9,12 +9,15 @@ import {
   canReprintLabels,
   canReviewUnloadingWage,
   canReviewWorkHours,
+  canGenerateWorkHours,
+  canParseWorkHours,
   canReverseMobileScans,
   canSaveMobileDock,
   canScanMobilePallets,
   canSettleUnloadingWage,
   canSupervisorOverrideScans,
   canUpdateSettings,
+  canUploadWorkHours,
   canViewMobileLoadJobs,
   hasAllPermissions,
   hasPermission,
@@ -248,6 +251,8 @@ test("wage review navigation follows attendance and unloading wage permissions",
     permissions: [
       "attendance.read",
       "attendance.create",
+      "attendance.parse",
+      "attendance.generate",
       "unloading_wage.read",
       "unloading_wage.settle",
     ],
@@ -261,9 +266,49 @@ test("wage review navigation follows attendance and unloading wage permissions",
   };
 
   assert.equal(canReviewWorkHours(officeWageUser), true);
+  assert.equal(canUploadWorkHours(officeWageUser), true);
+  assert.equal(canParseWorkHours(officeWageUser), true);
+  assert.equal(canGenerateWorkHours(officeWageUser), true);
   assert.equal(canReviewUnloadingWage(officeWageUser), true);
   assert.equal(canSettleUnloadingWage(officeWageUser), true);
   assert.equal(canReviewWorkHours(warehouseUser), false);
+  assert.equal(canUploadWorkHours(warehouseUser), false);
+  assert.equal(canParseWorkHours(warehouseUser), false);
+  assert.equal(canGenerateWorkHours(warehouseUser), false);
   assert.equal(canReviewUnloadingWage(warehouseUser), true);
   assert.equal(canSettleUnloadingWage(warehouseUser), false);
+});
+
+test("work hours actions follow attendance action permissions independently", () => {
+  const readOnlyHrUser: AuthUserResponse = {
+    id: "hr-readonly-1",
+    email: "hr-readonly@example.com",
+    name: "HR Readonly",
+    roles: ["OFFICE"],
+    permissions: ["attendance.read"],
+  };
+  const parseOnlyHrUser: AuthUserResponse = {
+    id: "hr-parse-1",
+    email: "hr-parse@example.com",
+    name: "HR Parse",
+    roles: ["OFFICE"],
+    permissions: ["attendance.read", "attendance.parse"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-work-hours-1",
+    email: "admin-work-hours@example.com",
+    name: "Admin Work Hours",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canReviewWorkHours(readOnlyHrUser), true);
+  assert.equal(canUploadWorkHours(readOnlyHrUser), false);
+  assert.equal(canParseWorkHours(readOnlyHrUser), false);
+  assert.equal(canGenerateWorkHours(readOnlyHrUser), false);
+  assert.equal(canParseWorkHours(parseOnlyHrUser), true);
+  assert.equal(canGenerateWorkHours(parseOnlyHrUser), false);
+  assert.equal(canUploadWorkHours(adminUser), true);
+  assert.equal(canParseWorkHours(adminUser), true);
+  assert.equal(canGenerateWorkHours(adminUser), true);
 });

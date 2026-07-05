@@ -14,6 +14,9 @@ export const SCAN_OVERRIDE_PERMISSION = "scan.override";
 export const SCAN_REVERSE_PERMISSION = "scan.reverse";
 export const SETTINGS_UPDATE_PERMISSION = "settings.update";
 export const ATTENDANCE_READ_PERMISSION = "attendance.read";
+export const ATTENDANCE_CREATE_PERMISSION = "attendance.create";
+export const ATTENDANCE_PARSE_PERMISSION = "attendance.parse";
+export const ATTENDANCE_GENERATE_PERMISSION = "attendance.generate";
 export const UNLOADING_WAGE_READ_PERMISSION = "unloading_wage.read";
 export const UNLOADING_WAGE_SETTLE_PERMISSION = "unloading_wage.settle";
 
@@ -104,6 +107,18 @@ export function canUpdateSettings(user: AuthUserResponse | null): boolean {
 
 export function canReviewWorkHours(user: AuthUserResponse | null): boolean {
   return hasPermission(user, ATTENDANCE_READ_PERMISSION);
+}
+
+export function canUploadWorkHours(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, ATTENDANCE_CREATE_PERMISSION);
+}
+
+export function canParseWorkHours(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, ATTENDANCE_PARSE_PERMISSION);
+}
+
+export function canGenerateWorkHours(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, ATTENDANCE_GENERATE_PERMISSION);
 }
 
 export function canReviewUnloadingWage(

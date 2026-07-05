@@ -100,3 +100,43 @@ export function generatedFileAuditText(
     `MIME ${file.mimeType ?? "-"}`,
   ].join(" | ");
 }
+
+export function attendanceApiErrorMessage(error: unknown): string {
+  if (!isApiErrorLike(error)) {
+    return error instanceof Error ? error.message : "The request failed.";
+  }
+
+  switch (error.code) {
+    case "DUPLICATE_ATTENDANCE_IMPORT":
+      return "Duplicate attendance upload: this workbook already exists by SHA-256.";
+    case "ATTENDANCE_PARSE_FAILED":
+    case "ATTENDANCE_WORKER_INVOCATION_FAILED":
+      return "Attendance parse failed. Review parser errors before generating a wage record.";
+    case "ATTENDANCE_IMPORT_NOT_PARSED":
+      return "Attendance import must be parsed before generating a wage record.";
+    case "ATTENDANCE_IMPORT_HAS_PARSE_ERRORS":
+      return "Attendance import has parser errors and cannot generate a wage record.";
+    case "WAGE_RECORD_GENERATION_FAILED":
+    case "WAGE_RECORD_WORKER_INVOCATION_FAILED":
+      return "Wage record generation failed. Review generated file history for the failed record.";
+    case "FORBIDDEN":
+      return "Attendance action permission denied.";
+    default:
+      return `${error.code}${error.status ? ` (${error.status})` : ""}: ${
+        error.message
+      }`;
+  }
+}
+
+function isApiErrorLike(
+  error: unknown,
+): error is { code: string; message: string; status?: number } {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      "message" in error &&
+      typeof (error as { code: unknown }).code === "string" &&
+      typeof (error as { message: unknown }).message === "string",
+  );
+}

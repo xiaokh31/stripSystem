@@ -3,6 +3,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import type { AuthUserResponse } from "@/lib/api-client";
 import {
+  ATTENDANCE_READ_PERMISSION,
   canManageAccounts,
   canManageOfficeLoadJobs,
   hasPermission,
@@ -34,6 +35,11 @@ const navItems: PermissionAwareNavItem[] = [
     href: "/reports",
     label: "Reports",
     requiredPermissions: ["inventory.read"],
+  },
+  {
+    href: "/work-hours",
+    label: "Work Hours",
+    requiredPermissions: [ATTENDANCE_READ_PERMISSION],
   },
   {
     href: "/mobile/load-jobs",

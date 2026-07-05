@@ -156,6 +156,8 @@ export const zhMessages = {
   "Download file": "下载文件",
   "Download generated file": "下载生成文件",
   "Duplicate imports": "重复导入",
+  "Duplicate attendance upload: this workbook already exists by SHA-256.":
+    "重复考勤上传：此工作簿的 SHA-256 内容已存在。",
   "Duplicate scan": "重复扫码",
   "Edit": "编辑",
   "Edit destination": "编辑目的仓",
@@ -689,6 +691,8 @@ export const zhMessages = {
   "Submitting override": "正在提交覆盖",
   "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.":
     "该托盘已经分配到另一个装车任务。主管确认原因后，才能把它移动到当前装车任务。",
+  "This attendance import cannot generate a wage record yet.":
+    "此考勤导入暂时不能生成工资记录。",
   "I confirm this supervisor override should move the pallet to the current load job and create an audit event.":
     "我确认此主管覆盖会把托盘移动到当前装车任务，并创建审计事件。",
   "Add at least one unloader.": "请至少添加一名卸柜员工。",
@@ -701,8 +705,24 @@ export const zhMessages = {
   "Attendance imports could not be loaded": "无法加载考勤导入",
   "Attendance imports must use the legacy .xls time-clock workbook.":
     "考勤导入必须使用旧版 .xls 打卡机工作簿。",
+  "Attendance action permission denied.": "没有执行此考勤操作的权限。",
+  "Attendance import has parser errors and cannot generate a wage record.":
+    "考勤导入存在解析错误，不能生成工资记录。",
+  "Attendance import must be parsed before generating a wage record.":
+    "生成工资记录前必须先解析考勤导入。",
   "Attendance parse result could not be loaded": "无法加载考勤解析结果",
+  "Attendance parse failed. Review parser errors before generating a wage record.":
+    "考勤解析失败。生成工资记录前请先复核解析错误。",
+  "Attendance parse or wage generation permission required.":
+    "需要考勤解析或工资记录生成权限。",
+  "Attendance parse permission required.": "需要考勤解析权限。",
+  "Attendance read permission required": "需要考勤读取权限",
+  "Attendance upload permission required.": "需要考勤上传权限。",
+  "Attendance wage record generation permission required.":
+    "需要工资记录生成权限。",
   "Audit reason": "审计原因",
+  "Ask an administrator for attendance.read before opening Work Hours Settlement.":
+    "打开工时结算前，请联系管理员分配 attendance.read 权限。",
   "Blank uses operational setting": "留空使用运营设置",
   "Complete unloading": "完成卸柜",
   "Complete unloading by pay container id": "按 pay container ID 完成卸柜",
@@ -845,6 +865,8 @@ export const zhMessages = {
     "使用每月打卡机导出的 .xls 文件。API 会保存原始文件，并拒绝 SHA-256 重复内容。",
   "Wage record generated. File history refreshed.":
     "工资记录已生成，文件历史已刷新。",
+  "Wage record generation failed. Review generated file history for the failed record.":
+    "工资记录生成失败。请查看生成文件历史中的失败记录。",
   "Wage amount": "工资金额",
   "Warehouse Unloading Wage Settlement": "仓库卸柜工资结算",
   "Work Hours": "工时",

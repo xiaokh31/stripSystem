@@ -132,6 +132,24 @@ describe('RBAC route guards (e2e)', () => {
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
       });
+
+    await request(app.getHttpServer())
+      .get('/api/attendance-imports/attendance-import-1/files/file-1/download')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
+  it('blocks WAREHOUSE from attendance parse routes', async () => {
+    await request(app.getHttpServer())
+      .post('/api/attendance-imports/attendance-import-1/parse')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
   });
 
   it('blocks WAREHOUSE from attendance wage record generation', async () => {

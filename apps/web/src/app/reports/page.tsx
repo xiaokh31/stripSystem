@@ -1,6 +1,15 @@
 import Link from "next/link";
+import {
+  canReviewUnloadingWage,
+  canReviewWorkHours,
+} from "@/lib/permissions";
+import { getServerCurrentUser } from "@/lib/server-auth";
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const currentUser = await getServerCurrentUser();
+  const showWorkHours = canReviewWorkHours(currentUser);
+  const showUnloadingWage = canReviewUnloadingWage(currentUser);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
@@ -13,11 +22,15 @@ export default function ReportsPage() {
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3">
           <ReportLink href="/reports/inventory" title="Inventory report" />
-          <ReportLink href="/work-hours" title="HR Work Hours Settlement" />
-          <ReportLink
-            href="/unloading-wage"
-            title="Warehouse Unloading Wage Settlement"
-          />
+          {showWorkHours ? (
+            <ReportLink href="/work-hours" title="HR Work Hours Settlement" />
+          ) : null}
+          {showUnloadingWage ? (
+            <ReportLink
+              href="/unloading-wage"
+              title="Warehouse Unloading Wage Settlement"
+            />
+          ) : null}
         </div>
       </section>
     </main>

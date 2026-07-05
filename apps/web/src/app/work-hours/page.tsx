@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   AttendanceImportActions,
   AttendanceUploadPanel,
@@ -24,7 +25,13 @@ import {
   type AttendanceParseResultResponse,
   type WageGeneratedFileResponse,
 } from "@/lib/api-client";
-import { getServerApiOptions } from "@/lib/server-auth";
+import {
+  canGenerateWorkHours,
+  canParseWorkHours,
+  canReviewWorkHours,
+  canUploadWorkHours,
+} from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -54,14 +61,73 @@ type WorkHoursState =
       selectedImportId: null;
     };
 
+interface WorkHoursPermissions {
+  canGenerate: boolean;
+  canParse: boolean;
+  canRead: boolean;
+  canUpload: boolean;
+}
+
 export default async function WorkHoursPage({
   searchParams,
 }: {
   searchParams: Promise<WorkHoursSearchParams>;
 }) {
   const params = await searchParams;
+  const currentUser = await getServerCurrentUser();
+  const permissions: WorkHoursPermissions = {
+    canGenerate: canGenerateWorkHours(currentUser),
+    canParse: canParseWorkHours(currentUser),
+    canRead: canReviewWorkHours(currentUser),
+    canUpload: canUploadWorkHours(currentUser),
+  };
+  if (!permissions.canRead) {
+    return (
+      <WorkHoursPageShell>
+        <PermissionRequiredPanel />
+      </WorkHoursPageShell>
+    );
+  }
+
   const state = await loadWorkHoursState(firstSearchValue(params.attendanceImportId));
 
+  return (
+    <WorkHoursPageShell>
+      <AttendanceUploadPanel canUpload={permissions.canUpload} />
+
+      {state.listError ? (
+        <ApiErrorPanel error={state.listError} title="Attendance imports could not be loaded" />
+      ) : (
+        <>
+          <AttendanceImportTable
+            imports={state.imports}
+            selectedImportId={state.selectedImportId}
+          />
+          {state.detailError ? (
+            <ApiErrorPanel
+              error={state.detailError}
+              title="Attendance parse result could not be loaded"
+            />
+          ) : state.parseResult ? (
+            <AttendanceDetail
+              canGenerate={permissions.canGenerate}
+              canParse={permissions.canParse}
+              files={state.files}
+              filesError={state.filesError}
+              parseResult={state.parseResult}
+            />
+          ) : (
+            <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
+              Select or upload an attendance import to review parsed rows.
+            </section>
+          )}
+        </>
+      )}
+    </WorkHoursPageShell>
+  );
+}
+
+function WorkHoursPageShell({ children }: { children: ReactNode }) {
   return (
     <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
@@ -84,36 +150,22 @@ export default async function WorkHoursPage({
           </Link>
         </div>
       </section>
-
-      <AttendanceUploadPanel />
-
-      {state.listError ? (
-        <ApiErrorPanel error={state.listError} title="Attendance imports could not be loaded" />
-      ) : (
-        <>
-          <AttendanceImportTable
-            imports={state.imports}
-            selectedImportId={state.selectedImportId}
-          />
-          {state.detailError ? (
-            <ApiErrorPanel
-              error={state.detailError}
-              title="Attendance parse result could not be loaded"
-            />
-          ) : state.parseResult ? (
-            <AttendanceDetail
-              files={state.files}
-              filesError={state.filesError}
-              parseResult={state.parseResult}
-            />
-          ) : (
-            <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
-              Select or upload an attendance import to review parsed rows.
-            </section>
-          )}
-        </>
-      )}
+      {children}
     </main>
+  );
+}
+
+function PermissionRequiredPanel() {
+  return (
+    <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
+      <h2 className="text-base font-semibold">
+        Attendance read permission required
+      </h2>
+      <p className="mt-2 text-sm leading-6">
+        Ask an administrator for attendance.read before opening Work Hours
+        Settlement.
+      </p>
+    </section>
   );
 }
 
@@ -297,10 +349,14 @@ function AttendanceImportRow({
 }
 
 function AttendanceDetail({
+  canGenerate,
+  canParse,
   files,
   filesError,
   parseResult,
 }: {
+  canGenerate: boolean;
+  canParse: boolean;
   files: WageGeneratedFileResponse[];
   filesError: ApiClientError | null;
   parseResult: AttendanceParseResultResponse;
@@ -324,7 +380,11 @@ function AttendanceDetail({
                 {parseResult.rows.length} row(s) from {importFile.originalFilename}
               </p>
             </div>
-            <AttendanceImportActions attendanceImport={importFile} />
+            <AttendanceImportActions
+              attendanceImport={importFile}
+              canGenerate={canGenerate}
+              canParse={canParse}
+            />
           </div>
           {issues.length > 0 ? (
             <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
@@ -470,9 +530,6 @@ function GeneratedFileLink({
       </div>
       <p className="mt-3 break-all text-xs leading-5 text-zinc-600">
         {generatedFileAuditText(file)}
-      </p>
-      <p className="mt-1 break-all text-xs leading-5 text-zinc-500">
-        {file.storagePath}
       </p>
       {downloadable ? (
         <Link

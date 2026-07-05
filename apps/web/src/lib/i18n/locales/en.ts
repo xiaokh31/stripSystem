@@ -165,6 +165,8 @@ export const enMessages = {
   "Download file": "Download file",
   "Download generated file": "Download generated file",
   "Duplicate imports": "Duplicate imports",
+  "Duplicate attendance upload: this workbook already exists by SHA-256.":
+    "Duplicate attendance upload: this workbook already exists by SHA-256.",
   "Duplicate scan": "Duplicate scan",
   "Edit": "Edit",
   "Edit destination": "Edit destination",
@@ -737,6 +739,8 @@ export const enMessages = {
   "Submitting override": "Submitting override",
   "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.":
     "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.",
+  "This attendance import cannot generate a wage record yet.":
+    "This attendance import cannot generate a wage record yet.",
   "I confirm this supervisor override should move the pallet to the current load job and create an audit event.":
     "I confirm this supervisor override should move the pallet to the current load job and create an audit event.",
   "Add at least one unloader.": "Add at least one unloader.",
@@ -750,9 +754,28 @@ export const enMessages = {
     "Attendance imports could not be loaded",
   "Attendance imports must use the legacy .xls time-clock workbook.":
     "Attendance imports must use the legacy .xls time-clock workbook.",
+  "Attendance action permission denied.":
+    "Attendance action permission denied.",
+  "Attendance import has parser errors and cannot generate a wage record.":
+    "Attendance import has parser errors and cannot generate a wage record.",
+  "Attendance import must be parsed before generating a wage record.":
+    "Attendance import must be parsed before generating a wage record.",
   "Attendance parse result could not be loaded":
     "Attendance parse result could not be loaded",
+  "Attendance parse failed. Review parser errors before generating a wage record.":
+    "Attendance parse failed. Review parser errors before generating a wage record.",
+  "Attendance parse or wage generation permission required.":
+    "Attendance parse or wage generation permission required.",
+  "Attendance parse permission required.":
+    "Attendance parse permission required.",
+  "Attendance read permission required": "Attendance read permission required",
+  "Attendance upload permission required.":
+    "Attendance upload permission required.",
+  "Attendance wage record generation permission required.":
+    "Attendance wage record generation permission required.",
   "Audit reason": "Audit reason",
+  "Ask an administrator for attendance.read before opening Work Hours Settlement.":
+    "Ask an administrator for attendance.read before opening Work Hours Settlement.",
   "Blank uses operational setting": "Blank uses operational setting",
   "Complete unloading": "Complete unloading",
   "Complete unloading by pay container id":
@@ -909,6 +932,8 @@ export const enMessages = {
     "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.",
   "Wage record generated. File history refreshed.":
     "Wage record generated. File history refreshed.",
+  "Wage record generation failed. Review generated file history for the failed record.":
+    "Wage record generation failed. Review generated file history for the failed record.",
   "Wage amount": "Wage amount",
   "Warehouse Unloading Wage Settlement":
     "Warehouse Unloading Wage Settlement",

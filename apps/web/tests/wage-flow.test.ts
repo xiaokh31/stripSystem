@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  attendanceApiErrorMessage,
   attendanceUploadError,
   canGenerateWageRecord,
   formatFileSize,
@@ -66,6 +67,33 @@ test("generated attendance file metadata is formatted for review", () => {
       mimeType: "application/vnd.ms-excel",
     }),
     "SHA-256 abc123 | Size 1.5 KB | MIME application/vnd.ms-excel",
+  );
+});
+
+test("attendance API errors map to review workflow messages", () => {
+  assert.equal(
+    attendanceApiErrorMessage({
+      code: "DUPLICATE_ATTENDANCE_IMPORT",
+      message: "Attendance file content already exists by SHA-256.",
+      status: 409,
+    }),
+    "Duplicate attendance upload: this workbook already exists by SHA-256.",
+  );
+  assert.equal(
+    attendanceApiErrorMessage({
+      code: "ATTENDANCE_PARSE_FAILED",
+      message: "The attendance file could not be parsed.",
+      status: 400,
+    }),
+    "Attendance parse failed. Review parser errors before generating a wage record.",
+  );
+  assert.equal(
+    attendanceApiErrorMessage({
+      code: "WAGE_RECORD_GENERATION_FAILED",
+      message: "Worker failed.",
+      status: 500,
+    }),
+    "Wage record generation failed. Review generated file history for the failed record.",
   );
 });
 
