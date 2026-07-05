@@ -3,7 +3,10 @@ import {
   AttendanceImportActions,
   AttendanceUploadPanel,
 } from "@/components/wage/work-hours-actions";
-import { formatHours } from "@/components/wage/attendance-flow";
+import {
+  formatHours,
+  generatedFileAuditText,
+} from "@/components/wage/attendance-flow";
 import {
   formatDateOnly,
   formatDateTime,
@@ -60,7 +63,7 @@ export default async function WorkHoursPage({
   const state = await loadWorkHoursState(firstSearchValue(params.attendanceImportId));
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -205,17 +208,21 @@ function AttendanceImportTable({
           Limit {imports.limit}, offset {imports.offset}
         </p>
       </div>
-      <div className="mt-5 overflow-x-auto">
-        <table className="min-w-[980px] w-full border-collapse text-left text-sm">
+      <div className="mt-5">
+        <table className="w-full table-fixed border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="px-3 py-3 font-semibold">File</th>
-              <th className="px-3 py-3 font-semibold">Status</th>
-              <th className="px-3 py-3 font-semibold">Period</th>
-              <th className="px-3 py-3 text-right font-semibold">Rows</th>
-              <th className="px-3 py-3 text-right font-semibold">Issues</th>
-              <th className="px-3 py-3 font-semibold">Uploaded</th>
-              <th className="px-3 py-3 font-semibold">Action</th>
+              <th className="w-[28%] px-3 py-3 font-semibold">File</th>
+              <th className="w-[13%] px-3 py-3 font-semibold">Status</th>
+              <th className="w-[15%] px-3 py-3 font-semibold">Period</th>
+              <th className="w-[10%] px-3 py-3 text-right font-semibold">
+                Rows
+              </th>
+              <th className="w-[9%] px-3 py-3 text-right font-semibold">
+                Issues
+              </th>
+              <th className="w-[15%] px-3 py-3 font-semibold">Uploaded</th>
+              <th className="w-[10%] px-3 py-3 font-semibold">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -250,11 +257,11 @@ function AttendanceImportRow({
           SHA-256: {importFile.fileSha256}
         </p>
       </td>
-      <td className="space-y-2 px-3 py-4">
+      <td className="space-y-2 break-words px-3 py-4">
         <StatusBadge status={importFile.importStatus} />
         <StatusBadge status={importFile.parseStatus} />
       </td>
-      <td className="px-3 py-4 text-zinc-700">
+      <td className="break-words px-3 py-4 text-zinc-700">
         <p>{importFile.settlementMonth ?? "-"}</p>
         <p className="mt-1 text-xs text-zinc-500">
           {formatDateOnly(importFile.periodStart)} to{" "}
@@ -270,7 +277,7 @@ function AttendanceImportRow({
       <td className="px-3 py-4 text-right font-medium">
         {importFile.warningCount} / {importFile.errorCount}
       </td>
-      <td className="px-3 py-4 text-zinc-700">
+      <td className="break-words px-3 py-4 text-zinc-700">
         {formatDateTime(importFile.createdAt)}
       </td>
       <td className="px-3 py-4">
@@ -317,7 +324,7 @@ function AttendanceDetail({
                 {parseResult.rows.length} row(s) from {importFile.originalFilename}
               </p>
             </div>
-            <AttendanceImportActions attendanceImportId={importFile.id} />
+            <AttendanceImportActions attendanceImport={importFile} />
           </div>
           {issues.length > 0 ? (
             <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
@@ -375,25 +382,33 @@ function AttendanceRowsTable({
   }
 
   return (
-    <div className="mt-5 overflow-x-auto">
-      <table className="min-w-[1100px] w-full border-collapse text-left text-sm">
+    <div className="mt-5">
+      <table className="w-full table-fixed border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-            <th className="px-3 py-3 font-semibold">Date</th>
-            <th className="px-3 py-3 font-semibold">Employee</th>
-            <th className="px-3 py-3 font-semibold">Department</th>
-            <th className="px-3 py-3 font-semibold">Punches</th>
-            <th className="px-3 py-3 text-right font-semibold">Gross</th>
-            <th className="px-3 py-3 text-right font-semibold">Lunch</th>
-            <th className="px-3 py-3 text-right font-semibold">Hours</th>
-            <th className="px-3 py-3 font-semibold">Issues</th>
+            <th className="w-[10%] px-3 py-3 font-semibold">Date</th>
+            <th className="w-[18%] px-3 py-3 font-semibold">Employee</th>
+            <th className="w-[13%] px-3 py-3 font-semibold">Department</th>
+            <th className="w-[20%] px-3 py-3 font-semibold">Punches</th>
+            <th className="w-[9%] px-3 py-3 text-right font-semibold">
+              Gross
+            </th>
+            <th className="w-[9%] px-3 py-3 text-right font-semibold">
+              Lunch
+            </th>
+            <th className="w-[9%] px-3 py-3 text-right font-semibold">
+              Hours
+            </th>
+            <th className="w-[12%] px-3 py-3 font-semibold">Issues</th>
           </tr>
         </thead>
         <tbody>
           {rows.slice(0, 100).map((row) => (
             <tr className="border-b border-zinc-100 align-top" key={row.id}>
-              <td className="px-3 py-3 font-medium">{row.workDate}</td>
-              <td className="px-3 py-3">
+              <td className="break-words px-3 py-3 font-medium">
+                {row.workDate}
+              </td>
+              <td className="break-words px-3 py-3">
                 <p className="font-semibold text-zinc-950">
                   {row.employeeName ?? "-"}
                 </p>
@@ -401,8 +416,8 @@ function AttendanceRowsTable({
                   {row.employeeId ?? "-"}
                 </p>
               </td>
-              <td className="px-3 py-3">{row.department ?? "-"}</td>
-              <td className="px-3 py-3 text-xs text-zinc-700">
+              <td className="break-words px-3 py-3">{row.department ?? "-"}</td>
+              <td className="break-words px-3 py-3 text-xs text-zinc-700">
                 {Array.isArray(row.punchTimes)
                   ? row.punchTimes.join(", ")
                   : JSON.stringify(row.punchTimes)}
@@ -416,7 +431,7 @@ function AttendanceRowsTable({
               <td className="px-3 py-3 text-right font-semibold">
                 {formatHours(row.calculatedHours)}
               </td>
-              <td className="px-3 py-3 text-xs text-amber-800">
+              <td className="break-words px-3 py-3 text-xs text-amber-800">
                 {[...issueList(row.warnings), ...issueList(row.errors)].join(
                   " / ",
                 ) || "-"}
@@ -453,6 +468,12 @@ function GeneratedFileLink({
         </div>
         <StatusBadge status={file.status} />
       </div>
+      <p className="mt-3 break-all text-xs leading-5 text-zinc-600">
+        {generatedFileAuditText(file)}
+      </p>
+      <p className="mt-1 break-all text-xs leading-5 text-zinc-500">
+        {file.storagePath}
+      </p>
       {downloadable ? (
         <Link
           className="mt-3 inline-flex min-h-9 items-center border border-teal-700 bg-white px-3 text-xs font-semibold uppercase text-teal-800 hover:bg-teal-50"

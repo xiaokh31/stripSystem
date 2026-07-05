@@ -4,11 +4,16 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import {
   ApiClientError,
+  type AttendanceImportResponse,
   generateAttendanceWageRecord,
   parseAttendanceImport,
   uploadAttendanceImportFile,
 } from "@/lib/api-client";
-import { attendanceUploadError } from "./attendance-flow";
+import {
+  attendanceUploadError,
+  canGenerateWageRecord,
+  wageGenerationBlockReason,
+} from "./attendance-flow";
 
 interface ActionState {
   message: string;
@@ -69,8 +74,14 @@ export function AttendanceUploadPanel() {
             className="block w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-950 hover:file:bg-zinc-200"
             disabled={state.status === "running"}
             onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
-              setState(idleState);
+              const selectedFile = event.target.files?.[0] ?? null;
+              setFile(selectedFile);
+              const validationError = attendanceUploadError(selectedFile);
+              setState(
+                validationError
+                  ? { message: validationError, status: "error" }
+                  : idleState,
+              );
             }}
             ref={inputRef}
             type="file"
@@ -107,17 +118,19 @@ export function AttendanceUploadPanel() {
 }
 
 export function AttendanceImportActions({
-  attendanceImportId,
+  attendanceImport,
 }: {
-  attendanceImportId: string;
+  attendanceImport: AttendanceImportResponse;
 }) {
   const router = useRouter();
   const [state, setState] = useState<ActionState>(idleState);
+  const canGenerate = canGenerateWageRecord(attendanceImport);
+  const generateBlockReason = wageGenerationBlockReason(attendanceImport);
 
   async function runParse() {
     setState({ message: "Parsing attendance workbook.", status: "running" });
     try {
-      const result = await parseAttendanceImport(attendanceImportId);
+      const result = await parseAttendanceImport(attendanceImport.id);
       setState({
         message: `Parsed ${result.rows.length} employee-day row(s).`,
         status: "success",
@@ -129,9 +142,19 @@ export function AttendanceImportActions({
   }
 
   async function generate() {
+    if (!canGenerate) {
+      setState({
+        message:
+          generateBlockReason ??
+          "This attendance import cannot generate a wage record yet.",
+        status: "error",
+      });
+      return;
+    }
+
     setState({ message: "Generating wage record workbook.", status: "running" });
     try {
-      await generateAttendanceWageRecord(attendanceImportId);
+      await generateAttendanceWageRecord(attendanceImport.id);
       setState({
         message: "Wage record generated. File history refreshed.",
         status: "success",
@@ -155,13 +178,19 @@ export function AttendanceImportActions({
         </button>
         <button
           className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-          disabled={state.status === "running"}
+          disabled={state.status === "running" || !canGenerate}
           onClick={() => void generate()}
           type="button"
+          title={generateBlockReason ?? "Generate wage record workbook"}
         >
           Generate wage record
         </button>
       </div>
+      {generateBlockReason ? (
+        <p className="text-xs font-medium text-amber-800">
+          {generateBlockReason}
+        </p>
+      ) : null}
       <ActionMessage state={state} />
     </div>
   );

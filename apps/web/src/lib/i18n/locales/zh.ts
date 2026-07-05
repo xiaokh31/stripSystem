@@ -777,6 +777,10 @@ export const zhMessages = {
   "One or more container numbers": "一个或多个柜号",
   "Override rate": "覆盖费率",
   "Parsed employee-day rows": "已解析员工日工时行",
+  "Parse this attendance import before generating a wage record.":
+    "请先解析此考勤导入，再生成工资记录。",
+  "Parser errors must be resolved before generating a wage record.":
+    "必须先解决解析错误，才能生成工资记录。",
   "Parsing attendance workbook.": "正在解析考勤工作簿。",
   "Paste one or more container database ids": "粘贴一个或多个柜数据库 ID",
   "Pay class": "工资分类",

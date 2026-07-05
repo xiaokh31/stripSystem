@@ -838,6 +838,10 @@ export const enMessages = {
   "One or more container numbers": "One or more container numbers",
   "Override rate": "Override rate",
   "Parsed employee-day rows": "Parsed employee-day rows",
+  "Parse this attendance import before generating a wage record.":
+    "Parse this attendance import before generating a wage record.",
+  "Parser errors must be resolved before generating a wage record.":
+    "Parser errors must be resolved before generating a wage record.",
   "Parsing attendance workbook.": "Parsing attendance workbook.",
   "Paste one or more container database ids":
     "Paste one or more container database ids",

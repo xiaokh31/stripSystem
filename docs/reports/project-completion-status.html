@@ -376,6 +376,13 @@
               <td>WAGE-P1 API 阶段已覆盖 upload、parse、wage record generation、generated files 和权限；下一步进入 WAGE-P2 HR Work Hours Settlement Web 页面。</td>
             </tr>
             <tr>
+              <td>Stage 2.0: WAGE-P2-01 Work Hours Settlement Page</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2-01</td>
+              <td>`/work-hours` 已接入真实 attendance API review workflow：上传月度 legacy `.xls`，前端明确拒绝 `.xlsx`，显示 import file name、SHA-256、import/parse status、period、employee/day count、warning/error count；选择 import 后加载 parse result，支持触发 parse，展示 employee-day rows、employee id/name、department、punch times、gross/lunch/calculated hours 和 warnings/errors；生成 wage record 前校验 parse status/error count，生成后刷新 generated files，列表显示 storage path、SHA-256、size、mime type、status 和 download link；页面 API 错误、duplicate upload、parse failure、generation failure 均通过操作状态或错误面板暴露，未引入 mock business data。</td>
+              <td>继续 WAGE-P2-02：Work Hours 导航、权限入口和 i18n 文案；随后进入 WAGE-QA-01 端到端回归。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>

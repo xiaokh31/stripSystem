@@ -2,8 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   attendanceUploadError,
+  canGenerateWageRecord,
+  formatFileSize,
   formatHours,
+  generatedFileAuditText,
   isAllowedLegacyXlsFile,
+  wageGenerationBlockReason,
 } from "../src/components/wage/attendance-flow";
 import {
   buildCompletePayContainerRequest,
@@ -23,7 +27,46 @@ test("attendance upload flow accepts only legacy xls files", () => {
     attendanceUploadError({ name: "workAttendance.xlsx" }),
     "Attendance imports must use the legacy .xls time-clock workbook.",
   );
+  assert.equal(
+    attendanceUploadError(null),
+    "Select one legacy .xls attendance workbook.",
+  );
   assert.equal(formatHours("7.5"), "7.50");
+});
+
+test("attendance wage generation is blocked until parse succeeds without errors", () => {
+  assert.equal(
+    canGenerateWageRecord({ errorCount: 0, parseStatus: "PARSED" }),
+    true,
+  );
+  assert.equal(
+    canGenerateWageRecord({ errorCount: 0, parseStatus: "WARNING" }),
+    true,
+  );
+  assert.equal(
+    canGenerateWageRecord({ errorCount: 0, parseStatus: "NOT_PARSED" }),
+    false,
+  );
+  assert.equal(
+    wageGenerationBlockReason({ errorCount: 0, parseStatus: "NOT_PARSED" }),
+    "Parse this attendance import before generating a wage record.",
+  );
+  assert.equal(
+    wageGenerationBlockReason({ errorCount: 1, parseStatus: "ERROR" }),
+    "Parser errors must be resolved before generating a wage record.",
+  );
+});
+
+test("generated attendance file metadata is formatted for review", () => {
+  assert.equal(formatFileSize("1536"), "1.5 KB");
+  assert.equal(
+    generatedFileAuditText({
+      fileSha256: "abc123",
+      fileSizeBytes: "1536",
+      mimeType: "application/vnd.ms-excel",
+    }),
+    "SHA-256 abc123 | Size 1.5 KB | MIME application/vnd.ms-excel",
+  );
 });
 
 test("pay container draft validates classification-specific fields", () => {
