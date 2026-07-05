@@ -63,3 +63,41 @@ def test_wage_generate_record_cli_writes_wage_record(tmp_path: Path) -> None:
     assert Path(payload["wage_record_path"]).is_file()
     assert Path(payload["task_report_path"]).is_file()
     assert payload["wage_record_result"]["writtenEmployeeCount"] > 0
+
+
+def test_wage_api_parse_and_generate_task_reports_do_not_overwrite(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "wage-api-shared-output"
+    runner = CliRunner()
+
+    parse_result = runner.invoke(
+        app,
+        [
+            "wage-parse-file",
+            "--attendance-file",
+            str(ATTENDANCE_FIXTURE),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+    generate_result = runner.invoke(
+        app,
+        [
+            "wage-generate-record",
+            "--attendance-file",
+            str(ATTENDANCE_FIXTURE),
+            "--wage-template",
+            str(WAGE_TEMPLATE),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert parse_result.exit_code == 0
+    assert generate_result.exit_code == 0
+    parse_payload = json.loads(parse_result.output)
+    generate_payload = json.loads(generate_result.output)
+    assert parse_payload["task_report_path"] != generate_payload["task_report_path"]
+    assert Path(parse_payload["task_report_path"]).is_file()
+    assert Path(generate_payload["task_report_path"]).is_file()

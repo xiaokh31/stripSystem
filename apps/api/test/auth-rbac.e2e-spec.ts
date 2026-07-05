@@ -134,6 +134,16 @@ describe('RBAC route guards (e2e)', () => {
       });
   });
 
+  it('blocks WAREHOUSE from attendance wage record generation', async () => {
+    await request(app.getHttpServer())
+      .post('/api/attendance-imports/attendance-import-1/generate-wage-record')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
   it('returns the current user profile for a valid token', async () => {
     await request(app.getHttpServer())
       .get('/api/auth/me')

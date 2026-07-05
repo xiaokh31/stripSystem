@@ -264,13 +264,43 @@ export class AttendanceService {
     actor: AuthenticatedUser,
   ): Promise<GenerateWageRecordResponseDto> {
     const record = await this.findImportOrThrow(id);
+    this.assertReadyForWageGeneration(record);
     await this.assertStoredFileExists(record);
 
-    const payload = await this.workerAttendance.generateWageRecord(
-      record.storedPath,
-      join(this.storageRoot, 'attendance_imports', id),
-    );
     const generatedById = auditUserId(actor);
+    let payload: WorkerWagePayload;
+    try {
+      payload = await this.workerAttendance.generateWageRecord(
+        record.storedPath,
+        join(this.storageRoot, 'attendance_imports', id),
+      );
+    } catch (error) {
+      const failed = await this.recordGeneratedFile({
+        attendanceImportId: id,
+        fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
+        storagePath: this.failureStoragePath(record),
+        mimeType: 'application/vnd.ms-excel',
+        generatedById,
+        status: GeneratedFileStatus.FAILED,
+        errorMessage: this.errorMessage(error),
+      });
+
+      throw new InternalServerErrorException({
+        code: 'WAGE_RECORD_GENERATION_FAILED',
+        message: 'The wage record worker could not complete.',
+        details: {
+          generatedFile: this.toGeneratedFileResponse(failed),
+          taskReport: null,
+          warnings: [],
+          errors: [
+            {
+              code: 'WAGE_RECORD_WORKER_INVOCATION_FAILED',
+              message: this.errorMessage(error),
+            },
+          ],
+        },
+      });
+    }
     const errors = this.issueArray(payload.errors);
     const warnings = this.issueArray(payload.warnings);
     const wageRecordPath = this.stringOrNull(payload.wage_record_path);
@@ -505,6 +535,44 @@ export class AttendanceService {
         attendanceImport: result.attendanceImport,
         warnings: result.warnings,
         errors: result.errors,
+      },
+    });
+  }
+
+  private assertReadyForWageGeneration(record: AttendanceImportRecord): void {
+    const parsedWithoutErrors =
+      (record.parseStatus === ParseStatus.PARSED ||
+        record.parseStatus === ParseStatus.WARNING) &&
+      record.errorCount === 0;
+
+    if (parsedWithoutErrors) {
+      return;
+    }
+
+    if (
+      record.parseStatus === ParseStatus.NOT_PARSED ||
+      record.parseStatus === ParseStatus.PARSING
+    ) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_IMPORT_NOT_PARSED',
+        message:
+          'Attendance import must be parsed before generating a wage record.',
+        details: {
+          attendanceImportId: record.id,
+          parseStatus: record.parseStatus,
+        },
+      });
+    }
+
+    throw new BadRequestException({
+      code: 'ATTENDANCE_IMPORT_HAS_PARSE_ERRORS',
+      message:
+        'Attendance import has parser errors and cannot generate a wage record.',
+      details: {
+        attendanceImportId: record.id,
+        parseStatus: record.parseStatus,
+        errorCount: record.errorCount,
+        errorMessage: record.errorMessage,
       },
     });
   }

@@ -29,7 +29,7 @@ def generate_wage_html_task_report(
 ) -> WageTaskReportResult:
     generated_at = generated_at or operational_now()
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"wage-task-report-{generated_at.date().isoformat()}.html"
+    output_path = output_dir / f"wage-task-report-{_timestamp(generated_at)}.html"
     warnings = list(attendance_result.warnings)
     errors = list(attendance_result.errors)
     if generation_result is not None:
@@ -189,3 +189,7 @@ def _task_status(warnings: tuple[WageIssue, ...], errors: tuple[WageIssue, ...])
     if warnings:
         return "WARNING"
     return "SUCCESS"
+
+
+def _timestamp(value: datetime) -> str:
+    return value.strftime("%Y%m%dT%H%M%S%f")

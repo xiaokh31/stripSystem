@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { mkdtemp, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { App } from 'supertest/types';
@@ -13,6 +14,8 @@ import {
   installAuthMock,
   officeAuthHeader,
 } from './auth-test-helpers';
+
+jest.setTimeout(30_000);
 
 interface AttendanceImportRecord {
   id: string;
@@ -124,6 +127,35 @@ interface WageGeneratedFilesBody {
   }>;
 }
 
+interface GenerateWageRecordBody {
+  generatedFile: {
+    id: string;
+    attendanceImportId: string | null;
+    fileType: string;
+    storagePath: string;
+    fileSha256: string | null;
+    fileSizeBytes: string | null;
+    status: string;
+    errorMessage: string | null;
+  };
+  taskReport: {
+    id: string;
+    attendanceImportId: string | null;
+    fileType: string;
+    storagePath: string;
+    fileSha256: string | null;
+    fileSizeBytes: string | null;
+    status: string;
+    errorMessage: string | null;
+  } | null;
+  warnings: unknown[];
+  errors: unknown[];
+}
+
+interface ErrorBody {
+  code: string;
+}
+
 interface FindUniqueArgs {
   where: {
     id?: string;
@@ -156,6 +188,15 @@ describe('AttendanceImportsController (e2e)', () => {
     'samples',
     'wage',
     'workAttendanceRecordForm_June.xls',
+  );
+  const wageTemplatePath = resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'samples',
+    'wage',
+    '20260601-0630_wageRecords.xls',
   );
 
   let app: INestApplication<App>;
@@ -314,6 +355,121 @@ describe('AttendanceImportsController (e2e)', () => {
     expect(attendanceRows).toHaveLength(390);
     expect(new Set(attendanceRows.map((row) => row.rowKey)).size).toBe(390);
     expect(wageGeneratedFiles).toHaveLength(4);
+    expect(
+      new Set(
+        wageGeneratedFiles
+          .filter((file) => file.fileType === 'TASK_REPORT_HTML')
+          .map((file) => file.storagePath),
+      ).size,
+    ).toBe(2);
+  });
+
+  it('blocks wage record generation until attendance parse has completed', async () => {
+    const uploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as AttendanceImportBody;
+
+    await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
+      .expect(400)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe(
+          'ATTENDANCE_IMPORT_NOT_PARSED',
+        );
+      });
+
+    expect(wageGeneratedFiles).toHaveLength(0);
+  });
+
+  it('generates and downloads a real wage record from a parsed attendance import without modifying the template', async () => {
+    const templateSha256Before = await fileSha256(wageTemplatePath);
+    const uploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as AttendanceImportBody;
+    await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
+      .expect(201);
+
+    const generated = await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
+      .expect(201);
+    const generatedBody = generated.body as GenerateWageRecordBody;
+
+    expect(generatedBody.generatedFile).toMatchObject({
+      attendanceImportId: uploadedBody.id,
+      fileType: 'WAGE_RECORD_XLS',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(generatedBody.generatedFile.storagePath).toMatch(/\.xls$/);
+    expect(generatedBody.generatedFile.fileSha256).toEqual(expect.any(String));
+    expect(Number(generatedBody.generatedFile.fileSizeBytes)).toBeGreaterThan(
+      0,
+    );
+    await expect(
+      stat(generatedBody.generatedFile.storagePath),
+    ).resolves.toBeDefined();
+    expect(generatedBody.taskReport).toMatchObject({
+      attendanceImportId: uploadedBody.id,
+      fileType: 'TASK_REPORT_HTML',
+      status: 'GENERATED',
+      errorMessage: null,
+    });
+    expect(generatedBody.warnings.length).toBeGreaterThan(0);
+    expect(generatedBody.errors).toEqual([]);
+    expect(await fileSha256(wageTemplatePath)).toBe(templateSha256Before);
+
+    const wageRecord = wageGeneratedFiles.find(
+      (file) => file.id === generatedBody.generatedFile.id,
+    );
+    expect(wageRecord).toMatchObject({
+      fileType: 'WAGE_RECORD_XLS',
+      status: 'GENERATED',
+      generatedById: 'auth-office',
+    });
+
+    const files = await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/attendance-imports/${uploadedBody.id}/files`)
+      .expect(200);
+    const filesBody = files.body as WageGeneratedFilesBody;
+    expect(filesBody.items.map((file) => file.fileType).sort()).toEqual([
+      'ATTENDANCE_PARSED_JSON',
+      'TASK_REPORT_HTML',
+      'TASK_REPORT_HTML',
+      'WAGE_RECORD_XLS',
+    ]);
+    expect(
+      new Set(
+        filesBody.items
+          .filter((file) => file.fileType === 'TASK_REPORT_HTML')
+          .map((file) => file.storagePath),
+      ).size,
+    ).toBe(2);
+
+    await authorizedRequest(app, officeAuthHeader())
+      .get(
+        `/api/attendance-imports/${uploadedBody.id}/files/${generatedBody.generatedFile.id}/download`,
+      )
+      .expect(200)
+      .expect((response) => {
+        expect(response.headers['content-type']).toContain(
+          'application/vnd.ms-excel',
+        );
+        expect(Number(response.headers['content-length'])).toBeGreaterThan(0);
+      });
+
+    await authorizedRequest(app, officeAuthHeader())
+      .get(
+        `/api/attendance-imports/${uploadedBody.id}/files/${generatedBody.taskReport!.id}/download`,
+      )
+      .expect(200)
+      .expect((response) => {
+        expect(response.text).toContain('Generated wage record:');
+      });
   });
 
   function createPrismaMock(
@@ -482,5 +638,11 @@ describe('AttendanceImportsController (e2e)', () => {
     prismaMock.$transaction = jest.fn((callback) => callback(prismaMock));
 
     return prismaMock;
+  }
+
+  async function fileSha256(path: string): Promise<string> {
+    return createHash('sha256')
+      .update(await readFile(path))
+      .digest('hex');
   }
 });

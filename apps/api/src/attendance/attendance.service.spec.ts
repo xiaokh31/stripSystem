@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
@@ -409,6 +413,7 @@ describe('AttendanceService', () => {
   it('records generated wage record and task report files', async () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
+    markParsedImport();
     const wageRecordPath = join(storageRoot, 'wage-record.xls');
     const taskReportPath = join(storageRoot, 'wage-report.html');
     await writeFile(wageRecordPath, 'xls', 'utf8');
@@ -435,11 +440,17 @@ describe('AttendanceService', () => {
       fileType: 'TASK_REPORT_HTML',
       storagePath: taskReportPath,
     });
+    expect(generatedFiles).toHaveLength(2);
+    expect(generatedFiles[0]).toMatchObject({
+      generatedById: 'auth-office',
+      status: 'GENERATED',
+    });
   });
 
   it('downloads a generated attendance wage file', async () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
+    markParsedImport();
     const wageRecordPath = join(storageRoot, 'wage-record.xls');
     const taskReportPath = join(storageRoot, 'wage-report.html');
     await writeFile(wageRecordPath, 'download xls', 'utf8');
@@ -460,6 +471,65 @@ describe('AttendanceService', () => {
     expect(download.filename).toBe('wage-record.xls');
     expect(download.buffer.toString()).toBe('download xls');
     expect(download.mimeType).toBe('application/vnd.ms-excel');
+  });
+
+  it('rejects wage record generation before the attendance import has been parsed', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'ATTENDANCE_IMPORT_NOT_PARSED',
+      },
+    });
+
+    expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
+    expect(generatedFiles).toHaveLength(0);
+  });
+
+  it('rejects wage record generation when parser errors are recorded', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    Object.assign(importRecord, {
+      parseStatus: 'ERROR',
+      errorCount: 1,
+      errorMessage: 'Parser failed.',
+    });
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'ATTENDANCE_IMPORT_HAS_PARSE_ERRORS',
+      },
+    });
+
+    expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
+    expect(generatedFiles).toHaveLength(0);
+  });
+
+  it('records a failed wage generated file when the worker invocation fails', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    markParsedImport();
+    workerAttendance.generateWageRecord.mockRejectedValue(
+      new Error('worker crashed'),
+    );
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+
+    expect(generatedFiles).toHaveLength(1);
+    expect(generatedFiles[0]).toMatchObject({
+      attendanceImportId: importRecord.id,
+      fileType: 'WAGE_RECORD_XLS',
+      status: 'FAILED',
+      errorMessage: 'worker crashed',
+      generatedById: 'auth-office',
+    });
   });
 
   async function loadFixtureFile(): Promise<Express.Multer.File> {
@@ -532,5 +602,20 @@ describe('AttendanceService', () => {
       warnings: [{ code: 'UNMATCHED', message: 'One unmatched employee.' }],
       errors: [],
     };
+  }
+
+  function markParsedImport(): void {
+    Object.assign(importRecord, {
+      parseStatus: 'WARNING',
+      parserVersion: 'wage-attendance-v1',
+      settlementMonth: '2026-06',
+      periodStart: new Date('2026-06-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-06-30T00:00:00.000Z'),
+      employeeCount: 1,
+      dayCount: 1,
+      warningCount: 1,
+      errorCount: 0,
+      errorMessage: null,
+    });
   }
 });

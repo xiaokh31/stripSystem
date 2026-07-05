@@ -369,6 +369,13 @@
               <td>继续 WAGE-P1-03：wage record generation API；不进入 Web UI。</td>
             </tr>
             <tr>
+              <td>Stage 1.2: WAGE-P1-03 Wage Record Generation API</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P1-03</td>
+              <td>`POST /api/attendance-imports/:id/generate-wage-record` 已要求 attendance import 先完成 parse 且无 parser errors；真实 fixture 可从 `samples/wage/20260601-0630_wageRecords.xls` 模板生成 wage record `.xls`，模板 SHA-256 保持不变；WAGE_RECORD_XLS 和 TASK_REPORT_HTML 均记录 storage path、SHA-256、mime type、file size、generatedBy，并可通过 `/files/:fileId/download` 下载；重复生成保留新的 generated file 历史记录，task report 使用唯一时间戳文件名避免覆盖；worker invocation failure 会写入 FAILED wage generated file 并返回明确 API 错误。</td>
+              <td>WAGE-P1 API 阶段已覆盖 upload、parse、wage record generation、generated files 和权限；下一步进入 WAGE-P2 HR Work Hours Settlement Web 页面。</td>
+            </tr>
+            <tr>
               <td>Stage 1: Schema / Migration / Permissions</td>
               <td><span class="badge done">Done</span></td>
               <td>25%</td>
