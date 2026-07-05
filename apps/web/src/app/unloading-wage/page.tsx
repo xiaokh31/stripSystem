@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { SettlementGeneratePanel } from "@/components/wage/unloading-wage-actions";
 import {
-  CompletePayContainerPanel,
-  CreatePayContainerPanel,
-  SettlementGeneratePanel,
-} from "@/components/wage/unloading-wage-actions";
+  selectSettlementForMonth,
+  settlementLineContainerNumbers,
+  settlementReviewAlerts,
+  settlementsForMonth,
+} from "@/components/wage/unloading-wage-flow";
 import {
   formatDateTime,
   formatMoney,
-  formatUnknownList,
   issueList,
   statusStyle,
 } from "@/components/wage/wage-display";
@@ -29,11 +30,12 @@ interface UnloadingWageSearchParams {
 }
 
 interface UnloadingWageState {
-  payContainers: PayContainerResponse[];
-  payContainersError: ApiClientError | null;
+  monthSettlements: UnloadingWageSettlementResponse[];
+  reviewAlerts: string[];
   selectedSettlement: UnloadingWageSettlementResponse | null;
-  settlements: UnloadingWageSettlementResponse[];
   settlementsError: ApiClientError | null;
+  sourceRecords: PayContainerResponse[];
+  sourceRecordsError: ApiClientError | null;
 }
 
 export default async function UnloadingWagePage({
@@ -62,8 +64,8 @@ export default async function UnloadingWagePage({
               Warehouse Unloading Wage Settlement
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-              Review pay containers, complete unloading assignments, and
-              generate monthly worker settlement from the wage API.
+              Generate and review monthly worker settlement from completed
+              container detail unloading wage data.
             </p>
           </div>
           <Link
@@ -82,22 +84,19 @@ export default async function UnloadingWagePage({
         <SettlementMonthFilter settlementMonth={settlementMonth} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <CreatePayContainerPanel
-          defaultClassification="OCEAN_CONTAINER"
-          title="Create pay container by container ids"
-        />
-        <CompletePayContainerPanel title="Complete unloading by pay container id" />
-      </section>
-
-      {state.payContainersError ? (
+      {state.sourceRecordsError ? (
         <ApiErrorPanel
-          error={state.payContainersError}
-          title="Pay containers could not be loaded"
+          error={state.sourceRecordsError}
+          title="Completed unloading records could not be loaded"
         />
       ) : (
-        <PayContainerTable payContainers={state.payContainers} />
+        <MonthSourceRecords
+          settlementMonth={settlementMonth}
+          sourceRecords={state.sourceRecords}
+        />
       )}
+
+      <ReviewAlerts alerts={state.reviewAlerts} />
 
       {state.settlementsError ? (
         <ApiErrorPanel
@@ -106,17 +105,15 @@ export default async function UnloadingWagePage({
         />
       ) : (
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <SettlementHistory
+          <SettlementVersions
             selectedSettlementId={state.selectedSettlement?.id ?? null}
             settlementMonth={settlementMonth}
-            settlements={state.settlements}
+            settlements={state.monthSettlements}
           />
           {state.selectedSettlement ? (
             <SettlementDetail settlement={state.selectedSettlement} />
           ) : (
-            <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
-              No settlement is selected for review.
-            </section>
+            <NoSettlementSelected settlementMonth={settlementMonth} />
           )}
         </section>
       )}
@@ -129,34 +126,40 @@ async function loadUnloadingWageState(
   requestedSettlementId: string | null,
 ): Promise<UnloadingWageState> {
   const apiOptions = await getServerApiOptions();
-  const [payContainersResult, settlementsResult] = await Promise.allSettled([
-    listPayContainers({ limit: 50, offset: 0 }, apiOptions),
+  const [sourceRecordsResult, settlementsResult] = await Promise.allSettled([
+    listPayContainers({ limit: 100, offset: 0, settlementMonth }, apiOptions),
     listUnloadingWageSettlements(apiOptions),
   ]);
   const settlements =
     settlementsResult.status === "fulfilled"
       ? settlementsResult.value.items
       : [];
-  const selectedSettlement =
-    settlements.find((item) => item.id === requestedSettlementId) ??
-    settlements.find((item) => item.settlementMonth === settlementMonth) ??
-    settlements[0] ??
-    null;
 
   return {
-    payContainers:
-      payContainersResult.status === "fulfilled"
-        ? payContainersResult.value.items
-        : [],
-    payContainersError:
-      payContainersResult.status === "rejected"
-        ? toApiClientError(payContainersResult.reason, "Pay container list failed.")
+    monthSettlements: settlementsForMonth(settlements, settlementMonth),
+    reviewAlerts: settlementReviewAlerts(settlements, settlementMonth),
+    selectedSettlement:
+      settlementsResult.status === "fulfilled"
+        ? selectSettlementForMonth(
+            settlements,
+            settlementMonth,
+            requestedSettlementId,
+          )
         : null,
-    selectedSettlement,
-    settlements,
     settlementsError:
       settlementsResult.status === "rejected"
         ? toApiClientError(settlementsResult.reason, "Settlement list failed.")
+        : null,
+    sourceRecords:
+      sourceRecordsResult.status === "fulfilled"
+        ? sourceRecordsResult.value.items
+        : [],
+    sourceRecordsError:
+      sourceRecordsResult.status === "rejected"
+        ? toApiClientError(
+            sourceRecordsResult.reason,
+            "Completed unloading record list failed.",
+          )
         : null,
   };
 }
@@ -192,47 +195,65 @@ function SettlementMonthFilter({
   );
 }
 
-function PayContainerTable({
-  payContainers,
+function MonthSourceRecords({
+  settlementMonth,
+  sourceRecords,
 }: {
-  payContainers: PayContainerResponse[];
+  settlementMonth: string;
+  sourceRecords: PayContainerResponse[];
 }) {
-  if (payContainers.length === 0) {
+  if (sourceRecords.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
         <h2 className="text-base font-semibold text-zinc-950">
-          No pay containers
+          No completed unloading records for {settlementMonth}
         </h2>
-        <p className="mt-2 max-w-2xl leading-6">
-          Create pay containers from reviewed container records before monthly
-          settlement.
+        <p className="mt-2 max-w-3xl leading-6">
+          Mark container detail unloading as completed, assign unloaders, and
+          make sure the completed date falls inside this month before
+          generating settlement.
         </p>
       </section>
     );
   }
 
+  const workerNames = new Set(
+    sourceRecords.flatMap((record) =>
+      record.unloaders.map((unloader) => unloader.workerName),
+    ),
+  );
+  const currency = sourceRecords[0]?.currency ?? "CAD";
+  const rateTotal = sourceRecords.reduce(
+    (total, record) => total + finiteMoney(record.rateAmount),
+    0,
+  );
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Pay containers
+            Completed unloading source records
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Recent pay units from the unloading wage API.
+            Read-only source records for {settlementMonth} from container detail
+            wage data.
           </p>
         </div>
-        <p className="text-xs font-medium text-zinc-500">
-          {payContainers.length} pay container(s)
-        </p>
+        <div className="grid grid-cols-3 gap-2 text-right text-sm">
+          <Metric label="Paid units" value={String(sourceRecords.length)} />
+          <Metric label="Workers" value={String(workerNames.size)} />
+          <Metric label="Rate total" value={formatMoney(rateTotal, currency)} />
+        </div>
       </div>
+
       <div className="mt-5 overflow-x-auto">
-        <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1120px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="px-3 py-3 font-semibold">Pay container</th>
+              <th className="px-3 py-3 font-semibold">Paid unit</th>
               <th className="px-3 py-3 font-semibold">Status</th>
-              <th className="px-3 py-3 font-semibold">Classification</th>
+              <th className="px-3 py-3 font-semibold">Work type</th>
               <th className="px-3 py-3 font-semibold">Containers</th>
               <th className="px-3 py-3 font-semibold">Completed</th>
               <th className="px-3 py-3 text-right font-semibold">Rate</th>
@@ -240,30 +261,27 @@ function PayContainerTable({
             </tr>
           </thead>
           <tbody>
-            {payContainers.map((payContainer) => (
-              <tr
-                className="border-b border-zinc-100 align-top"
-                key={payContainer.id}
-              >
+            {sourceRecords.map((record) => (
+              <tr className="border-b border-zinc-100 align-top" key={record.id}>
                 <td className="px-3 py-4">
                   <p className="break-all font-semibold text-zinc-950">
-                    {payContainer.payContainerNo}
+                    {record.payContainerNo}
                   </p>
-                  <p className="mt-1 break-all text-xs text-zinc-500">
-                    {payContainer.id}
-                  </p>
-                </td>
-                <td className="px-3 py-4">
-                  <StatusBadge status={payContainer.status} />
-                </td>
-                <td className="px-3 py-4">
-                  <p>{payContainer.classification}</p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {payContainer.trailerNumber ?? "-"}
+                    {allocationMethodLabel(record.allocationMethod)}
                   </p>
                 </td>
                 <td className="px-3 py-4">
-                  {payContainer.containers.map((container) => (
+                  <StatusBadge status={record.status} />
+                </td>
+                <td className="px-3 py-4">
+                  <p>{classificationLabel(record.classification)}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Trailer: {record.trailerNumber ?? "-"}
+                  </p>
+                </td>
+                <td className="px-3 py-4">
+                  {record.containers.map((container) => (
                     <Link
                       className="block font-semibold text-teal-700 underline hover:text-teal-900"
                       href={`/containers/${container.containerId}`}
@@ -274,19 +292,16 @@ function PayContainerTable({
                   ))}
                 </td>
                 <td className="px-3 py-4">
-                  {formatDateTime(payContainer.completedAt)}
+                  {formatDateTime(record.completedAt)}
                 </td>
                 <td className="px-3 py-4 text-right font-semibold">
-                  {formatMoney(payContainer.rateAmount, payContainer.currency)}
+                  {formatMoney(record.rateAmount, record.currency)}
                 </td>
                 <td className="px-3 py-4">
-                  {payContainer.unloaders.length === 0
+                  {record.unloaders.length === 0
                     ? "-"
-                    : payContainer.unloaders
-                        .map(
-                          (unloader) =>
-                            `${unloader.workerName} (${unloader.workerCode})`,
-                        )
+                    : record.unloaders
+                        .map((unloader) => unloader.workerName)
                         .join(", ")}
                 </td>
               </tr>
@@ -298,7 +313,27 @@ function PayContainerTable({
   );
 }
 
-function SettlementHistory({
+function ReviewAlerts({ alerts }: { alerts: string[] }) {
+  if (alerts.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm"
+      role="alert"
+    >
+      <h2 className="text-base font-semibold">Settlement review warning</h2>
+      <ul className="mt-2 space-y-1">
+        {alerts.map((alert) => (
+          <li key={alert}>{alert}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function SettlementVersions({
   selectedSettlementId,
   settlementMonth,
   settlements,
@@ -310,11 +345,11 @@ function SettlementHistory({
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Settlement history
+        Settlement versions
       </h2>
       {settlements.length === 0 ? (
         <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-          No unloading wage settlements generated yet.
+          No settlement has been generated for {settlementMonth}.
         </p>
       ) : (
         <div className="mt-4 grid gap-3">
@@ -350,6 +385,25 @@ function SettlementHistory({
   );
 }
 
+function NoSettlementSelected({
+  settlementMonth,
+}: {
+  settlementMonth: string;
+}) {
+  return (
+    <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
+      <h2 className="text-base font-semibold text-zinc-950">
+        No settlement selected for {settlementMonth}
+      </h2>
+      <p className="mt-2 max-w-2xl leading-6">
+        Generate the selected month after reviewing completed unloading source
+        records. Generated JSON and HTML task report files will appear in the
+        settlement detail.
+      </p>
+    </section>
+  );
+}
+
 function SettlementDetail({
   settlement,
 }: {
@@ -370,7 +424,7 @@ function SettlementDetail({
             </h2>
             <p className="mt-2 text-sm text-zinc-600">
               {settlement.workers.length} worker(s), {settlement.lines.length}{" "}
-              allocation line(s)
+              detail line(s)
             </p>
           </div>
           <div className="text-right">
@@ -396,87 +450,124 @@ function SettlementDetail({
         <h3 className="text-base font-semibold text-zinc-950">
           Worker summary
         </h3>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[620px] w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                <th className="px-3 py-3 font-semibold">Worker</th>
-                <th className="px-3 py-3 text-right font-semibold">
-                  Pay containers
-                </th>
-                <th className="px-3 py-3 text-right font-semibold">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {settlement.workers.map((worker) => (
-                <tr className="border-b border-zinc-100" key={worker.id}>
-                  <td className="px-3 py-3">
-                    <p className="font-semibold text-zinc-950">
-                      {worker.workerName}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {worker.workerCode}
-                    </p>
-                  </td>
-                  <td className="px-3 py-3 text-right font-medium">
-                    {worker.payContainerCount}
-                  </td>
-                  <td className="px-3 py-3 text-right font-semibold">
-                    {formatMoney(worker.totalAmount, settlement.currency)}
-                  </td>
+        {settlement.workers.length === 0 ? (
+          <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
+            No worker wage summary is recorded for this settlement.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-[720px] w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <th className="px-3 py-3 font-semibold">Worker</th>
+                  <th className="px-3 py-3 text-right font-semibold">
+                    Paid units
+                  </th>
+                  <th className="px-3 py-3 text-right font-semibold">
+                    Wage amount
+                  </th>
+                  <th className="px-3 py-3 font-semibold">Review status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {settlement.workers.map((worker) => (
+                  <tr className="border-b border-zinc-100" key={worker.id}>
+                    <td className="px-3 py-3">
+                      <p className="font-semibold text-zinc-950">
+                        {worker.workerName}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {worker.workerCode}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3 text-right font-medium">
+                      {worker.payContainerCount}
+                    </td>
+                    <td className="px-3 py-3 text-right font-semibold">
+                      {formatMoney(worker.totalAmount, settlement.currency)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <StatusBadge status={settlement.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
-          Settlement detail rows
+          Monthly detail
         </h3>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[1040px] w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                <th className="px-3 py-3 font-semibold">Worker</th>
-                <th className="px-3 py-3 font-semibold">Pay container</th>
-                <th className="px-3 py-3 font-semibold">Classification</th>
-                <th className="px-3 py-3 font-semibold">Containers</th>
-                <th className="px-3 py-3 text-right font-semibold">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {settlement.lines.map((line) => (
-                <tr className="border-b border-zinc-100" key={line.id}>
-                  <td className="px-3 py-3">
-                    <p className="font-semibold text-zinc-950">
-                      {line.workerName}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {line.workerCode}
-                    </p>
-                  </td>
-                  <td className="px-3 py-3 font-medium">
-                    {line.payContainerNo}
-                  </td>
-                  <td className="px-3 py-3">
-                    <p>{line.classification}</p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {line.trailerNumber ?? "-"}
-                    </p>
-                  </td>
-                  <td className="px-3 py-3">
-                    {formatUnknownList(line.containerNumbers)}
-                  </td>
-                  <td className="px-3 py-3 text-right font-semibold">
-                    {formatMoney(line.amount, settlement.currency)}
-                  </td>
+        {settlement.lines.length === 0 ? (
+          <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
+            No settlement detail lines are recorded for this settlement.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <th className="px-3 py-3 font-semibold">Paid work</th>
+                  <th className="px-3 py-3 font-semibold">
+                    Associated containers
+                  </th>
+                  <th className="px-3 py-3 font-semibold">Completed date</th>
+                  <th className="px-3 py-3 text-right font-semibold">Rate</th>
+                  <th className="px-3 py-3 font-semibold">Unloader</th>
+                  <th className="px-3 py-3 font-semibold">Allocation</th>
+                  <th className="px-3 py-3 text-right font-semibold">
+                    Worker amount
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {settlement.lines.map((line) => (
+                  <tr className="border-b border-zinc-100 align-top" key={line.id}>
+                    <td className="px-3 py-3">
+                      <p className="font-semibold text-zinc-950">
+                        {settlementLineWorkUnit(line)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {classificationLabel(line.classification)}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3">
+                      {settlementLineContainerNumbers(line.containerNumbers)
+                        .length > 0
+                        ? settlementLineContainerNumbers(
+                            line.containerNumbers,
+                          ).join(", ")
+                        : "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      {formatDateTime(line.completedAt)}
+                    </td>
+                    <td className="px-3 py-3 text-right font-semibold">
+                      {formatMoney(line.rateAmount, settlement.currency)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <p className="font-semibold text-zinc-950">
+                        {line.workerName}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {line.workerCode}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3">
+                      {allocationMethodLabel(line.allocationMethod)}
+                    </td>
+                    <td className="px-3 py-3 text-right font-semibold">
+                      {formatMoney(line.amount, settlement.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
@@ -492,9 +583,14 @@ function SettlementDetail({
             {settlement.generatedFiles.map((file) => (
               <div className="border border-zinc-200 bg-zinc-50 p-3" key={file.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <p className="text-sm font-semibold text-zinc-950">
-                    {file.fileType}
-                  </p>
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-950">
+                      {wageFileTypeLabel(file.fileType)}
+                    </p>
+                    <p className="mt-1 break-all text-xs text-zinc-500">
+                      {file.fileSha256 ?? "No SHA-256 recorded"}
+                    </p>
+                  </div>
                   <StatusBadge status={file.status} />
                 </div>
                 {file.status === "GENERATED" ? (
@@ -514,6 +610,15 @@ function SettlementDetail({
         )}
       </section>
     </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-24 border border-zinc-200 bg-zinc-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-zinc-500">{label}</p>
+      <p className="mt-1 font-semibold text-zinc-950">{value}</p>
+    </div>
   );
 }
 
@@ -547,6 +652,57 @@ function ApiErrorPanel({
       </p>
     </section>
   );
+}
+
+type SettlementLine = UnloadingWageSettlementResponse["lines"][number];
+
+function settlementLineWorkUnit(line: SettlementLine): string {
+  if (line.classification === "US_TO_CANADA_TRANSFER") {
+    return line.trailerNumber ?? line.payContainerNo;
+  }
+
+  return (
+    settlementLineContainerNumbers(line.containerNumbers)[0] ??
+    line.payContainerNo
+  );
+}
+
+function classificationLabel(value: string): string {
+  if (value === "OCEAN_CONTAINER") {
+    return "Ocean container";
+  }
+  if (value === "US_TO_CANADA_TRANSFER") {
+    return "US-to-Canada transfer";
+  }
+  return value;
+}
+
+function allocationMethodLabel(value: string): string {
+  if (value === "EQUAL_SPLIT") {
+    return "Equal split";
+  }
+  if (value === "MANUAL_AMOUNT") {
+    return "Manual amount";
+  }
+  if (value === "MANUAL_PERCENT") {
+    return "Manual percent";
+  }
+  return value;
+}
+
+function wageFileTypeLabel(value: string): string {
+  if (value.includes("JSON")) {
+    return "Settlement JSON";
+  }
+  if (value.includes("HTML")) {
+    return "HTML task report";
+  }
+  return value;
+}
+
+function finiteMoney(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function firstSearchValue(value: string | string[] | undefined): string | null {

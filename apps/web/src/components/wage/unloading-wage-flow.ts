@@ -3,6 +3,7 @@ import type {
   ContainerPayClassification,
   CreatePayContainerRequest,
   PayAllocationMethod,
+  UnloadingWageSettlementResponse,
 } from "@/lib/api-client";
 
 export interface CreatePayContainerDraft {
@@ -32,6 +33,90 @@ export interface CompletePayContainerDraft {
 export type BuildResult<TPayload> =
   | { ok: true; payload: TPayload }
   | { error: string; ok: false };
+
+export function selectSettlementForMonth(
+  settlements: UnloadingWageSettlementResponse[],
+  settlementMonth: string,
+  requestedSettlementId: string | null,
+): UnloadingWageSettlementResponse | null {
+  const monthSettlements = settlements.filter(
+    (settlement) => settlement.settlementMonth === settlementMonth,
+  );
+  const requested = requestedSettlementId
+    ? monthSettlements.find((settlement) => settlement.id === requestedSettlementId)
+    : null;
+  if (requested) {
+    return requested;
+  }
+
+  return (
+    monthSettlements.find((settlement) => isSettlementStatus(settlement, "GENERATED")) ??
+    monthSettlements.find((settlement) =>
+      isSettlementStatus(settlement, "NEEDS_REVIEW"),
+    ) ??
+    monthSettlements.find(
+      (settlement) => !isSettlementStatus(settlement, "SUPERSEDED"),
+    ) ??
+    monthSettlements[0] ??
+    null
+  );
+}
+
+export function settlementsForMonth(
+  settlements: UnloadingWageSettlementResponse[],
+  settlementMonth: string,
+): UnloadingWageSettlementResponse[] {
+  return settlements.filter(
+    (settlement) => settlement.settlementMonth === settlementMonth,
+  );
+}
+
+export function settlementReviewAlerts(
+  settlements: UnloadingWageSettlementResponse[],
+  settlementMonth: string,
+): string[] {
+  const monthSettlements = settlementsForMonth(settlements, settlementMonth);
+  const needsReviewCount = monthSettlements.filter((settlement) =>
+    isSettlementStatus(settlement, "NEEDS_REVIEW"),
+  ).length;
+  const supersededCount = monthSettlements.filter((settlement) =>
+    isSettlementStatus(settlement, "SUPERSEDED"),
+  ).length;
+  const alerts: string[] = [];
+
+  if (needsReviewCount > 0) {
+    alerts.push(
+      `${needsReviewCount} settlement version(s) for ${settlementMonth} need review because source unloading wage data changed after generation.`,
+    );
+  }
+  if (supersededCount > 0) {
+    alerts.push(
+      `${supersededCount} older settlement version(s) for ${settlementMonth} were superseded by regeneration.`,
+    );
+  }
+
+  return alerts;
+}
+
+export function settlementLineContainerNumbers(input: unknown): string[] {
+  if (Array.isArray(input)) {
+    return input.map((item) => String(item)).filter(Boolean);
+  }
+  if (typeof input === "string") {
+    return input
+      .split(/[,+\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function isSettlementStatus(
+  settlement: UnloadingWageSettlementResponse,
+  status: string,
+): boolean {
+  return settlement.status.toUpperCase() === status;
+}
 
 export function parseContainerIds(value: string): string[] {
   return value

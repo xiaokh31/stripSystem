@@ -744,6 +744,7 @@ export const enMessages = {
   "Allocation amount and percent must be 0 or greater.":
     "Allocation amount and percent must be 0 or greater.",
   "Allocation method": "Allocation method",
+  "Associated containers": "Associated containers",
   "Attendance imports": "Attendance imports",
   "Attendance imports could not be loaded":
     "Attendance imports could not be loaded",
@@ -759,10 +760,14 @@ export const enMessages = {
   "Complete unloading for pay container":
     "Complete unloading for pay container",
   "Completed at": "Completed at",
+  "Completed date": "Completed date",
   "Completed date and time are required.":
     "Completed date and time are required.",
   "Completed date and time must be valid.":
     "Completed date and time must be valid.",
+  "Completed unloading records could not be loaded":
+    "Completed unloading records could not be loaded",
+  "Completed unloading source records": "Completed unloading source records",
   "Completing unloading.": "Completing unloading.",
   "Completion note": "Completion note",
   "Container IDs": "Container IDs",
@@ -785,30 +790,46 @@ export const enMessages = {
   "Equal split": "Equal split",
   "Files could not be loaded": "Files could not be loaded",
   "Generate monthly settlement": "Generate monthly settlement",
+  "Generate and review monthly worker settlement from completed container detail unloading wage data.":
+    "Generate and review monthly worker settlement from completed container detail unloading wage data.",
+  "Generate the selected month after reviewing completed unloading source records. Generated JSON and HTML task report files will appear in the settlement detail.":
+    "Generate the selected month after reviewing completed unloading source records. Generated JSON and HTML task report files will appear in the settlement detail.",
   "Generate settlement": "Generate settlement",
   "Generate wage record": "Generate wage record",
   "Generated settlement files": "Generated settlement files",
   "Generating unloading wage settlement.":
     "Generating unloading wage settlement.",
   "Generating wage record workbook.": "Generating wage record workbook.",
+  "HTML task report": "HTML task report",
   "HR Work Hours Settlement": "HR Work Hours Settlement",
+  "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.":
+    "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.",
   "Manual amount": "Manual amount",
   "Manual amount allocation requires every amount.":
     "Manual amount allocation requires every amount.",
   "Manual percent": "Manual percent",
   "Manual percent allocation requires every percent.":
     "Manual percent allocation requires every percent.",
+  "Monthly detail": "Monthly detail",
   "No attendance imports": "No attendance imports",
+  "No completed unloading records for": "No completed unloading records for",
   "No generated settlement files are recorded.":
     "No generated settlement files are recorded.",
   "No parsed rows are stored yet. Run Parse to populate employee-day rows.":
     "No parsed rows are stored yet. Run Parse to populate employee-day rows.",
   "No pay container has been created for": "No pay container has been created for",
   "No pay containers": "No pay containers",
+  "No SHA-256 recorded": "No SHA-256 recorded",
+  "No settlement detail lines are recorded for this settlement.":
+    "No settlement detail lines are recorded for this settlement.",
+  "No settlement has been generated for": "No settlement has been generated for",
   "No settlement is selected for review.":
     "No settlement is selected for review.",
+  "No settlement selected for": "No settlement selected for",
   "No unloading wage settlements generated yet.":
     "No unloading wage settlements generated yet.",
+  "No worker wage summary is recorded for this settlement.":
+    "No worker wage summary is recorded for this settlement.",
   "No wage files generated yet.": "No wage files generated yet.",
   "Not required": "Not required",
   "Ocean container": "Ocean container",
@@ -829,11 +850,16 @@ export const enMessages = {
   "Pay container links": "Pay container links",
   "Pay containers": "Pay containers",
   "Pay containers could not be loaded": "Pay containers could not be loaded",
+  "Paid unit": "Paid unit",
+  "Paid units": "Paid units",
+  "Paid work": "Paid work",
+  "Read-only source records for": "Read-only source records for",
   "Recent pay units from the unloading wage API.":
     "Recent pay units from the unloading wage API.",
   "Required for transfer": "Required for transfer",
   "Review issues": "Review issues",
   "Review month filter": "Review month filter",
+  "Review status": "Review status",
   "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.":
     "Review pay containers, complete unloading assignments, and generate monthly worker settlement from the wage API.",
   "Save classification": "Save classification",
@@ -849,13 +875,17 @@ export const enMessages = {
     "Select or upload an attendance import to review parsed rows.",
   "Settlement detail rows": "Settlement detail rows",
   "Settlement history": "Settlement history",
+  "Settlement JSON": "Settlement JSON",
   "Settlement month": "Settlement month",
   "Settlement month must use YYYY-MM.": "Settlement month must use YYYY-MM.",
+  "Settlement review warning": "Settlement review warning",
+  "Settlement versions": "Settlement versions",
   "Settlements could not be loaded": "Settlements could not be loaded",
   "Showing first 100 of": "Showing first 100 of",
   "Sign in before downloading generated wage files.":
     "Sign in before downloading generated wage files.",
   "Trailer number": "Trailer number",
+  "Trailer:": "Trailer:",
   "US-to-Canada transfer": "US-to-Canada transfer",
   "US-to-Canada transfer pay units require a trailer number.":
     "US-to-Canada transfer pay units require a trailer number.",
@@ -875,15 +905,20 @@ export const enMessages = {
     "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.",
   "Wage record generated. File history refreshed.":
     "Wage record generated. File history refreshed.",
+  "Wage amount": "Wage amount",
   "Warehouse Unloading Wage Settlement":
     "Warehouse Unloading Wage Settlement",
   "Work Hours": "Work Hours",
   "Work Hours Settlement": "Work Hours Settlement",
+  "Work type": "Work type",
+  "Worker amount": "Worker amount",
   "Worker code": "Worker code",
   "Worker name": "Worker name",
   "Worker summary": "Worker summary",
   "allocation line(s)": "allocation line(s)",
+  "detail line(s)": "detail line(s)",
   "employee(s)": "employee(s)",
+  "from container detail wage data.": "from container detail wage data.",
   "latest attendance workbook(s).": "latest attendance workbook(s).",
   "parsed rows.": "parsed rows.",
   "pay container(s)": "pay container(s)",

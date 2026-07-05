@@ -9,7 +9,11 @@ import {
   buildCompletePayContainerRequest,
   buildCreatePayContainerRequest,
   parseContainerIds,
+  selectSettlementForMonth,
+  settlementLineContainerNumbers,
+  settlementReviewAlerts,
 } from "../src/components/wage/unloading-wage-flow";
+import type { UnloadingWageSettlementResponse } from "../src/lib/api-client";
 
 test("attendance upload flow accepts only legacy xls files", () => {
   assert.equal(isAllowedLegacyXlsFile({ name: "workAttendance.xls" }), true);
@@ -95,3 +99,97 @@ test("complete unloading draft builds API payload", () => {
     assert.equal(result.payload.unloaders[1]?.note, "Lead");
   }
 });
+
+test("monthly settlement review selects the requested month version only", () => {
+  const settlements = [
+    settlementFixture({
+      id: "july-generated",
+      settlementMonth: "2026-07",
+      status: "GENERATED",
+    }),
+    settlementFixture({
+      id: "june-superseded",
+      settlementMonth: "2026-06",
+      status: "SUPERSEDED",
+    }),
+    settlementFixture({
+      id: "june-generated",
+      settlementMonth: "2026-06",
+      status: "GENERATED",
+    }),
+  ];
+
+  assert.equal(
+    selectSettlementForMonth(settlements, "2026-06", null)?.id,
+    "june-generated",
+  );
+  assert.equal(
+    selectSettlementForMonth(settlements, "2026-06", "june-superseded")?.id,
+    "june-superseded",
+  );
+  assert.equal(selectSettlementForMonth(settlements, "2026-05", null), null);
+});
+
+test("monthly settlement review alerts expose stale and superseded versions", () => {
+  const alerts = settlementReviewAlerts(
+    [
+      settlementFixture({
+        id: "needs-review",
+        settlementMonth: "2026-06",
+        status: "NEEDS_REVIEW",
+      }),
+      settlementFixture({
+        id: "superseded",
+        settlementMonth: "2026-06",
+        status: "SUPERSEDED",
+      }),
+      settlementFixture({
+        id: "other-month",
+        settlementMonth: "2026-07",
+        status: "NEEDS_REVIEW",
+      }),
+    ],
+    "2026-06",
+  );
+
+  assert.equal(alerts.length, 2);
+  assert.match(alerts[0] ?? "", /need review/);
+  assert.match(alerts[1] ?? "", /superseded/);
+});
+
+test("settlement detail parses associated container numbers for display", () => {
+  assert.deepEqual(settlementLineContainerNumbers(["ZCSU1", "TGBU2"]), [
+    "ZCSU1",
+    "TGBU2",
+  ]);
+  assert.deepEqual(settlementLineContainerNumbers("ZCSU1+TGBU2, MSKU3"), [
+    "ZCSU1",
+    "TGBU2",
+    "MSKU3",
+  ]);
+  assert.deepEqual(settlementLineContainerNumbers(null), []);
+});
+
+function settlementFixture(
+  input: Pick<
+    UnloadingWageSettlementResponse,
+    "id" | "settlementMonth" | "status"
+  >,
+): UnloadingWageSettlementResponse {
+  return {
+    id: input.id,
+    settlementMonth: input.settlementMonth,
+    status: input.status,
+    createdAt: "2026-06-30T20:00:00.000Z",
+    currency: "CAD",
+    errorCount: 0,
+    errors: [],
+    generatedFiles: [],
+    lines: [],
+    totalAmount: "0.00",
+    updatedAt: "2026-06-30T20:00:00.000Z",
+    warningCount: 0,
+    warnings: [],
+    workers: [],
+  };
+}
