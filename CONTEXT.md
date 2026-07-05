@@ -41,26 +41,32 @@ The monthly settlement that calculates unloading pay for warehouse workers from
 completed unloading work and the container pay classification.
 _Avoid_: Payroll, attendance wage record
 
-**Pay Container**:
-The unit counted for unloading pay settlement. For ocean containers it is one
-container number; for US-to-Canada transfer work it may be a grouped trailer
-work unit containing multiple imported or manually created container numbers.
-_Avoid_: Physical container, load job
+**Container Wage Tag**:
+The business tag shown on a container detail page that classifies the container
+as ocean container or US-to-Canada transfer for unloading wage settlement.
+_Avoid_: Destination type, source format, pallet label
 
 **Container Pay Classification**:
-The business category that determines the pay rate for a pay container.
-Current categories are ocean container and US-to-Canada transfer.
+The business category that determines the unloading pay rate. Current
+categories are ocean container and US-to-Canada transfer.
 _Avoid_: Destination type, source format
 
 **Trailer Number**:
-The trailer identifier required for US-to-Canada transfer pay containers.
+The trailer identifier required for US-to-Canada transfer containers.
 _Avoid_: Container number, truck number
 
+**Container Wage Association**:
+The relationship between container numbers that should be treated as one paid
+US-to-Canada transfer unit because they belong to the same trailer work.
+_Avoid_: Load job line, destination group
+
 **Unloading Completion**:
-The business state that marks a pay container as finished for unloading wage
-settlement. It is separate from pallet loading completion.
+The business state shown on container detail that marks the container or its
+US-to-Canada transfer association as finished for unloading wage settlement. It
+is separate from pallet loading completion.
 _Avoid_: Loaded, load job completed
 
 **Unloader Assignment**:
-The list of warehouse workers credited with unloading a pay container.
+The list of warehouse workers credited with unloading a container or associated
+US-to-Canada transfer group.
 _Avoid_: Scan operator, load job creator

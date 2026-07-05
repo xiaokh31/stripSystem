@@ -26,6 +26,8 @@ business file-processing risk is understood.
 - Identify required tests at the highest useful seam, especially parser,
   calculation, report generation, API contract, and page workflow tests.
 - Update the domain glossary when new business terms are resolved.
+- After completing each requirement plan, split the requirement into executable
+  development tasks and write those task prompts under `prompts/tasks/`.
 
 ## Responsibility Boundaries
 
@@ -77,3 +79,32 @@ Every planning document should include:
 - Testing decisions.
 - Open questions and assumptions.
 - Out-of-scope items.
+
+## Development Task Handoff Standard
+
+Every completed requirement must end with a development task handoff.
+
+Required behavior:
+
+- Break the requirement into independently executable tasks.
+- Prefer vertical slices when API, UI, storage, and tests are all needed.
+- Keep task order explicit by naming blockers and prerequisites.
+- Write each task as a separate Markdown file under `prompts/tasks/`.
+- Use task filenames that sort in execution order, for example
+  `FEATURE-01...md`, `FEATURE-02...md`, or a phase-specific prefix.
+- If `.gitignore` ignores the new task files, update the allowlist so the task
+  prompts can be tracked.
+- Do not leave the task breakdown only in chat.
+
+Each task file must include:
+
+- `执行 <task id>` title.
+- Required files and skills to read before editing.
+- Prerequisite tasks, if any.
+- Task scope and explicit non-goals.
+- Business requirements.
+- Acceptance criteria.
+- Test commands to run.
+
+The final response for a requirement should name the first task for the
+business development agent to execute next.
