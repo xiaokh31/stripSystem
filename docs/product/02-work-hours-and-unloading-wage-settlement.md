@@ -28,10 +28,21 @@ manages only work hours settlement. The warehouse manager role manages only
 container-detail unloading wage information and monthly unloading wage
 settlement.
 
+When an office user marks a container as `已拆完`, the visible container status
+must also change. A container that has finished unloading must not remain stuck
+at `LABELS_GENERATED`. The system needs a container lifecycle state for
+unloaded work, separate from pallet scan `LOADED`.
+
 Ocean containers pay CAD 300 per container number. US-to-Canada transfer work
 pays CAD 360 per paid transfer unit. US-to-Canada transfer work often combines
 multiple container numbers, for example `ZCSU1234567B+TGBU1234567B`, and that
 combined work counts as one paid unit.
+
+The office also needs a monthly unloading data summary. The summary includes
+all containers whose unloading has been completed for the selected month,
+including containers that have already advanced to `LOADING_IN_PROGRESS` or
+`LOADED` after unloading. The exported workbook should follow the structure of
+the `6月拆柜数据` sheet in `samples/workform/Bestar_work_form.xlsx`.
 
 ## Solution
 
@@ -43,6 +54,8 @@ Add two office workflows:
 2. Unloading wage settlement: add unloading wage fields directly to the
    existing container detail workflow, then add a monthly settlement page that
    summarizes those completed container records by worker.
+3. Monthly unloading data summary: summarize all completed unloading container
+   data for a month and export an Excel workbook for office review.
 
 The unloading wage feature must be anchored in existing container detail, not a
 separate warehouse-manager data-entry workflow. If the backend uses an internal
@@ -61,7 +74,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   completed, maintains/selects temporary unloaders, and generates monthly
   unloading wage settlement.
 - Office user: imports or manually creates containers in the existing office
-  workflow, but does not receive wage-settlement authority by default.
+  workflow and may mark container unloading as completed, but does not receive
+  wage-settlement authority by default.
 - Warehouse user: scans loading work and may complete loading jobs, but does
   not receive unloading wage settlement authority by default.
 - Admin: manages login users, can maintain temporary unloader names, and
@@ -113,11 +127,17 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 17. As a warehouse manager, I want the monthly settlement to show which
     containers were unloaded that month, so that each worker total can be
     checked against the unloading report.
-18. As an admin, I want pay rates stored as settings, so that CAD 300 and CAD
+18. As an office user, I want clicking `标记已拆完` to change the container
+    status to `已拆完`, so that the container no longer appears stuck at
+    `LABELS_GENERATED`.
+19. As an office user, I want a monthly unloading data summary export, so that
+    I can review all containers unloaded in the month using the existing office
+    work-form style.
+20. As an admin, I want pay rates stored as settings, so that CAD 300 and CAD
     360 can change later without changing code.
-19. As an admin, I want a dedicated HR manager role, so that work hours
+21. As an admin, I want a dedicated HR manager role, so that work hours
     settlement is not granted to all office users by default.
-20. As an admin, I want a dedicated warehouse manager role, so that unloading
+22. As an admin, I want a dedicated warehouse manager role, so that unloading
     wage settlement is not granted to all warehouse users by default.
 
 ## Business Rules
@@ -149,6 +169,10 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - `OFFICE` keeps normal office import, correction, reporting, label, inventory,
   and load-job planning permissions, but must not receive `attendance.*` or
   `unloading_wage.*` permissions by default after this role split.
+  - may mark a container as `已拆完` as an operational container status update
+  - may review/export monthly unloading data summary
+  - must not generate unloading worker wage settlements unless explicitly
+    granted warehouse manager permissions
 - `WAREHOUSE` keeps normal loading scan permissions, but must not receive
   `unloading_wage.*` permissions by default after this role split.
 - If a user has multiple roles, effective permissions are the union of all
@@ -254,6 +278,38 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   business does not accept equal split, the UI must add per-worker amount or
   percentage before production use.
 
+### Container Unloaded Status Rules
+
+- Add a container lifecycle status for `已拆完`. The recommended enum code is
+  `UNLOADED`.
+- `UNLOADED` means the physical unloading work is complete and the container is
+  ready for downstream loading workflow.
+- `UNLOADED` is different from pallet `LOADED` and container `LOADED`.
+  Container `LOADED` remains a loading/scan result and must not be manually set
+  by the office unloading action.
+- When an authorized office user, warehouse manager, or admin clicks
+  `标记已拆完`, the system must:
+  - save unloading completion data
+  - set the visible container status to `UNLOADED` if the container has not
+    already advanced to loading
+  - create an audit/correction record for the status change
+- If the container is already `LOADING_IN_PROGRESS` or `LOADED`, marking or
+  re-saving unloading completion must not downgrade the container status to
+  `UNLOADED`.
+- Loading scan behavior remains authoritative for `LOADING_IN_PROGRESS` and
+  `LOADED`.
+- For reporting and monthly unloading data summary, these statuses are treated
+  as completed unloading statuses:
+  - `UNLOADED`
+  - `LOADING_IN_PROGRESS`
+  - `LOADED`
+- Existing containers that are `LOADING_IN_PROGRESS` or `LOADED` should be
+  treated as already unloaded for summary filtering, but the summary month must
+  still be based on a recorded unloading completion date when available.
+- Containers missing an unloading completion date must not be silently assigned
+  to a month. They should appear in a review/warning list if their status
+  indicates they are already unloaded.
+
 ### Monthly Settlement Rules
 
 - The settlement page reads from existing container detail unloading wage data.
@@ -273,6 +329,32 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Generating a settlement creates a durable generated artifact and does not
   overwrite historical settlement details silently.
 
+### Monthly Unloading Data Summary Rules
+
+- This is an operational unloading summary, not the worker wage settlement.
+- The summary includes all containers completed for the selected month.
+- Completion eligibility includes containers whose current status is
+  `UNLOADED`, `LOADING_IN_PROGRESS`, or `LOADED`.
+- The selected month is based on unloading completion date. If a container is
+  already in a completed unloading status but lacks a completion date, it must
+  be shown as a warning/review item instead of being silently included.
+- The export workbook should follow the `6月拆柜数据` sheet in
+  `samples/workform/Bestar_work_form.xlsx`:
+  - grouped by container
+  - container number and optional sequence in column A
+  - date plus business tag such as `海柜` / `美转加` in column B
+  - destination or service line in column C
+  - cartons/count/pallet text in column D
+  - reference, appointment, shipment, or raw note field in column E when
+    available
+  - appointment/unloading time in column F when available
+  - variance, split count, or operation note in columns G/H when available
+- The export must preserve all available source detail needed for office review
+  instead of only outputting wage totals.
+- Missing fields should create warnings in the response or task report.
+- Every generated summary workbook must be recorded as a generated file and
+  available through browser-safe download links.
+
 ## Data Concepts
 
 - Attendance import: original attendance workbook plus SHA-256, parse status,
@@ -287,6 +369,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Container wage association: the related container numbers that make one
   paid `美转加` transfer unit.
 - Unloading completion: the `已拆完` state shown from container detail.
+- Unloaded container status: the container lifecycle status `UNLOADED`, shown as
+  `已拆完`, set when office unloading work is completed before loading begins.
 - Temporary unloader: a manually maintained directory record for a temporary
   unloading worker who may not have a system login account.
 - Unloader assignment: one or more worker rows on container detail, selected
@@ -294,6 +378,9 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   snapshots.
 - Unloading wage settlement: monthly generated result by worker and by
   completed container or associated transfer unit.
+- Monthly unloading data summary: operational monthly workbook listing
+  completed unloading container details for office review, based on
+  `samples/workform/Bestar_work_form.xlsx`.
 
 ## Suggested Delivery Phases
 
@@ -317,12 +404,16 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   `ZCSU1234567B+TGBU1234567B` counting as one CAD 360 paid unit.
 - Cover `已拆完` filtering and multiple unloader rows.
 - Emit monthly settlement JSON and an HTML task report.
+- Inspect `samples/workform/Bestar_work_form.xlsx` and document the structure
+  of the `6月拆柜数据` sheet for the monthly unloading data summary export.
 
 ### P1: Persistence and API
 
 - Add or adjust schema so existing container records can expose unloading wage
   tag, trailer number, associated container numbers, unloading completion, and
   unloaders through container detail.
+- Add `UNLOADED` / `已拆完` to the container lifecycle so marking unloading
+  complete changes the visible container status.
 - Add or adjust schema for a manually maintained temporary unloader directory.
   Do not model temporary unloaders only as authenticated users.
 - Add default RBAC role records for `HR_MANAGER` and `WAREHOUSE_MANAGER`, and
@@ -330,6 +421,7 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Add API behavior for saving the unloading wage section from container detail.
 - Add API behavior for generating monthly unloading wage settlement from saved
   container detail data.
+- Add API behavior for monthly unloading data summary and Excel export.
 - Preserve all uploaded source files and generated files.
 - Record classification, association, completion, unloader, and settlement
   changes for audit.
@@ -341,6 +433,7 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - The `/containers/[id]` section must handle tag selection, trailer number,
   container association, `已拆完` status, unloader selection, and add-unloader.
 - Add an Unloading Wage Settlement page for warehouse manager monthly review.
+- Add a monthly unloading data summary view/export for office review.
 
 ## Proposed API Surface
 
@@ -359,6 +452,9 @@ be stable. The user-facing workflow must still start from container detail.
 - `GET /api/unloading-wage/workers`
 - `POST /api/unloading-wage/workers`
 - `PATCH /api/unloading-wage/workers/:workerId`
+- `GET /api/unloading-summary?month=YYYY-MM`
+- `POST /api/unloading-summary/exports`
+- `GET /api/unloading-summary/exports/:fileId/download`
 - `POST /api/unloading-wage-settlements`
 - `GET /api/unloading-wage-settlements`
 - `GET /api/unloading-wage-settlements/:id`
@@ -386,10 +482,12 @@ using the existing container detail.
 
 Add this section to existing `/containers/[id]`.
 
-Only `WAREHOUSE_MANAGER` and `ADMIN` should edit unloading wage information by
-default. Users without unloading wage permissions may see the underlying
-container detail if they have container read access, but the wage editing
-actions should be hidden or read-only.
+Only `WAREHOUSE_MANAGER` and `ADMIN` should edit unloading wage pay information
+by default. `OFFICE` users with normal container update permission may mark the
+operational container status as `已拆完`, but that does not grant them authority
+to generate unloading worker wage settlements. Users without unloading wage
+permissions may see the underlying container detail if they have container read
+access, but wage settlement actions should be hidden or read-only.
 
 Required controls:
 
@@ -406,6 +504,8 @@ Required controls:
   - shows associated container numbers as a list
 - Unloading status:
   - must include `已拆完`
+  - marking `已拆完` changes the visible container status to `UNLOADED` unless
+    it has already reached `LOADING_IN_PROGRESS` or `LOADED`
   - should make incomplete records visibly excluded from settlement
 - Unloader rows:
   - each row is one worker option from the temporary unloader directory
@@ -435,6 +535,20 @@ Required controls:
   - worker amount
 - Provide generated settlement file links from the API.
 
+### Monthly Unloading Data Summary Page
+
+- Accessible to `OFFICE`, `WAREHOUSE_MANAGER`, and `ADMIN` unless the business
+  later narrows this permission.
+- Filter by month.
+- Show all completed unloading containers for that month.
+- Include containers currently in `UNLOADED`, `LOADING_IN_PROGRESS`, and
+  `LOADED` status.
+- Show review warnings for containers in completed unloading statuses that lack
+  unloading completion date.
+- Export an Excel workbook based on the `6月拆柜数据` sheet style in
+  `samples/workform/Bestar_work_form.xlsx`.
+- Provide browser-safe download links for generated exports.
+
 ## Implementation Decisions
 
 - Treat HR attendance wage records and warehouse unloading wage settlements as
@@ -442,8 +556,10 @@ Required controls:
   patterns, but they should not share parser models.
 - Put the unloading wage entry workflow inside existing container detail.
 - Do not overload `ContainerStatus.LOADED` for `已拆完`. Existing `LOADED` is
-  tied to pallet loading scan transactions. Use a separate unloading completion
-  concept for wage settlement.
+  tied to pallet loading scan transactions. Add a separate `UNLOADED`
+  container status for `已拆完`.
+- Do not downgrade containers from `LOADING_IN_PROGRESS` or `LOADED` back to
+  `UNLOADED` when unloading completion is saved.
 - Use container records as the visible source for wage tag, trailer number, and
   association state. Internal settlement-unit records may exist, but they should
   be synchronized from container detail and treated as implementation details.
@@ -471,6 +587,9 @@ Required controls:
   trailer number, rejecting `美转加` without trailer number, adding associated
   container numbers, marking `已拆完`, adding multiple unloaders, and rejecting
   duplicate unloaders.
+- Container lifecycle tests should cover `LABELS_GENERATED -> UNLOADED` when
+  marking unloading complete, no downgrade from `LOADING_IN_PROGRESS` or
+  `LOADED`, and scan-only control of loaded pallet/container status.
 - Temporary unloader directory tests should cover creating, editing,
   deactivating, listing active workers, selecting a directory worker in
   container detail, rejecting duplicate directory workers, and preserving
@@ -481,6 +600,9 @@ Required controls:
 - UI tests should verify the container detail unloading wage section, trailer
   number conditional display, association add/remove, `已拆完`, unloader
   add/remove, monthly filter, settlement generation, and settlement detail.
+- Monthly unloading data summary tests should verify month filtering,
+  inclusion of `UNLOADED`, `LOADING_IN_PROGRESS`, and `LOADED`, review warnings
+  for missing completion dates, and generated workbook/download records.
 - Role tests should verify that `HR_MANAGER` can perform attendance settlement
   but cannot perform unloading wage settlement, and that `WAREHOUSE_MANAGER`
   can perform unloading wage settlement but cannot perform attendance
@@ -507,6 +629,11 @@ Required controls:
   as one CAD 360 paid unit.
 - `已拆完` does not conflict with pallet loaded status or scan transaction
   rules.
+- Clicking `标记已拆完` changes the visible container status from
+  `LABELS_GENERATED` to `UNLOADED`.
+- Monthly unloading data summary exports all containers completed in the month,
+  including containers that later advanced to `LOADING_IN_PROGRESS` or
+  `LOADED`.
 - Multiple unloaders per container or transfer unit are supported from
   container detail.
 - Monthly unloading settlement can generate each worker's wage and show which

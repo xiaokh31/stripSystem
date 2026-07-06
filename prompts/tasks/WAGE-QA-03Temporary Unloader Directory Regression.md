@@ -1,5 +1,10 @@
 执行 WAGE-QA-03：Temporary Unloader Directory Regression。
 
+变更说明：
+- 本任务只覆盖临时拆柜工人目录变更。
+- 新增 `UNLOADED` / `已拆完` 柜子状态和每月拆柜数据总结后，最终回归应继续执行
+  `prompts/tasks/WAGE-QA-04Unloaded Status and Monthly Summary Regression.md`。
+
 必须读取：
 - AGENTS.md
 - prompts/agents/business-logic-agent.md

@@ -1,5 +1,13 @@
 执行 UNLOAD-WAGE-02：Container Detail Unloading Wage UI。
 
+变更说明：
+- 本任务早期只要求柜子详情显示/保存拆柜工资信息。
+- 后续业务确认：点击 `标记已拆完` 后，柜子 visible status 不能继续停在
+  `LABELS_GENERATED`，必须显示 `UNLOADED` / `已拆完`，除非已进入
+  `LOADING_IN_PROGRESS` 或 `LOADED`。
+- 新增柜子状态生命周期由
+  `prompts/tasks/UNLOAD-WAGE-08Container Unloaded Status Lifecycle.md` 执行。
+
 必须读取：
 - AGENTS.md
 - prompts/tasks/UNLOAD-WAGE-01Container Detail Unloading Wage API.md

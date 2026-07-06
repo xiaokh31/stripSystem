@@ -1,5 +1,12 @@
 执行 UNLOAD-WAGE-01：Container Detail Unloading Wage API。
 
+变更说明：
+- 本任务早期只要求拆柜工资 API 支持 `已拆完` 概念。
+- 后续业务确认：点击 `标记已拆完` 时，container visible status 也必须切换为
+  `UNLOADED` / `已拆完`。
+- 新增柜子状态生命周期由
+  `prompts/tasks/UNLOAD-WAGE-08Container Unloaded Status Lifecycle.md` 执行。
+
 必须读取：
 - AGENTS.md
 - prompts/agents/business-logic-agent.md
