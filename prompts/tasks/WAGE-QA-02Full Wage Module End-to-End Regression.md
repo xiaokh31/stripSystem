@@ -1,5 +1,11 @@
 执行 WAGE-QA-02：Full Wage Module End-to-End Regression。
 
+变更说明：
+- 本任务覆盖 `UNLOAD-WAGE-05` 旧版“系统用户/真实人员选项”后的全量回归。
+- 业务已确认拆柜工人多为临时工，不应要求员工账号。
+- `UNLOAD-WAGE-05` 已作废；完成临时工目录变更后，最终验收应执行
+  `prompts/tasks/WAGE-QA-03Temporary Unloader Directory Regression.md`。
+
 必须读取：
 - AGENTS.md
 - prompts/agents/business-logic-agent.md

@@ -14,7 +14,14 @@ unloading reports. The manager needs each imported or manually created
 container detail to carry the unloading wage information needed for settlement:
 container wage tag, trailer number for US-to-Canada transfer work, associated
 container numbers for combined transfer work, unloading completion status, and
-one or more unloader names.
+one or more unloader assignments.
+
+Unloading workers are often temporary workers and do not necessarily have
+employee login accounts in this office system. The unloader selector must
+therefore use a manually maintained unloading-worker directory that is separate
+from authenticated user accounts. The selector can still behave like a worker
+selector in container detail, but it must not require the selected worker to be
+a `User` row or to hold a `WAREHOUSE` role.
 
 The system must separate these two wage workflows by role. The HR manager role
 manages only work hours settlement. The warehouse manager role manages only
@@ -51,13 +58,14 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   reviews employee-day rows, and generates work hours wage records.
 - Warehouse manager (`WAREHOUSE_MANAGER`): opens container detail, classifies
   the container, records trailer/association data, marks unloading as
-  completed, assigns unloaders, and generates monthly unloading wage
-  settlement.
+  completed, maintains/selects temporary unloaders, and generates monthly
+  unloading wage settlement.
 - Office user: imports or manually creates containers in the existing office
   workflow, but does not receive wage-settlement authority by default.
 - Warehouse user: scans loading work and may complete loading jobs, but does
   not receive unloading wage settlement authority by default.
-- Admin: manages worker names/users and pay-rate settings.
+- Admin: manages login users, can maintain temporary unloader names, and
+  manages pay-rate settings.
 - Developer: implements parser, calculation, persistence, APIs, and UI.
 
 ## User Stories
@@ -91,21 +99,25 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 12. As a warehouse manager, I want container detail to include an unloading
     status with an `已拆完` state, so that completed unloading work is eligible
     for monthly wage settlement.
-13. As a warehouse manager, I want container detail to include unloader name
-    selection, so that I can record who unloaded the container.
-14. As a warehouse manager, I want an add-unloader action on container detail,
+13. As a warehouse manager, I want to manually maintain temporary unloader
+    names, so that unloading workers can be paid without creating employee
+    login accounts for them.
+14. As a warehouse manager, I want container detail to include unloader name
+    selection from that temporary-worker directory, so that I can record who
+    unloaded the container.
+15. As a warehouse manager, I want an add-unloader action on container detail,
     so that I can add multiple workers to one container or combined transfer
     unit.
-15. As a warehouse manager, I want a monthly unloading wage settlement page, so
+16. As a warehouse manager, I want a monthly unloading wage settlement page, so
     that I can generate each worker's unloading wage for the month.
-16. As a warehouse manager, I want the monthly settlement to show which
+17. As a warehouse manager, I want the monthly settlement to show which
     containers were unloaded that month, so that each worker total can be
     checked against the unloading report.
-17. As an admin, I want pay rates stored as settings, so that CAD 300 and CAD
+18. As an admin, I want pay rates stored as settings, so that CAD 300 and CAD
     360 can change later without changing code.
-18. As an admin, I want a dedicated HR manager role, so that work hours
+19. As an admin, I want a dedicated HR manager role, so that work hours
     settlement is not granted to all office users by default.
-19. As an admin, I want a dedicated warehouse manager role, so that unloading
+20. As an admin, I want a dedicated warehouse manager role, so that unloading
     wage settlement is not granted to all warehouse users by default.
 
 ## Business Rules
@@ -128,6 +140,7 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   - can edit the container detail unloading wage section
   - can set `海柜` / `美转加`, trailer number, associated containers,
     unloaders, and `已拆完`
+  - can create, edit, and deactivate temporary unloader directory records
   - can access `/unloading-wage`
   - can generate monthly unloading wage settlements
   - must not upload, parse, or generate HR attendance wage records unless
@@ -142,6 +155,36 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   assigned active roles.
 - API guards are the source of truth. Frontend navigation and buttons must
   mirror API permissions, but hiding UI is not sufficient authorization.
+
+### Temporary Unloader Directory Rules
+
+- Unloading workers are temporary labor for this workflow unless explicitly
+  proven otherwise.
+- A selectable unloader is a record in the unloading-worker directory, not an
+  authenticated system user.
+- Do not require every unloader to have an email, password, login session, or
+  `WAREHOUSE` / `WAREHOUSE_MANAGER` role.
+- `WAREHOUSE_MANAGER` and `ADMIN` can maintain the directory by manually adding,
+  editing, and deactivating workers.
+- Minimum directory fields:
+  - display name
+  - active/inactive status
+  - worker code or generated stable identifier
+  - optional phone/contact note
+  - optional internal note
+- New unloader assignments must store the directory worker id plus a snapshot
+  of worker code and worker name.
+- Historical assignments and generated settlements must continue to display the
+  saved snapshot even if the directory name is edited later.
+- Directory records referenced by assignments or settlements should be
+  deactivated rather than deleted.
+- If the system already has user-account-backed unloader assignments, those
+  records must remain readable and settle correctly, but new assignments must
+  not require `workerUserId`.
+- Duplicate unloaders in the same ocean container or US-to-Canada paid unit are
+  rejected by directory worker id. The UI should also warn before submit.
+- The worker selector may support inline creation from container detail, but
+  the saved assignment must still reference a durable directory record.
 
 ### Attendance Record Rules
 
@@ -175,7 +218,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   - trailer number, required only for `美转加`
   - associated container numbers, used only for `美转加` combined work
   - unloading status, including `已拆完`
-  - unloader rows, each selecting one worker name
+  - unloader rows, each selecting one active temporary worker from the
+    unloading-worker directory
   - add-unloader action for multiple unloaders
 - `海柜` rules:
   - One container number is one paid unit.
@@ -200,7 +244,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   same trailer number, associated container numbers, unloading completion
   status, and unloaders for that paid transfer unit.
 - If a user edits classification, trailer number, associations, unloading
-  completion, or unloaders after saving, the change must be audited.
+  completion, unloader directory records, or unloader assignments after saving,
+  the change must be audited.
 - If completed unloading data is changed after a monthly settlement has been
   generated, the affected settlement must be marked stale, superseded, or needs
   review before it is used again.
@@ -242,7 +287,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Container wage association: the related container numbers that make one
   paid `美转加` transfer unit.
 - Unloading completion: the `已拆完` state shown from container detail.
-- Unloader assignment: one or more worker-name rows on container detail.
+- Temporary unloader: a manually maintained directory record for a temporary
+  unloading worker who may not have a system login account.
+- Unloader assignment: one or more worker rows on container detail, selected
+  from the temporary unloader directory and saved with worker name/code
+  snapshots.
 - Unloading wage settlement: monthly generated result by worker and by
   completed container or associated transfer unit.
 
@@ -274,6 +323,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Add or adjust schema so existing container records can expose unloading wage
   tag, trailer number, associated container numbers, unloading completion, and
   unloaders through container detail.
+- Add or adjust schema for a manually maintained temporary unloader directory.
+  Do not model temporary unloaders only as authenticated users.
 - Add default RBAC role records for `HR_MANAGER` and `WAREHOUSE_MANAGER`, and
   map wage permissions to those manager roles.
 - Add API behavior for saving the unloading wage section from container detail.
@@ -305,6 +356,9 @@ be stable. The user-facing workflow must still start from container detail.
 - `PATCH /api/containers/:id/unloading-wage-associations`
 - `POST /api/containers/:id/complete-unloading`
 - `PUT /api/containers/:id/unloaders`
+- `GET /api/unloading-wage/workers`
+- `POST /api/unloading-wage/workers`
+- `PATCH /api/unloading-wage/workers/:workerId`
 - `POST /api/unloading-wage-settlements`
 - `GET /api/unloading-wage-settlements`
 - `GET /api/unloading-wage-settlements/:id`
@@ -354,8 +408,9 @@ Required controls:
   - must include `已拆完`
   - should make incomplete records visibly excluded from settlement
 - Unloader rows:
-  - each row is one worker-name option
+  - each row is one worker option from the temporary unloader directory
   - add action creates another unloader row
+  - selector can create a missing temporary worker before selecting it
   - duplicate worker names in the same unit should be rejected
 - Save action:
   - persists the section through the API
@@ -392,6 +447,8 @@ Required controls:
 - Use container records as the visible source for wage tag, trailer number, and
   association state. Internal settlement-unit records may exist, but they should
   be synchronized from container detail and treated as implementation details.
+- Use a dedicated temporary unloader directory for the worker selector. Do not
+  use login `users` as the only source of selectable unloaders.
 - Store pay rates as operational settings or rate records with effective dates.
   Do not hard-code CAD 300 and CAD 360 into calculation code only.
 - Settlement generation should snapshot rates, associations, unloaders, and
@@ -414,6 +471,10 @@ Required controls:
   trailer number, rejecting `美转加` without trailer number, adding associated
   container numbers, marking `已拆完`, adding multiple unloaders, and rejecting
   duplicate unloaders.
+- Temporary unloader directory tests should cover creating, editing,
+  deactivating, listing active workers, selecting a directory worker in
+  container detail, rejecting duplicate directory workers, and preserving
+  historical snapshots after a name change.
 - Unloading wage tests should cover ocean container CAD 300, US-to-Canada CAD
   360 for combined containers, monthly filtering by completion date, equal split
   across multiple unloaders, and settlement snapshot.
@@ -435,6 +496,8 @@ Required controls:
   JSON plus a generated wage workbook.
 - Existing container detail includes unloading wage tag, trailer number,
   associated containers, unloading completion, and unloader rows.
+- Temporary unloaders can be manually maintained without creating employee
+  login accounts, and container detail selects from that directory.
 - `HR_MANAGER` can manage work hours settlement and does not receive unloading
   wage settlement permissions by default.
 - `WAREHOUSE_MANAGER` can manage unloading wage settlement and does not receive
@@ -478,3 +541,6 @@ Required controls:
 - Should `HR_MANAGER` and `WAREHOUSE_MANAGER` be seeded as built-in role
   assignments for existing users during deployment, or should admins assign
   them manually after migration?
+- Should temporary unloader worker codes be manually assigned, automatically
+  generated, or optional as long as settlement snapshots keep a stable worker
+  id and name?

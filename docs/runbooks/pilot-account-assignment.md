@@ -24,7 +24,7 @@ the roles that already exist in the system.
 | --- | --- | --- | --- |
 | `ADMIN` | System owner and one backup local IT/admin person. | Users, roles, settings, all operational areas. | Daily warehouse scanning or routine office work. |
 | `OFFICE` | Office operators who import Excel files, correct containers, generate reports/labels, and plan load jobs. | Imports, containers, reports, labels, inventory, load jobs. | HR work-hours settlement or warehouse unloading wage settlement by default. |
-| `WAREHOUSE` | Loading/scanning operators and unloaders who must appear in the worker selector. | Mobile load jobs, scans, inventory read, unloading worker directory eligibility. | User management, report/label regeneration, wage settlement generation. |
+| `WAREHOUSE` | Loading/scanning operators who need mobile/PDA access. | Mobile load jobs, scans, inventory read. | User management, report/label regeneration, wage settlement generation. |
 | `HR_MANAGER` | HR manager or payroll reviewer responsible for monthly work-hours settlement. | Work Hours Settlement only. | Unloading wage settlement unless another role explicitly grants it. |
 | `WAREHOUSE_MANAGER` | Warehouse supervisor responsible for container detail unloading wage and monthly unloading settlement. | Container detail unloading wage, unloader assignment, monthly unloading wage settlement. | HR attendance/work-hours settlement unless another role explicitly grants it. |
 | `SYSTEM` | Worker/service account only. | Scripted internal operations. | Interactive login. |
@@ -45,9 +45,10 @@ Prepare the roster before creating accounts.
 | | | | `HR_MANAGER` | no | HR work hours | | |
 | | | | `WAREHOUSE_MANAGER` | no | unloading wage | | |
 
-For unloading wage worker selection, each selectable unloader needs an active
-user with `WAREHOUSE` or `WAREHOUSE_MANAGER`. The monthly settlement stores the
-worker code/name snapshot when unloaders are saved, so later name changes do not
+For unloading wage worker selection, selectable unloaders are maintained in the
+temporary unloader directory. They do not need login accounts, email addresses,
+passwords, or `WAREHOUSE` roles. The monthly settlement stores the worker
+code/name snapshot when unloaders are saved, so later name changes do not
 rewrite historical settlement lines.
 
 ## Create Accounts
@@ -151,7 +152,6 @@ Run these checks with real pilot accounts.
 | Cannot generate reports or labels. | | |
 | Cannot generate HR work-hours records. | | |
 | Cannot generate unloading wage settlements. | | |
-| Appears in the warehouse manager's unloader selector if active. | | |
 
 ### HR_MANAGER
 
@@ -171,7 +171,7 @@ Run these checks with real pilot accounts.
 | --- | --- | --- |
 | Can log in. | | |
 | Can open container detail unloading wage section. | | |
-| Can select active real workers from worker directory. | | |
+| Can create/select active temporary unloaders from the unloader directory. | | |
 | Can mark unloading completed for wage settlement. | | |
 | Can open Warehouse Unloading Wage Settlement. | | |
 | Can generate monthly unloading wage settlement. | | |
@@ -182,14 +182,16 @@ Run these checks with real pilot accounts.
 
 The unloading wage worker selector is not free text for new assignments.
 
-- Active `WAREHOUSE` and `WAREHOUSE_MANAGER` users can be selectable workers.
-- Inactive users are not selectable for new unloader assignments.
+- Selectable unloaders are active records in the temporary unloader directory.
+- Temporary unloaders do not need system login accounts.
+- Inactive directory records are not selectable for new unloader assignments.
 - Historical unloading wage settlement lines keep saved worker name/code
   snapshots.
-- If a worker leaves, disable the account after the final approved settlement
-  review. Do not delete the user row manually.
-- If a saved legacy worker name appears, the warehouse manager must reselect a
-  real system user before saving unloaders again.
+- If a temporary worker should no longer be selected, deactivate the directory
+  record after the final approved settlement review. Do not delete rows that may
+  be referenced by historical assignments.
+- If a saved legacy worker name appears, the warehouse manager must reselect or
+  create a temporary unloader directory record before saving unloaders again.
 
 ## Disable Or Change Accounts
 
@@ -241,7 +243,7 @@ reference historical users.
 | Every scanning operator has a named `WAREHOUSE` account. | | |
 | HR work-hours user has `HR_MANAGER` only unless extra access is approved. | | |
 | Warehouse wage supervisor has `WAREHOUSE_MANAGER` only unless extra access is approved. | | |
-| Selectable unloaders are active named users. | | |
+| Selectable unloaders are active temporary unloader directory records, not login accounts. | | |
 | E2E/smoke/test accounts are disabled or excluded from pilot use. | | |
 | Permission-denied checks were verified for each role. | | |
 | No one edited account tables manually. | | |

@@ -77,7 +77,7 @@ Use real pilot accounts. Do not use mock users as evidence of readiness.
 | `WAREHOUSE` is rejected from user management and office-only actions. | | |
 | `HR_MANAGER` account can access Work Hours Settlement and is rejected from unloading wage actions. | | |
 | `WAREHOUSE_MANAGER` account can access Warehouse Unloading Wage Settlement and is rejected from HR attendance actions. | | |
-| Active unloaders who should appear in the unloading wage worker selector have named `WAREHOUSE` or `WAREHOUSE_MANAGER` accounts. | | |
+| Active unloaders who should appear in the unloading wage worker selector exist as temporary unloader directory records, not required login accounts. | | |
 | E2E/smoke/test accounts are disabled or excluded from pilot use. | | |
 | Disabled employee account cannot log in. | | |
 | Password reset through API works and old password no longer works. | | |
