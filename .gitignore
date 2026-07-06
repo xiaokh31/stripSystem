@@ -46,6 +46,10 @@ node_modules/
 .next/
 dist/
 coverage/
+test-results/
+playwright-report/
+apps/**/test-results/
+apps/**/playwright-report/
 apps/api/src/generated/prisma/
 apps/web/playwright-report/
 apps/web/test-results/
