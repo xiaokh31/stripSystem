@@ -311,6 +311,8 @@ export const enMessages = {
   "Name": "Name",
   "New accounts are created through the protected user API. SYSTEM accounts are not offered for browser login.":
     "New accounts are created through the protected user API. SYSTEM accounts are not offered for browser login.",
+  "New office, warehouse, HR manager, and warehouse manager accounts are created through the protected user API. SYSTEM and temporary unloader records are not browser login accounts.":
+    "New office, warehouse, HR manager, and warehouse manager accounts are created through the protected user API. SYSTEM and temporary unloader records are not browser login accounts.",
   "New import": "New import",
   "New password": "New password",
   "New value": "New value",

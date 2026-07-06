@@ -295,6 +295,8 @@ export const zhMessages = {
   "Name": "姓名",
   "New accounts are created through the protected user API. SYSTEM accounts are not offered for browser login.":
     "新账号通过受保护用户 API 创建。SYSTEM 账号不提供浏览器登录。",
+  "New office, warehouse, HR manager, and warehouse manager accounts are created through the protected user API. SYSTEM and temporary unloader records are not browser login accounts.":
+    "办公室、仓库、HR 经理和仓库经理账号通过受保护用户 API 创建。SYSTEM 和临时拆柜工记录不是浏览器登录账号。",
   "New import": "新建导入",
   "New password": "新密码",
   "New value": "新值",

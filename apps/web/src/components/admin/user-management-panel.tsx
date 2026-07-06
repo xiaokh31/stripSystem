@@ -12,6 +12,10 @@ import {
   type RoleResponse,
   type UserResponse,
 } from "@/lib/api-client";
+import {
+  userAssignableRoleOptions,
+  userCreateRoleOptions,
+} from "@/lib/admin-role-options";
 import { formatOperationalDateTime } from "@/lib/date-time";
 
 interface UserManagementPanelProps {
@@ -36,26 +40,17 @@ type UserDrafts = Record<
   }
 >;
 
-const ASSIGNABLE_USER_ROLE_CODES = new Set(["ADMIN", "OFFICE", "WAREHOUSE"]);
-const CREATE_USER_ROLE_CODES = new Set(["OFFICE", "WAREHOUSE"]);
-
 export function UserManagementPanel({
   roles,
   users,
 }: UserManagementPanelProps) {
   const router = useRouter();
   const createRoles = useMemo(
-    () =>
-      roles.filter(
-        (role) => role.isActive && CREATE_USER_ROLE_CODES.has(role.code),
-      ),
+    () => userCreateRoleOptions(roles),
     [roles],
   );
   const assignableRoles = useMemo(
-    () =>
-      roles.filter(
-        (role) => role.isActive && ASSIGNABLE_USER_ROLE_CODES.has(role.code),
-      ),
+    () => userAssignableRoleOptions(roles),
     [roles],
   );
   const [createDraft, setCreateDraft] = useState<CreateUserDraft>({
@@ -174,11 +169,12 @@ export function UserManagementPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-950">
-              Create office or warehouse user
+              Create user
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              New accounts are created through the protected user API. SYSTEM
-              accounts are not offered for browser login.
+              New office, warehouse, HR manager, and warehouse manager accounts
+              are created through the protected user API. SYSTEM and temporary
+              unloader records are not browser login accounts.
             </p>
           </div>
           <StatusNotice error={error} notice={notice} />
