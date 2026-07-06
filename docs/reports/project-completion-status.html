@@ -239,7 +239,9 @@
           legacy 重选和月结快照；WAGE-QA-02 full wage module regression 已完成，
           HR work hours、warehouse unloading wage、manager role isolation、真实
           worker selector、generated files/downloads/audit metadata、Docker nginx
-          full-stack 路径和 wage Playwright smoke 均已验证，工资模块当前结论为 complete。
+          full-stack 路径和 wage Playwright smoke 均已验证；WAGE-QA-03 已补充
+          temporary unloader directory 回归，确认临时拆柜工无需登录账号、停用后不在
+          active selector、历史柜子和月结继续使用保存时 snapshot，工资模块当前结论为 complete。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -477,6 +479,13 @@
               <td>QA-02</td>
               <td>最终工资模块回归已完成：`/work-hours` Playwright smoke 改为真实 `HR_MANAGER` 登录，覆盖 legacy `.xls` 上传、重复 SHA 复用、parse、390 employee-day rows、午休 0.50 小时展示、wage record 生成、generated files SHA-256/size/MIME/download link 和内部 storage path 不暴露；`WAREHOUSE_MANAGER` 调 attendance API 返回 403。`/unloading-wage` Playwright smoke 改为真实 `WAREHOUSE_MANAGER` 登录，动态准备真实 `WAREHOUSE` worker 用户，验证 `GET /api/unloading-wage/workers` worker directory、HR 调 unloading wage API 403、重复 `workerUserId` 返回 `DUPLICATE_UNLOADER_ASSIGNMENT`、container detail worker select 回显真实用户且无 legacy 提示、transfer group 完成卸柜、生成并再生成月结、superseded warning、worker summary、monthly detail、CAD 360 总额、CAD 180 均分和 JSON/HTML 下载链接。完整检查已通过 `uv run pytest`、`pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh` 和 `pnpm --filter web exec playwright test e2e/work-hours.spec.ts e2e/unloading-wage.spec.ts`；Docker services 均 healthy，nginx 静态 chunk healthcheck 通过。Playwright 失败的未升级首次运行是 macOS sandbox Mach port 权限问题，升级后 wage smoke 6/6 passed。attendance/unloading wage runtime storage artifacts 保留在本地用于审计复查，并已加入 `.gitignore` 防止提交。</td>
               <td>wage module complete；后续只建议做生产 pilot 前的数据清理/归档策略和现场账号分配手册，不再新增工资业务功能。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.4: WAGE-QA-03 Temporary Unloader Directory Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA-03</td>
+              <td>Temporary unloader directory 回归已覆盖更正后的主路径：`WAREHOUSE_MANAGER` 可创建没有 email/password/login role 的临时拆柜工，目录 response 明确返回 `email: null`、`roles: []` 且不含 password 字段；active `GET /api/unloading-wage/workers` 只返回可选临时工，`includeInactive=true` 可审阅停用记录；container detail 保存拆柜人只接受 `unloadingWorkerId`，重复目录工返回 `DUPLICATE_UNLOADER_ASSIGNMENT`，旧 `workerUserId` 新保存路径返回 `UNLOADING_WORKER_REQUIRED`；新增 API e2e 证明临时工被保存到柜子后即使目录记录改名并停用，active selector 不再列出该工人，但柜子详情和月结仍显示保存时 worker code/name snapshot；legacy user-backed assignment 仍可生成 CAD 300 ocean settlement；美转加关联柜详情保持同一 trailer、关联柜号、拆柜状态和临时工列表；月结仍验证 CAD 300 / 海柜、CAD 360 / 美转加组、多人 CAD 180 均分、JSON/HTML 下载记录和 HR/OFFICE/WAREHOUSE 默认 403。</td>
+              <td>已通过 `pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`uv run pytest`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh`、nginx `curl http://127.0.0.1/api/health`、`curl http://127.0.0.1/` 和 `pnpm --filter web exec playwright test e2e/unloading-wage.spec.ts`（desktop/mobile 2 passed）；Playwright 初次在 sandbox 内因 macOS Mach port permission denied 失败，升级后发现 Docker API 仍是旧镜像导致 `POST /api/unloading-wage/workers` 404，已执行 `docker compose -f infra/docker/compose.local.yml up -d --build api web nginx` 后重跑通过。build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
             </tr>
           </tbody>
         </table>

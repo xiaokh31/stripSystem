@@ -170,10 +170,13 @@ describe('Container detail unloading wage API (e2e)', () => {
     expect(created.body).toMatchObject({
       createdById: 'auth-warehouse-manager',
       displayName: 'Prototype Worker D',
+      email: null,
       isActive: true,
       phone: '604-555-0100',
+      roles: [],
       workerCode: 'TEMP-D',
     });
+    expect(JSON.stringify(created.body)).not.toContain('password');
 
     const deactivated = await authorizedRequest(
       app,
@@ -318,6 +321,74 @@ describe('Container detail unloading wage API (e2e)', () => {
     expect(inactiveWorker.body).toMatchObject({
       code: 'UNLOADING_WORKER_INACTIVE',
     });
+  });
+
+  it('preserves saved assignment snapshots after a temporary worker is renamed and deactivated', async () => {
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage')
+      .send({ classification: 'OCEAN_CONTAINER' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/api/containers/container-zcsu/unloaders')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({
+        unloaders: [{ unloadingWorkerId: 'temp-worker-a' }],
+      })
+      .expect(200);
+
+    const renamed = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/unloading-wage/workers/temp-worker-a')
+      .send({
+        displayName: 'Renamed Worker A',
+        isActive: false,
+      })
+      .expect(200);
+    expect(renamed.body).toMatchObject({
+      displayName: 'Renamed Worker A',
+      id: 'temp-worker-a',
+      isActive: false,
+    });
+
+    const activeOnly = await authorizedRequest(
+      app,
+      warehouseManagerAuthHeader(),
+    )
+      .get('/api/unloading-wage/workers')
+      .expect(200);
+    expect(activeOnly.body.items.map((worker: any) => worker.id)).not.toContain(
+      'temp-worker-a',
+    );
+
+    const detail = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .get('/api/containers/container-zcsu')
+      .expect(200);
+    expect(detail.body.unloadingWage.unloaders).toEqual([
+      expect.objectContaining({
+        unloadingWorkerId: 'temp-worker-a',
+        workerCode: 'TEMP-A',
+        workerName: 'Prototype Worker A',
+        workerUserId: null,
+      }),
+    ]);
+
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/containers/container-zcsu/complete-unloading')
+      .send({ completedAt: '2026-06-04T17:10:00.000Z' })
+      .expect(201);
+
+    const generated = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/unloading-wage-settlements')
+      .send({ settlementMonth: '2026-06' })
+      .expect(201);
+    expect(generated.body.workers).toEqual([
+      expect.objectContaining({
+        totalAmount: '300.00',
+        workerCode: 'TEMP-A',
+        workerName: 'Prototype Worker A',
+      }),
+    ]);
+    expect(JSON.stringify(generated.body)).not.toContain('Renamed Worker A');
   });
 
   it('generates, reads, and downloads a monthly settlement from container detail wage data', async () => {
