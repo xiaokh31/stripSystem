@@ -1062,6 +1062,11 @@ describe('LoadJobsController (e2e)', () => {
           ),
         ),
       },
+      correctionFeedback: {
+        create: jest.fn(({ data }) =>
+          Promise.resolve({ id: `correction-${events.length + 1}`, ...data }),
+        ),
+      },
       palletEvent: {
         create: jest.fn(({ data }) => {
           const occurredAt =

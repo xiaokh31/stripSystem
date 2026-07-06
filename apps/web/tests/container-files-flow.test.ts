@@ -77,7 +77,10 @@ test("generation notices describe report overwrite and label rebuild behavior", 
   assert.match(generationActionNotice("report"), /latest saved database values/);
   assert.match(generationActionNotice("report"), /overwrites/);
   assert.match(generationActionNotice("labels"), /rebuilds unused/);
-  assert.match(generationActionNotice("labels"), /loading or loaded containers are locked/);
+  assert.match(
+    generationActionNotice("labels"),
+    /unloaded, loading, or loaded containers are locked/,
+  );
 });
 
 test("label in-use conflicts explain why regeneration cannot overwrite", () => {
@@ -87,7 +90,7 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
       "PALLETS_ALREADY_IN_USE",
       "Existing pallets cannot be replaced.",
     ),
-    "Existing pallets cannot be replaced. Existing pallets have already been assigned, loaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.",
+    "Existing pallets cannot be replaced. Existing pallets have already been assigned, loaded, marked unloaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.",
   );
   assert.equal(
     generationFailureMessage("report", "REPORT_FAILED", "Report failed."),
@@ -106,13 +109,16 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
 test("container lifecycle labels and operation locks are visible", () => {
   assert.equal(containerStatusLabel("CORRECTED"), "CORRECTED");
   assert.equal(containerStatusLabel("LABELS_GENERATED"), "LABELS_GENERATED");
+  assert.equal(containerStatusLabel("UNLOADED"), "已拆完");
   assert.equal(
     containerStatusLabel("LOADING_IN_PROGRESS"),
     "LOADING_IN_PROGRESS",
   );
   assert.equal(containerStatusLabel("LOADED"), "LOADED");
   assert.equal(isContainerOperationLocked("LABELS_GENERATED"), false);
+  assert.equal(isContainerOperationLocked("UNLOADED"), true);
   assert.equal(isContainerOperationLocked("LOADING_IN_PROGRESS"), true);
+  assert.match(containerOperationLockMessage("UNLOADED"), /unloaded/);
   assert.match(containerOperationLockMessage("LOADED"), /archived/);
 });
 

@@ -52,12 +52,14 @@ describe('UnloadingWageService', () => {
         containerNo: 'ZCSU9025988B',
         payClassification: null,
         payTrailerNumber: null,
+        status: 'LABELS_GENERATED',
       },
       {
         id: 'container-txgu',
         containerNo: 'TXGU5580229',
         payClassification: null,
         payTrailerNumber: null,
+        status: 'LABELS_GENERATED',
       },
     ];
     payContainer = undefined;
@@ -528,6 +530,18 @@ describe('UnloadingWageService', () => {
       completedAt: '2026-06-04T17:10:00.000Z',
       completedById: 'auth-office',
     });
+    expect(containers[0]).toMatchObject({ status: 'UNLOADED' });
+    expect(prisma.correctionFeedback.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        targetType: 'CONTAINER',
+        containerId: 'container-zcsu',
+        fieldName: 'status',
+        oldValue: 'LABELS_GENERATED',
+        newValue: 'UNLOADED',
+        reason: 'Unloading finished',
+        correctedById: 'auth-office',
+      }),
+    });
 
     const unloadersResponse = await service.updateContainerUnloaders(
       'container-zcsu',
@@ -552,6 +566,37 @@ describe('UnloadingWageService', () => {
       }),
     });
   });
+
+  it.each(['LOADING_IN_PROGRESS', 'LOADED'])(
+    'does not downgrade %s containers when unloading completion is saved',
+    async (existingStatus) => {
+      await service.saveContainerUnloadingWage(
+        'container-zcsu',
+        { classification: 'OCEAN_CONTAINER' },
+        officeActor,
+      );
+      containers[0].status = existingStatus;
+      prisma.correctionFeedback.create.mockClear();
+
+      await service.completeContainerUnloading(
+        'container-zcsu',
+        {
+          completedAt: '2026-06-04T17:10:00.000Z',
+          reason: 'Unloading finished',
+        },
+        officeActor,
+      );
+
+      expect(containers[0].status).toBe(existingStatus);
+      expect(prisma.correctionFeedback.create).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          targetType: 'CONTAINER',
+          containerId: 'container-zcsu',
+          fieldName: 'status',
+        }),
+      });
+    },
+  );
 
   it('rejects US-to-Canada container detail wage without trailer number', async () => {
     await expect(

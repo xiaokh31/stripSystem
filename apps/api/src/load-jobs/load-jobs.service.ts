@@ -35,6 +35,8 @@ import {
 import { AuthenticatedUser } from '../auth/auth-user';
 import { PERMISSIONS } from '../auth/permissions';
 import {
+  ContainerStatus,
+  CorrectionTargetType,
   LoadJobStatus,
   PalletEventType,
   PalletStatus,
@@ -191,7 +193,11 @@ interface PalletCountClient {
 
 interface ContainerStatusSyncClient extends PalletCountClient {
   container: {
+    findUnique(args: unknown): Promise<unknown>;
     update(args: unknown): Promise<unknown>;
+  };
+  correctionFeedback: {
+    create(args: unknown): Promise<unknown>;
   };
 }
 
@@ -210,10 +216,8 @@ interface LoadJobReadClient {
 type ScanProgressClient = LoadJobReadClient & PalletCountClient;
 
 type ScanTransactionClient = ScanProgressClient &
-  PalletEventCreateClient & {
-    container: {
-      update(args: unknown): Promise<unknown>;
-    };
+  PalletEventCreateClient &
+  ContainerStatusSyncClient & {
     pallet: {
       count(args: unknown): Promise<number>;
       update(args: unknown): Promise<unknown>;
@@ -632,11 +636,23 @@ export class LoadJobsService {
       }
 
       try {
-        return await tx.loadJob.update({
+        const updated = (await tx.loadJob.update({
           where: { id },
           data,
           include: LOAD_JOB_INCLUDE,
-        });
+        })) as LoadJobRecord;
+        if (
+          requestedStatus === LoadJobStatus.IN_PROGRESS &&
+          existing.status !== LoadJobStatus.IN_PROGRESS
+        ) {
+          await this.markLoadJobContainersLoading(tx, updated, {
+            occurredAt: now,
+            operatorId,
+            reason: 'Load job started',
+          });
+        }
+
+        return updated;
       } catch (error) {
         this.throwConflictIfUnique(error, 'LOAD_JOB_UPDATE_CONFLICT');
         throw error;
@@ -1706,6 +1722,10 @@ export class LoadJobsService {
     await this.syncContainerStatusAfterPalletChange(
       tx,
       updatedPallet.containerDestination?.containerId ?? null,
+      {
+        operatorId: input.operatorId,
+        reason: 'Loading scan inventory status sync',
+      },
     );
 
     return {
@@ -1768,6 +1788,10 @@ export class LoadJobsService {
     await this.syncContainerStatusAfterPalletChange(
       tx,
       updatedPallet.containerDestination?.containerId ?? null,
+      {
+        operatorId: input.operatorId,
+        reason: 'Loading scan supervisor override status sync',
+      },
     );
 
     return {
@@ -1865,6 +1889,10 @@ export class LoadJobsService {
     await this.syncContainerStatusAfterPalletChange(
       tx,
       updatedPallet.containerDestination?.containerId ?? null,
+      {
+        operatorId: input.operatorId,
+        reason: 'Loading scan reversal status sync',
+      },
     );
 
     return {
@@ -1932,8 +1960,20 @@ export class LoadJobsService {
   private async syncContainerStatusAfterPalletChange(
     tx: ContainerStatusSyncClient,
     containerId: string | null,
+    audit: {
+      operatorId: string | null;
+      reason: string;
+    },
   ): Promise<void> {
     if (!containerId) {
+      return;
+    }
+
+    const container = (await tx.container.findUnique({
+      where: { id: containerId },
+      select: { id: true, status: true },
+    })) as { id: string; status: string } | null;
+    if (!container) {
       return;
     }
 
@@ -1956,9 +1996,10 @@ export class LoadJobsService {
     const nextStatus = containerStatusFromInventoryCounts(
       activePalletCount,
       loadedPalletCount,
+      container.status,
     );
 
-    if (!nextStatus) {
+    if (!nextStatus || nextStatus === container.status) {
       return;
     }
 
@@ -1966,6 +2007,69 @@ export class LoadJobsService {
       where: { id: containerId },
       data: { status: nextStatus },
     });
+    await tx.correctionFeedback.create({
+      data: {
+        targetType: CorrectionTargetType.CONTAINER,
+        containerId,
+        fieldName: 'status',
+        oldValue: container.status,
+        newValue: nextStatus,
+        reason: audit.reason,
+        correctedById: audit.operatorId,
+      },
+    });
+  }
+
+  private async markLoadJobContainersLoading(
+    tx: ContainerStatusSyncClient,
+    loadJob: LoadJobRecord,
+    audit: {
+      occurredAt: Date;
+      operatorId: string | null;
+      reason: string;
+    },
+  ): Promise<void> {
+    const containerIds = [
+      ...new Set(
+        (loadJob.lines ?? [])
+          .map((line) => line.containerId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    for (const containerId of containerIds) {
+      const container = (await tx.container.findUnique({
+        where: { id: containerId },
+        select: { id: true, status: true },
+      })) as { id: string; status: string } | null;
+      if (!container || !this.canMoveContainerIntoLoading(container.status)) {
+        continue;
+      }
+
+      await tx.container.update({
+        where: { id: containerId },
+        data: { status: ContainerStatus.LOADING_IN_PROGRESS },
+      });
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.CONTAINER,
+          containerId,
+          fieldName: 'status',
+          oldValue: container.status,
+          newValue: ContainerStatus.LOADING_IN_PROGRESS,
+          reason: audit.reason,
+          correctedById: audit.operatorId,
+          note: `Load job ${loadJob.jobNo ?? loadJob.id} entered ${LoadJobStatus.IN_PROGRESS} at ${audit.occurredAt.toISOString()}.`,
+        },
+      });
+    }
+  }
+
+  private canMoveContainerIntoLoading(status: string): boolean {
+    return (
+      status === ContainerStatus.UNLOADED ||
+      status === ContainerStatus.LABELS_GENERATED
+    );
   }
 
   private async loadJobProgress(

@@ -373,6 +373,27 @@ describe('LoadJobsService', () => {
     );
   });
 
+  it('keeps unloaded containers eligible for load job suggestions', async () => {
+    prisma.__containers[0].status = 'UNLOADED';
+
+    const result = await service.listContainerSuggestions({
+      containerNo: ' csnu ',
+      destinationRegion: ' yeg2 ',
+      limit: 20,
+    });
+
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          containerId: 'container-1',
+          containerNo: 'CSNU8877228',
+          remainingPallets: 2,
+          status: 'UNLOADED',
+        }),
+      ]),
+    );
+  });
+
   it('closes an open load job and writes a pallet event audit record', async () => {
     await service.create(
       {
@@ -640,6 +661,10 @@ describe('LoadJobsService', () => {
       data: { status: 'LOADING_IN_PROGRESS' },
     });
     expect(prisma.container.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'container-2' },
+      data: { status: 'LOADING_IN_PROGRESS' },
+    });
+    expect(prisma.container.update).toHaveBeenNthCalledWith(3, {
       where: { id: 'container-2' },
       data: { status: 'LOADED' },
     });
@@ -1716,6 +1741,11 @@ describe('LoadJobsService', () => {
           ),
         ),
       },
+      correctionFeedback: {
+        create: jest.fn(({ data }) =>
+          Promise.resolve({ id: `correction-${events.length + 1}`, ...data }),
+        ),
+      },
       palletEvent: {
         create: jest.fn(({ data }) => {
           const occurredAt =
@@ -1735,6 +1765,7 @@ describe('LoadJobsService', () => {
     };
 
     mock.__events = events;
+    mock.__containers = containers;
 
     return mock;
   }

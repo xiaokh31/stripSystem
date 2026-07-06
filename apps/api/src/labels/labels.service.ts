@@ -534,7 +534,7 @@ export class LabelsService {
       throw new ConflictException({
         code: 'CONTAINER_GENERATION_LOCKED',
         message:
-          'This container has entered loading or has been loaded, so pallet labels cannot be regenerated.',
+          'This container has completed unloading, entered loading, or has been loaded, so pallet labels cannot be regenerated.',
         details: {
           containerId: container.id,
           status: effectiveStatus,

@@ -1071,6 +1071,7 @@ export class CorrectionsService {
       value === ContainerStatus.CORRECTED ||
       value === ContainerStatus.REPORT_GENERATED ||
       value === ContainerStatus.LABELS_GENERATED ||
+      value === ContainerStatus.UNLOADED ||
       value === ContainerStatus.LOADING_IN_PROGRESS ||
       value === ContainerStatus.LOADED ||
       value === ContainerStatus.ERROR
@@ -1250,6 +1251,9 @@ export class CorrectionsService {
       container.status,
       container.destinations ?? [],
     );
+    if (requestedStatus === ContainerStatus.LOADED) {
+      return;
+    }
     if (!isContainerGenerationLocked(effectiveStatus)) {
       return;
     }
@@ -1273,25 +1277,12 @@ export class CorrectionsService {
       return;
     }
 
-    const activePallets = this.activePallets(container);
-    const loadedPallets = activePallets.filter((pallet) =>
-      this.isLoadedPallet(pallet),
-    );
-    if (
-      activePallets.length > 0 &&
-      loadedPallets.length === activePallets.length
-    ) {
-      return;
-    }
-
     throw new ConflictException({
-      code: 'CONTAINER_STATUS_REQUIRES_EMPTY_INVENTORY',
+      code: 'CONTAINER_STATUS_LOADED_SCAN_ONLY',
       message:
-        'Container status can only be set to LOADED when every active pallet has been loaded by scan transactions.',
+        'Container status LOADED can only be set by loading scan transactions.',
       details: {
         containerId: container.id,
-        activePallets: activePallets.length,
-        loadedPallets: loadedPallets.length,
         requestedStatus: status,
       },
     });
@@ -1313,12 +1304,6 @@ export class CorrectionsService {
     return (container.destinations ?? [])
       .flatMap((destination) => destination.pallets ?? [])
       .filter((pallet) => pallet.status !== 'CANCELLED');
-  }
-
-  private isLoadedPallet(
-    pallet: NonNullable<ContainerDestinationRecord['pallets']>[number],
-  ): boolean {
-    return pallet.status === 'LOADED' || Boolean(pallet.loadedAt);
   }
 
   private async findContainerLifecycleOrThrow(

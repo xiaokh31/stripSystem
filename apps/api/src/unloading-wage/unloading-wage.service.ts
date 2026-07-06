@@ -11,6 +11,7 @@ import { basename, join, resolve, sep } from 'node:path';
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import {
+  ContainerStatus,
   ContainerPayClassification,
   CorrectionTargetType,
   GeneratedFileStatus,
@@ -54,6 +55,7 @@ interface ContainerRecord {
   containerNo: string;
   payClassification: string | null;
   payTrailerNumber: string | null;
+  status: string;
 }
 
 interface ContainerUnloadingWageRecord extends ContainerRecord {
@@ -457,6 +459,13 @@ export class UnloadingWageService {
           status: nextStatus,
         },
       });
+      await this.markSourceContainersUnloadedIfEligible(tx, payContainer, {
+        correctedById: completedById,
+        note: this.stringOrNull(dto.note),
+        reason:
+          this.stringOrNull(dto.reason) ??
+          'Container detail unloading marked completed',
+      });
       await tx.correctionFeedback.create({
         data: {
           targetType: CorrectionTargetType.PAY_CONTAINER,
@@ -705,6 +714,11 @@ export class UnloadingWageService {
           completionNote: this.stringOrNull(dto.note),
           allocationMethod,
         },
+      });
+      await this.markSourceContainersUnloadedIfEligible(tx, existing, {
+        correctedById: completedById,
+        note: this.stringOrNull(dto.note),
+        reason: this.stringOrNull(dto.reason) ?? 'Unloading completed',
       });
       for (const unloader of dto.unloaders) {
         await tx.unloaderAssignment.create({
@@ -1367,6 +1381,63 @@ export class UnloadingWageService {
       },
       data: { status: UnloadingWageSettlementStatus.NEEDS_REVIEW },
     });
+  }
+
+  private async markSourceContainersUnloadedIfEligible(
+    tx: UnloadingWageTransaction,
+    payContainer: Pick<PayContainerRecord, 'sourceContainers'>,
+    input: {
+      correctedById: string | null;
+      note: string | null;
+      reason: string;
+    },
+  ): Promise<void> {
+    const containerIds = [
+      ...new Set(
+        (payContainer.sourceContainers ?? []).map(
+          (container) => container.containerId,
+        ),
+      ),
+    ].filter(Boolean);
+    if (containerIds.length === 0) {
+      return;
+    }
+
+    const containers = (await tx.container.findMany({
+      where: { id: { in: containerIds } },
+    })) as ContainerRecord[];
+
+    for (const container of containers) {
+      if (!this.canMarkContainerUnloaded(container.status)) {
+        continue;
+      }
+
+      const oldStatus = container.status;
+      await tx.container.update({
+        where: { id: container.id },
+        data: { status: ContainerStatus.UNLOADED },
+      });
+      await tx.correctionFeedback.create({
+        data: {
+          targetType: CorrectionTargetType.CONTAINER,
+          containerId: container.id,
+          fieldName: 'status',
+          oldValue: oldStatus,
+          newValue: ContainerStatus.UNLOADED,
+          reason: input.reason,
+          note: input.note,
+          correctedById: input.correctedById,
+        },
+      });
+    }
+  }
+
+  private canMarkContainerUnloaded(status: string): boolean {
+    return (
+      status !== ContainerStatus.UNLOADED &&
+      status !== ContainerStatus.LOADING_IN_PROGRESS &&
+      status !== ContainerStatus.LOADED
+    );
   }
 
   private settlementInputs(

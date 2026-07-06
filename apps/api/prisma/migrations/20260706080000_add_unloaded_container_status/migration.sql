@@ -1,0 +1,1 @@
+ALTER TYPE "ContainerStatus" ADD VALUE 'UNLOADED';

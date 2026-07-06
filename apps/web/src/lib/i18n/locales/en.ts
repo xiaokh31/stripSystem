@@ -238,8 +238,8 @@ export const enMessages = {
   "Inventory report failed.": "Inventory report failed.",
   "Inventory source": "Inventory source",
   "Label PDF generated.": "Label PDF generated.",
-  "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; loading or loaded containers are locked.":
-    "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; loading or loaded containers are locked.",
+  "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.":
+    "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.",
   "Label printed": "Label printed",
   "Label reprint audit could not be recorded.":
     "Label reprint audit could not be recorded.",
@@ -589,6 +589,8 @@ export const enMessages = {
     "This container is in loading. Reports, labels, and destination corrections are locked until loading corrections are handled by scan workflow.",
   "This container is loaded and archived. Reports, labels, and destination corrections are locked.":
     "This container is loaded and archived. Reports, labels, and destination corrections are locked.",
+  "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.":
+    "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.",
   "This import already has business records and cannot be deleted.":
     "This import already has business records and cannot be deleted.",
   "This load job is not open for scanning. Select an open load job.":

@@ -345,7 +345,11 @@ function statusBadgeStyles(status: string): string {
   if (status === "LOADED") {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
   }
-  if (status === "LABELS_GENERATED" || status === "REPORT_GENERATED") {
+  if (
+    status === "UNLOADED" ||
+    status === "LABELS_GENERATED" ||
+    status === "REPORT_GENERATED"
+  ) {
     return "border-teal-200 bg-teal-50 text-teal-800";
   }
   if (status === "CORRECTED" || status === "PARSED") {

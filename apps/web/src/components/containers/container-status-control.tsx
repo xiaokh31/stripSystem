@@ -11,8 +11,8 @@ const containerStatuses = [
   "CORRECTED",
   "REPORT_GENERATED",
   "LABELS_GENERATED",
+  "UNLOADED",
   "LOADING_IN_PROGRESS",
-  "LOADED",
   "ERROR",
 ] as const;
 

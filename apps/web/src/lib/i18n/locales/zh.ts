@@ -227,8 +227,8 @@ export const zhMessages = {
   "Inventory report failed.": "库存报告加载失败。",
   "Inventory source": "库存来源",
   "Label PDF generated.": "面单 PDF 已生成。",
-  "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; loading or loaded containers are locked.":
-    "面单 PDF 会按最新保存的目的仓托数重建未使用的计划/已打印托盘；装车中或已装车柜子会被锁定。",
+  "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.":
+    "面单 PDF 会按最新保存的目的仓托数重建未使用的计划/已打印托盘；已拆完、装车中或已装车柜子会被锁定。",
   "Label printed": "面单已打印",
   "Label reprint audit could not be recorded.": "无法记录面单补打审计。",
   "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.":
@@ -553,6 +553,8 @@ export const zhMessages = {
     "此柜子正在装车。报告、面单和目的仓修正在扫码流程处理装车修正前会被锁定。",
   "This container is loaded and archived. Reports, labels, and destination corrections are locked.":
     "此柜子已装车并归档。报告、面单和目的仓修正已锁定。",
+  "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.":
+    "此柜子已拆完。装车流程开始前，报告、面单和目的仓修正已锁定。",
   "This import already has business records and cannot be deleted.":
     "此导入已有业务记录，不能删除。",
   "This load job is not open for scanning. Select an open load job.":

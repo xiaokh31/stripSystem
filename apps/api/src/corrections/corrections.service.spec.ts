@@ -235,6 +235,29 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('allows manual UNLOADED status and writes audit feedback', async () => {
+    const result = await service.updateContainer(
+      'container-1',
+      {
+        correctionNote: 'Unloading completed by warehouse manager',
+        reason: 'Office unloading lifecycle correction',
+        status: 'UNLOADED',
+      },
+      officeActor,
+    );
+
+    expect(result.container).toMatchObject({
+      id: 'container-1',
+      status: 'UNLOADED',
+    });
+    expect(result.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      fieldName: 'status',
+      oldValue: 'PARSED',
+      newValue: 'UNLOADED',
+    });
+  });
+
   it('rejects manual LOADED status when pallets remain unloaded', async () => {
     containersFixture(prisma)[0].destinations[0].pallets = [
       {
@@ -253,6 +276,30 @@ describe('CorrectionsService', () => {
         officeActor,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects manual LOADED status even when all pallets are loaded by scan', async () => {
+    containersFixture(prisma)[0].destinations[0].pallets = [
+      {
+        loadJobId: 'load-job-1',
+        loadedAt: new Date('2026-06-27T11:00:00.000Z'),
+        status: 'LOADED',
+      },
+    ];
+
+    await expect(
+      service.updateContainer(
+        'container-1',
+        {
+          status: 'LOADED',
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CONTAINER_STATUS_LOADED_SCAN_ONLY',
+      }),
+    });
   });
 
   it('creates a manual actual unloading destination and writes audit rows', async () => {

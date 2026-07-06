@@ -443,6 +443,18 @@ describe('LabelsService', () => {
     expect(workerLabel.writeLabels).not.toHaveBeenCalled();
   });
 
+  it('blocks label regeneration when the container is unloaded', async () => {
+    prisma.container.findUnique.mockResolvedValueOnce({
+      ...containerRecord(),
+      status: 'UNLOADED',
+    });
+
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toHaveProperty('response.code', 'CONTAINER_GENERATION_LOCKED');
+    expect(workerLabel.writeLabels).not.toHaveBeenCalled();
+  });
+
   it('records a pallet reprint audit event without changing pallet status', async () => {
     const loadedPallet = palletRecord({
       id: 'pallet-loaded',

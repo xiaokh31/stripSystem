@@ -175,6 +175,9 @@ function statusBadgeStyles(status: string): string {
   if (status === "PARSED" || status === "LABELS_GENERATED") {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
   }
+  if (status === "UNLOADED") {
+    return "border-teal-200 bg-teal-50 text-teal-800";
+  }
   if (status === "LOADING_IN_PROGRESS") {
     return "border-sky-200 bg-sky-50 text-sky-800";
   }

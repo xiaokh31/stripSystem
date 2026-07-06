@@ -14,6 +14,11 @@ export type ContainerStatusValue =
   (typeof ContainerStatus)[keyof typeof ContainerStatus];
 
 const generationLockedStatuses = new Set<string>([
+  ContainerStatus.UNLOADED,
+  ContainerStatus.LOADING_IN_PROGRESS,
+  ContainerStatus.LOADED,
+]);
+const loadingAuthoritativeStatuses = new Set<string>([
   ContainerStatus.LOADING_IN_PROGRESS,
   ContainerStatus.LOADED,
 ]);
@@ -49,7 +54,7 @@ export function effectiveContainerStatus(
   status: string,
   destinations: ContainerDestinationLifecycleRecord[],
 ): string {
-  if (isContainerGenerationLocked(status)) {
+  if (loadingAuthoritativeStatuses.has(status)) {
     return status;
   }
 
@@ -90,6 +95,7 @@ export function effectiveContainerStatus(
 export function containerStatusFromInventoryCounts(
   activePalletCount: number,
   loadedPalletCount: number,
+  currentStatus?: string | null,
 ): ContainerStatusValue | null {
   if (activePalletCount <= 0) {
     return null;
@@ -99,6 +105,9 @@ export function containerStatusFromInventoryCounts(
   }
   if (loadedPalletCount > 0) {
     return ContainerStatus.LOADING_IN_PROGRESS;
+  }
+  if (currentStatus === ContainerStatus.UNLOADED) {
+    return ContainerStatus.UNLOADED;
   }
   return ContainerStatus.LABELS_GENERATED;
 }
