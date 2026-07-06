@@ -53,6 +53,7 @@ enum GeneratedFileType {
   PALLET_LABEL_PDF
   TASK_REPORT_HTML
   CORRECTIONS_JSON
+  MONTHLY_UNLOADING_SUMMARY_XLSX
 }
 
 enum GeneratedFileStatus {

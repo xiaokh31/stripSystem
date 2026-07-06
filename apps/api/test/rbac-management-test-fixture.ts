@@ -51,6 +51,16 @@ export async function createRbacManagementPrismaMock() {
       'unloading_wage.settle',
       'unloading_wage',
     ),
+    permission(
+      'permission-unloading-summary-read',
+      'unloading_summary.read',
+      'unloading_summary',
+    ),
+    permission(
+      'permission-unloading-summary-export',
+      'unloading_summary.export',
+      'unloading_summary',
+    ),
   ];
   const roles: RoleRecord[] = [
     role('role-admin', 'ADMIN', 'Administrator'),
@@ -68,6 +78,16 @@ export async function createRbacManagementPrismaMock() {
       'role-permission-office-imports',
       'role-office',
       'permission-imports-read',
+    ),
+    rolePermission(
+      'role-permission-office-unloading-summary-read',
+      'role-office',
+      'permission-unloading-summary-read',
+    ),
+    rolePermission(
+      'role-permission-office-unloading-summary-export',
+      'role-office',
+      'permission-unloading-summary-export',
     ),
     rolePermission(
       'role-permission-warehouse-load-jobs',
@@ -133,6 +153,16 @@ export async function createRbacManagementPrismaMock() {
       'role-permission-warehouse-manager-unloading-settle',
       'role-warehouse-manager',
       'permission-unloading-wage-settle',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-summary-read',
+      'role-warehouse-manager',
+      'permission-unloading-summary-read',
+    ),
+    rolePermission(
+      'role-permission-warehouse-manager-unloading-summary-export',
+      'role-warehouse-manager',
+      'permission-unloading-summary-export',
     ),
   ];
   const users: UserRecord[] = [];

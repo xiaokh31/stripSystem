@@ -129,6 +129,16 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
     'unloading_wage',
     'Generate monthly unloading wage settlements.',
   ),
+  permission(
+    PERMISSIONS.unloadingSummary.read,
+    'unloading_summary',
+    'Read monthly unloading data summaries.',
+  ),
+  permission(
+    PERMISSIONS.unloadingSummary.export,
+    'unloading_summary',
+    'Export monthly unloading data summary workbooks.',
+  ),
 ];
 
 export const DEFAULT_ROLES: DefaultRole[] = [
@@ -182,6 +192,8 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.scan.override,
       PERMISSIONS.scan.reverse,
       PERMISSIONS.settings.read,
+      PERMISSIONS.unloadingSummary.read,
+      PERMISSIONS.unloadingSummary.export,
     ],
     [ROLE_CODES.hrManager]: [
       PERMISSIONS.settings.read,
@@ -207,6 +219,8 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.unloadingWage.classify,
       PERMISSIONS.unloadingWage.complete,
       PERMISSIONS.unloadingWage.settle,
+      PERMISSIONS.unloadingSummary.read,
+      PERMISSIONS.unloadingSummary.export,
     ],
     [ROLE_CODES.system]: [
       PERMISSIONS.imports.parse,

@@ -63,6 +63,8 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.scan.override,
         PERMISSIONS.scan.reverse,
         PERMISSIONS.settings.read,
+        PERMISSIONS.unloadingSummary.read,
+        PERMISSIONS.unloadingSummary.export,
       ]),
     );
     expect(officePermissions.has(PERMISSIONS.users.manage)).toBe(false);
@@ -109,7 +111,7 @@ describe('default RBAC seed data', () => {
     ).toBe(false);
   });
 
-  it('grants WAREHOUSE_MANAGER only unloading wage settlement permissions', () => {
+  it('grants WAREHOUSE_MANAGER unloading wage settlement and summary permissions', () => {
     const warehouseManagerPermissions = new Set(
       DEFAULT_ROLE_PERMISSION_CODES[ROLE_CODES.warehouseManager],
     );
@@ -123,6 +125,8 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.unloadingWage.classify,
         PERMISSIONS.unloadingWage.complete,
         PERMISSIONS.unloadingWage.settle,
+        PERMISSIONS.unloadingSummary.read,
+        PERMISSIONS.unloadingSummary.export,
       ]),
     );
     expect(hasAnyAttendancePermission(warehouseManagerPermissions)).toBe(false);

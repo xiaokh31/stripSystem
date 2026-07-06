@@ -23,6 +23,10 @@ from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 from worker_python.time_utils import operational_now
+from worker_python.unloading_summary import (
+    result_payload as unloading_summary_result_payload,
+    write_unloading_summary_workbook,
+)
 from worker_python.unloading_wage import run_unload_wage_p0
 from worker_python.wage import (
     run_wage_generate_record_api,
@@ -256,6 +260,39 @@ def unload_wage_p0(
     typer.echo(
         json.dumps(
             _json_ready(result),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("write-unloading-summary")
+def write_unloading_summary(
+    payload: Path = typer.Option(
+        ...,
+        "--payload",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Monthly unloading summary JSON payload.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        help="Monthly unloading summary workbook output directory.",
+    ),
+) -> None:
+    request = json.loads(payload.read_text(encoding="utf-8"))
+    result = write_unloading_summary_workbook(
+        payload=request,
+        output_dir=output_dir,
+    )
+    typer.echo(
+        json.dumps(
+            unloading_summary_result_payload(result),
             ensure_ascii=False,
             sort_keys=True,
         )

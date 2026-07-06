@@ -91,4 +91,9 @@ export const ROUTE_PERMISSIONS = {
     listSettlements: [PERMISSIONS.unloadingWage.read],
     getSettlement: [PERMISSIONS.unloadingWage.read],
   },
+  unloadingSummary: {
+    read: [PERMISSIONS.unloadingSummary.read],
+    export: [PERMISSIONS.unloadingSummary.export],
+    downloadExport: [PERMISSIONS.unloadingSummary.read],
+  },
 } as const;

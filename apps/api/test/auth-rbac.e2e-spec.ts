@@ -306,6 +306,42 @@ describe('RBAC route guards (e2e)', () => {
     }
   });
 
+  it('allows OFFICE and WAREHOUSE_MANAGER monthly unloading summary actions but blocks WAREHOUSE', async () => {
+    for (const authorization of [
+      officeAuthHeader(),
+      warehouseManagerAuthHeader(),
+      adminAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .get('/api/unloading-summary?month=bad')
+        .set('Authorization', authorization)
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/api/unloading-summary/exports')
+        .set('Authorization', authorization)
+        .send({})
+        .expect(400);
+    }
+
+    await request(app.getHttpServer())
+      .get('/api/unloading-summary?month=2026-06')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/unloading-summary/exports')
+      .set('Authorization', warehouseAuthHeader())
+      .send({ month: '2026-06' })
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
   it('returns the current user profile for a valid token', async () => {
     await request(app.getHttpServer())
       .get('/api/auth/me')

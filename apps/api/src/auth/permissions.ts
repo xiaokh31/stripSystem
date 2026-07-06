@@ -68,6 +68,10 @@ export const PERMISSIONS = {
     complete: 'unloading_wage.complete',
     settle: 'unloading_wage.settle',
   },
+  unloadingSummary: {
+    read: 'unloading_summary.read',
+    export: 'unloading_summary.export',
+  },
 } as const;
 
 export type PermissionCode = LeafValues<typeof PERMISSIONS>;

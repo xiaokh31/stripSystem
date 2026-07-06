@@ -135,6 +135,8 @@ describe('Roles and permissions API (e2e)', () => {
       .expect(201);
     expect((before.body as LoginBody).user.permissions).toEqual([
       'imports.read',
+      'unloading_summary.export',
+      'unloading_summary.read',
     ]);
 
     await request(app.getHttpServer())
