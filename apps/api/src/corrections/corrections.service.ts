@@ -79,6 +79,7 @@ interface ContainerRecord {
       }>;
       unloaders?: Array<{
         id: string;
+        unloadingWorkerId: string | null;
         workerUserId: string | null;
         workerCode: string;
         workerName: string;
@@ -1219,6 +1220,7 @@ export class CorrectionsService {
       unloaders:
         payContainer.unloaders?.map((unloader) => ({
           id: unloader.id,
+          unloadingWorkerId: unloader.unloadingWorkerId ?? null,
           workerUserId: unloader.workerUserId,
           workerCode: unloader.workerCode,
           workerName: unloader.workerName,

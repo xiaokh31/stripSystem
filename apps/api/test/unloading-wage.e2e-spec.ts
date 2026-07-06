@@ -38,6 +38,26 @@ function workerUser(
   };
 }
 
+function tempWorker(
+  id: string,
+  displayName: string,
+  workerCode: string,
+  isActive = true,
+) {
+  return {
+    createdAt: new Date('2026-06-01T08:00:00.000Z'),
+    createdById: null,
+    displayName,
+    id,
+    isActive,
+    note: null,
+    phone: null,
+    updatedAt: new Date('2026-06-01T08:00:00.000Z'),
+    updatedById: null,
+    workerCode,
+  };
+}
+
 describe('Container detail unloading wage API (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: any;
@@ -79,9 +99,9 @@ describe('Container detail unloading wage API (e2e)', () => {
       .expect(200);
 
     expect(workers.body.items.map((worker: any) => worker.id)).toEqual([
-      'worker-a',
-      'worker-b',
-      'worker-c',
+      'temp-worker-a',
+      'temp-worker-b',
+      'temp-worker-c',
     ]);
 
     const saved = await authorizedRequest(app, warehouseManagerAuthHeader())
@@ -119,7 +139,10 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-b' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-b' },
+        ],
       })
       .expect(200);
 
@@ -132,6 +155,60 @@ describe('Container detail unloading wage API (e2e)', () => {
         fieldName: 'unloaders',
       }),
     });
+  });
+
+  it('creates, updates, deactivates, and lists temporary unloading workers', async () => {
+    const created = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/unloading-wage/workers')
+      .send({
+        displayName: 'Prototype Worker D',
+        workerCode: 'TEMP-D',
+        phone: '604-555-0100',
+      })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      createdById: 'auth-warehouse-manager',
+      displayName: 'Prototype Worker D',
+      isActive: true,
+      phone: '604-555-0100',
+      workerCode: 'TEMP-D',
+    });
+
+    const deactivated = await authorizedRequest(
+      app,
+      warehouseManagerAuthHeader(),
+    )
+      .patch(`/api/unloading-wage/workers/${created.body.id}`)
+      .send({ isActive: false, note: 'Unavailable' })
+      .expect(200);
+
+    expect(deactivated.body).toMatchObject({
+      id: created.body.id,
+      isActive: false,
+      note: 'Unavailable',
+      updatedById: 'auth-warehouse-manager',
+    });
+
+    const activeOnly = await authorizedRequest(
+      app,
+      warehouseManagerAuthHeader(),
+    )
+      .get('/api/unloading-wage/workers')
+      .expect(200);
+    expect(activeOnly.body.items.map((worker: any) => worker.id)).not.toContain(
+      created.body.id,
+    );
+
+    const includeInactive = await authorizedRequest(
+      app,
+      warehouseManagerAuthHeader(),
+    )
+      .get('/api/unloading-wage/workers?includeInactive=true')
+      .expect(200);
+    expect(
+      includeInactive.body.items.map((worker: any) => worker.id),
+    ).toContain(created.body.id);
   });
 
   it('rejects US-to-Canada wage without trailer number through DTO-backed route', async () => {
@@ -158,7 +235,10 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-c' },
+        ],
       })
       .expect(200);
 
@@ -187,7 +267,7 @@ describe('Container detail unloading wage API (e2e)', () => {
     ).toEqual(['Prototype Worker A', 'Prototype Worker C']);
   });
 
-  it('rejects duplicate unloader users from the container detail route', async () => {
+  it('rejects duplicate temporary unloading workers from the container detail route', async () => {
     await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'OCEAN_CONTAINER' })
@@ -197,7 +277,10 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-a' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-a' },
+        ],
       })
       .expect(400);
 
@@ -206,34 +289,34 @@ describe('Container detail unloading wage API (e2e)', () => {
     });
   });
 
-  it('rejects non-selectable or inactive workers from the container detail route', async () => {
+  it('rejects legacy user ids and inactive workers from the container detail route', async () => {
     await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'OCEAN_CONTAINER' })
       .expect(200);
 
-    const officeWorker = await request(app.getHttpServer())
+    const legacyUserId = await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-office' }],
+        unloaders: [{ workerUserId: 'worker-a' }],
       })
       .expect(400);
 
-    expect(officeWorker.body).toMatchObject({
-      code: 'UNLOADER_WORKER_NOT_SELECTABLE',
+    expect(legacyUserId.body).toMatchObject({
+      code: 'UNLOADING_WORKER_REQUIRED',
     });
 
     const inactiveWorker = await request(app.getHttpServer())
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-inactive' }],
+        unloaders: [{ unloadingWorkerId: 'temp-worker-inactive' }],
       })
       .expect(400);
 
     expect(inactiveWorker.body).toMatchObject({
-      code: 'UNLOADER_WORKER_INACTIVE',
+      code: 'UNLOADING_WORKER_INACTIVE',
     });
   });
 
@@ -250,7 +333,10 @@ describe('Container detail unloading wage API (e2e)', () => {
       .put('/api/containers/container-zcsu/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-c' },
+        ],
       })
       .expect(200);
 
@@ -310,6 +396,51 @@ describe('Container detail unloading wage API (e2e)', () => {
     expect(download.text).toContain('"settlementMonth": "2026-06"');
   });
 
+  it('keeps legacy user-backed unloader snapshots readable in settlement generation', async () => {
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage')
+      .send({ classification: 'OCEAN_CONTAINER' })
+      .expect(200);
+
+    prisma.__setUnloaders([
+      {
+        id: 'legacy-unloader-1',
+        allocationAmount: null,
+        allocationPercent: null,
+        note: null,
+        payContainerId: 'pay-container-1',
+        unloadingWorkerId: null,
+        workerCode: 'USER:legacy-worker-a',
+        workerName: 'Legacy Worker A',
+        workerUserId: 'legacy-worker-a',
+      },
+    ]);
+
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/containers/container-zcsu/complete-unloading')
+      .send({ completedAt: '2026-06-04T17:10:00.000Z' })
+      .expect(201);
+
+    const generated = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/unloading-wage-settlements')
+      .send({ settlementMonth: '2026-06' })
+      .expect(201);
+
+    expect(generated.body.workers).toEqual([
+      expect.objectContaining({
+        totalAmount: '300.00',
+        workerCode: 'USER:legacy-worker-a',
+        workerName: 'Legacy Worker A',
+      }),
+    ]);
+    expect(generated.body.lines).toEqual([
+      expect.objectContaining({
+        amount: '300.00',
+        workerName: 'Legacy Worker A',
+      }),
+    ]);
+  });
+
   function createPrismaMock() {
     const containers = [
       {
@@ -362,6 +493,17 @@ describe('Container detail unloading wage API (e2e)', () => {
       workerUser('worker-office', 'Office Worker', 'OFFICE'),
       workerUser('worker-inactive', 'Inactive Worker', 'WAREHOUSE', false),
     ];
+    const unloadingWorkers = [
+      tempWorker('temp-worker-a', 'Prototype Worker A', 'TEMP-A'),
+      tempWorker('temp-worker-b', 'Prototype Worker B', 'TEMP-B'),
+      tempWorker('temp-worker-c', 'Prototype Worker C', 'TEMP-C'),
+      tempWorker(
+        'temp-worker-inactive',
+        'Inactive Worker',
+        'TEMP-INACTIVE',
+        false,
+      ),
+    ];
 
     const payContainerSnapshot = () =>
       payContainer
@@ -399,6 +541,53 @@ describe('Container detail unloading wage API (e2e)', () => {
             );
           }
           return Promise.resolve(records);
+        }),
+      },
+      unloadingWorker: {
+        findMany: jest.fn(({ where } = {}) => {
+          let records = unloadingWorkers;
+          if (where?.id?.in) {
+            records = records.filter((worker) =>
+              where.id.in.includes(worker.id),
+            );
+          }
+          if (where?.isActive !== undefined) {
+            records = records.filter(
+              (worker) => worker.isActive === where.isActive,
+            );
+          }
+          return Promise.resolve(records);
+        }),
+        findUnique: jest.fn(({ where }) => {
+          const record =
+            unloadingWorkers.find((worker) =>
+              where.id
+                ? worker.id === where.id
+                : worker.workerCode === where.workerCode,
+            ) ?? null;
+          return Promise.resolve(record);
+        }),
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `temp-worker-${unloadingWorkers.length + 1}`,
+            createdAt: new Date('2026-06-01T09:00:00.000Z'),
+            updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+            ...data,
+          };
+          unloadingWorkers.push(record);
+          return Promise.resolve(record);
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = unloadingWorkers.find(
+            (worker) => worker.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Unloading worker not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-01T09:30:00.000Z'),
+          });
+          return Promise.resolve(record);
         }),
       },
       container: {
@@ -658,6 +847,12 @@ describe('Container detail unloading wage API (e2e)', () => {
           }),
         ),
       },
+    };
+    mock.__setUnloaders = (records: any[]) => {
+      unloaders = records;
+      if (payContainer) {
+        payContainer.unloaders = unloaders;
+      }
     };
 
     return mock;

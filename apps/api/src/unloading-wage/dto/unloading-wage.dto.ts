@@ -1,6 +1,7 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsInt,
   IsIn,
   IsISO8601,
@@ -12,7 +13,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type, type TransformFnParams } from 'class-transformer';
 import {
   ContainerPayClassification,
   PayAllocationMethod,
@@ -21,6 +22,19 @@ import {
 
 const CLASSIFICATIONS = Object.values(ContainerPayClassification);
 const ALLOCATION_METHODS = Object.values(PayAllocationMethod);
+
+function optionalBoolean({ value }: TransformFnParams): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return value as boolean;
+}
 
 export class UpdateContainerPayClassificationDto {
   @IsIn(CLASSIFICATIONS)
@@ -96,6 +110,10 @@ export class CompleteContainerUnloadingDto {
 export class ContainerUnloaderDto {
   @IsOptional()
   @IsString()
+  unloadingWorkerId?: string | null;
+
+  @IsOptional()
+  @IsString()
   workerUserId?: string | null;
 
   @IsOptional()
@@ -127,10 +145,70 @@ export class UpdateContainerUnloadersDto {
   note?: string | null;
 }
 
+export class ListUnloadingWorkersQueryDto {
+  @IsOptional()
+  @Transform(optionalBoolean)
+  @IsBoolean()
+  includeInactive?: boolean = false;
+}
+
+export class CreateUnloadingWorkerDto {
+  @IsString()
+  displayName!: string;
+
+  @IsOptional()
+  @IsString()
+  workerCode?: string | null;
+
+  @IsOptional()
+  @Transform(optionalBoolean)
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
+export class UpdateUnloadingWorkerDto {
+  @IsOptional()
+  @IsString()
+  displayName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  workerCode?: string | null;
+
+  @IsOptional()
+  @Transform(optionalBoolean)
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}
+
 export interface UnloadingWageWorkerResponseDto {
   id: string;
   displayName: string;
   workerCode: string;
+  isActive: boolean;
+  phone: string | null;
+  note: string | null;
+  createdById: string | null;
+  updatedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Compatibility fields for the old user-backed web selector. */
   email: string | null;
   roles: string[];
 }
@@ -260,6 +338,7 @@ export interface PayContainerResponseDto {
   }>;
   unloaders: Array<{
     id: string;
+    unloadingWorkerId: string | null;
     workerUserId: string | null;
     workerCode: string;
     workerName: string;
@@ -291,6 +370,7 @@ export interface ContainerUnloadingWageResponseDto {
   }>;
   unloaders: Array<{
     id: string;
+    unloadingWorkerId: string | null;
     workerUserId: string | null;
     workerCode: string;
     workerName: string;

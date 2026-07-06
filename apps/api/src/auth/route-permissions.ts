@@ -75,6 +75,7 @@ export const ROUTE_PERMISSIONS = {
   },
   unloadingWage: {
     listWorkers: [PERMISSIONS.unloadingWage.read],
+    manageWorkers: [PERMISSIONS.unloadingWage.complete],
     classifyContainer: [
       PERMISSIONS.unloadingWage.classify,
       PERMISSIONS.corrections.create,

@@ -203,6 +203,25 @@ describe('RBAC route guards (e2e)', () => {
       .set('Authorization', warehouseManagerAuthHeader())
       .expect(200);
 
+    const createdWorker = await request(app.getHttpServer())
+      .post('/api/unloading-wage/workers')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({
+        displayName: 'Temporary Unloader',
+        workerCode: 'TEMP-RBAC',
+      })
+      .expect(201);
+    expect(createdWorker.body).toMatchObject({
+      displayName: 'Temporary Unloader',
+      workerCode: 'TEMP-RBAC',
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/api/unloading-wage/workers/${createdWorker.body.id}`)
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({ isActive: false })
+      .expect(200);
+
     await request(app.getHttpServer())
       .patch('/api/containers/container-1/unloading-wage')
       .set('Authorization', warehouseManagerAuthHeader())
@@ -211,6 +230,12 @@ describe('RBAC route guards (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/containers/container-1/complete-unloading')
+      .set('Authorization', warehouseManagerAuthHeader())
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .put('/api/containers/container-1/unloaders')
       .set('Authorization', warehouseManagerAuthHeader())
       .send({})
       .expect(400);
@@ -235,7 +260,34 @@ describe('RBAC route guards (e2e)', () => {
         });
 
       await request(app.getHttpServer())
+        .post('/api/unloading-wage/workers')
+        .set('Authorization', authorization)
+        .send({ displayName: 'Blocked Worker' })
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+
+      await request(app.getHttpServer())
+        .patch('/api/unloading-wage/workers/temp-worker-a')
+        .set('Authorization', authorization)
+        .send({ isActive: false })
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+
+      await request(app.getHttpServer())
         .patch('/api/containers/container-1/unloading-wage')
+        .set('Authorization', authorization)
+        .send({})
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+        });
+
+      await request(app.getHttpServer())
+        .put('/api/containers/container-1/unloaders')
         .set('Authorization', authorization)
         .send({})
         .expect(403)

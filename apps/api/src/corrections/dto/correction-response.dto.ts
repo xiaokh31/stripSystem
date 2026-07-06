@@ -104,6 +104,7 @@ export interface ContainerDetailResponseDto {
     }>;
     unloaders: Array<{
       id: string;
+      unloadingWorkerId: string | null;
       workerUserId: string | null;
       workerCode: string;
       workerName: string;

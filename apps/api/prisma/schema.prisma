@@ -155,6 +155,8 @@ model User {
   payContainersCreated     PayContainer[]            @relation("PayContainerCreatedBy")
   payContainersCompleted   PayContainer[]            @relation("PayContainerCompletedBy")
   unloaderAssignments      UnloaderAssignment[]      @relation("UnloaderAssignmentUser")
+  unloadingWorkersCreated  UnloadingWorker[]         @relation("UnloadingWorkerCreatedBy")
+  unloadingWorkersUpdated  UnloadingWorker[]         @relation("UnloadingWorkerUpdatedBy")
   wageSettlementsGenerated UnloadingWageSettlement[] @relation("UnloadingWageSettlementGeneratedBy")
   createdAt                DateTime                  @default(now()) @map("created_at")
   updatedAt                DateTime                  @updatedAt @map("updated_at")
@@ -693,23 +695,48 @@ model PayContainerContainer {
   @@map("pay_container_containers")
 }
 
+model UnloadingWorker {
+  id                  String               @id @default(cuid())
+  displayName         String               @map("display_name")
+  workerCode          String               @unique @map("worker_code")
+  isActive            Boolean              @default(true) @map("is_active")
+  phone               String?
+  note                String?
+  createdById         String?              @map("created_by_id")
+  createdBy           User?                @relation("UnloadingWorkerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  updatedById         String?              @map("updated_by_id")
+  updatedBy           User?                @relation("UnloadingWorkerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  unloaderAssignments UnloaderAssignment[]
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([displayName])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("unloading_workers")
+}
+
 model UnloaderAssignment {
-  id                String       @id @default(cuid())
-  payContainerId    String       @map("pay_container_id")
-  payContainer      PayContainer @relation(fields: [payContainerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerUserId      String?      @map("worker_user_id")
-  workerUser        User?        @relation("UnloaderAssignmentUser", fields: [workerUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  workerCode        String       @map("worker_code")
-  workerName        String       @map("worker_name")
-  allocationAmount  Decimal?     @map("allocation_amount") @db.Decimal(10, 2)
-  allocationPercent Decimal?     @map("allocation_percent") @db.Decimal(7, 4)
+  id                String           @id @default(cuid())
+  payContainerId    String           @map("pay_container_id")
+  payContainer      PayContainer     @relation(fields: [payContainerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerUserId      String?          @map("worker_user_id")
+  workerUser        User?            @relation("UnloaderAssignmentUser", fields: [workerUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  unloadingWorkerId String?          @map("unloading_worker_id")
+  unloadingWorker   UnloadingWorker? @relation(fields: [unloadingWorkerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  workerCode        String           @map("worker_code")
+  workerName        String           @map("worker_name")
+  allocationAmount  Decimal?         @map("allocation_amount") @db.Decimal(10, 2)
+  allocationPercent Decimal?         @map("allocation_percent") @db.Decimal(7, 4)
   note              String?
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   @@unique([payContainerId, workerCode])
   @@index([payContainerId])
   @@index([workerUserId])
+  @@index([unloadingWorkerId])
   @@index([workerCode])
   @@map("unloader_assignments")
 }

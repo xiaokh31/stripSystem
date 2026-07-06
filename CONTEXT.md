@@ -79,6 +79,8 @@ is separate from pallet loading completion.
 _Avoid_: Loaded, load job completed
 
 **Unloader Assignment**:
-The list of warehouse workers credited with unloading a container or associated
-US-to-Canada transfer group.
-_Avoid_: Scan operator, load job creator
+The list of temporary unloader directory workers credited with unloading a
+container or associated US-to-Canada transfer group. Historical records may
+still carry legacy user-backed worker IDs, but wage settlement uses the saved
+worker code/name snapshot.
+_Avoid_: Scan operator, load job creator, login user account

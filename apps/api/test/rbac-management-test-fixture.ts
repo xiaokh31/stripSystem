@@ -137,6 +137,9 @@ export async function createRbacManagementPrismaMock() {
   ];
   const users: UserRecord[] = [];
   const userRoleAssignments: UserRoleAssignmentRecord[] = [];
+  const unloadingWorkers: UnloadingWorkerRecord[] = [
+    unloadingWorker('temp-worker-a', 'Prototype Worker A', 'TEMP-A'),
+  ];
 
   const mock: any = {
     checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
@@ -275,6 +278,51 @@ export async function createRbacManagementPrismaMock() {
         return Promise.resolve(include ? hydrateUser(found) : found);
       }),
     },
+    unloadingWorker: {
+      findMany: jest.fn(({ where } = {}) => {
+        let records = unloadingWorkers;
+        if (where?.id?.in) {
+          records = records.filter((worker) => where.id.in.includes(worker.id));
+        }
+        if (where?.isActive !== undefined) {
+          records = records.filter(
+            (worker) => worker.isActive === where.isActive,
+          );
+        }
+        return Promise.resolve(records);
+      }),
+      findUnique: jest.fn(({ where }) => {
+        const found =
+          unloadingWorkers.find((record) =>
+            where.id
+              ? record.id === where.id
+              : record.workerCode === where.workerCode,
+          ) ?? null;
+        return Promise.resolve(found);
+      }),
+      create: jest.fn(({ data }) => {
+        const created = unloadingWorker(
+          `temp-worker-${unloadingWorkers.length + 1}`,
+          data.displayName,
+          data.workerCode,
+          data.isActive ?? true,
+          data.phone ?? null,
+          data.note ?? null,
+          data.createdById ?? null,
+          data.updatedById ?? null,
+        );
+        unloadingWorkers.push(created);
+        return Promise.resolve(created);
+      }),
+      update: jest.fn(({ where, data }) => {
+        const found = unloadingWorkers.find((record) => record.id === where.id);
+        if (!found) {
+          throw new Error(`Unloading worker not found: ${where.id}`);
+        }
+        Object.assign(found, data, { updatedAt: NOW });
+        return Promise.resolve(found);
+      }),
+    },
   };
 
   return {
@@ -380,6 +428,30 @@ function userRoleAssignment(
     assignedAt: NOW,
     createdAt: NOW,
     updatedAt: NOW,
+  };
+}
+
+function unloadingWorker(
+  id: string,
+  displayName: string,
+  workerCode: string,
+  isActive = true,
+  phone: string | null = null,
+  note: string | null = null,
+  createdById: string | null = null,
+  updatedById: string | null = null,
+): UnloadingWorkerRecord {
+  return {
+    createdAt: NOW,
+    createdById,
+    displayName,
+    id,
+    isActive,
+    note,
+    phone,
+    updatedAt: NOW,
+    updatedById,
+    workerCode,
   };
 }
 
@@ -518,6 +590,19 @@ export interface UserRoleAssignmentRecord {
   roleId: string;
   assignedById: string | null;
   assignedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UnloadingWorkerRecord {
+  id: string;
+  displayName: string;
+  workerCode: string;
+  isActive: boolean;
+  phone: string | null;
+  note: string | null;
+  createdById: string | null;
+  updatedById: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

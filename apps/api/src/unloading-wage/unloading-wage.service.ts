@@ -5,12 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
-import { ROLE_CODES } from '../auth/permissions';
 import {
   ContainerPayClassification,
   CorrectionTargetType,
@@ -27,9 +26,11 @@ import {
   CompleteUnloadingDto,
   ContainerUnloaderDto,
   ContainerUnloadingWageResponseDto,
+  CreateUnloadingWorkerDto,
   CreatePayContainerDto,
   GenerateUnloadingWageSettlementDto,
   ListPayContainersQueryDto,
+  ListUnloadingWorkersQueryDto,
   PayContainerListResponseDto,
   PayContainerResponseDto,
   SaveContainerUnloadingWageDto,
@@ -38,6 +39,7 @@ import {
   UpdateContainerPayClassificationDto,
   UpdateContainerUnloadersDto,
   UpdateContainerUnloadingWageAssociationsDto,
+  UpdateUnloadingWorkerDto,
   UnloadingWageSettlementListResponseDto,
   UnloadingWageSettlementResponseDto,
 } from './dto/unloading-wage.dto';
@@ -88,6 +90,7 @@ interface PayContainerContainerRecord {
 
 interface UnloaderAssignmentRecord {
   id: string;
+  unloadingWorkerId: string | null;
   workerUserId: string | null;
   workerCode: string;
   workerName: string;
@@ -178,26 +181,18 @@ interface ExistingPayContainerLinkRecord {
   payContainer: PayContainerRecord;
 }
 
-interface WorkerRoleAssignmentRecord {
-  role?: {
-    code: string;
-    isActive: boolean;
-  } | null;
-}
-
-interface WorkerUserRecord {
+interface UnloadingWorkerRecord {
   id: string;
-  email: string | null;
-  name: string | null;
-  role?: string | null;
+  displayName: string;
+  workerCode: string;
   isActive: boolean;
-  roleAssignments?: WorkerRoleAssignmentRecord[];
+  phone: string | null;
+  note: string | null;
+  createdById: string | null;
+  updatedById: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
-
-const SELECTABLE_UNLOADER_ROLE_CODES = new Set<string>([
-  ROLE_CODES.warehouse,
-  ROLE_CODES.warehouseManager,
-]);
 
 type UnloadingWageTransaction = Pick<
   PrismaService,
@@ -220,35 +215,96 @@ export class UnloadingWageService {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
 
-  async listWorkers(): Promise<UnloadingWageWorkerListResponseDto> {
-    const users = (await this.prisma.user.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          {
-            roleAssignments: {
-              some: {
-                role: {
-                  code: { in: [...SELECTABLE_UNLOADER_ROLE_CODES] },
-                  isActive: true,
-                },
-              },
-            },
-          },
-          { role: ROLE_CODES.warehouse },
-        ],
-      },
-      include: {
-        roleAssignments: { include: { role: true } },
-      },
-      orderBy: [{ name: 'asc' }, { email: 'asc' }, { id: 'asc' }],
-    })) as WorkerUserRecord[];
+  async listWorkers(
+    query: ListUnloadingWorkersQueryDto = {},
+  ): Promise<UnloadingWageWorkerListResponseDto> {
+    const workers = (await this.prisma.unloadingWorker.findMany({
+      where: query.includeInactive ? {} : { isActive: true },
+      orderBy: [{ displayName: 'asc' }, { workerCode: 'asc' }],
+    })) as UnloadingWorkerRecord[];
 
     return {
-      items: users
-        .filter((user) => this.isSelectableUnloaderUser(user))
-        .map((user) => this.toWorkerResponse(user)),
+      items: workers.map((worker) => this.toWorkerResponse(worker)),
     };
+  }
+
+  async createWorker(
+    dto: CreateUnloadingWorkerDto,
+    actor: AuthenticatedUser,
+  ): Promise<UnloadingWageWorkerResponseDto> {
+    const displayName = this.requiredString(dto.displayName, 'displayName');
+    const workerCode =
+      this.stringOrNull(dto.workerCode) ??
+      (await this.generatedTemporaryWorkerCode());
+    await this.assertWorkerCodeAvailable(workerCode);
+    const actorId = auditUserId(actor);
+
+    const worker = (await this.prisma.unloadingWorker.create({
+      data: {
+        displayName,
+        workerCode,
+        isActive: dto.isActive ?? true,
+        phone: this.stringOrNull(dto.phone),
+        note: this.stringOrNull(dto.note),
+        createdById: actorId,
+        updatedById: actorId,
+      },
+    })) as UnloadingWorkerRecord;
+
+    return this.toWorkerResponse(worker);
+  }
+
+  async updateWorker(
+    workerId: string,
+    dto: UpdateUnloadingWorkerDto,
+    actor: AuthenticatedUser,
+  ): Promise<UnloadingWageWorkerResponseDto> {
+    const existing = (await this.prisma.unloadingWorker.findUnique({
+      where: { id: workerId },
+    })) as UnloadingWorkerRecord | null;
+    if (!existing) {
+      throw new NotFoundException({
+        code: 'UNLOADING_WORKER_NOT_FOUND',
+        message: `Unloading worker ${workerId} was not found.`,
+        details: { workerId },
+      });
+    }
+
+    const data: Record<string, unknown> = {};
+    if (dto.displayName !== undefined) {
+      data.displayName = this.requiredString(dto.displayName, 'displayName');
+    }
+    if (dto.workerCode !== undefined) {
+      const workerCode = this.requiredString(dto.workerCode, 'workerCode');
+      if (workerCode !== existing.workerCode) {
+        await this.assertWorkerCodeAvailable(workerCode, existing.id);
+      }
+      data.workerCode = workerCode;
+    }
+    if (dto.isActive !== undefined) {
+      data.isActive = dto.isActive;
+    }
+    if (dto.phone !== undefined) {
+      data.phone = this.stringOrNull(dto.phone);
+    }
+    if (dto.note !== undefined) {
+      data.note = this.stringOrNull(dto.note);
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException({
+        code: 'UNLOADING_WORKER_UPDATE_REQUIRED',
+        message: 'At least one unloading worker field must be changed.',
+        details: { workerId },
+      });
+    }
+    data.updatedById = auditUserId(actor);
+
+    const worker = (await this.prisma.unloadingWorker.update({
+      where: { id: workerId },
+      data,
+    })) as UnloadingWorkerRecord;
+
+    return this.toWorkerResponse(worker);
   }
 
   async updateContainerPayClassification(
@@ -453,6 +509,7 @@ export class UnloadingWageService {
         await tx.unloaderAssignment.create({
           data: {
             payContainerId: payContainer.id,
+            unloadingWorkerId: unloader.unloadingWorkerId,
             workerUserId: unloader.workerUserId,
             workerCode: unloader.workerCode,
             workerName: unloader.workerName,
@@ -473,6 +530,7 @@ export class UnloadingWageService {
           fieldName: 'unloaders',
           oldValue: this.nullableJsonValue(
             payContainer.unloaders?.map((unloader) => ({
+              unloadingWorkerId: unloader.unloadingWorkerId,
               workerCode: unloader.workerCode,
               workerName: unloader.workerName,
               workerUserId: unloader.workerUserId,
@@ -1167,21 +1225,23 @@ export class UnloadingWageService {
     unloaders: ContainerUnloaderDto[],
   ): Promise<
     Array<{
-      workerUserId: string;
+      unloadingWorkerId: string;
+      workerUserId: string | null;
       workerCode: string;
       workerName: string;
       note: string | null;
     }>
   > {
     const requested = unloaders.map((unloader, index) => {
-      const workerUserId = this.stringOrNull(unloader.workerUserId);
-      if (!workerUserId) {
+      const unloadingWorkerId = this.stringOrNull(unloader.unloadingWorkerId);
+      if (!unloadingWorkerId) {
         throw new BadRequestException({
-          code: 'UNLOADER_WORKER_USER_REQUIRED',
+          code: 'UNLOADING_WORKER_REQUIRED',
           message:
-            'Each container detail unloader must be selected from the worker directory.',
+            'Each container detail unloader must be selected from the temporary unloading worker directory.',
           details: {
             index,
+            workerUserId: this.stringOrNull(unloader.workerUserId),
             workerName: this.stringOrNull(unloader.workerName),
           },
         });
@@ -1190,110 +1250,106 @@ export class UnloadingWageService {
       return {
         index,
         note: this.stringOrNull(unloader.note),
-        workerUserId,
+        unloadingWorkerId,
       };
     });
 
-    const seenUserIds = new Set<string>();
+    const seenWorkerIds = new Set<string>();
     for (const unloader of requested) {
-      if (seenUserIds.has(unloader.workerUserId)) {
+      if (seenWorkerIds.has(unloader.unloadingWorkerId)) {
         throw new BadRequestException({
           code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
-          message: `Duplicate unloader assignment: ${unloader.workerUserId}.`,
-          details: { workerUserId: unloader.workerUserId },
+          message: `Duplicate unloader assignment: ${unloader.unloadingWorkerId}.`,
+          details: { unloadingWorkerId: unloader.unloadingWorkerId },
         });
       }
-      seenUserIds.add(unloader.workerUserId);
+      seenWorkerIds.add(unloader.unloadingWorkerId);
     }
 
-    const users = (await this.prisma.user.findMany({
-      where: { id: { in: [...seenUserIds] } },
-      include: {
-        roleAssignments: { include: { role: true } },
-      },
-    })) as WorkerUserRecord[];
-    const usersById = new Map(users.map((user) => [user.id, user]));
+    const workers = (await this.prisma.unloadingWorker.findMany({
+      where: { id: { in: [...seenWorkerIds] } },
+    })) as UnloadingWorkerRecord[];
+    const workersById = new Map(workers.map((worker) => [worker.id, worker]));
 
     return requested.map((unloader) => {
-      const user = usersById.get(unloader.workerUserId);
-      if (!user) {
+      const worker = workersById.get(unloader.unloadingWorkerId);
+      if (!worker) {
         throw new BadRequestException({
-          code: 'UNLOADER_WORKER_NOT_FOUND',
-          message: 'Selected unloader user was not found.',
-          details: { workerUserId: unloader.workerUserId },
+          code: 'UNLOADING_WORKER_NOT_FOUND',
+          message: 'Selected unloading worker was not found.',
+          details: { unloadingWorkerId: unloader.unloadingWorkerId },
         });
       }
 
-      if (!user.isActive) {
+      if (!worker.isActive) {
         throw new BadRequestException({
-          code: 'UNLOADER_WORKER_INACTIVE',
-          message: 'Selected unloader user is inactive.',
-          details: { workerUserId: user.id },
-        });
-      }
-
-      if (!this.isSelectableUnloaderUser(user)) {
-        throw new BadRequestException({
-          code: 'UNLOADER_WORKER_NOT_SELECTABLE',
-          message:
-            'Selected user is not a warehouse worker selectable for unloading wage.',
-          details: { workerUserId: user.id, roles: this.workerRoleCodes(user) },
+          code: 'UNLOADING_WORKER_INACTIVE',
+          message: 'Selected unloading worker is inactive.',
+          details: { unloadingWorkerId: worker.id },
         });
       }
 
       return {
+        unloadingWorkerId: worker.id,
         note: unloader.note,
-        workerCode: this.workerCodeFromUser(user),
-        workerName: this.workerDisplayName(user),
-        workerUserId: user.id,
+        workerCode: worker.workerCode,
+        workerName: worker.displayName,
+        workerUserId: null,
       };
     });
   }
 
   private toWorkerResponse(
-    user: WorkerUserRecord,
+    worker: UnloadingWorkerRecord,
   ): UnloadingWageWorkerResponseDto {
     return {
-      displayName: this.workerDisplayName(user),
-      email: this.stringOrNull(user.email),
-      id: user.id,
-      roles: this.workerRoleCodes(user),
-      workerCode: this.workerCodeFromUser(user),
+      createdAt: this.iso(worker.createdAt),
+      createdById: worker.createdById,
+      displayName: worker.displayName,
+      email: null,
+      id: worker.id,
+      isActive: worker.isActive,
+      note: worker.note,
+      phone: worker.phone,
+      roles: [],
+      updatedAt: this.iso(worker.updatedAt),
+      updatedById: worker.updatedById,
+      workerCode: worker.workerCode,
     };
   }
 
-  private isSelectableUnloaderUser(user: WorkerUserRecord): boolean {
-    if (!user.isActive) {
-      return false;
-    }
-    return this.workerRoleCodes(user).some((roleCode) =>
-      SELECTABLE_UNLOADER_ROLE_CODES.has(roleCode),
-    );
-  }
-
-  private workerRoleCodes(user: WorkerUserRecord): string[] {
-    const codes = new Set<string>();
-    for (const assignment of user.roleAssignments ?? []) {
-      const role = assignment.role;
-      if (role?.isActive && role.code) {
-        codes.add(role.code);
+  private async generatedTemporaryWorkerCode(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = `TEMP-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const existing = (await this.prisma.unloadingWorker.findUnique({
+        where: { workerCode: candidate },
+      })) as UnloadingWorkerRecord | null;
+      if (!existing) {
+        return candidate;
       }
     }
-    const legacyRole = this.stringOrNull(user.role);
-    if (legacyRole) {
-      codes.add(legacyRole);
+
+    throw new InternalServerErrorException({
+      code: 'UNLOADING_WORKER_CODE_GENERATION_FAILED',
+      message: 'Unable to generate a unique temporary unloading worker code.',
+      details: {},
+    });
+  }
+
+  private async assertWorkerCodeAvailable(
+    workerCode: string,
+    currentWorkerId?: string,
+  ): Promise<void> {
+    const existing = (await this.prisma.unloadingWorker.findUnique({
+      where: { workerCode },
+    })) as UnloadingWorkerRecord | null;
+    if (existing && existing.id !== currentWorkerId) {
+      throw new BadRequestException({
+        code: 'UNLOADING_WORKER_CODE_DUPLICATE',
+        message: `Unloading worker code already exists: ${workerCode}.`,
+        details: { workerCode },
+      });
     }
-    return [...codes].sort();
-  }
-
-  private workerCodeFromUser(user: WorkerUserRecord): string {
-    return `USER:${user.id}`;
-  }
-
-  private workerDisplayName(user: WorkerUserRecord): string {
-    return (
-      this.stringOrNull(user.name) ?? this.stringOrNull(user.email) ?? user.id
-    );
   }
 
   private async markRelatedSettlementsNeedReview(
@@ -1483,6 +1539,8 @@ export class UnloadingWageService {
       allocationMethod: input.payContainer.allocationMethod,
       unloaders:
         input.payContainer.unloaders?.map((unloader) => ({
+          unloadingWorkerId: unloader.unloadingWorkerId ?? null,
+          workerUserId: unloader.workerUserId,
           workerCode: unloader.workerCode,
           workerName: unloader.workerName,
           allocationAmount:
@@ -2039,6 +2097,7 @@ export class UnloadingWageService {
       unloaders:
         record.unloaders?.map((unloader) => ({
           id: unloader.id,
+          unloadingWorkerId: unloader.unloadingWorkerId ?? null,
           workerUserId: unloader.workerUserId,
           workerCode: unloader.workerCode,
           workerName: unloader.workerName,
@@ -2096,6 +2155,7 @@ export class UnloadingWageService {
       unloaders:
         payContainer.unloaders?.map((unloader) => ({
           id: unloader.id,
+          unloadingWorkerId: unloader.unloadingWorkerId ?? null,
           workerUserId: unloader.workerUserId,
           workerCode: unloader.workerCode,
           workerName: unloader.workerName,

@@ -4,26 +4,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UnloadingWageService } from './unloading-wage.service';
 
-function workerUser(
+function tempWorker(
   id: string,
-  name: string,
-  roleCode: string,
+  displayName: string,
+  workerCode: string,
   isActive = true,
 ) {
   return {
-    email: `${id}@example.com`,
+    createdAt: new Date('2026-06-01T08:00:00.000Z'),
+    createdById: null,
+    displayName,
     id,
     isActive,
-    name,
-    role: null,
-    roleAssignments: [
-      {
-        role: {
-          code: roleCode,
-          isActive: true,
-        },
-      },
-    ],
+    note: null,
+    phone: null,
+    updatedAt: new Date('2026-06-01T08:00:00.000Z'),
+    updatedById: null,
+    workerCode,
   };
 }
 
@@ -45,7 +42,7 @@ describe('UnloadingWageService', () => {
   let workerSummaries: any[];
   let settlementLines: any[];
   let generatedFiles: any[];
-  let users: any[];
+  let unloadingWorkers: any[];
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'unloading-wage-service-'));
@@ -69,12 +66,16 @@ describe('UnloadingWageService', () => {
     workerSummaries = [];
     settlementLines = [];
     generatedFiles = [];
-    users = [
-      workerUser('worker-a', 'Prototype Worker A', 'WAREHOUSE'),
-      workerUser('worker-b', 'Prototype Worker B', 'WAREHOUSE'),
-      workerUser('worker-c', 'Prototype Worker C', 'WAREHOUSE_MANAGER'),
-      workerUser('worker-office', 'Office Worker', 'OFFICE'),
-      workerUser('worker-inactive', 'Inactive Worker', 'WAREHOUSE', false),
+    unloadingWorkers = [
+      tempWorker('temp-worker-a', 'Prototype Worker A', 'TEMP-A'),
+      tempWorker('temp-worker-b', 'Prototype Worker B', 'TEMP-B'),
+      tempWorker('temp-worker-c', 'Prototype Worker C', 'TEMP-C'),
+      tempWorker(
+        'temp-worker-inactive',
+        'Inactive Worker',
+        'TEMP-INACTIVE',
+        false,
+      ),
     ];
     const payContainerSnapshot = () =>
       payContainer
@@ -137,18 +138,51 @@ describe('UnloadingWageService', () => {
       operationalSetting: {
         findUnique: jest.fn(() => Promise.resolve(null)),
       },
-      user: {
-        findMany: jest.fn(({ where }) => {
-          let records = users;
+      unloadingWorker: {
+        findMany: jest.fn(({ where } = {}) => {
+          let records = unloadingWorkers;
           if (where?.id?.in) {
-            records = records.filter((user) => where.id.in.includes(user.id));
+            records = records.filter((worker) =>
+              where.id.in.includes(worker.id),
+            );
           }
           if (where?.isActive !== undefined) {
             records = records.filter(
-              (user) => user.isActive === where.isActive,
+              (worker) => worker.isActive === where.isActive,
             );
           }
           return Promise.resolve(records);
+        }),
+        findUnique: jest.fn(({ where }) => {
+          const record =
+            unloadingWorkers.find((worker) =>
+              where.id
+                ? worker.id === where.id
+                : worker.workerCode === where.workerCode,
+            ) ?? null;
+          return Promise.resolve(record);
+        }),
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `temp-worker-${unloadingWorkers.length + 1}`,
+            createdAt: new Date('2026-06-01T09:00:00.000Z'),
+            updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+            ...data,
+          };
+          unloadingWorkers.push(record);
+          return Promise.resolve(record);
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = unloadingWorkers.find(
+            (worker) => worker.id === where.id,
+          );
+          if (!record) {
+            throw new Error(`Unloading worker not found: ${where.id}`);
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-06-01T09:30:00.000Z'),
+          });
+          return Promise.resolve(record);
         }),
       },
       payContainer: {
@@ -372,20 +406,61 @@ describe('UnloadingWageService', () => {
     } as unknown as ConfigService);
   });
 
-  it('lists active warehouse users as unloading wage worker options', async () => {
+  it('lists active temporary unloading workers as worker options', async () => {
     const response = await service.listWorkers();
 
     expect(response.items.map((worker) => worker.id)).toEqual([
-      'worker-a',
-      'worker-b',
-      'worker-c',
+      'temp-worker-a',
+      'temp-worker-b',
+      'temp-worker-c',
     ]);
     expect(response.items[0]).toMatchObject({
       displayName: 'Prototype Worker A',
-      email: 'worker-a@example.com',
-      roles: ['WAREHOUSE'],
-      workerCode: 'USER:worker-a',
+      email: null,
+      isActive: true,
+      roles: [],
+      workerCode: 'TEMP-A',
     });
+  });
+
+  it('creates and deactivates temporary unloading workers without user accounts', async () => {
+    const created = await service.createWorker(
+      {
+        displayName: 'Prototype Worker D',
+        workerCode: 'TEMP-D',
+        phone: '604-555-0100',
+        note: 'Call before shift',
+      },
+      officeActor,
+    );
+
+    expect(created).toMatchObject({
+      createdById: 'auth-office',
+      displayName: 'Prototype Worker D',
+      isActive: true,
+      phone: '604-555-0100',
+      workerCode: 'TEMP-D',
+    });
+
+    const updated = await service.updateWorker(
+      created.id,
+      { isActive: false, note: 'Unavailable' },
+      officeActor,
+    );
+
+    expect(updated).toMatchObject({
+      id: created.id,
+      isActive: false,
+      note: 'Unavailable',
+      updatedById: 'auth-office',
+    });
+
+    const activeOnly = await service.listWorkers();
+    expect(activeOnly.items.map((worker) => worker.id)).not.toContain(
+      created.id,
+    );
+    const allWorkers = await service.listWorkers({ includeInactive: true });
+    expect(allWorkers.items.map((worker) => worker.id)).toContain(created.id);
   });
 
   it('creates a US-to-Canada pay container and audits container classification', async () => {
@@ -457,7 +532,10 @@ describe('UnloadingWageService', () => {
     const unloadersResponse = await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-b' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-b' },
+        ],
         reason: 'Workers confirmed',
       },
       officeActor,
@@ -514,7 +592,7 @@ describe('UnloadingWageService', () => {
     ]);
   });
 
-  it('rejects duplicate unloader users for the same container detail wage unit', async () => {
+  it('rejects duplicate unloading worker directory ids for the same container detail wage unit', async () => {
     await service.saveContainerUnloadingWage(
       'container-zcsu',
       { classification: 'OCEAN_CONTAINER' },
@@ -526,8 +604,8 @@ describe('UnloadingWageService', () => {
         'container-zcsu',
         {
           unloaders: [
-            { workerUserId: 'worker-a' },
-            { workerUserId: 'worker-a' },
+            { unloadingWorkerId: 'temp-worker-a' },
+            { unloadingWorkerId: 'temp-worker-a' },
           ],
         },
         officeActor,
@@ -535,6 +613,28 @@ describe('UnloadingWageService', () => {
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         code: 'DUPLICATE_UNLOADER_ASSIGNMENT',
+      }),
+    });
+  });
+
+  it('rejects inactive temporary unloading workers from new container detail assignments', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+
+    await expect(
+      service.updateContainerUnloaders(
+        'container-zcsu',
+        {
+          unloaders: [{ unloadingWorkerId: 'temp-worker-inactive' }],
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'UNLOADING_WORKER_INACTIVE',
       }),
     });
   });
@@ -550,7 +650,7 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerUserId: 'worker-a' }],
+        unloaders: [{ unloadingWorkerId: 'temp-worker-a' }],
       },
       officeActor,
     );
@@ -638,7 +738,10 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerUserId: 'worker-a' }, { workerUserId: 'worker-c' }],
+        unloaders: [
+          { unloadingWorkerId: 'temp-worker-a' },
+          { unloadingWorkerId: 'temp-worker-c' },
+        ],
       },
       officeActor,
     );
@@ -673,8 +776,8 @@ describe('UnloadingWageService', () => {
     expect(
       response.workers.map((worker) => [worker.workerCode, worker.totalAmount]),
     ).toEqual([
-      ['USER:worker-a', '180.00'],
-      ['USER:worker-c', '180.00'],
+      ['TEMP-A', '180.00'],
+      ['TEMP-C', '180.00'],
     ]);
     expect(response.lines).toEqual([
       expect.objectContaining({
@@ -719,7 +822,7 @@ describe('UnloadingWageService', () => {
     await service.updateContainerUnloaders(
       'container-zcsu',
       {
-        unloaders: [{ workerUserId: 'worker-a' }],
+        unloaders: [{ unloadingWorkerId: 'temp-worker-a' }],
       },
       officeActor,
     );
@@ -752,6 +855,53 @@ describe('UnloadingWageService', () => {
         containerNumbers: ['ZCSU9025988B'],
         rateAmount: '300.00',
         trailerNumber: null,
+      }),
+    ]);
+  });
+
+  it('keeps legacy user-backed unloader snapshots readable and payable', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+    unloaders = [
+      {
+        id: 'legacy-unloader-1',
+        allocationAmount: null,
+        allocationPercent: null,
+        note: null,
+        payContainerId: 'pay-container-1',
+        unloadingWorkerId: null,
+        workerCode: 'USER:legacy-worker-a',
+        workerName: 'Legacy Worker A',
+        workerUserId: 'legacy-worker-a',
+      },
+    ];
+    await service.completeContainerUnloading(
+      'container-zcsu',
+      {
+        completedAt: '2026-06-04T17:10:00.000Z',
+      },
+      officeActor,
+    );
+
+    const response = await service.generateSettlement(
+      { settlementMonth: '2026-06' },
+      officeActor,
+    );
+
+    expect(response.workers).toEqual([
+      expect.objectContaining({
+        workerCode: 'USER:legacy-worker-a',
+        workerName: 'Legacy Worker A',
+        totalAmount: '300.00',
+      }),
+    ]);
+    expect(response.lines).toEqual([
+      expect.objectContaining({
+        amount: '300.00',
+        workerName: 'Legacy Worker A',
       }),
     ]);
   });

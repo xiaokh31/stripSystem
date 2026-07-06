@@ -18,18 +18,22 @@ import {
   CompleteContainerUnloadingDto,
   CompleteUnloadingDto,
   ContainerUnloadingWageResponseDto,
+  CreateUnloadingWorkerDto,
   CreatePayContainerDto,
   GenerateUnloadingWageSettlementDto,
   ListPayContainersQueryDto,
+  ListUnloadingWorkersQueryDto,
   PayContainerListResponseDto,
   PayContainerResponseDto,
   SaveContainerUnloadingWageDto,
   UnloadingWageWorkerListResponseDto,
+  UnloadingWageWorkerResponseDto,
   UnloadingWageSettlementListResponseDto,
   UnloadingWageSettlementResponseDto,
   UpdateContainerUnloadersDto,
   UpdateContainerPayClassificationDto,
   UpdateContainerUnloadingWageAssociationsDto,
+  UpdateUnloadingWorkerDto,
 } from './dto/unloading-wage.dto';
 import { UnloadingWageService } from './unloading-wage.service';
 
@@ -39,8 +43,29 @@ export class UnloadingWageController {
 
   @Get('unloading-wage/workers')
   @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.listWorkers)
-  listWorkers(): Promise<UnloadingWageWorkerListResponseDto> {
-    return this.unloadingWageService.listWorkers();
+  listWorkers(
+    @Query() query: ListUnloadingWorkersQueryDto,
+  ): Promise<UnloadingWageWorkerListResponseDto> {
+    return this.unloadingWageService.listWorkers(query);
+  }
+
+  @Post('unloading-wage/workers')
+  @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.manageWorkers)
+  createWorker(
+    @Body() dto: CreateUnloadingWorkerDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<UnloadingWageWorkerResponseDto> {
+    return this.unloadingWageService.createWorker(dto, actor);
+  }
+
+  @Patch('unloading-wage/workers/:workerId')
+  @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.manageWorkers)
+  updateWorker(
+    @Param('workerId') workerId: string,
+    @Body() dto: UpdateUnloadingWorkerDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<UnloadingWageWorkerResponseDto> {
+    return this.unloadingWageService.updateWorker(workerId, dto, actor);
   }
 
   @Patch('containers/:id/unloading-wage')
