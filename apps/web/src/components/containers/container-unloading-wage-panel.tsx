@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   ApiClientError,
   completeContainerUnloading,
+  createUnloadingWageWorker,
   saveContainerUnloadingWage,
   updateContainerUnloaders,
   updateContainerUnloadingWageAssociations,
@@ -40,6 +41,20 @@ const idleState: ActionState = {
   status: "idle",
 };
 
+interface WorkerCreateDraft {
+  displayName: string;
+  note: string;
+  phone: string;
+  workerCode: string;
+}
+
+const emptyWorkerCreateDraft: WorkerCreateDraft = {
+  displayName: "",
+  note: "",
+  phone: "",
+  workerCode: "",
+};
+
 export function ContainerUnloadingWagePanel({
   canEdit,
   container,
@@ -58,12 +73,20 @@ export function ContainerUnloadingWagePanel({
   const [unloaderDrafts, setUnloaderDrafts] = useState<
     ContainerUnloaderDraft[]
   >(() => unloaderDraftsFromContainer(container));
+  const [activeWorkers, setActiveWorkers] =
+    useState<UnloadingWageWorkerResponse[]>(() => sortedWorkers(workerOptions));
+  const [workerCreateDraft, setWorkerCreateDraft] = useState<WorkerCreateDraft>(
+    emptyWorkerCreateDraft,
+  );
+  const [showWorkerCreate, setShowWorkerCreate] = useState(false);
   const [completionDraft, setCompletionDraft] =
     useState<ContainerUnloadingCompletionDraft>(() =>
       completionDraftFromContainer(container),
     );
   const [wageState, setWageState] = useState<ActionState>(idleState);
   const [unloaderState, setUnloaderState] = useState<ActionState>(idleState);
+  const [workerCreateState, setWorkerCreateState] =
+    useState<ActionState>(idleState);
   const [completionState, setCompletionState] =
     useState<ActionState>(idleState);
   const wage = container.unloadingWage;
@@ -93,21 +116,29 @@ export function ContainerUnloadingWagePanel({
     );
   }
 
-  function selectUnloaderWorker(index: number, workerUserId: string) {
+  function selectUnloaderWorker(index: number, unloadingWorkerId: string) {
     const worker =
-      workerOptions.find((item) => item.id === workerUserId) ?? null;
+      activeWorkers.find((item) => item.id === unloadingWorkerId) ?? null;
     setUnloaderDrafts((current) =>
       current.map((unloader, unloaderIndex) =>
         unloaderIndex === index
           ? {
               ...unloader,
+              unloadingWorkerId: worker?.id ?? null,
               workerCode: worker?.workerCode ?? "",
               workerName: worker?.displayName ?? "",
-              workerUserId: worker?.id ?? null,
+              workerUserId: null,
             }
           : unloader,
       ),
     );
+  }
+
+  function updateWorkerCreateDraft<K extends keyof WorkerCreateDraft>(
+    key: K,
+    value: WorkerCreateDraft[K],
+  ) {
+    setWorkerCreateDraft((current) => ({ ...current, [key]: value }));
   }
 
   function updateCompletion<K extends keyof ContainerUnloadingCompletionDraft>(
@@ -163,10 +194,10 @@ export function ContainerUnloadingWagePanel({
       return;
     }
 
-    if (workerOptions.length === 0) {
+    if (activeWorkers.length === 0) {
       setUnloaderState({
         code: null,
-        message: "Load worker options before saving unloaders.",
+        message: "Create or load an active temporary unloader before saving.",
         status: "error",
       });
       return;
@@ -174,14 +205,16 @@ export function ContainerUnloadingWagePanel({
 
     const missingWorker = unloaderDrafts.find(
       (unloader) =>
-        unloader.workerUserId &&
-        !workerOptions.some((worker) => worker.id === unloader.workerUserId),
+        unloader.unloadingWorkerId &&
+        !activeWorkers.some(
+          (worker) => worker.id === unloader.unloadingWorkerId,
+        ),
     );
     if (missingWorker) {
       setUnloaderState({
         code: null,
         message:
-          "Saved worker is no longer selectable. Select an active worker before saving.",
+          "Saved temporary unloader is inactive or unavailable. Select an active temporary worker before saving.",
         status: "error",
       });
       return;
@@ -216,6 +249,58 @@ export function ContainerUnloadingWagePanel({
       router.refresh();
     } catch (error) {
       setUnloaderState(toActionError(error));
+    }
+  }
+
+  async function createTemporaryWorker() {
+    const displayName = workerCreateDraft.displayName.trim();
+    if (!displayName) {
+      setWorkerCreateState({
+        code: null,
+        message: "Temporary unloader name is required.",
+        status: "error",
+      });
+      return;
+    }
+
+    setWorkerCreateState({
+      code: null,
+      message: "Creating temporary unloader.",
+      status: "running",
+    });
+
+    try {
+      const created = await createUnloadingWageWorker({
+        displayName,
+        note: nullableInput(workerCreateDraft.note),
+        phone: nullableInput(workerCreateDraft.phone),
+        workerCode: nullableInput(workerCreateDraft.workerCode),
+      });
+      setActiveWorkers((current) => sortedWorkers([...current, created]));
+      setUnloaderDrafts((current) => {
+        const createdDraft = draftFromWorker(created);
+        const emptyIndex = current.findIndex(
+          (unloader) =>
+            !unloader.unloadingWorkerId &&
+            !unloader.workerName &&
+            !unloader.note,
+        );
+        if (emptyIndex >= 0) {
+          return current.map((unloader, index) =>
+            index === emptyIndex ? createdDraft : unloader,
+          );
+        }
+        return [...current, createdDraft];
+      });
+      setWorkerCreateDraft(emptyWorkerCreateDraft);
+      setWorkerCreateState({
+        code: null,
+        message: "Created and selected temporary unloader.",
+        status: "success",
+      });
+      setShowWorkerCreate(false);
+    } catch (error) {
+      setWorkerCreateState(toActionError(error));
     }
   }
 
@@ -303,6 +388,58 @@ export function ContainerUnloadingWagePanel({
         </div>
       ) : null}
 
+      {wage?.unloaders.length ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase text-zinc-500">
+            已保存拆柜人
+          </p>
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-[520px] w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+                  <th className="px-3 py-2 font-semibold">Worker</th>
+                  <th className="px-3 py-2 font-semibold">Code</th>
+                  <th className="px-3 py-2 font-semibold">Source</th>
+                  <th className="px-3 py-2 font-semibold">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wage.unloaders.map((unloader) => {
+                  const activeWorker = unloader.unloadingWorkerId
+                    ? activeWorkers.find(
+                        (worker) => worker.id === unloader.unloadingWorkerId,
+                      )
+                    : null;
+                  return (
+                    <tr className="border-b border-zinc-100" key={unloader.id}>
+                      <td className="px-3 py-2 font-semibold text-zinc-950">
+                        {unloader.workerName}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-700">
+                        {unloader.workerCode}
+                      </td>
+                      <td className="px-3 py-2">
+                        <SnapshotBadge
+                          isActiveDirectoryWorker={
+                            Boolean(activeWorker) ||
+                            (!canEdit && Boolean(unloader.unloadingWorkerId))
+                          }
+                          unloadingWorkerId={unloader.unloadingWorkerId}
+                          workerUserId={unloader.workerUserId}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-zinc-700">
+                        {unloader.note ?? "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
       {canEdit ? (
         <>
           <div className="mt-6 border-t border-zinc-100 pt-5">
@@ -379,19 +516,95 @@ export function ContainerUnloadingWagePanel({
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-zinc-950">拆柜人</h3>
-              <button
-                className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-                onClick={() =>
-                  setUnloaderDrafts((current) => [
-                    ...current,
-                    emptyContainerUnloaderDraft(),
-                  ])
-                }
-                type="button"
-              >
-                增加拆柜人
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+                  onClick={() =>
+                    setUnloaderDrafts((current) => [
+                      ...current,
+                      emptyContainerUnloaderDraft(),
+                    ])
+                  }
+                  type="button"
+                >
+                  增加拆柜人
+                </button>
+                <button
+                  className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
+                  onClick={() => {
+                    setShowWorkerCreate((current) => !current);
+                    setWorkerCreateState(idleState);
+                  }}
+                  type="button"
+                >
+                  新增临时拆柜工
+                </button>
+              </div>
             </div>
+            {showWorkerCreate ? (
+              <div className="mt-3 border border-zinc-200 bg-zinc-50 p-3">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_minmax(0,1fr)]">
+                  <label className="grid gap-1 text-sm font-medium text-zinc-700">
+                    Name
+                    <input
+                      className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                      onChange={(event) =>
+                        updateWorkerCreateDraft(
+                          "displayName",
+                          event.target.value,
+                        )
+                      }
+                      value={workerCreateDraft.displayName}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-medium text-zinc-700">
+                    Worker code
+                    <input
+                      className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                      onChange={(event) =>
+                        updateWorkerCreateDraft(
+                          "workerCode",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Auto if blank"
+                      value={workerCreateDraft.workerCode}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-medium text-zinc-700">
+                    Phone
+                    <input
+                      className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                      onChange={(event) =>
+                        updateWorkerCreateDraft("phone", event.target.value)
+                      }
+                      value={workerCreateDraft.phone}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-medium text-zinc-700">
+                    Note
+                    <input
+                      className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+                      onChange={(event) =>
+                        updateWorkerCreateDraft("note", event.target.value)
+                      }
+                      value={workerCreateDraft.note}
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
+                    disabled={workerCreateState.status === "running"}
+                    onClick={() => void createTemporaryWorker()}
+                    type="button"
+                  >
+                    新增并选择
+                  </button>
+                  <ActionMessage state={workerCreateState} />
+                </div>
+              </div>
+            ) : null}
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-[620px] w-full border-collapse text-left text-sm">
                 <thead>
@@ -403,13 +616,14 @@ export function ContainerUnloadingWagePanel({
                 </thead>
                 <tbody>
                   {unloaderDrafts.map((unloader, index) => {
-                    const selectedWorker = workerOptions.find(
-                      (worker) => worker.id === unloader.workerUserId,
+                    const selectedWorker = activeWorkers.find(
+                      (worker) => worker.id === unloader.unloadingWorkerId,
                     );
                     const hasLegacyName =
-                      !unloader.workerUserId && unloader.initialWorkerName;
+                      !unloader.unloadingWorkerId &&
+                      unloader.initialWorkerName;
                     const hasMissingWorker =
-                      unloader.workerUserId && !selectedWorker;
+                      unloader.unloadingWorkerId && !selectedWorker;
 
                     return (
                       <tr className="border-b border-zinc-100" key={index}>
@@ -419,15 +633,16 @@ export function ContainerUnloadingWagePanel({
                             onChange={(event) =>
                               selectUnloaderWorker(index, event.target.value)
                             }
-                            value={unloader.workerUserId ?? ""}
+                            value={unloader.unloadingWorkerId ?? ""}
                           >
-                            <option value="">Select worker</option>
+                            <option value="">Select temporary worker</option>
                             {hasMissingWorker ? (
-                              <option value={unloader.workerUserId ?? ""}>
-                                Saved worker unavailable: {unloader.workerName}
+                              <option value={unloader.unloadingWorkerId ?? ""}>
+                                Saved worker inactive/unavailable:{" "}
+                                {unloader.workerName}
                               </option>
                             ) : null}
-                            {workerOptions.map((worker) => (
+                            {activeWorkers.map((worker) => (
                               <option key={worker.id} value={worker.id}>
                                 {workerOptionLabel(worker)}
                               </option>
@@ -435,12 +650,14 @@ export function ContainerUnloadingWagePanel({
                           </select>
                           {hasLegacyName ? (
                             <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
-                              Legacy worker: {unloader.initialWorkerName}. Select a system worker before saving.
+                              Legacy snapshot: {unloader.initialWorkerName}.
+                              Select an active temporary worker before saving.
                             </p>
                           ) : null}
                           {hasMissingWorker ? (
                             <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
-                              Saved worker is no longer selectable. Select an active worker before saving.
+                              Saved temporary worker is inactive or unavailable.
+                              Select an active temporary worker before saving.
                             </p>
                           ) : null}
                         </td>
@@ -561,14 +778,82 @@ function PermissionRequiredPanel() {
   );
 }
 
+function SnapshotBadge({
+  isActiveDirectoryWorker,
+  unloadingWorkerId,
+  workerUserId,
+}: {
+  isActiveDirectoryWorker: boolean;
+  unloadingWorkerId: string | null;
+  workerUserId: string | null;
+}) {
+  if (unloadingWorkerId && isActiveDirectoryWorker) {
+    return (
+      <span className="inline-flex min-h-7 items-center border border-emerald-200 bg-emerald-50 px-2 text-xs font-semibold text-emerald-800">
+        Temporary directory
+      </span>
+    );
+  }
+  if (unloadingWorkerId) {
+    return (
+      <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
+        Inactive snapshot
+      </span>
+    );
+  }
+  if (workerUserId) {
+    return (
+      <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
+        Legacy user-backed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
+      Legacy snapshot
+    </span>
+  );
+}
+
 function workerOptionLabel(worker: UnloadingWageWorkerResponse): string {
   return [
     worker.displayName,
     worker.workerCode,
-    worker.email ? `<${worker.email}>` : null,
+    worker.phone ? worker.phone : null,
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function sortedWorkers(
+  workers: UnloadingWageWorkerResponse[],
+): UnloadingWageWorkerResponse[] {
+  const byId = new Map<string, UnloadingWageWorkerResponse>();
+  for (const worker of workers) {
+    byId.set(worker.id, worker);
+  }
+  return [...byId.values()].sort((left, right) => {
+    const nameDelta = left.displayName.localeCompare(right.displayName);
+    return nameDelta || left.workerCode.localeCompare(right.workerCode);
+  });
+}
+
+function draftFromWorker(
+  worker: UnloadingWageWorkerResponse,
+): ContainerUnloaderDraft {
+  return {
+    initialWorkerName: "",
+    note: "",
+    unloadingWorkerId: worker.id,
+    workerCode: worker.workerCode,
+    workerName: worker.displayName,
+    workerUserId: null,
+  };
+}
+
+function nullableInput(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 function SummaryItem({

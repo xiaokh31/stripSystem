@@ -230,6 +230,10 @@
           页面已接入真实 API 并通过回归检查；UNLOAD-WAGE-06 已将
           unloader directory 从系统用户切换为独立 temporary unloader directory，
           新保存使用 `unloadingWorkerId` 并保留 legacy user-backed 结算快照兼容；
+          UNLOAD-WAGE-07 已把 container detail 拆柜人 selector 改接 active
+          temporary unloader directory，支持从柜子详情 inline 新增临时拆柜工、
+          新增成功自动选中、前端重复校验、停用/legacy 快照只读展示和保存前强制
+          重选目录工；
           2026-07-05 Docker full-stack smoke
           已通过 nginx 路径验证 ADMIN/WAREHOUSE_MANAGER container detail、
           legacy 重选和月结快照；WAGE-QA-02 full wage module regression 已完成，
@@ -451,17 +455,24 @@
               <td><span class="badge done">Done</span></td>
               <td>P2</td>
               <td>新增 `GET /api/unloading-wage/workers`，按 `unloading_wage.read` 暴露真实 active WAREHOUSE / WAREHOUSE_MANAGER 用户目录，返回 user id、display name、稳定 `USER:{id}` worker code、email 和 roles；`PUT /api/containers/:id/unloaders` 改为要求 `workerUserId`，服务端解析并写入 worker code/name 快照，拒绝缺失用户、inactive 用户、非可选角色和同一 pay unit 重复工人；container detail 拆柜工资面板改为真实 worker select，旧 `workerName` only 记录继续展示为 legacy/needs reselection，保存前必须重选系统用户；关联 transfer containers 仍共享同一 pay container/unloader list，月结继续使用保存时的 worker code/name 快照；RBAC e2e 覆盖 ADMIN / WAREHOUSE_MANAGER 可读目录、HR/OFFICE/WAREHOUSE 被 403；已通过 `pnpm --filter api lint`、`pnpm --filter api typecheck`、`pnpm --filter api test`、`pnpm --filter api test:e2e`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`、`pnpm --filter web build`；2026-07-05 Docker full-stack smoke 已通过 `docker compose -f infra/docker/compose.local.yml up -d --build --force-recreate web nginx`、`scripts/healthcheck.sh` 和 nginx `http://127.0.0.1/` Playwright smoke：真实 ADMIN 可看到 legacy 提示与 worker directory，真实 WAREHOUSE_MANAGER 可重选 legacy 拆柜人并保存，月结 worker name 使用保存时快照且不跟随后续用户姓名变更。</td>
-              <td>UNLOAD-WAGE-05 为历史完成记录；UNLOAD-WAGE-06 已按更正需求 supersede 用户目录做法，后续 UI 需要改接 temporary unloader directory。</td>
+              <td>UNLOAD-WAGE-05 为历史完成记录；UNLOAD-WAGE-06/07 已按更正需求 supersede 用户目录做法，当前 UI 与 API 新保存路径均使用 temporary unloader directory。</td>
             </tr>
             <tr>
               <td>Stage 6.1: UNLOAD-WAGE-06 Temporary Unloader Directory API</td>
               <td><span class="badge done">Done</span></td>
               <td>P2 API</td>
               <td>新增独立 `unloading_workers` temporary unloader directory schema、migration、审计字段和 `unloader_assignments.unloading_worker_id` 可空外键；`GET /api/unloading-wage/workers` 默认只返回 active temporary workers，`includeInactive=true` 可审阅停用记录；新增 `POST /api/unloading-wage/workers` 和 `PATCH /api/unloading-wage/workers/:workerId`，由 `unloading_wage.complete` 保护，支持 display name、stable worker code、active/inactive、phone 和 note；`PUT /api/containers/:id/unloaders` 新主路径改为 `unloadingWorkerId`，保存时从目录快照 worker code/name，重复同一目录 worker id 返回 `DUPLICATE_UNLOADER_ASSIGNMENT`，停用目录工返回 `UNLOADING_WORKER_INACTIVE`，旧 `workerUserId` 只作为历史兼容字段保留；container detail 和 pay container responses 同时返回 `unloadingWorkerId` 与 legacy `workerUserId`，旧 user-backed assignment 仍可读取、生成月结和下载历史结算。</td>
-              <td>API 层完成；下一步是 UNLOAD-WAGE-07 或等效 Web selector 切换，把 container detail worker selector 从 `workerUserId` 改为 `unloadingWorkerId`，并增加目录创建/停用 UX。</td>
+              <td>API 层完成；UNLOAD-WAGE-07 已接上 Web selector，新增保存路径不再依赖系统用户。</td>
             </tr>
             <tr>
-              <td>Stage 6.2: WAGE-QA-02 Full Wage Module End-to-End Regression</td>
+              <td>Stage 6.2: UNLOAD-WAGE-07 Temporary Unloader Selector UI</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2 UI</td>
+              <td>Container detail 拆柜工资面板已从 `workerUserId` 系统用户选择切换为 `unloadingWorkerId` temporary unloader directory：页面只列 active temporary workers，保存前拒绝 missing / inactive / legacy user-backed snapshot，重复同一 temporary worker 在前端直接拦截；已保存拆柜人表保留 worker code/name、share、amount、note 和 source badge，可区分 Temporary directory、Inactive snapshot、Legacy user-backed 与 Legacy snapshot；ADMIN/WAREHOUSE_MANAGER 可在柜子详情 inline 新增临时拆柜工，字段包含 display name、可选 worker code、phone 和 note，新增成功后自动加入 selector 并选中；API client 增加 `POST /api/unloading-wage/workers`，container detail SSR payload、flow helper、unit tests 和 unloading-wage Playwright smoke fixture 均改用 `unloadingWorkerId`。</td>
+              <td>已通过 `pnpm --filter web test`、`pnpm --filter web lint`、`pnpm --filter web typecheck` 和 `pnpm --filter web build`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.3: WAGE-QA-02 Full Wage Module End-to-End Regression</td>
               <td><span class="badge done">Done</span></td>
               <td>QA-02</td>
               <td>最终工资模块回归已完成：`/work-hours` Playwright smoke 改为真实 `HR_MANAGER` 登录，覆盖 legacy `.xls` 上传、重复 SHA 复用、parse、390 employee-day rows、午休 0.50 小时展示、wage record 生成、generated files SHA-256/size/MIME/download link 和内部 storage path 不暴露；`WAREHOUSE_MANAGER` 调 attendance API 返回 403。`/unloading-wage` Playwright smoke 改为真实 `WAREHOUSE_MANAGER` 登录，动态准备真实 `WAREHOUSE` worker 用户，验证 `GET /api/unloading-wage/workers` worker directory、HR 调 unloading wage API 403、重复 `workerUserId` 返回 `DUPLICATE_UNLOADER_ASSIGNMENT`、container detail worker select 回显真实用户且无 legacy 提示、transfer group 完成卸柜、生成并再生成月结、superseded warning、worker summary、monthly detail、CAD 360 总额、CAD 180 均分和 JSON/HTML 下载链接。完整检查已通过 `uv run pytest`、`pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh` 和 `pnpm --filter web exec playwright test e2e/work-hours.spec.ts e2e/unloading-wage.spec.ts`；Docker services 均 healthy，nginx 静态 chunk healthcheck 通过。Playwright 失败的未升级首次运行是 macOS sandbox Mach port 权限问题，升级后 wage smoke 6/6 passed。attendance/unloading wage runtime storage artifacts 保留在本地用于审计复查，并已加入 `.gitignore` 防止提交。</td>

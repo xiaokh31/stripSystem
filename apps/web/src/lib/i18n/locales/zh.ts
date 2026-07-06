@@ -727,6 +727,7 @@ export const zhMessages = {
     "编辑柜子拆柜工资信息前，请联系管理员分配 unloading_wage.classify、unloading_wage.complete 和 corrections.create 权限。",
   "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.":
     "打开仓库拆柜工资结算前，请联系管理员分配 unloading_wage.read 权限。",
+  "Auto if blank": "留空自动生成",
   "Blank uses operational setting": "留空使用运营设置",
   "Complete unloading": "完成卸柜",
   "Complete unloading by pay container id": "按 pay container ID 完成卸柜",
@@ -747,12 +748,16 @@ export const zhMessages = {
   "Create pay containers from reviewed container records before monthly settlement.":
     "月度结算前，请先从已复核的柜记录创建 pay container。",
   "Creating pay container.": "正在创建 pay container。",
+  "Created and selected temporary unloader.": "已新增并选择临时拆柜工。",
+  "Creating temporary unloader.": "正在新增临时拆柜工。",
   "CAD 300 / container": "CAD 300 / 条",
   "CAD 360 / transfer group": "CAD 360 / 组",
   "Each unloader row requires a worker name.":
     "每行拆柜人都必须填写员工姓名。",
   "Each unloader row requires a selected worker.":
     "每行拆柜人都必须选择系统员工。",
+  "Each unloader row requires a selected temporary worker.":
+    "每行拆柜人都必须选择临时拆柜工目录中的员工。",
   "Each unloader requires both worker code and worker name.":
     "每名卸柜员工都必须填写员工编号和姓名。",
   "Enter at least one container id.": "请至少输入一个柜记录 ID。",
@@ -765,9 +770,12 @@ export const zhMessages = {
     "复核已拆完来源记录后生成所选月份结算。生成的 JSON 和 HTML 任务报告会显示在结算详情中。",
   "Generate settlement": "生成结算",
   "Generate wage record": "生成工时工资表",
-  "Legacy worker:": "旧记录员工：",
-  "Load worker options before saving unloaders.":
-    "保存拆柜人前请先加载员工选项。",
+  "Inactive snapshot": "停用快照",
+  "Legacy snapshot": "旧快照",
+  "Legacy snapshot:": "旧快照：",
+  "Legacy user-backed": "旧系统用户",
+  "Create or load an active temporary unloader before saving.":
+    "保存拆柜人前请先新增或加载一个可用临时拆柜工。",
   "Generated settlement files": "已生成结算文件",
   "Generating unloading wage settlement.": "正在生成卸柜工资结算。",
   "Generating wage record workbook.": "正在生成工时工资工作簿。",
@@ -894,12 +902,16 @@ export const zhMessages = {
   "Worker directory could not be loaded.": "无法加载员工目录。",
   "Worker name": "员工姓名",
   "Worker summary": "员工汇总",
-  "Saved worker is no longer selectable. Select an active worker before saving.":
-    "已保存的员工当前不可选。保存前请选择一个在职员工。",
-  "Saved worker unavailable:": "已保存员工不可用：",
-  "Select a system worker before saving.":
-    "保存前请选择系统员工。",
-  "Select worker": "选择员工",
+  "Saved temporary unloader is inactive or unavailable. Select an active temporary worker before saving.":
+    "已保存的临时拆柜工已停用或不可用。保存前请选择一个可用临时拆柜工。",
+  "Saved temporary worker is inactive or unavailable. Select an active temporary worker before saving.":
+    "已保存的临时拆柜工已停用或不可用。保存前请选择一个可用临时拆柜工。",
+  "Saved worker inactive/unavailable:": "已保存拆柜工停用或不可用：",
+  "Select an active temporary worker before saving.":
+    "保存前请选择一个可用临时拆柜工。",
+  "Select temporary worker": "选择临时拆柜工",
+  "Temporary directory": "临时拆柜工目录",
+  "Temporary unloader name is required.": "临时拆柜工姓名必填。",
   "allocation line(s)": "条分配明细",
   "detail line(s)": "条明细",
   "employee(s)": "名员工",

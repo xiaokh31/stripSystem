@@ -98,22 +98,24 @@ test("container detail wage draft starts from API unloading wage data", () => {
   });
 });
 
-test("duplicate unloader users are rejected before API submit", () => {
+test("duplicate temporary unloaders are rejected before API submit", () => {
   const request = buildContainerUnloadersRequest(
     [
       {
         initialWorkerName: "",
         note: "",
-        workerCode: "USER:user-1",
+        unloadingWorkerId: "temp-worker-1",
+        workerCode: "TEMP-1",
         workerName: "Prototype Worker A",
-        workerUserId: "user-1",
+        workerUserId: null,
       },
       {
         initialWorkerName: "",
         note: "",
-        workerCode: "USER:user-1",
+        unloadingWorkerId: "temp-worker-1",
+        workerCode: "TEMP-1",
         workerName: "Prototype Worker A",
-        workerUserId: "user-1",
+        workerUserId: null,
       },
     ],
     "Workers confirmed",
@@ -125,7 +127,7 @@ test("duplicate unloader users are rejected before API submit", () => {
   });
 });
 
-test("selected unloaders submit worker user ids and legacy names require reselection", () => {
+test("selected unloaders submit temporary directory ids and legacy names require reselection", () => {
   const drafts = unloaderDraftsFromContainer(
     containerRecord({
       unloadingWage: {
@@ -144,9 +146,10 @@ test("selected unloaders submit worker user ids and legacy names require reselec
           {
             id: "unloader-1",
             note: null,
+            unloadingWorkerId: "temp-worker-1",
             workerCode: "W1",
             workerName: "Worker One",
-            workerUserId: "user-1",
+            workerUserId: null,
           },
         ],
       },
@@ -160,7 +163,7 @@ test("selected unloaders submit worker user ids and legacy names require reselec
       unloaders: [
         {
           note: null,
-          workerUserId: "user-1",
+          unloadingWorkerId: "temp-worker-1",
         },
       ],
     },
@@ -172,16 +175,17 @@ test("selected unloaders submit worker user ids and legacy names require reselec
         {
           ...drafts[0],
           initialWorkerName: "Worker Two",
+          unloadingWorkerId: null,
           workerCode: "NAME:WORKER TWO",
           workerName: "Worker Two",
-          workerUserId: null,
+          workerUserId: "legacy-user-2",
         },
       ],
       "Workers confirmed",
     ),
     {
       error:
-        'Legacy unloader "Worker Two" must be reselected from the worker directory before saving.',
+        'Legacy unloader "Worker Two" must be reselected from the temporary unloader directory before saving.',
       ok: false,
     },
   );

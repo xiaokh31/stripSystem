@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   completeContainerUnloading,
   completePayContainer,
+  createUnloadingWageWorker,
   createPayContainer,
   generateAttendanceWageRecord,
   generateUnloadingWageSettlement,
@@ -198,6 +199,15 @@ test("container detail unloading wage API client calls container-scoped endpoint
     baseUrl: "http://api.local/api",
     fetcher,
   });
+  await createUnloadingWageWorker(
+    {
+      displayName: "Temporary Worker One",
+      note: "Available weekends",
+      phone: "604-555-0100",
+      workerCode: "TEMP-1",
+    },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
   await saveContainerUnloadingWage(
     "container 1",
     {
@@ -220,7 +230,7 @@ test("container detail unloading wage API client calls container-scoped endpoint
       unloaders: [
         {
           note: "Confirmed",
-          workerUserId: "worker-1",
+          unloadingWorkerId: "temp-worker-1",
         },
       ],
     },
@@ -239,6 +249,16 @@ test("container detail unloading wage API client calls container-scoped endpoint
     {
       body: null,
       method: "GET",
+      url: "http://api.local/api/unloading-wage/workers",
+    },
+    {
+      body: {
+        displayName: "Temporary Worker One",
+        note: "Available weekends",
+        phone: "604-555-0100",
+        workerCode: "TEMP-1",
+      },
+      method: "POST",
       url: "http://api.local/api/unloading-wage/workers",
     },
     {
@@ -262,7 +282,7 @@ test("container detail unloading wage API client calls container-scoped endpoint
         unloaders: [
           {
             note: "Confirmed",
-            workerUserId: "worker-1",
+            unloadingWorkerId: "temp-worker-1",
           },
         ],
       },

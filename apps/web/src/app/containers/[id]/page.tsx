@@ -321,7 +321,12 @@ function unloadingWageVersion(container: ContainerDetailResponse): string {
     wage.completedAt ?? "",
     wage.associatedContainers.map((item) => item.containerNo).join(","),
     wage.unloaders
-      .map((item) => `${item.workerCode}:${item.workerName}:${item.note ?? ""}`)
+      .map(
+        (item) =>
+          `${item.unloadingWorkerId ?? ""}:${item.workerUserId ?? ""}:${
+            item.workerCode
+          }:${item.workerName}:${item.note ?? ""}`,
+      )
       .join(","),
   ].join("|");
 }

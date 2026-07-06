@@ -17,6 +17,12 @@ import {
 const settlementMonth = "2026-06";
 const completedAt = "2026-06-18T20:30:00.000Z";
 
+interface TemporaryUnloader {
+  id: string;
+  displayName: string;
+  workerCode: string;
+}
+
 test("warehouse manager can review and regenerate monthly unloading wage settlement", async ({
   page,
   request,
@@ -35,17 +41,26 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     request,
     actors.warehouseManager,
   );
-  await expectWorkerDirectoryIncludes(request, token, [
-    actors.workerA,
-    actors.workerB,
-  ]);
+  const workerA = await createTemporaryUnloader(
+    request,
+    token,
+    "E2E Temporary Unloader A",
+    testInfo,
+  );
+  const workerB = await createTemporaryUnloader(
+    request,
+    token,
+    "E2E Temporary Unloader B",
+    testInfo,
+  );
+  await expectWorkerDirectoryIncludes(request, token, [workerA, workerB]);
   const fixture = await seedCompletedTransferWageUnit(
     request,
     {
       adminToken,
       warehouseToken: token,
-      workerA: actors.workerA,
-      workerB: actors.workerB,
+      workerA,
+      workerB,
     },
     testInfo,
   );
@@ -60,7 +75,7 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   await expect(
     page.locator("select").filter({ hasText: fixture.workerB }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/Legacy worker:/)).toHaveCount(0);
+  await expect(page.getByText(/Legacy snapshot:/)).toHaveCount(0);
 
   const blockedSettlementResponse = await request.post(
     "/api/unloading-wage-settlements",
@@ -130,8 +145,8 @@ async function seedCompletedTransferWageUnit(
   actors: {
     adminToken: string;
     warehouseToken: string;
-    workerA: E2ETestUser;
-    workerB: E2ETestUser;
+    workerA: TemporaryUnloader;
+    workerB: TemporaryUnloader;
   },
   testInfo: { project: { name: string } },
 ): Promise<{
@@ -170,8 +185,8 @@ async function seedCompletedTransferWageUnit(
       data: {
         reason: "Playwright duplicate unloader guard",
         unloaders: [
-          { workerUserId: actors.workerA.id },
-          { workerUserId: actors.workerA.id },
+          { unloadingWorkerId: actors.workerA.id },
+          { unloadingWorkerId: actors.workerA.id },
         ],
       },
       headers: authHeaders(actors.warehouseToken),
@@ -188,8 +203,8 @@ async function seedCompletedTransferWageUnit(
       data: {
         reason: "Playwright unloading wage smoke unloaders",
         unloaders: [
-          { workerUserId: actors.workerA.id },
-          { workerUserId: actors.workerB.id },
+          { unloadingWorkerId: actors.workerA.id },
+          { unloadingWorkerId: actors.workerB.id },
         ],
       },
       headers: authHeaders(actors.warehouseToken),
@@ -212,8 +227,8 @@ async function seedCompletedTransferWageUnit(
     containerNoA,
     containerNoB,
     trailerNumber,
-    workerA: actors.workerA.name,
-    workerB: actors.workerB.name,
+    workerA: actors.workerA.displayName,
+    workerB: actors.workerB.displayName,
   };
 }
 
@@ -223,10 +238,8 @@ async function ensureUnloadingWageActors(
 ): Promise<{
   hrManager: E2ETestUser;
   warehouseManager: E2ETestUser;
-  workerA: E2ETestUser;
-  workerB: E2ETestUser;
 }> {
-  const [hrManager, warehouseManager, workerA, workerB] = await Promise.all([
+  const [hrManager, warehouseManager] = await Promise.all([
     ensureTestUser(request, adminToken, {
       email: "e2e-unloading-hr-manager@bestarcca.com",
       name: "E2E Unloading HR Manager",
@@ -239,26 +252,35 @@ async function ensureUnloadingWageActors(
       password: "Bestar-E2E-WM-123!",
       roleCodes: ["WAREHOUSE_MANAGER"],
     }),
-    ensureTestUser(request, adminToken, {
-      email: "e2e-unloader-a@bestarcca.com",
-      name: "E2E Unloader A",
-      password: "Bestar-E2E-WA-123!",
-      roleCodes: ["WAREHOUSE"],
-    }),
-    ensureTestUser(request, adminToken, {
-      email: "e2e-unloader-b@bestarcca.com",
-      name: "E2E Unloader B",
-      password: "Bestar-E2E-WB-123!",
-      roleCodes: ["WAREHOUSE"],
-    }),
   ]);
-  return { hrManager, warehouseManager, workerA, workerB };
+  return { hrManager, warehouseManager };
+}
+
+async function createTemporaryUnloader(
+  request: APIRequestContext,
+  token: string,
+  displayName: string,
+  testInfo: { project: { name: string } },
+): Promise<TemporaryUnloader> {
+  const suffix = uniqueSuffix(testInfo.project.name);
+  const response = await expectOk(
+    request.post("/api/unloading-wage/workers", {
+      data: {
+        displayName: `${displayName} ${suffix}`,
+        note: "Playwright unloading wage smoke worker",
+        workerCode: `TEMP-E2E-${displayName.endsWith("A") ? "A" : "B"}-${suffix}`,
+      },
+      headers: authHeaders(token),
+    }),
+    201,
+  );
+  return (await response.json()) as TemporaryUnloader;
 }
 
 async function expectWorkerDirectoryIncludes(
   request: APIRequestContext,
   token: string,
-  users: E2ETestUser[],
+  users: TemporaryUnloader[],
 ): Promise<void> {
   const response = await expectOk(
     request.get("/api/unloading-wage/workers", {
@@ -266,12 +288,14 @@ async function expectWorkerDirectoryIncludes(
     }),
   );
   const body = (await response.json()) as {
-    items: Array<{ id: string; workerName: string }>;
+    items: Array<{ id: string; displayName: string }>;
   };
   const workerIds = new Set(body.items.map((item) => item.id));
   for (const user of users) {
-    expect(workerIds.has(user.id), `${user.email} missing from worker directory`)
-      .toBe(true);
+    expect(
+      workerIds.has(user.id),
+      `${user.displayName} missing from worker directory`,
+    ).toBe(true);
   }
 }
 

@@ -780,6 +780,7 @@ export const enMessages = {
     "Ask an administrator for unloading_wage.classify, unloading_wage.complete, and corrections.create before editing container unloading wage information.",
   "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.":
     "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.",
+  "Auto if blank": "Auto if blank",
   "Blank uses operational setting": "Blank uses operational setting",
   "Complete unloading": "Complete unloading",
   "Complete unloading by pay container id":
@@ -807,12 +808,17 @@ export const enMessages = {
   "Create pay containers from reviewed container records before monthly settlement.":
     "Create pay containers from reviewed container records before monthly settlement.",
   "Creating pay container.": "Creating pay container.",
+  "Created and selected temporary unloader.":
+    "Created and selected temporary unloader.",
+  "Creating temporary unloader.": "Creating temporary unloader.",
   "CAD 300 / container": "CAD 300 / container",
   "CAD 360 / transfer group": "CAD 360 / transfer group",
   "Each unloader row requires a worker name.":
     "Each unloader row requires a worker name.",
   "Each unloader row requires a selected worker.":
     "Each unloader row requires a selected worker.",
+  "Each unloader row requires a selected temporary worker.":
+    "Each unloader row requires a selected temporary worker.",
   "Each unloader requires both worker code and worker name.":
     "Each unloader requires both worker code and worker name.",
   "Enter at least one container id.": "Enter at least one container id.",
@@ -830,9 +836,12 @@ export const enMessages = {
     "Generating unloading wage settlement.",
   "Generating wage record workbook.": "Generating wage record workbook.",
   "HTML task report": "HTML task report",
-  "Legacy worker:": "Legacy worker:",
-  "Load worker options before saving unloaders.":
-    "Load worker options before saving unloaders.",
+  "Inactive snapshot": "Inactive snapshot",
+  "Legacy snapshot": "Legacy snapshot",
+  "Legacy snapshot:": "Legacy snapshot:",
+  "Legacy user-backed": "Legacy user-backed",
+  "Create or load an active temporary unloader before saving.":
+    "Create or load an active temporary unloader before saving.",
   "HR Work Hours Settlement": "HR Work Hours Settlement",
   "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.":
     "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.",
@@ -966,12 +975,18 @@ export const enMessages = {
     "Worker directory could not be loaded.",
   "Worker name": "Worker name",
   "Worker summary": "Worker summary",
-  "Saved worker is no longer selectable. Select an active worker before saving.":
-    "Saved worker is no longer selectable. Select an active worker before saving.",
-  "Saved worker unavailable:": "Saved worker unavailable:",
-  "Select a system worker before saving.":
-    "Select a system worker before saving.",
-  "Select worker": "Select worker",
+  "Saved temporary unloader is inactive or unavailable. Select an active temporary worker before saving.":
+    "Saved temporary unloader is inactive or unavailable. Select an active temporary worker before saving.",
+  "Saved temporary worker is inactive or unavailable. Select an active temporary worker before saving.":
+    "Saved temporary worker is inactive or unavailable. Select an active temporary worker before saving.",
+  "Saved worker inactive/unavailable:":
+    "Saved worker inactive/unavailable:",
+  "Select an active temporary worker before saving.":
+    "Select an active temporary worker before saving.",
+  "Select temporary worker": "Select temporary worker",
+  "Temporary directory": "Temporary directory",
+  "Temporary unloader name is required.":
+    "Temporary unloader name is required.",
   "allocation line(s)": "allocation line(s)",
   "detail line(s)": "detail line(s)",
   "employee(s)": "employee(s)",

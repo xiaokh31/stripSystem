@@ -18,6 +18,7 @@ export interface ContainerUnloadingWageDraft {
 export interface ContainerUnloaderDraft {
   initialWorkerName: string;
   note: string;
+  unloadingWorkerId: string | null;
   workerCode: string;
   workerName: string;
   workerUserId: string | null;
@@ -75,6 +76,7 @@ export function unloaderDraftsFromContainer(
   return unloaders.map((unloader) => ({
     initialWorkerName: unloader.workerName,
     note: unloader.note ?? "",
+    unloadingWorkerId: unloader.unloadingWorkerId,
     workerCode: unloader.workerCode,
     workerName: unloader.workerName,
     workerUserId: unloader.workerUserId,
@@ -96,6 +98,7 @@ export function emptyContainerUnloaderDraft(): ContainerUnloaderDraft {
   return {
     initialWorkerName: "",
     note: "",
+    unloadingWorkerId: null,
     workerCode: "",
     workerName: "",
     workerUserId: null,
@@ -156,39 +159,46 @@ export function buildContainerUnloadersRequest(
   const unloaders = drafts
     .map((draft) => ({
       note: nullableTrimmedString(draft.note),
+      unloadingWorkerId: nullableTrimmedString(draft.unloadingWorkerId),
       workerName: draft.workerName.trim(),
       workerUserId: nullableTrimmedString(draft.workerUserId),
     }))
     .filter(
       (draft) =>
-        draft.workerName || draft.note || draft.workerUserId,
+        draft.workerName ||
+        draft.note ||
+        draft.unloadingWorkerId ||
+        draft.workerUserId,
     );
 
   if (unloaders.length === 0) {
     return { error: "Add at least one unloader.", ok: false };
   }
 
-  const seenUserIds = new Set<string>();
+  const seenWorkerIds = new Set<string>();
   for (const unloader of unloaders) {
-    if (!unloader.workerUserId) {
+    if (!unloader.unloadingWorkerId) {
       if (unloader.workerName) {
         return {
-          error: `Legacy unloader "${unloader.workerName}" must be reselected from the worker directory before saving.`,
+          error: `Legacy unloader "${unloader.workerName}" must be reselected from the temporary unloader directory before saving.`,
           ok: false,
         };
       }
-      return { error: "Each unloader row requires a selected worker.", ok: false };
+      return {
+        error: "Each unloader row requires a selected temporary worker.",
+        ok: false,
+      };
     }
 
-    if (seenUserIds.has(unloader.workerUserId)) {
+    if (seenWorkerIds.has(unloader.unloadingWorkerId)) {
       return {
         error: `Duplicate unloader: ${
-          unloader.workerName || unloader.workerUserId
+          unloader.workerName || unloader.unloadingWorkerId
         }.`,
         ok: false,
       };
     }
-    seenUserIds.add(unloader.workerUserId);
+    seenWorkerIds.add(unloader.unloadingWorkerId);
   }
 
   return {
@@ -197,7 +207,7 @@ export function buildContainerUnloadersRequest(
       reason: nullableTrimmedString(reason),
       unloaders: unloaders.map((unloader) => ({
         note: unloader.note,
-        workerUserId: unloader.workerUserId,
+        unloadingWorkerId: unloader.unloadingWorkerId,
       })),
     },
   };

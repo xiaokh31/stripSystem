@@ -299,12 +299,27 @@ export interface UnloadingWageWorkerResponse {
   id: string;
   displayName: string;
   workerCode: string;
+  isActive: boolean;
+  phone: string | null;
+  note: string | null;
+  createdById: string | null;
+  updatedById: string | null;
+  createdAt: string;
+  updatedAt: string;
   email: string | null;
   roles: string[];
 }
 
 export interface UnloadingWageWorkerListResponse {
   items: UnloadingWageWorkerResponse[];
+}
+
+export interface CreateUnloadingWageWorkerRequest {
+  displayName: string;
+  workerCode?: string | null;
+  phone?: string | null;
+  note?: string | null;
+  isActive?: boolean;
 }
 
 export interface ContainerUnloadingWageAssociatedContainerResponse {
@@ -315,6 +330,7 @@ export interface ContainerUnloadingWageAssociatedContainerResponse {
 
 export interface ContainerUnloadingWageUnloaderResponse {
   id: string;
+  unloadingWorkerId: string | null;
   workerUserId: string | null;
   workerCode: string;
   workerName: string;
@@ -376,6 +392,7 @@ export interface CompleteContainerUnloadingRequest {
 
 export interface UpdateContainerUnloaderRequest {
   note?: string | null;
+  unloadingWorkerId?: string | null;
   workerCode?: string | null;
   workerName?: string | null;
   workerUserId?: string | null;
@@ -431,6 +448,7 @@ export interface PayContainerResponse {
   }>;
   unloaders: Array<{
     id: string;
+    unloadingWorkerId: string | null;
     workerUserId: string | null;
     workerCode: string;
     workerName: string;
@@ -1457,6 +1475,16 @@ export function listUnloadingWageWorkers(
 ): Promise<UnloadingWageWorkerListResponse> {
   return createApiClient(options).get<UnloadingWageWorkerListResponse>(
     "/unloading-wage/workers",
+  );
+}
+
+export function createUnloadingWageWorker(
+  body: CreateUnloadingWageWorkerRequest,
+  options: ApiClientOptions = {},
+): Promise<UnloadingWageWorkerResponse> {
+  return createApiClient(options).post<UnloadingWageWorkerResponse>(
+    "/unloading-wage/workers",
+    { ...body },
   );
 }
 
