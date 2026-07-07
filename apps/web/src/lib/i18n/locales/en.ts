@@ -245,6 +245,8 @@ export const enMessages = {
     "Label reprint audit could not be recorded.",
   "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.":
     "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.",
+  "LOADED is scan-only. It can only be produced by loading scans, not office status updates.":
+    "LOADED is scan-only. It can only be produced by loading scans, not office status updates.",
   "Language": "Language",
   "Last error": "Last error",
   "Last login": "Last login",

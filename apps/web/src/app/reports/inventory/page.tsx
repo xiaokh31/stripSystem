@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import { InventoryRefreshControls } from "@/components/reports/inventory-refresh-controls";
 import {
   DEFAULT_INVENTORY_POLLING_INTERVAL_MS,
@@ -335,8 +336,9 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {containerStatusLabel(status)}
     </span>
   );
 }

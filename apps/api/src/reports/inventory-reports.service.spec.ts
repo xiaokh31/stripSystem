@@ -154,4 +154,43 @@ describe('InventoryReportsService', () => {
       },
     ]);
   });
+
+  it('keeps fully loaded containers visible as LOADED in filtered reports', async () => {
+    containers[0].status = 'UNLOADED';
+    containers[0].destinations.forEach((destination) => {
+      destination.pallets.forEach((pallet) => {
+        pallet.status = 'LOADED';
+      });
+    });
+
+    const summary = await service.containerSummary({ status: 'LOADED' });
+    const inventory = await service.inventory({ status: 'LOADED' });
+
+    expect(summary.items).toEqual([
+      {
+        containerId: 'container-1',
+        containerNo: 'CSNU8877228',
+        payClassification: null,
+        payTrailerNumber: null,
+        status: 'LOADED',
+        totalPallets: 3,
+        loadedPallets: 3,
+        remainingPallets: 0,
+      },
+    ]);
+    expect(inventory.items).toEqual([
+      {
+        destinationCode: 'YVR',
+        totalPallets: 1,
+        loadedPallets: 1,
+        remainingPallets: 0,
+      },
+      {
+        destinationCode: 'YYZ',
+        totalPallets: 2,
+        loadedPallets: 2,
+        remainingPallets: 0,
+      },
+    ]);
+  });
 });

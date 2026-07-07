@@ -6,6 +6,7 @@ import {
   inventoryReportHref,
   normalizeInventoryFilters,
   normalizeInventoryPollingIntervalMs,
+  PALLET_STATUS_OPTIONS,
   sumPalletStats,
 } from "../src/components/reports/inventory-report-flow";
 
@@ -31,6 +32,19 @@ test("inventory report href preserves API filter names", () => {
       status: "LABEL_PRINTED",
     }),
     "/reports/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
+  );
+});
+
+test("inventory pallet status options keep loaded filter available", () => {
+  const optionValues = PALLET_STATUS_OPTIONS.map(
+    (option) => option.value as string,
+  );
+
+  assert.equal(optionValues.includes("LOADED"), true);
+  assert.equal(optionValues.includes("UNLOADED"), false);
+  assert.equal(
+    inventoryReportHref({ status: "LOADED" }),
+    "/reports/inventory?status=LOADED",
   );
 });
 

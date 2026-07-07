@@ -110,11 +110,8 @@ test("container lifecycle labels and operation locks are visible", () => {
   assert.equal(containerStatusLabel("CORRECTED"), "CORRECTED");
   assert.equal(containerStatusLabel("LABELS_GENERATED"), "LABELS_GENERATED");
   assert.equal(containerStatusLabel("UNLOADED"), "已拆完");
-  assert.equal(
-    containerStatusLabel("LOADING_IN_PROGRESS"),
-    "LOADING_IN_PROGRESS",
-  );
-  assert.equal(containerStatusLabel("LOADED"), "LOADED");
+  assert.equal(containerStatusLabel("LOADING_IN_PROGRESS"), "装车中");
+  assert.equal(containerStatusLabel("LOADED"), "已送库");
   assert.equal(isContainerOperationLocked("LABELS_GENERATED"), false);
   assert.equal(isContainerOperationLocked("UNLOADED"), true);
   assert.equal(isContainerOperationLocked("LOADING_IN_PROGRESS"), true);

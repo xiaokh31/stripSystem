@@ -2,11 +2,14 @@ import type { GeneratedFileResponse } from "@/lib/api-client";
 
 export type GenerationAction = "labels" | "report";
 
+const containerStatusLabels: Record<string, string> = {
+  LOADED: "已送库",
+  LOADING_IN_PROGRESS: "装车中",
+  UNLOADED: "已拆完",
+};
+
 export function containerStatusLabel(status: string): string {
-  if (status === "UNLOADED") {
-    return "已拆完";
-  }
-  return status;
+  return containerStatusLabels[status] ?? status;
 }
 
 export function isContainerOperationLocked(status: string): boolean {

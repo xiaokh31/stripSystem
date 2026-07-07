@@ -38,6 +38,9 @@ describe('container lifecycle status', () => {
     expect(
       containerStatusFromInventoryCounts(2, 2, ContainerStatus.UNLOADED),
     ).toBe(ContainerStatus.LOADED);
+    expect(
+      containerStatusFromInventoryCounts(2, 1, ContainerStatus.UNLOADED),
+    ).toBe(ContainerStatus.LOADING_IN_PROGRESS);
   });
 
   it('locks report and label regeneration once unloading is completed', () => {

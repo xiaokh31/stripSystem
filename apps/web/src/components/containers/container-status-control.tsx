@@ -4,17 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiClientError, updateContainer } from "@/lib/api-client";
 import { containerStatusLabel } from "./container-files-flow";
-
-const containerStatuses = [
-  "IMPORTED",
-  "PARSED",
-  "CORRECTED",
-  "REPORT_GENERATED",
-  "LABELS_GENERATED",
-  "UNLOADED",
-  "LOADING_IN_PROGRESS",
-  "ERROR",
-] as const;
+import {
+  CONTAINER_STATUS_UPDATE_VALUES,
+  LOADED_SCAN_ONLY_NOTICE,
+  containerStatusSelectLabel,
+  isContainerStatusOptionDisabled,
+  isContainerStatusScanOnly,
+} from "./container-status-flow";
 
 interface StatusUpdateState {
   code: string | null;
@@ -41,9 +37,10 @@ export function ContainerStatusControl({
   const [state, setState] = useState<StatusUpdateState>(idleState);
   const isSaving = state.status === "saving";
   const hasChange = selectedStatus !== currentStatus;
+  const currentStatusScanOnly = isContainerStatusScanOnly(currentStatus);
 
   async function saveStatus() {
-    if (!hasChange || isSaving) {
+    if (!hasChange || isSaving || currentStatusScanOnly) {
       return;
     }
 
@@ -86,7 +83,7 @@ export function ContainerStatusControl({
         </div>
         <button
           className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-          disabled={!hasChange || isSaving}
+          disabled={!hasChange || isSaving || currentStatusScanOnly}
           onClick={() => void saveStatus()}
           type="button"
         >
@@ -99,20 +96,32 @@ export function ContainerStatusControl({
           Status
           <select
             className="min-h-11 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 focus:border-teal-700 focus:outline-none"
+            disabled={currentStatusScanOnly}
             onChange={(event) => setSelectedStatus(event.target.value)}
             value={selectedStatus}
           >
-            {containerStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
+            {CONTAINER_STATUS_UPDATE_VALUES.map((status) => (
+              <option
+                disabled={isContainerStatusOptionDisabled(
+                  status,
+                  currentStatus,
+                )}
+                key={status}
+                value={status}
+              >
+                {containerStatusSelectLabel(status)}
               </option>
             ))}
           </select>
+          <span className="text-xs font-medium text-zinc-500">
+            {LOADED_SCAN_ONLY_NOTICE}
+          </span>
         </label>
         <label className="grid gap-1 text-sm font-medium text-zinc-700">
           Audit note
           <input
             className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
+            disabled={currentStatusScanOnly}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Reason visible in correction feedback"
             value={note}

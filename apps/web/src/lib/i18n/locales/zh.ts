@@ -228,11 +228,13 @@ export const zhMessages = {
   "Inventory source": "库存来源",
   "Label PDF generated.": "面单 PDF 已生成。",
   "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.":
-    "面单 PDF 会按最新保存的目的仓托数重建未使用的计划/已打印托盘；已拆完、装车中或已装车柜子会被锁定。",
+    "面单 PDF 会按最新保存的目的仓托数重建未使用的计划/已打印托盘；已拆完、装车中或已送库柜子会被锁定。",
   "Label printed": "面单已打印",
   "Label reprint audit could not be recorded.": "无法记录面单补打审计。",
   "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.":
     "面单补打需要 labels.reprint 权限。请办公室人员或管理员记录补打审计。",
+  "LOADED is scan-only. It can only be produced by loading scans, not office status updates.":
+    "LOADED 为扫码专用状态，只能由装车扫码产生，不能通过办公室状态更新手动设置。",
   "Language": "语言",
   "Last error": "最近错误",
   "Last login": "最近登录",
@@ -552,7 +554,7 @@ export const zhMessages = {
   "This container is in loading. Reports, labels, and destination corrections are locked until loading corrections are handled by scan workflow.":
     "此柜子正在装车。报告、面单和目的仓修正在扫码流程处理装车修正前会被锁定。",
   "This container is loaded and archived. Reports, labels, and destination corrections are locked.":
-    "此柜子已装车并归档。报告、面单和目的仓修正已锁定。",
+    "此柜子已送库并归档。报告、面单和目的仓修正已锁定。",
   "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.":
     "此柜子已拆完。装车流程开始前，报告、面单和目的仓修正已锁定。",
   "This import already has business records and cannot be deleted.":
