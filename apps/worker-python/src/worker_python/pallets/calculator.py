@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
-from worker_python.pallets.rules import DEFAULT_PALLET_CONFIG, PalletConfig, classify_destination
+from worker_python.pallets.rules import (
+    DEFAULT_PALLET_CONFIG,
+    PACKAGE_UNKNOWN,
+    PARCEL_PRIVATE,
+    PalletConfig,
+    classify_destination,
+    normalize_package_type,
+)
 
 MIN_VOLUME_CBM = Decimal("0.01")
 
@@ -24,6 +31,7 @@ class PalletCalculationInput:
     totalCartons: int
     totalVolumeCbm: float
     lineCount: int
+    packageType: str | None = None
     manualPallets: int | None = None
 
 
@@ -31,11 +39,14 @@ class PalletCalculationInput:
 class PalletPlan:
     destinationCode: str | None
     destinationType: str
+    packageType: str | None
+    ruleCode: str
     totalCartons: int
     totalVolumeCbm: float
     lineCount: int
     heightLimitM: float
     palletCapacityCbm: float
+    volumeDivisorCbm: float | None
     calculatedPallets: int
     manualPallets: int | None
     finalPallets: int
@@ -104,6 +115,8 @@ def inputs_from_destination_summaries(
                 totalCartons=int(getattr(summary, "totalCartons", 0) or 0),
                 totalVolumeCbm=float(getattr(summary, "totalVolumeCbm", 0) or 0),
                 lineCount=int(getattr(summary, "lineCount", 0) or 0),
+                packageType=getattr(summary, "packageType", None),
+                manualPallets=getattr(summary, "manualPallets", None),
             )
         )
 
@@ -119,20 +132,32 @@ def _calculate_one(
     config: PalletConfig,
 ) -> tuple[PalletPlan, list[PalletCalculationIssue]]:
     warnings: list[PalletCalculationIssue] = []
-    classification = classify_destination(item.destinationCode, config)
-    capacity = (
-        config.pallet_length_m
-        * config.pallet_width_m
-        * classification.height_limit_m
-        * config.utilization_ratio
-    )
+    package_type = normalize_package_type(item.packageType)
+    classification = classify_destination(item.destinationCode, package_type, config)
+    effective_package_type = classification.package_type or package_type
+    capacity = classification.volume_divisor_cbm or Decimal("0")
     volume = _decimal(item.totalVolumeCbm)
 
     if classification.needs_confirmation:
         warnings.append(
             PalletCalculationIssue(
                 code="NEED_CONFIRM_DESTINATION_TYPE",
-                message="Destination type was not recognized; pallet height needs confirmation.",
+                message="Destination type was not recognized; pallet rule needs confirmation.",
+                destinationCode=item.destinationCode,
+            )
+        )
+
+    if (
+        classification.destination_type == PARCEL_PRIVATE
+        and effective_package_type == PACKAGE_UNKNOWN
+    ):
+        warnings.append(
+            PalletCalculationIssue(
+                code="PACKAGE_TYPE_CONFIRMATION_REQUIRED",
+                message=(
+                    "Private or commercial address package type was not recognized; "
+                    "carton volume rule was used and manual confirmation is required."
+                ),
                 destinationCode=item.destinationCode,
             )
         )
@@ -151,7 +176,9 @@ def _calculate_one(
     calculated_pallets = _calculated_pallet_count(
         total_cartons=item.totalCartons,
         total_volume=volume,
-        capacity=capacity,
+        volume_divisor=classification.volume_divisor_cbm,
+        extra_pallets=classification.extra_pallets,
+        uses_piece_count=classification.uses_piece_count,
     )
     final_pallets = item.manualPallets if item.manualPallets is not None else calculated_pallets
 
@@ -169,11 +196,16 @@ def _calculate_one(
         PalletPlan(
             destinationCode=item.destinationCode,
             destinationType=classification.destination_type,
+            packageType=effective_package_type,
+            ruleCode=classification.rule_code,
             totalCartons=item.totalCartons,
             totalVolumeCbm=float(volume),
             lineCount=item.lineCount,
             heightLimitM=float(classification.height_limit_m),
             palletCapacityCbm=float(capacity),
+            volumeDivisorCbm=float(classification.volume_divisor_cbm)
+            if classification.volume_divisor_cbm is not None
+            else None,
             calculatedPallets=calculated_pallets,
             manualPallets=item.manualPallets,
             finalPallets=final_pallets,
@@ -194,15 +226,23 @@ def _calculated_pallet_count(
     *,
     total_cartons: int,
     total_volume: Decimal,
-    capacity: Decimal,
+    volume_divisor: Decimal | None,
+    extra_pallets: int,
+    uses_piece_count: bool,
 ) -> int:
     if total_cartons <= 0 and total_volume <= 0:
         return 0
 
-    calculated = math.ceil(total_volume / capacity) if total_volume > 0 else 0
+    if uses_piece_count:
+        return max(total_cartons, 0)
+
+    if volume_divisor is None or volume_divisor <= 0:
+        return 0
+
+    calculated = math.ceil(total_volume / volume_divisor) if total_volume > 0 else 0
     if total_cartons > 0 and calculated < 1:
-        return 1
-    return calculated
+        calculated = 1
+    return calculated + extra_pallets
 
 
 def _pallet_ids(
@@ -243,4 +283,18 @@ def _validate_config(config: PalletConfig) -> list[PalletCalculationIssue]:
         errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="pallet_width_m must be positive."))
     if config.utilization_ratio <= 0:
         errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="utilization_ratio must be positive."))
+    if config.volume_rule_1_7_divisor_cbm <= 0:
+        errors.append(
+            PalletCalculationIssue(code="INVALID_CONFIG", message="volume_rule_1_7_divisor_cbm must be positive.")
+        )
+    if config.volume_rule_2_2_divisor_cbm <= 0:
+        errors.append(
+            PalletCalculationIssue(code="INVALID_CONFIG", message="volume_rule_2_2_divisor_cbm must be positive.")
+        )
+    if config.address_carton_divisor_cbm <= 0:
+        errors.append(
+            PalletCalculationIssue(code="INVALID_CONFIG", message="address_carton_divisor_cbm must be positive.")
+        )
+    if config.yeg1_extra_pallets < 0:
+        errors.append(PalletCalculationIssue(code="INVALID_CONFIG", message="yeg1_extra_pallets cannot be negative."))
     return errors

@@ -20,7 +20,180 @@ ZERO_VOLUME_FIXTURE = FIXTURE_DIR / "Unloading Plan SMCU1012780.xlsx"
 BESTAR_FIXTURE = FIXTURE_DIR / "137675 JXJU3246131  PO#3404  BESTAR.xlsx"
 
 
-def test_pallet_calculator_uses_amazon_height_for_fba_warehouse(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("destination_code", "volume", "cartons", "expected", "rule_code", "divisor"),
+    [
+        ("YYC4", 3.39, 1, 2, "VOLUME_1_7", 1.7),
+        ("YYC4", 3.41, 1, 3, "VOLUME_1_7", 1.7),
+        ("YYC6", 1.70, 1, 1, "VOLUME_1_7", 1.7),
+        ("YEG2", 13.236, 1, 8, "VOLUME_1_7", 1.7),
+        ("YVR2", 4.39, 1, 2, "VOLUME_2_2", 2.2),
+        ("YVR3", 4.41, 1, 3, "VOLUME_2_2", 2.2),
+        ("YVR4", 0.5, 1, 1, "VOLUME_2_2", 2.2),
+    ],
+)
+def test_pallet_calculator_uses_destination_divisor_rules(
+    destination_code: str,
+    volume: float,
+    cartons: int,
+    expected: int,
+    rule_code: str,
+    divisor: float,
+) -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode=destination_code,
+                totalCartons=cartons,
+                totalVolumeCbm=volume,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.ruleCode == rule_code
+    assert plan.volumeDivisorCbm == pytest.approx(divisor)
+    assert plan.calculatedPallets == expected
+    assert plan.finalPallets == expected
+    assert len(plan.palletIds) == expected
+
+
+def test_pallet_calculator_adds_yeg1_extra_pallets() -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="YEG1",
+                totalCartons=1,
+                totalVolumeCbm=3.4,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.ruleCode == "YEG1_VOLUME_1_7_PLUS_5"
+    assert plan.calculatedPallets == 7
+
+
+def test_pallet_calculator_adds_yeg1_extra_pallets_after_zero_volume_minimum() -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="YEG1",
+                totalCartons=6,
+                totalVolumeCbm=0,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.totalVolumeCbm == pytest.approx(0.01)
+    assert plan.calculatedPallets == 6
+    assert any(warning.code == "ZERO_VOLUME_WITH_CARTONS" for warning in result.warnings)
+
+
+@pytest.mark.parametrize(
+    ("volume", "expected"),
+    [
+        (3.59, 2),
+        (3.61, 3),
+    ],
+)
+def test_pallet_calculator_uses_address_carton_volume_rule(volume: float, expected: int) -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="Private Address / TEST",
+                packageType="CARTON",
+                totalCartons=12,
+                totalVolumeCbm=volume,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
+    assert plan.packageType == "CARTON"
+    assert plan.volumeDivisorCbm == pytest.approx(1.8)
+    assert plan.calculatedPallets == expected
+
+
+def test_pallet_calculator_uses_address_wooden_crate_piece_count() -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="Commercial Address / TEST",
+                packageType="WOODEN_CRATE",
+                totalCartons=7,
+                totalVolumeCbm=3.0,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.ruleCode == "ADDRESS_WOODEN_CRATE_PIECE_COUNT"
+    assert plan.packageType == "WOODEN_CRATE"
+    assert plan.volumeDivisorCbm is None
+    assert plan.calculatedPallets == 7
+
+
+def test_pallet_calculator_keeps_mixed_address_packages_in_separate_rule_buckets() -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="Private Address / MIXED",
+                packageType="CARTON",
+                totalCartons=10,
+                totalVolumeCbm=3.59,
+                lineCount=1,
+            ),
+            PalletCalculationInput(
+                destinationCode="Private Address / MIXED",
+                packageType="WOODEN_CRATE",
+                totalCartons=7,
+                totalVolumeCbm=0.1,
+                lineCount=1,
+            ),
+        )
+    )
+
+    assert [plan.ruleCode for plan in result.plans] == [
+        "ADDRESS_CARTON_VOLUME_1_8",
+        "ADDRESS_WOODEN_CRATE_PIECE_COUNT",
+    ]
+    assert [plan.calculatedPallets for plan in result.plans] == [2, 7]
+    assert result.totalFinalPallets == 9
+
+
+def test_pallet_calculator_warns_and_uses_carton_rule_for_unknown_address_package() -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode="Private Address / UNKNOWN",
+                packageType=None,
+                totalCartons=10,
+                totalVolumeCbm=3.61,
+                lineCount=1,
+            ),
+        )
+    )
+
+    plan = result.plans[0]
+    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
+    assert plan.packageType == "UNKNOWN"
+    assert plan.calculatedPallets == 3
+    assert any(
+        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
+        and warning.destinationCode == "Private Address / UNKNOWN"
+        for warning in result.warnings
+    )
+
+
+def test_pallet_calculator_uses_destination_rules_for_real_fba_warehouse(tmp_path: Path) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
     parsed = parse_unloading_plan_cn(imported.stored_path)
     inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
@@ -28,15 +201,15 @@ def test_pallet_calculator_uses_amazon_height_for_fba_warehouse(tmp_path: Path) 
     result = calculate_pallets(inputs, container_no=parsed.containerNo)
 
     plan = _plan(result, "YEG2")
-    assert plan.heightLimitM == pytest.approx(1.8)
-    assert plan.palletCapacityCbm == pytest.approx(1.2192 * 1.016 * 1.8)
-    assert plan.calculatedPallets == 6
-    assert plan.finalPallets == 6
-    assert len(plan.palletIds) == 6
-    assert len(set(plan.palletIds)) == 6
+    assert plan.ruleCode == "VOLUME_1_7"
+    assert plan.volumeDivisorCbm == pytest.approx(1.7)
+    assert plan.calculatedPallets == 8
+    assert plan.finalPallets == 8
+    assert len(plan.palletIds) == 8
+    assert len(set(plan.palletIds)) == 8
 
 
-def test_pallet_calculator_uses_private_height_for_private_address(tmp_path: Path) -> None:
+def test_pallet_calculator_warns_for_real_private_address_without_package_type(tmp_path: Path) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
     parsed = parse_unloading_plan_cn(imported.stored_path)
     inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
@@ -44,9 +217,14 @@ def test_pallet_calculator_uses_private_height_for_private_address(tmp_path: Pat
     result = calculate_pallets(inputs, container_no=parsed.containerNo)
 
     plan = _plan(result, "Private Address / SZCA2604054725")
-    assert plan.heightLimitM == pytest.approx(2.0)
-    assert plan.palletCapacityCbm == pytest.approx(1.2192 * 1.016 * 2.0)
-    assert plan.calculatedPallets == 3
+    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
+    assert plan.packageType == "UNKNOWN"
+    assert plan.calculatedPallets == 4
+    assert any(
+        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
+        and warning.destinationCode == "Private Address / SZCA2604054725"
+        for warning in result.warnings
+    )
 
 
 def test_pallet_calculator_floors_small_positive_volume_to_one_pallet(
@@ -126,7 +304,7 @@ def test_pallet_calculator_supports_manual_pallet_override_from_real_summary(
     )
 
     plan = result.plans[0]
-    assert plan.calculatedPallets == 6
+    assert plan.calculatedPallets == 8
     assert plan.manualPallets == 9
     assert plan.finalPallets == 9
     assert len(plan.palletIds) == 9

@@ -54,6 +54,101 @@ def test_parse_delivery_plan_extracts_lines_and_destination_summaries(
     assert summaries["Private Address / SZCA2604054725"].lineCount == 1
 
 
+def test_parse_real_private_address_requires_package_type_confirmation(
+    tmp_path: Path,
+) -> None:
+    imported = ImportRegistry(tmp_path / "original_files").import_file(CONTENT_CONTAINER_FIXTURE)
+
+    result = parse_unloading_plan_cn(imported.stored_path)
+
+    private_lines = [
+        line
+        for line in result.lines
+        if line.destinationCode and line.destinationCode.startswith("Private Address /")
+    ]
+    assert private_lines
+    assert {line.packageType for line in private_lines} == {"UNKNOWN"}
+    assert any("特殊指令/备注" in line.raw_json for line in private_lines)
+
+    private_summaries = [
+        summary
+        for summary in result.destinationSummaries
+        if summary.destinationCode.startswith("Private Address /")
+    ]
+    assert private_summaries
+    assert {summary.packageType for summary in private_summaries} == {"UNKNOWN"}
+    assert any(
+        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
+        and warning.field == "packageType"
+        for warning in result.warnings
+    )
+
+
+def test_parse_address_package_type_and_keeps_mixed_packages_separate(
+    tmp_path: Path,
+) -> None:
+    workbook_path = tmp_path / "CAAU8011090 mixed private address.xlsx"
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Plan"
+    worksheet.append(["柜号", "CAAU8011090"])
+    worksheet.append([])
+    worksheet.append(
+        [
+            "运单号",
+            "FBA NO.",
+            "PO#",
+            "箱数/件数",
+            "重量",
+            "体积",
+            "派送目的地",
+            "派送方式",
+            "特殊指令/备注",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-MIX",
+            "FBA1",
+            "PO1",
+            10,
+            20,
+            3.59,
+            "Private Address",
+            "卡车派送",
+            "纸箱 carton delivery",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-MIX",
+            "FBA2",
+            "PO2",
+            7,
+            15,
+            0.2,
+            "Private Address",
+            "卡车派送",
+            "wooden crate 木箱",
+        ]
+    )
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = parse_unloading_plan_cn(workbook_path)
+
+    assert [line.packageType for line in result.lines] == ["CARTON", "WOODEN_CRATE"]
+    summaries = {
+        (summary.destinationCode, summary.packageType): summary
+        for summary in result.destinationSummaries
+    }
+    destination = "Private Address / WB-MIX"
+    assert summaries[(destination, "CARTON")].totalCartons == 10
+    assert summaries[(destination, "CARTON")].totalVolumeCbm == pytest.approx(3.59)
+    assert summaries[(destination, "WOODEN_CRATE")].totalCartons == 7
+    assert summaries[(destination, "WOODEN_CRATE")].totalVolumeCbm == pytest.approx(0.2)
+
+
 def test_parse_standard_cn_uses_filename_container_and_keeps_raw_json(
     tmp_path: Path,
 ) -> None:

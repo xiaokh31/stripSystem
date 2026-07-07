@@ -9,6 +9,10 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from worker_python.pallets.rules import (
+    PACKAGE_UNKNOWN,
+    detect_package_type_from_values,
+)
 from worker_python.parser.detector import FormatType, detect_excel_format
 from worker_python.parser.workbook_warnings import ignore_openpyxl_conditional_formatting_warning
 
@@ -57,6 +61,7 @@ class ParsedLine:
     weight: float | None
     volumeCbm: float | None
     destinationCode: str | None
+    packageType: str | None
     deliveryMethod: str | None
     note: str | None
     raw_json: dict[str, Any]
@@ -65,6 +70,7 @@ class ParsedLine:
 @dataclass(frozen=True)
 class DestinationSummary:
     destinationCode: str
+    packageType: str | None
     totalCartons: int
     totalVolumeCbm: float
     lineCount: int
@@ -266,9 +272,22 @@ def _parse_line(
     volume_float = float(volume) if volume is not None else None
     weight_float = float(weight) if weight is not None else None
     waybill_no = _text(raw_json, field_columns, "waybillNo")
+    fba_no = _text(raw_json, field_columns, "fbaNo")
+    po_number = _text(raw_json, field_columns, "poNumber")
     destination_code = _text(raw_json, field_columns, "destinationCode")
     delivery_method = _text(raw_json, field_columns, "deliveryMethod")
     note = _text(raw_json, field_columns, "note")
+    package_type = detect_package_type_from_values(
+        (
+            waybill_no,
+            fba_no,
+            po_number,
+            destination_code,
+            delivery_method,
+            note,
+            *raw_json.values(),
+        )
+    )
 
     if destination_code is None:
         warnings.append(
@@ -315,6 +334,19 @@ def _parse_line(
     )
     if destination_warning is not None:
         warnings.append(destination_warning)
+    if destination_code is not None and _is_address_destination(destination_code) and package_type is None:
+        package_type = PACKAGE_UNKNOWN
+        warnings.append(
+            ParseIssue(
+                code="PACKAGE_TYPE_CONFIRMATION_REQUIRED",
+                message=(
+                    "Private or commercial address package type was not recognized; "
+                    "manual confirmation is required before final pallet settlement."
+                ),
+                row_number=row_number,
+                field="packageType",
+            )
+        )
     courier_warning = _courier_delivery_warning(
         delivery_method=delivery_method,
         note=note,
@@ -327,12 +359,13 @@ def _parse_line(
         ParsedLine(
             rowNumber=row_number,
             waybillNo=waybill_no,
-            fbaNo=_text(raw_json, field_columns, "fbaNo"),
-            poNumber=_text(raw_json, field_columns, "poNumber"),
+            fbaNo=fba_no,
+            poNumber=po_number,
             cartons=cartons_int,
             weight=weight_float,
             volumeCbm=volume_float,
             destinationCode=destination_code,
+            packageType=package_type,
             deliveryMethod=delivery_method,
             note=note,
             raw_json=raw_json,
@@ -342,29 +375,32 @@ def _parse_line(
 
 
 def _destination_summaries(lines: list[ParsedLine]) -> list[DestinationSummary]:
-    grouped: dict[str, dict[str, Decimal | int]] = {}
+    grouped: dict[tuple[str, str | None], dict[str, Decimal | int]] = {}
 
     for line in lines:
         destination = line.destinationCode or ""
-        if destination not in grouped:
-            grouped[destination] = {
+        package_type = line.packageType if _is_address_destination(destination) else None
+        key = (destination, package_type)
+        if key not in grouped:
+            grouped[key] = {
                 "totalCartons": 0,
                 "totalVolumeCbm": Decimal("0"),
                 "lineCount": 0,
             }
 
-        grouped[destination]["totalCartons"] += line.cartons or 0
-        grouped[destination]["totalVolumeCbm"] += Decimal(str(line.volumeCbm or 0))
-        grouped[destination]["lineCount"] += 1
+        grouped[key]["totalCartons"] += line.cartons or 0
+        grouped[key]["totalVolumeCbm"] += Decimal(str(line.volumeCbm or 0))
+        grouped[key]["lineCount"] += 1
 
     return [
         DestinationSummary(
             destinationCode=destination,
+            packageType=package_type,
             totalCartons=int(values["totalCartons"]),
             totalVolumeCbm=float(values["totalVolumeCbm"]),
             lineCount=int(values["lineCount"]),
         )
-        for destination, values in sorted(grouped.items())
+        for (destination, package_type), values in sorted(grouped.items())
     ]
 
 
