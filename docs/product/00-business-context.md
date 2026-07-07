@@ -13,3 +13,6 @@ Phase 0 focuses on:
 6. Generate unloading report Excel.
 7. Generate 150mm x 100mm pallet label PDF.
 8. Generate HTML task report with warnings and corrections.
+
+Detailed pallet calculation rules are maintained in
+`docs/product/03-pallet-calculation-rules.md`.
