@@ -257,7 +257,11 @@
           WAGE-P2-05 已完成 Web 全量 i18n copy coverage：`apps/web/src/app`、
           `apps/web/src/components` 和 `apps/web/src/lib` 的用户可见文案、
           placeholder、aria/title、状态/筛选/动态 action/API fallback 均纳入
-          locale 资源或明确列为 raw code/source-data 例外。
+          locale 资源或明确列为 raw code/source-data 例外。WAGE-QA-05 已补充
+          locale switch Playwright regression：核心 office/web/mobile 页面覆盖
+          English -> 中文 -> English 切换、中文刷新持久化、container/pallet/load-job/wage
+          状态单语显示和禁止双语状态混排；同时修复 server component 页面切换语言时
+          状态文案未按 cookie locale 重渲染的问题，并兼容历史中英 display status。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -537,6 +541,13 @@
               <td>P2 i18n</td>
               <td>完成 `apps/web/src/app`、`apps/web/src/components`、`apps/web/src/lib` 的 i18n 覆盖审计：`i18n.test.ts` 现在扫描三段源码，覆盖 JSX text、placeholder、title、aria-label、常见 UI property、动态 action/API fallback 模板，并输出文件行号；locale catalog、dynamic catalog 和 status label matrix 作为 i18n 管理资源单独测试。修复 container detail 拆柜工资面板残留中文主文案，补齐 Unloading wage information、Unsaved pay unit、Rate rule、Unloaders、Saved unloaders、Save wage information、Create temporary unloader、Create and select、Save unloaders、Unloading status、Mark unloaded 等中英文词条；scan error fallback 改为英文 canonical message 并补中文翻译；inventory/load-job status filter 的 `All statuses` 不再用硬编码中文三元表达式。</td>
               <td>新增/更新动态模板覆盖 API HTTP fallback、admin/role save notice、upload/parse/generate/settlement action notice、label reprint、dock save、offline pending scan、legacy/duplicate unloader、manual/container/load-job validation message 等。已通过 `pnpm --filter web test`（147 tests）、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build` 和 `git diff --check`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.10: WAGE-QA-05 Locale Switch Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA-05</td>
+              <td>新增 `apps/web/e2e/locale-switch.spec.ts`，使用真实 ADMIN 账号通过 API 准备 attendance import、generated wage file、unloading wage settlement、`UNLOADED` / `LOADING_IN_PROGRESS` / `LOADED` container、load job scan 和 mobile scan fixture；覆盖 `/`、`/imports`、`/containers`、container detail、`/reports/inventory`、`/work-hours`、`/unloading-wage`、`/unloading-summary`、`/load-jobs`、`/mobile/load-jobs`、mobile scan、`/admin/users`、`/settings`。测试逐页执行 English -> 中文 -> refresh -> English，验证 cookie/browser locale persistence、container `LOADED=Delivered to warehouse/已送库`、pallet/load scan `Loaded/Loaded pallet/Complete loading=已装车/已装托盘/完成装车`，并禁止 `已拆完 (UNLOADED)`、`已送库 (LOADED)`、`Unloaded / 已拆完`、`Delivered to warehouse / 已送库` 等可见双语状态。</td>
+              <td>修复语言切换器：切换 locale 时先持久化 `bestar_locale`，再刷新当前页面，让 server component 状态 label 按 cookie locale 重渲染，避免仅靠 DOM translator 处理 `Uploaded` 等上下文歧义词。`status-labels.ts` 增加 legacy 中英 display status alias，兼容历史 API/import 数据中的 `已拆完`、`Unloaded`、`Warning` 等旧值；旧 unloading wage smoke 改用英文 canonical 按钮文案，避免依赖前序测试留下的 locale。已通过 `pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`（147 tests）、`pnpm --filter web build`、`docker compose -f infra/docker/compose.local.yml restart web nginx`、`scripts/healthcheck.sh`、`pnpm --filter web exec playwright test e2e/locale-switch.spec.ts`（chromium + mobile-chrome 2 passed）和完整 `pnpm --filter web test:e2e`（28 passed）。</td>
             </tr>
           </tbody>
         </table>

@@ -1,10 +1,24 @@
 "use client";
 
-import { LOCALE_LABELS, SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/catalog";
+import {
+  LOCALE_LABELS,
+  SUPPORTED_LOCALES,
+  type Locale,
+} from "@/lib/i18n/catalog";
+import { persistBrowserLocale } from "@/lib/i18n/browser";
 import { useI18n } from "./i18n-provider";
 
 export function LanguageSwitcher() {
-  const { locale, setLocale } = useI18n();
+  const { locale } = useI18n();
+
+  function switchLocale(option: Locale) {
+    if (option === locale) {
+      return;
+    }
+
+    persistBrowserLocale(option);
+    window.location.reload();
+  }
 
   return (
     <div
@@ -21,7 +35,7 @@ export function LanguageSwitcher() {
               : "text-teal-50 hover:bg-teal-800",
           ].join(" ")}
           key={option}
-          onClick={() => setLocale(option as Locale)}
+          onClick={() => switchLocale(option)}
           type="button"
         >
           {LOCALE_LABELS[option]}

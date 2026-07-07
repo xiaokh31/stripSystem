@@ -68,7 +68,8 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   await page.goto(`/containers/${fixture.containerId}`);
   await expect(page.getByRole("heading", { name: fixture.containerNoA }))
     .toBeVisible();
-  await expect(page.getByRole("button", { name: "保存拆柜人" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save unloaders" }))
+    .toBeVisible();
   await expect(
     page.locator("select").filter({ hasText: fixture.workerA }).first(),
   ).toBeVisible();

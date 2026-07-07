@@ -14,6 +14,27 @@ const containerLifecycleStatusLabels: Record<string, LocalizedLabel> = {
   UNLOADED: { en: "Unloaded", "zh-CN": "已拆完" },
 };
 
+const containerLifecycleStatusAliases: Record<string, string> = {
+  Corrected: "CORRECTED",
+  Error: "ERROR",
+  Imported: "IMPORTED",
+  "Labels generated": "LABELS_GENERATED",
+  "Delivered to warehouse": "LOADED",
+  "Loading in progress": "LOADING_IN_PROGRESS",
+  Parsed: "PARSED",
+  "Report generated": "REPORT_GENERATED",
+  Unloaded: "UNLOADED",
+  已修正: "CORRECTED",
+  错误: "ERROR",
+  已导入: "IMPORTED",
+  已生成面单: "LABELS_GENERATED",
+  已送库: "LOADED",
+  装车中: "LOADING_IN_PROGRESS",
+  已解析: "PARSED",
+  已生成报告: "REPORT_GENERATED",
+  已拆完: "UNLOADED",
+};
+
 const palletStatusLabels: Record<string, LocalizedLabel> = {
   CANCELLED: { en: "Cancelled", "zh-CN": "已取消" },
   EXCEPTION: { en: "Exception", "zh-CN": "异常" },
@@ -23,11 +44,37 @@ const palletStatusLabels: Record<string, LocalizedLabel> = {
   PLANNED: { en: "Planned", "zh-CN": "计划中" },
 };
 
+const palletStatusAliases: Record<string, string> = {
+  Cancelled: "CANCELLED",
+  Exception: "EXCEPTION",
+  "Label printed": "LABEL_PRINTED",
+  Loaded: "LOADED",
+  Loading: "LOADING",
+  Planned: "PLANNED",
+  已取消: "CANCELLED",
+  异常: "EXCEPTION",
+  已打印面单: "LABEL_PRINTED",
+  已装车: "LOADED",
+  装车中: "LOADING",
+  计划中: "PLANNED",
+};
+
 const loadJobStatusLabels: Record<string, LocalizedLabel> = {
   CANCELLED: { en: "Cancelled", "zh-CN": "已取消" },
   COMPLETED: { en: "Completed", "zh-CN": "已完成" },
   IN_PROGRESS: { en: "In progress", "zh-CN": "进行中" },
   PLANNED: { en: "Planned", "zh-CN": "计划中" },
+};
+
+const loadJobStatusAliases: Record<string, string> = {
+  Cancelled: "CANCELLED",
+  Completed: "COMPLETED",
+  "In progress": "IN_PROGRESS",
+  Planned: "PLANNED",
+  已取消: "CANCELLED",
+  已完成: "COMPLETED",
+  进行中: "IN_PROGRESS",
+  计划中: "PLANNED",
 };
 
 const unloadingWageCompletionStatusLabels: Record<string, LocalizedLabel> = {
@@ -36,6 +83,19 @@ const unloadingWageCompletionStatusLabels: Record<string, LocalizedLabel> = {
   NEEDS_REVIEW: { en: "Needs review", "zh-CN": "需复核" },
   SETTLED: { en: "Settled", "zh-CN": "已结算" },
   SUPERSEDED: { en: "Superseded", "zh-CN": "已被取代" },
+};
+
+const unloadingWageCompletionStatusAliases: Record<string, string> = {
+  Completed: "COMPLETED",
+  Draft: "DRAFT",
+  "Needs review": "NEEDS_REVIEW",
+  Settled: "SETTLED",
+  Superseded: "SUPERSEDED",
+  已完成: "COMPLETED",
+  草稿: "DRAFT",
+  需复核: "NEEDS_REVIEW",
+  已结算: "SETTLED",
+  已被取代: "SUPERSEDED",
 };
 
 const unloadingWageCompletionDescriptions: Record<string, LocalizedLabel> = {
@@ -69,6 +129,21 @@ const generatedAndImportStatusLabels: Record<string, LocalizedLabel> = {
   WARNING: { en: "Warning", "zh-CN": "警告" },
 };
 
+const generatedAndImportStatusAliases: Record<string, string> = {
+  Failed: "FAILED",
+  Generated: "GENERATED",
+  Parsed: "PARSED",
+  Parsing: "PARSING",
+  Uploaded: "UPLOADED",
+  Warning: "WARNING",
+  失败: "FAILED",
+  已生成: "GENERATED",
+  已解析: "PARSED",
+  解析中: "PARSING",
+  已上传: "UPLOADED",
+  警告: "WARNING",
+};
+
 const uploadQueueStatusLabels: Record<string, LocalizedLabel> = {
   duplicate: { en: "Duplicate", "zh-CN": "重复" },
   error: { en: "Error", "zh-CN": "错误" },
@@ -96,28 +171,38 @@ export function containerLifecycleStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return labelFrom(containerLifecycleStatusLabels, status, locale);
+  return labelFrom(
+    containerLifecycleStatusLabels,
+    status,
+    locale,
+    containerLifecycleStatusAliases,
+  );
 }
 
 export function palletStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return labelFrom(palletStatusLabels, status, locale);
+  return labelFrom(palletStatusLabels, status, locale, palletStatusAliases);
 }
 
 export function loadJobStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return labelFrom(loadJobStatusLabels, status, locale);
+  return labelFrom(loadJobStatusLabels, status, locale, loadJobStatusAliases);
 }
 
 export function unloadingWageCompletionStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return labelFrom(unloadingWageCompletionStatusLabels, status, locale);
+  return labelFrom(
+    unloadingWageCompletionStatusLabels,
+    status,
+    locale,
+    unloadingWageCompletionStatusAliases,
+  );
 }
 
 export function unloadingWageCompletionDescription(
@@ -145,7 +230,12 @@ export function generatedOrImportStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return labelFrom(generatedAndImportStatusLabels, status, locale);
+  return labelFrom(
+    generatedAndImportStatusLabels,
+    status,
+    locale,
+    generatedAndImportStatusAliases,
+  );
 }
 
 export function uploadQueueStatusLabel(
@@ -174,11 +264,26 @@ export function businessStatusLabel(
   locale: Locale = DEFAULT_LOCALE,
 ): string {
   return (
-    lookup(containerLifecycleStatusLabels, status, locale) ??
-    lookup(palletStatusLabels, status, locale) ??
-    lookup(loadJobStatusLabels, status, locale) ??
-    lookup(unloadingWageCompletionStatusLabels, status, locale) ??
-    lookup(generatedAndImportStatusLabels, status, locale) ??
+    lookup(
+      containerLifecycleStatusLabels,
+      status,
+      locale,
+      containerLifecycleStatusAliases,
+    ) ??
+    lookup(palletStatusLabels, status, locale, palletStatusAliases) ??
+    lookup(loadJobStatusLabels, status, locale, loadJobStatusAliases) ??
+    lookup(
+      unloadingWageCompletionStatusLabels,
+      status,
+      locale,
+      unloadingWageCompletionStatusAliases,
+    ) ??
+    lookup(
+      generatedAndImportStatusLabels,
+      status,
+      locale,
+      generatedAndImportStatusAliases,
+    ) ??
     lookup(uploadQueueStatusLabels, status, locale) ??
     lookup(offlineQueueStatusLabels, status, locale) ??
     humanizeStatus(status, locale)
@@ -193,20 +298,24 @@ function labelFrom(
   labels: Record<string, LocalizedLabel>,
   status: string | null | undefined,
   locale: Locale,
+  aliases: Record<string, string> = {},
 ): string {
-  return lookup(labels, status, locale) ?? humanizeStatus(status, locale);
+  return (
+    lookup(labels, status, locale, aliases) ?? humanizeStatus(status, locale)
+  );
 }
 
 function lookup(
   labels: Record<string, LocalizedLabel>,
   status: string | null | undefined,
   locale: Locale,
+  aliases: Record<string, string> = {},
 ): string | null {
   const key = status?.trim();
   if (!key) {
     return null;
   }
-  return labels[key]?.[locale] ?? null;
+  return labels[key]?.[locale] ?? labels[aliases[key] ?? ""]?.[locale] ?? null;
 }
 
 function humanizeStatus(
