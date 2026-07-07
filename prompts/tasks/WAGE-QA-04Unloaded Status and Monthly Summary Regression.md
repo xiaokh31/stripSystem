@@ -1,5 +1,13 @@
 执行 WAGE-QA-04：Unloaded Status and Monthly Summary Regression。
 
+变更说明：
+- 如果发现新增 `UNLOADED` 后原有 container `LOADED` 装车完成状态不可见或被覆盖，
+  必须先执行
+  `prompts/tasks/UNLOAD-WAGE-11Restore Loading Completed Status Regression.md`。
+- `已拆完` 不允许替代原有装车完成状态。
+- 状态中文显示名应区分清楚：`UNLOADED=已拆完`，`LOADING_IN_PROGRESS=装车中`，
+  `LOADED=已送库`。
+
 必须读取：
 - AGENTS.md
 - prompts/agents/business-logic-agent.md
@@ -31,13 +39,15 @@
 3. loading scan 仍然能把柜子推进到 `LOADING_IN_PROGRESS` / `LOADED`。
 4. 办公室手动操作不能直接设置 container `LOADED`。
 5. 已经是 `LOADING_IN_PROGRESS` 或 `LOADED` 的柜子保存拆柜完成不会降级。
-6. 月度拆柜总结包含 `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED`。
-7. 月度拆柜总结排除未标记已拆完的 `LABELS_GENERATED`。
-8. 已拆完状态但缺 completion date 的柜子进入 review warning。
-9. Excel 导出结构参考 `samples/workform/Bestar_work_form.xlsx` 的 `6月拆柜数据` sheet。
-10. 导出文件有 generated file 记录和浏览器安全下载链接。
-11. 拆柜工资结算仍按原规则生成，不把“拆柜数据总结”当成工资结算。
-12. 权限符合要求：`OFFICE` 可做拆柜数据总结，但默认不能生成拆柜工资结算。
+6. 中文状态显示必须为 `UNLOADED=已拆完`、`LOADING_IN_PROGRESS=装车中`、
+   `LOADED=已送库`。
+7. 月度拆柜总结包含 `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED`。
+8. 月度拆柜总结排除未标记已拆完的 `LABELS_GENERATED`。
+9. 已拆完状态但缺 completion date 的柜子进入 review warning。
+10. Excel 导出结构参考 `samples/workform/Bestar_work_form.xlsx` 的 `6月拆柜数据` sheet。
+11. 导出文件有 generated file 记录和浏览器安全下载链接。
+12. 拆柜工资结算仍按原规则生成，不把“拆柜数据总结”当成工资结算。
+13. 权限符合要求：`OFFICE` 可做拆柜数据总结，但默认不能生成拆柜工资结算。
 
 建议命令：
 pnpm --filter api lint

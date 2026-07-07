@@ -1,5 +1,9 @@
 执行 UNLOAD-WAGE-08：Container Unloaded Status Lifecycle。
 
+变更说明：
+- 后续业务确认：`UNLOADED` 显示名保持 `已拆完`。
+- 原有 `LOADED` 不应显示成 `已拆完`，中文显示名应优化为 `已送库`，避免和拆柜完成混淆。
+
 必须读取：
 - AGENTS.md
 - prompts/agents/business-logic-agent.md
@@ -54,6 +58,9 @@
    - 不从 `LOADING_IN_PROGRESS` / `LOADED` 降级
 5. 更新 load job container suggestion / planning 过滤条件，确保 `UNLOADED` 可用于装车。
 6. 更新 Web 状态 label / i18n / filters。
+   - `UNLOADED` => `已拆完`
+   - `LOADING_IN_PROGRESS` => `装车中`
+   - `LOADED` => `已送库`
 
 验收标准：
 1. 一个 `LABELS_GENERATED` 柜子点击 `标记已拆完` 后，详情页显示 `已拆完` / `UNLOADED`。

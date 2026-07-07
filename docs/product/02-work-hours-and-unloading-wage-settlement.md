@@ -287,6 +287,12 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - `UNLOADED` is different from pallet `LOADED` and container `LOADED`.
   Container `LOADED` remains a loading/scan result and must not be manually set
   by the office unloading action.
+- User-facing Chinese status labels should distinguish the states clearly:
+  - `UNLOADED`: `已拆完`
+  - `LOADING_IN_PROGRESS`: `装车中`
+  - `LOADED`: `已送库`
+- Do not label `LOADED` as `已拆完`. The API enum can remain `LOADED`; this is a
+  display-name requirement.
 - When an authorized office user, warehouse manager, or admin clicks
   `标记已拆完`, the system must:
   - save unloading completion data
@@ -558,6 +564,8 @@ Required controls:
 - Do not overload `ContainerStatus.LOADED` for `已拆完`. Existing `LOADED` is
   tied to pallet loading scan transactions. Add a separate `UNLOADED`
   container status for `已拆完`.
+- Display `ContainerStatus.LOADED` as `已送库` in Chinese UI to avoid confusion
+  with `已拆完`.
 - Do not downgrade containers from `LOADING_IN_PROGRESS` or `LOADED` back to
   `UNLOADED` when unloading completion is saved.
 - Use container records as the visible source for wage tag, trailer number, and
