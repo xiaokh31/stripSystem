@@ -234,7 +234,7 @@ export const zhMessages = {
   "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.":
     "面单补打需要 labels.reprint 权限。请办公室人员或管理员记录补打审计。",
   "LOADED is scan-only. It can only be produced by loading scans, not office status updates.":
-    "LOADED 为扫码专用状态，只能由装车扫码产生，不能通过办公室状态更新手动设置。",
+    "'已送库' 为扫码专用状态，只能由装车扫码产生，不能通过办公室状态更新手动设置。",
   "Language": "语言",
   "Last error": "最近错误",
   "Last login": "最近登录",
