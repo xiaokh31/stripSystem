@@ -55,7 +55,7 @@
    - container status English business name：
      - `UNLOADED`：`Unloaded`
      - `LOADING_IN_PROGRESS`：`Loading in progress`
-     - `LOADED`：`Delivered to warehouse`
+     - `LOADED`：`Delivered to destination`
    - unloading wage completion status：
      - `DRAFT`
      - `COMPLETED`
@@ -108,7 +108,7 @@
 - apps/web/src/components/reports/
 
 验收标准：
-1. 英文 locale 下，柜子状态显示为 `Unloaded`、`Loading in progress`、`Delivered to warehouse`，不出现 `已拆完`、`装车中`、`已送库`。
+1. 英文 locale 下，柜子状态显示为 `Unloaded`、`Loading in progress`、`Delivered to destination`，不出现 `已拆完`、`装车中`、`已送库`。
 2. 中文 locale 下，柜子状态显示为 `已拆完`、`装车中`、`已送库`，不出现主要英文状态名。
 3. `LOADED` 在 container lifecycle 场景中中文显示为 `已送库`，不能显示成 `已装车` 或 `已拆完`。
 4. pallet/load job 的 `Loaded` 语义仍可显示为 `Loaded` / `已装车`，不能和 container `LOADED=已送库` 混用。

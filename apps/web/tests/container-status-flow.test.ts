@@ -21,7 +21,7 @@ test("container status update options keep loaded visible but scan-only", () => 
     containerStatusSelectLabel("LOADING_IN_PROGRESS"),
     "Loading in progress",
   );
-  assert.equal(containerStatusSelectLabel("LOADED"), "Delivered to warehouse");
+  assert.equal(containerStatusSelectLabel("LOADED"), "Delivered to destination");
   assert.equal(containerStatusSelectLabel("UNLOADED", "zh-CN"), "已拆完");
   assert.equal(
     containerStatusSelectLabel("LOADING_IN_PROGRESS", "zh-CN"),

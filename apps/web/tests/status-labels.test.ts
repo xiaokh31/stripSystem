@@ -34,7 +34,7 @@ test("container lifecycle statuses are locale aware and keep loaded separate", (
       "Labels generated",
       "Unloaded",
       "Loading in progress",
-      "Delivered to warehouse",
+      "Delivered to destination",
       "Error",
     ],
   );
@@ -80,7 +80,7 @@ test("wage, classification, generated, upload, and queue statuses are mapped", (
 });
 
 test("generic business status label prefers container lifecycle for container statuses", () => {
-  assert.equal(businessStatusLabel("LOADED", "en"), "Delivered to warehouse");
+  assert.equal(businessStatusLabel("LOADED", "en"), "Delivered to destination");
   assert.equal(businessStatusLabel("LOADED", "zh-CN"), "已送库");
   assert.equal(businessStatusLabel("GENERATED", "zh-CN"), "已生成");
 });

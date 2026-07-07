@@ -114,7 +114,7 @@ test("container lifecycle labels and operation locks are visible", () => {
     containerStatusLabel("LOADING_IN_PROGRESS"),
     "Loading in progress",
   );
-  assert.equal(containerStatusLabel("LOADED"), "Delivered to warehouse");
+  assert.equal(containerStatusLabel("LOADED"), "Delivered to destination");
   assert.equal(containerStatusLabel("UNLOADED", "zh-CN"), "已拆完");
   assert.equal(containerStatusLabel("LOADING_IN_PROGRESS", "zh-CN"), "装车中");
   assert.equal(containerStatusLabel("LOADED", "zh-CN"), "已送库");

@@ -15,7 +15,7 @@ export const CONTAINER_STATUS_UPDATE_VALUES = [
 ] as const;
 
 export const LOADED_SCAN_ONLY_NOTICE =
-  "LOADED is scan-only. It can only be produced by loading scans, not office status updates.";
+  "'Delivered to destination' is scan-only. It can only be produced by loading scans, not office status updates.";
 
 export type ContainerStatusUpdateValue =
   (typeof CONTAINER_STATUS_UPDATE_VALUES)[number];

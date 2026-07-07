@@ -21,7 +21,7 @@ const forbiddenBilingualStatusPatterns = [
   /已拆完\s*\(UNLOADED\)/,
   /已送库\s*\(LOADED\)/,
   /Unloaded\s*\/\s*已拆完/,
-  /Delivered to warehouse\s*\/\s*已送库/,
+  /Delivered to destination\s*\/\s*已送库/,
 ] as const;
 
 const forbiddenEnglishChineseStatusPatterns = [
@@ -41,7 +41,7 @@ const forbiddenEnglishChineseStatusPatterns = [
 const forbiddenChineseEnglishStatusPatterns = [
   /\bUnloaded\b/,
   /Loading in progress/,
-  /Delivered to warehouse/,
+  /Delivered to destination/,
   /\bLoaded pallets\b/,
   /\bComplete loading\b/,
   /\bGenerated\b/,
@@ -67,21 +67,21 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
     {
       enText: fixture.loadedContainerNo,
       path: "/containers",
-      requiredEnglish: ["Unloaded", "Loading in progress", "Delivered to warehouse"],
+      requiredEnglish: ["Unloaded", "Loading in progress", "Delivered to destination"],
       requiredChinese: ["已拆完", "装车中", "已送库"],
       zhText: fixture.loadedContainerNo,
     },
     {
       enText: fixture.loadedContainerNo,
       path: `/containers/${fixture.loadedContainerId}`,
-      requiredEnglish: ["Delivered to warehouse"],
+      requiredEnglish: ["Delivered to destination"],
       requiredChinese: ["已送库"],
       zhText: fixture.loadedContainerNo,
     },
     {
       enText: "Inventory report",
       path: "/reports/inventory",
-      requiredEnglish: ["Delivered to warehouse"],
+      requiredEnglish: ["Delivered to destination"],
       requiredChinese: ["已送库"],
       zhText: "库存报告",
     },
@@ -104,7 +104,7 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
     {
       enText: "Monthly Unloading Data Summary",
       path: `/unloading-summary?month=${settlementMonth}`,
-      requiredEnglish: ["Unloaded", "Loading in progress", "Delivered to warehouse"],
+      requiredEnglish: ["Unloaded", "Loading in progress", "Delivered to destination"],
       requiredChinese: ["已拆完", "装车中", "已送库"],
       zhText: "月度拆柜数据汇总",
     },

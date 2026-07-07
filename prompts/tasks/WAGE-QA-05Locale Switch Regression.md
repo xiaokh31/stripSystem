@@ -31,7 +31,7 @@
    - English:
      - `UNLOADED` => `Unloaded`
      - `LOADING_IN_PROGRESS` => `Loading in progress`
-     - `LOADED` => `Delivered to warehouse`
+     - `LOADED` => `Delivered to destination`
    - 中文：
      - `UNLOADED` => `已拆完`
      - `LOADING_IN_PROGRESS` => `装车中`
@@ -84,7 +84,7 @@
    - `/已拆完\\s*\\(UNLOADED\\)/`
    - `/已送库\\s*\\(LOADED\\)/`
    - `/Unloaded\\s*\\/\\s*已拆完/`
-   - `/Delivered to warehouse\\s*\\/\\s*已送库/`
+   - `/Delivered to destination\\s*\\/\\s*已送库/`
 6. 如果必须展示 enum code，测试应定位到专门的 audit/debug 区，不应作为主要状态 label。
 
 建议测试命令：
