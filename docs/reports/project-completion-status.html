@@ -262,6 +262,14 @@
           English -> 中文 -> English 切换、中文刷新持久化、container/pallet/load-job/wage
           状态单语显示和禁止双语状态混排；同时修复 server component 页面切换语言时
           状态文案未按 cookie locale 重渲染的问题，并兼容历史中英 display status。
+          UNLOAD-PALLET-01 至 UNLOAD-PALLET-03 已完成详细托盘计算规则升级：
+          worker 计算从通用体积/高度估算改为目的仓和地址包装类型规则，覆盖
+          `YYC4` / `YYC6` / `YEG2` 按 1.7 CBM、`YVR2` / `YVR3` / `YVR4`
+          按 2.2 CBM、`YEG1` 按 1.7 CBM 后额外加 5 托、私人/商业纸箱
+          按 1.8 CBM、私人/商业木箱按件数，并对未知包装类型产生人工确认 warning；
+          API 已通过 migration 持久化 `packageType`、`palletRuleCode`、
+          `calculationBasisCbm` 和 `roundingMode`，report、label、container detail
+          和 task report 均可追溯托盘计算依据。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -287,7 +295,8 @@
         <h2>范围结论</h2>
         <p class="note">
           项目的主业务闭环已经打通：真实 Excel 导入、解析、人工修正、拆柜报告、
-          面单和 QR、库存查询、Load Job、移动扫码、离线队列、重打审计、部署文档。
+          详细托盘计算、面单和 QR、库存查询、Load Job、移动扫码、离线队列、
+          重打审计、部署文档。
           账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
           感知 UI、移动端权限和业务审计 userId。新增需求要求将 mobile scan
           单独交付为 Windows MSIX、Android APK、iOS IPA 三端原生 App，以规避
@@ -297,6 +306,11 @@
           当前未完成项主要是 native camera platform module wiring、
           iOS/Windows generated platform project hardening、Android 真机扫码验收、真正的
           异步队列化、自动打印代理实现、集中监控告警和更深的端到端业务流程回归。
+          2026-07-07 本轮复查已通过 worker 全量 pytest、API typecheck/test、
+          Web lint/typecheck/test、mobile-scan-app typecheck/test，以及排除 generated
+          Prisma client 后的 API eslint；本轮未重新运行 Docker full-stack / Playwright
+          全量 smoke。直接对 API 全目录运行 read-only eslint 会命中 `src/generated/prisma/**`
+          的 Prettier 生成文件问题，建议后续从 lint 配置中排除 generated Prisma client。
         </p>
       </section>
 
@@ -554,6 +568,50 @@
       </section>
 
       <section>
+        <h2>托盘计算规则升级进度</h2>
+        <p class="note">
+          本段跟踪 2026-07-07 新增的详细托盘计算规则。结论：UNLOAD-PALLET-01、
+          UNLOAD-PALLET-02、UNLOAD-PALLET-03 已在当前代码中完成到 worker/API/Web
+          review 和回归测试范围；规则按向上取整执行，不使用四舍五入。后续如果业务确认
+          “取整”实际是向下截断，需要重新开规则变更任务。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>UNLOAD-PALLET-01 Detailed Pallet Rule Worker Calculator</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Worker rules</td>
+              <td>`apps/worker-python/src/worker_python/pallets/rules.py` 与 `calculator.py` 已新增 rule code、package type、volume divisor、piece-count 和 rounding metadata；`unloading_plan_cn.py` 已解析/归集 `packageType`，私人/商业地址未知包装类型产生 `PACKAGE_TYPE_CONFIRMATION_REQUIRED` warning；worker tests 覆盖 `YYC4` / `YYC6` / `YEG2` 1.7 CBM、`YVR2` / `YVR3` / `YVR4` 2.2 CBM、`YEG1` 1.7 CBM + 5、纸箱 1.8 CBM、木箱按件数、混合包装按 rule bucket 分开计算、manual pallets override 和 unknown destination warning。</td>
+              <td>Worker 规则已完成；继续保持新客户 Excel fixture 进入 parser/calculator regression。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-02 Persistence / Report / Label Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>API + report + label</td>
+              <td>新增 `20260707110000_pallet_rule_metadata` migration：`container_destinations` 持久化 `package_type`、`pallet_rule_code`、`calculation_basis_cbm` 和 `rounding_mode`，并将 destination 唯一键扩展到 `package_type`；imports service 按 destination + packageType 对齐 worker plans，API DTO 返回 rule metadata；reports、labels、corrections 和 Web API client 已透传 metadata；HTML task report 显示 rule/package/basis/rounding；label generation 继续以 `finalPallets` 生成 pallet records 和 QR payload。</td>
+              <td>已完成持久化和生成链路；如果未来要让办公室手动改 packageType/ruleCode，需要单独设计 auditable correction workflow。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-03 Detailed Pallet Calculation Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Regression</td>
+              <td>`apps/worker-python/tests/integration/test_batch_cli.py` 构造详细规则 workbook，验证 parsed JSON、pallet plans、warning、Excel report 写入托数、Label PDF 数量、唯一 palletIds/QR payload、150mm x 100mm PDF MediaBox 和 task report rule metadata；API imports tests 覆盖混合私人地址纸箱/木箱/unknown 三条 destination summary 分开持久化；Web container detail flow tests 覆盖 rule summary 和 unknown package warning 可见。</td>
+              <td>本轮复查通过 `uv run pytest` 106 passed、`pnpm --filter api typecheck`、`pnpm --filter api test` 18 suites / 122 tests、`pnpm --filter web typecheck`、`pnpm --filter web test` 150 tests。Docker/Playwright full-stack 本轮未重跑，生产 pilot 前仍建议按 runbook 做真实上传、报告、label 和扫码 smoke。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>账号功能完成度</h2>
         <p class="note">
           账号、角色、权限功能按 P1-AUTH 至 P5-AUTH 当前任务范围评估为 100%。
@@ -657,8 +715,8 @@
               <td>真实 fixture、格式检测、解析 JSON、托盘计算、Excel 报告、PDF 面单、HTML task report。</td>
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
-              <td>worker-python parser/report/label/task_reports；真实样本在 samples/unloading-plans。</td>
-              <td>持续补充新客户格式 fixture。</td>
+              <td>worker-python parser/report/label/task_reports；真实样本在 samples/unloading-plans；详细托盘规则已覆盖目的仓 divisor、YEG1 额外托数、私人/商业纸箱/木箱分支、package warning、rule metadata 和 finalPallets report/label 回归。</td>
+              <td>持续补充新客户格式 fixture，特别是包装类型字段不稳定的私人/商业地址 workbook。</td>
             </tr>
             <tr>
               <td>P1</td>
@@ -746,7 +804,7 @@
               <td>托盘计算</td>
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
-              <td>Worker calculator 和 API final pallets 使用 manual override 优先。</td>
+              <td>Worker calculator 已按 `YYC4` / `YYC6` / `YEG2` 1.7 CBM、`YVR2` / `YVR3` / `YVR4` 2.2 CBM、`YEG1` 1.7 CBM + 5、私人/商业纸箱 1.8 CBM、木箱按件数计算；API 持久化 packageType、palletRuleCode、calculationBasisCbm、roundingMode；manual override 仍优先并可审计。</td>
             </tr>
             <tr>
               <td>公司模板拆柜报告</td>
@@ -867,6 +925,18 @@
               <td>后续按真实 pilot 缺陷补充 Playwright：导入、解析失败手工创建、报告/面单、扫码、history。</td>
             </tr>
             <tr>
+              <td>包装类型现场数据口径</td>
+              <td><span class="badge partial">Needs Pilot Verification</span></td>
+              <td>详细托盘规则已实现纸箱/木箱分支和未知包装 warning，但私人/商业地址的真实 workbook 是否稳定提供包装类型仍需现场样本确认。</td>
+              <td>pilot 前用真实私人/商业地址 Excel 验证 parser 能识别纸箱/木箱；不能识别时必须进入人工确认和 correction 流程，不应静默套用默认规则。</td>
+            </tr>
+            <tr>
+              <td>API generated Prisma lint 配置</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>API 业务代码在排除 `src/generated/prisma/**` 后通过 read-only eslint；但当前 API lint glob 会扫描 Prisma generated client，直接 read-only eslint 会因生成文件 Prettier 格式失败。</td>
+              <td>把 `apps/api/src/generated/prisma/**` 加入 ESLint ignore，或调整 Prisma client 生成位置/格式策略；避免 `pnpm lint` 依赖 `--fix` 修改 generated files 才能通过。</td>
+            </tr>
+            <tr>
               <td>生产级监控和告警</td>
               <td><span class="badge deferred">Deferred</span></td>
               <td>本地 pilot 能健康检查，但没有集中日志、指标和报警。</td>
@@ -941,6 +1011,8 @@
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>
           <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
+          <li>用真实包含私人/商业地址的 Excel 验证详细托盘规则：`YYC4` / `YYC6` / `YEG2`、`YVR2` / `YVR3` / `YVR4`、`YEG1`、纸箱和木箱都应显示正确 rule metadata；业务方需要确认“取整”按向上取整接受。</li>
+          <li>整理 API lint 配置，排除 `src/generated/prisma/**` 后再把根目录 `pnpm lint` 作为只读 CI gate 使用。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
           <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>
           <li>执行 pilot checklist，并记录缺陷到 runbook/error-fix-log。</li>
