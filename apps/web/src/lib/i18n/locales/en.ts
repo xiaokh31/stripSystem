@@ -943,6 +943,58 @@ export const enMessages = {
   "Showing first 100 of": "Showing first 100 of",
   "Sign in before downloading generated wage files.":
     "Sign in before downloading generated wage files.",
+  "Sign in before downloading generated summary files.":
+    "Sign in before downloading generated summary files.",
+  "Apply": "Apply",
+  "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.":
+    "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.",
+  "Cartons and pallets": "Cartons and pallets",
+  "Completed containers": "Completed containers",
+  "Completed status filter": "Completed status filter",
+  "Destination and note lines are returned by the summary API.":
+    "Destination and note lines are returned by the summary API.",
+  "Destination and service line": "Destination and service line",
+  "Detail rows": "Detail rows",
+  "Download generated summary": "Download generated summary",
+  "Export Excel": "Export Excel",
+  "Export monthly unloading data": "Export monthly unloading data",
+  "Exporting monthly unloading data summary.":
+    "Exporting monthly unloading data summary.",
+  "Generate an Excel workbook for office review from the selected month summary API.":
+    "Generate an Excel workbook for office review from the selected month summary API.",
+  "Generated summary files": "Generated summary files",
+  "LABELS_GENERATED stays out until unloading is marked complete.":
+    "LABELS_GENERATED stays out until unloading is marked complete.",
+  "Mark container unloading as complete and confirm the completion date falls inside this month before exporting the office summary.":
+    "Mark container unloading as complete and confirm the completion date falls inside this month before exporting the office summary.",
+  "Monthly Unloading Data Summary": "Monthly Unloading Data Summary",
+  "Monthly unloading data summary could not be loaded":
+    "Monthly unloading data summary could not be loaded",
+  "Monthly unloading detail": "Monthly unloading detail",
+  "No completed unloading rows for the selected month":
+    "No completed unloading rows for the selected month",
+  "No monthly unloading summary export has been generated for this month.":
+    "No monthly unloading summary export has been generated for this month.",
+  "No review warnings for the selected month.":
+    "No review warnings for the selected month.",
+  "Ocean containers": "Ocean containers",
+  "Reference and appointment": "Reference and appointment",
+  "Review completed unloading container data for office operations without generating unloading wage settlement.":
+    "Review completed unloading container data for office operations without generating unloading wage settlement.",
+  "Review warnings": "Review warnings",
+  "Selected month": "Selected month",
+  "Split variance and note": "Split variance and note",
+  "Summary includes API rows from": "Summary includes API rows from",
+  "Summary month filter": "Summary month filter",
+  "Summary month must use YYYY-MM.": "Summary month must use YYYY-MM.",
+  "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.":
+    "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.",
+  "Unloading summary export permission required":
+    "Unloading summary export permission required",
+  "Unloading summary read permission required":
+    "Unloading summary read permission required",
+  "US-to-Canada": "US-to-Canada",
+  "Wage tag": "Wage tag",
   "Trailer number": "Trailer number",
   "Trailer:": "Trailer:",
   "US-to-Canada transfer": "US-to-Canada transfer",
@@ -992,8 +1044,11 @@ export const enMessages = {
   "Temporary unloader name is required.":
     "Temporary unloader name is required.",
   "allocation line(s)": "allocation line(s)",
+  "carton(s),": "carton(s),",
   "detail line(s)": "detail line(s)",
+  "detail row(s)": "detail row(s)",
   "employee(s)": "employee(s)",
+  "pallet(s)": "pallet(s)",
   "from container detail wage data.": "from container detail wage data.",
   "latest attendance workbook(s).": "latest attendance workbook(s).",
   "parsed rows.": "parsed rows.",

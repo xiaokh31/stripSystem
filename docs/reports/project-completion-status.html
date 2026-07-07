@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-05</p>
+        <p class="small">Generated: 2026-07-07</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -242,6 +242,12 @@
           full-stack 路径和 wage Playwright smoke 均已验证；WAGE-QA-03 已补充
           temporary unloader directory 回归，确认临时拆柜工无需登录账号、停用后不在
           active selector、历史柜子和月结继续使用保存时 snapshot，工资模块当前结论为 complete。
+          UNLOAD-WAGE-10 已补齐 Monthly Unloading Data Summary Web 页面：
+          `/unloading-summary` 按月调用真实 summary API，展示
+          `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED` 已拆完状态集合、review
+          warnings、明细行和 generated export 下载链接，并通过 Reports workflow
+          按 `unloading_summary.read/export` 权限开放给 OFFICE、WAREHOUSE_MANAGER
+          和 ADMIN。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -486,6 +492,13 @@
               <td>QA-03</td>
               <td>Temporary unloader directory 回归已覆盖更正后的主路径：`WAREHOUSE_MANAGER` 可创建没有 email/password/login role 的临时拆柜工，目录 response 明确返回 `email: null`、`roles: []` 且不含 password 字段；active `GET /api/unloading-wage/workers` 只返回可选临时工，`includeInactive=true` 可审阅停用记录；container detail 保存拆柜人只接受 `unloadingWorkerId`，重复目录工返回 `DUPLICATE_UNLOADER_ASSIGNMENT`，旧 `workerUserId` 新保存路径返回 `UNLOADING_WORKER_REQUIRED`；新增 API e2e 证明临时工被保存到柜子后即使目录记录改名并停用，active selector 不再列出该工人，但柜子详情和月结仍显示保存时 worker code/name snapshot；legacy user-backed assignment 仍可生成 CAD 300 ocean settlement；美转加关联柜详情保持同一 trailer、关联柜号、拆柜状态和临时工列表；月结仍验证 CAD 300 / 海柜、CAD 360 / 美转加组、多人 CAD 180 均分、JSON/HTML 下载记录和 HR/OFFICE/WAREHOUSE 默认 403。</td>
               <td>已通过 `pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`uv run pytest`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh`、nginx `curl http://127.0.0.1/api/health`、`curl http://127.0.0.1/` 和 `pnpm --filter web exec playwright test e2e/unloading-wage.spec.ts`（desktop/mobile 2 passed）；Playwright 初次在 sandbox 内因 macOS Mach port permission denied 失败，升级后发现 Docker API 仍是旧镜像导致 `POST /api/unloading-wage/workers` 404，已执行 `docker compose -f infra/docker/compose.local.yml up -d --build api web nginx` 后重跑通过。build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.5: UNLOAD-WAGE-10 Monthly Unloading Data Summary UI</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2 UI</td>
+              <td>`/unloading-summary` 已接入 `GET /api/unloading-summary?month=YYYY-MM` 和 `POST /api/unloading-summary/exports`，页面默认当前月并支持月份筛选，summary 显示 selected month、completed container count、ocean / US-to-Canada count、warning count，明细表展示柜号、当前状态、完成日期、工资标签、拖车号、目的仓/服务行、箱数/托数、reference、appointment、差异和备注；页面明确说明已拆完状态集合为 `UNLOADED` / `LOADING_IN_PROGRESS` / `LOADED`，`LABELS_GENERATED` 未标记已拆完不会进入汇总；review warnings 和缺 completion date 项可见；导出成功后显示 Web 下载链接 `/unloading-summary/exports/:fileId/download`，不暴露内部 storage path；Reports 入口和导出动作按 `unloading_summary.read/export` 权限显示，普通 `WAREHOUSE` 默认无入口。</td>
+              <td>已通过 `pnpm --filter web test`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
             </tr>
           </tbody>
         </table>

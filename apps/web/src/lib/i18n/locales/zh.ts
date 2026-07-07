@@ -872,6 +872,57 @@ export const zhMessages = {
   "Showing first 100 of": "显示前 100 条，共",
   "Sign in before downloading generated wage files.":
     "请先登录再下载生成的工资文件。",
+  "Sign in before downloading generated summary files.":
+    "请先登录再下载生成的汇总文件。",
+  "Apply": "应用",
+  "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.":
+    "请联系管理员分配 unloading_summary.read 权限后再打开月度拆柜数据汇总。",
+  "Cartons and pallets": "箱数和托数",
+  "Completed containers": "已拆完柜数",
+  "Completed status filter": "已完成状态筛选",
+  "Destination and note lines are returned by the summary API.":
+    "目的仓和备注明细来自汇总 API 返回数据。",
+  "Destination and service line": "目的仓和服务行",
+  "Detail rows": "明细行",
+  "Download generated summary": "下载生成汇总",
+  "Export Excel": "导出 Excel",
+  "Export monthly unloading data": "导出月度拆柜数据",
+  "Exporting monthly unloading data summary.":
+    "正在导出月度拆柜数据汇总。",
+  "Generate an Excel workbook for office review from the selected month summary API.":
+    "根据所选月份的汇总 API 数据生成办公室复核用 Excel 工作簿。",
+  "Generated summary files": "已生成汇总文件",
+  "LABELS_GENERATED stays out until unloading is marked complete.":
+    "LABELS_GENERATED 在标记拆柜完成前不会进入汇总。",
+  "Mark container unloading as complete and confirm the completion date falls inside this month before exporting the office summary.":
+    "请先将柜子标记为拆柜完成，并确认完成日期落在此月份，再导出办公室汇总。",
+  "Monthly Unloading Data Summary": "月度拆柜数据汇总",
+  "Monthly unloading data summary could not be loaded":
+    "无法加载月度拆柜数据汇总",
+  "Monthly unloading detail": "月度拆柜明细",
+  "No completed unloading rows for the selected month":
+    "所选月份没有已拆完明细行",
+  "No monthly unloading summary export has been generated for this month.":
+    "此月份还没有生成过月度拆柜汇总导出。",
+  "No review warnings for the selected month.":
+    "所选月份没有复核警告。",
+  "Ocean containers": "海柜数",
+  "Reference and appointment": "参考号和预约",
+  "Review completed unloading container data for office operations without generating unloading wage settlement.":
+    "复核办公室运营用的已拆完柜子数据，不生成拆柜工资结算。",
+  "Review warnings": "复核警告",
+  "Selected month": "所选月份",
+  "Split variance and note": "拆分差异和备注",
+  "Summary includes API rows from": "汇总包含来自 API 的状态",
+  "Summary month filter": "汇总月份筛选",
+  "Summary month must use YYYY-MM.": "汇总月份必须使用 YYYY-MM。",
+  "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.":
+    "此账号可以复核月度拆柜数据，但生成 Excel 导出前需要 unloading_summary.export 权限。",
+  "Unloading summary export permission required":
+    "需要拆柜汇总导出权限",
+  "Unloading summary read permission required": "需要拆柜汇总读取权限",
+  "US-to-Canada": "美转加",
+  "Wage tag": "工资标签",
   "Trailer number": "拖车号",
   "Trailer:": "拖车号：",
   "US-to-Canada transfer": "美加转运",
@@ -917,8 +968,11 @@ export const zhMessages = {
   "Temporary directory": "临时拆柜工目录",
   "Temporary unloader name is required.": "临时拆柜工姓名必填。",
   "allocation line(s)": "条分配明细",
+  "carton(s),": "箱，",
   "detail line(s)": "条明细",
+  "detail row(s)": "条明细行",
   "employee(s)": "名员工",
+  "pallet(s)": "托",
   "from container detail wage data.": "来自柜子详情工资数据。",
   "latest attendance workbook(s).": "个最新考勤工作簿。",
   "parsed rows.": "条解析行。",

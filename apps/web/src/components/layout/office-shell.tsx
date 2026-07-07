@@ -5,6 +5,7 @@ import type { AuthUserResponse } from "@/lib/api-client";
 import {
   ATTENDANCE_READ_PERMISSION,
   INVENTORY_READ_PERMISSION,
+  UNLOADING_SUMMARY_READ_PERMISSION,
   UNLOADING_WAGE_READ_PERMISSION,
   canManageAccounts,
   canManageOfficeLoadJobs,
@@ -40,6 +41,7 @@ const navItems: PermissionAwareNavItem[] = [
       INVENTORY_READ_PERMISSION,
       ATTENDANCE_READ_PERMISSION,
       UNLOADING_WAGE_READ_PERMISSION,
+      UNLOADING_SUMMARY_READ_PERMISSION,
     ],
   },
   {

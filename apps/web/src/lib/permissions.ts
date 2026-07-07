@@ -23,6 +23,8 @@ export const UNLOADING_WAGE_READ_PERMISSION = "unloading_wage.read";
 export const UNLOADING_WAGE_CLASSIFY_PERMISSION = "unloading_wage.classify";
 export const UNLOADING_WAGE_COMPLETE_PERMISSION = "unloading_wage.complete";
 export const UNLOADING_WAGE_SETTLE_PERMISSION = "unloading_wage.settle";
+export const UNLOADING_SUMMARY_READ_PERMISSION = "unloading_summary.read";
+export const UNLOADING_SUMMARY_EXPORT_PERMISSION = "unloading_summary.export";
 
 export function hasRole(
   user: AuthUserResponse | null,
@@ -147,6 +149,18 @@ export function canSettleUnloadingWage(
   user: AuthUserResponse | null,
 ): boolean {
   return hasPermission(user, UNLOADING_WAGE_SETTLE_PERMISSION);
+}
+
+export function canReviewUnloadingSummary(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, UNLOADING_SUMMARY_READ_PERMISSION);
+}
+
+export function canExportUnloadingSummary(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasPermission(user, UNLOADING_SUMMARY_EXPORT_PERMISSION);
 }
 
 export function canManageContainerUnloadingWage(

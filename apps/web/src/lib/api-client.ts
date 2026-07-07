@@ -522,6 +522,68 @@ export interface UnloadingWageSettlementListResponse {
   items: UnloadingWageSettlementResponse[];
 }
 
+export interface UnloadingSummaryGeneratedFileResponse
+  extends GeneratedFileResponse {
+  downloadUrl: string;
+}
+
+export interface UnloadingSummaryRowResponse {
+  sequence: number;
+  containerId: string;
+  containerNo: string;
+  status: string;
+  payContainerId: string | null;
+  payContainerNo: string | null;
+  classification: string | null;
+  businessTag: string;
+  trailerNumber: string | null;
+  completedAt: string;
+  dateBusinessTag: string;
+  destinationId: string | null;
+  destinationText: string;
+  destinationCode: string | null;
+  destinationType: string | null;
+  cartons: number;
+  finalPallets: number;
+  quantityText: string;
+  referenceText: string | null;
+  appointmentText: string | null;
+  splitOrVarianceText: string | null;
+  operationNote: string | null;
+  rawJson: unknown;
+}
+
+export interface UnloadingSummaryReviewItemResponse {
+  code: string;
+  message: string;
+  containerId?: string | null;
+  containerNo?: string | null;
+  status?: string | null;
+  payContainerId?: string | null;
+  payContainerNo?: string | null;
+  field?: string | null;
+}
+
+export interface UnloadingSummaryResponse {
+  month: string;
+  sourceContainerCount: number;
+  rowCount: number;
+  rows: UnloadingSummaryRowResponse[];
+  reviewItems: UnloadingSummaryReviewItemResponse[];
+  generatedFiles: UnloadingSummaryGeneratedFileResponse[];
+}
+
+export interface ExportUnloadingSummaryRequest {
+  month: string;
+}
+
+export interface ExportUnloadingSummaryResponse
+  extends UnloadingSummaryResponse {
+  generatedFile: UnloadingSummaryGeneratedFileResponse;
+  exportWarnings: unknown[];
+  exportErrors: unknown[];
+}
+
 export interface ImportFileResponse {
   id: string;
   originalFilename: string;
@@ -1553,6 +1615,26 @@ export function getUnloadingWageSettlement(
   );
 }
 
+export function getUnloadingSummary(
+  month: string,
+  options: ApiClientOptions = {},
+): Promise<UnloadingSummaryResponse> {
+  const params = new URLSearchParams({ month });
+  return createApiClient(options).get<UnloadingSummaryResponse>(
+    `/unloading-summary?${params.toString()}`,
+  );
+}
+
+export function exportUnloadingSummary(
+  body: ExportUnloadingSummaryRequest,
+  options: ApiClientOptions = {},
+): Promise<ExportUnloadingSummaryResponse> {
+  return createApiClient(options).post<ExportUnloadingSummaryResponse>(
+    "/unloading-summary/exports",
+    { ...body },
+  );
+}
+
 export function updateContainerDestination(
   id: string,
   body: UpdateContainerDestinationRequest,
@@ -1821,6 +1903,18 @@ export function getUnloadingWageSettlementFileDownloadUrl(
 
   return buildWebUrl(
     `/unloading-wage/settlements/${encodedSettlementId}/files/${encodedFileId}/download`,
+    apiBaseToWebBaseUrl(baseUrl),
+  );
+}
+
+export function getUnloadingSummaryExportDownloadUrl(
+  fileId: string,
+  baseUrl = getPublicApiBaseUrl(),
+): string {
+  const encodedFileId = encodeURIComponent(fileId);
+
+  return buildWebUrl(
+    `/unloading-summary/exports/${encodedFileId}/download`,
     apiBaseToWebBaseUrl(baseUrl),
   );
 }

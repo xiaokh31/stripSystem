@@ -9,7 +9,9 @@ import {
   canManageContainerUnloadingWage,
   canManageOfficeLoadJobs,
   canCompleteMobileLoadJob,
+  canExportUnloadingSummary,
   canReprintLabels,
+  canReviewUnloadingSummary,
   canReviewUnloadingWage,
   canReviewWorkHours,
   canGenerateWorkHours,
@@ -355,4 +357,46 @@ test("work hours actions follow attendance action permissions independently", ()
   assert.equal(canUploadWorkHours(adminUser), true);
   assert.equal(canParseWorkHours(adminUser), true);
   assert.equal(canGenerateWorkHours(adminUser), true);
+});
+
+test("monthly unloading summary follows dedicated summary permissions", () => {
+  const officeSummaryUser: AuthUserResponse = {
+    id: "office-summary-1",
+    email: "office-summary@example.com",
+    name: "Office Summary",
+    roles: ["OFFICE"],
+    permissions: ["unloading_summary.read", "unloading_summary.export"],
+  };
+  const warehouseManagerUser: AuthUserResponse = {
+    id: "warehouse-manager-summary-1",
+    email: "warehouse-manager-summary@example.com",
+    name: "Warehouse Manager Summary",
+    roles: ["WAREHOUSE_MANAGER"],
+    permissions: ["unloading_summary.read", "unloading_summary.export"],
+  };
+  const ordinaryWarehouseUser: AuthUserResponse = {
+    id: "warehouse-summary-1",
+    email: "warehouse-summary@example.com",
+    name: "Warehouse Summary",
+    roles: ["WAREHOUSE"],
+    permissions: ["load_jobs.read", "scan.create"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-summary-1",
+    email: "admin-summary@example.com",
+    name: "Admin Summary",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canReviewUnloadingSummary(officeSummaryUser), true);
+  assert.equal(canExportUnloadingSummary(officeSummaryUser), true);
+  assert.equal(canReviewUnloadingSummary(warehouseManagerUser), true);
+  assert.equal(canExportUnloadingSummary(warehouseManagerUser), true);
+  assert.equal(canReviewUnloadingSummary(adminUser), true);
+  assert.equal(canExportUnloadingSummary(adminUser), true);
+  assert.equal(canReviewUnloadingSummary(ordinaryWarehouseUser), false);
+  assert.equal(canExportUnloadingSummary(ordinaryWarehouseUser), false);
+  assert.equal(canReviewUnloadingSummary(null), false);
+  assert.equal(canExportUnloadingSummary(null), false);
 });

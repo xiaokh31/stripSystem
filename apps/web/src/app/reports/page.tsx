@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   INVENTORY_READ_PERMISSION,
+  canReviewUnloadingSummary,
   canReviewUnloadingWage,
   canReviewWorkHours,
   hasPermission,
@@ -12,6 +13,7 @@ export default async function ReportsPage() {
   const showInventory = hasPermission(currentUser, INVENTORY_READ_PERMISSION);
   const showWorkHours = canReviewWorkHours(currentUser);
   const showUnloadingWage = canReviewUnloadingWage(currentUser);
+  const showUnloadingSummary = canReviewUnloadingSummary(currentUser);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
@@ -36,7 +38,16 @@ export default async function ReportsPage() {
               title="Warehouse Unloading Wage Settlement"
             />
           ) : null}
-          {!showInventory && !showWorkHours && !showUnloadingWage ? (
+          {showUnloadingSummary ? (
+            <ReportLink
+              href="/unloading-summary"
+              title="Monthly Unloading Data Summary"
+            />
+          ) : null}
+          {!showInventory &&
+          !showWorkHours &&
+          !showUnloadingWage &&
+          !showUnloadingSummary ? (
             <p className="border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
               No report permission is assigned to the current account.
             </p>

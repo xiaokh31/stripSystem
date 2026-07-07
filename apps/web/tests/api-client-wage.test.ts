@@ -5,9 +5,12 @@ import {
   completePayContainer,
   createUnloadingWageWorker,
   createPayContainer,
+  exportUnloadingSummary,
   generateAttendanceWageRecord,
   generateUnloadingWageSettlement,
   getAttendanceGeneratedFileDownloadUrl,
+  getUnloadingSummary,
+  getUnloadingSummaryExportDownloadUrl,
   getUnloadingWageSettlementFileDownloadUrl,
   listAttendanceImports,
   listUnloadingWageWorkers,
@@ -172,6 +175,55 @@ test("unloading wage API client calls pay container and settlement endpoints", a
   ]);
 });
 
+test("unloading summary API client calls monthly summary and export endpoints", async () => {
+  const requests: Array<{ body: unknown; method: string; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(
+      JSON.stringify({
+        generatedFile: { id: "summary-file-1" },
+        generatedFiles: [],
+        month: "2026-06",
+        reviewItems: [],
+        rowCount: 0,
+        rows: [],
+        sourceContainerCount: 0,
+      }),
+      {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      },
+    );
+  };
+
+  await getUnloadingSummary("2026-06", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+  await exportUnloadingSummary(
+    { month: "2026-06" },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/unloading-summary?month=2026-06",
+    },
+    {
+      body: { month: "2026-06" },
+      method: "POST",
+      url: "http://api.local/api/unloading-summary/exports",
+    },
+  ]);
+});
+
 test("container detail unloading wage API client calls container-scoped endpoints", async () => {
   const requests: Array<{ body: unknown; method: string; url: string }> = [];
   const fetcher: typeof fetch = async (input, init) => {
@@ -308,5 +360,9 @@ test("wage generated file download helpers point at web proxy routes", () => {
   assert.equal(
     getUnloadingWageSettlementFileDownloadUrl("settlement 1", "file 1", "/api"),
     "/unloading-wage/settlements/settlement%201/files/file%201/download",
+  );
+  assert.equal(
+    getUnloadingSummaryExportDownloadUrl("file 1", "/api"),
+    "/unloading-summary/exports/file%201/download",
   );
 });
