@@ -447,6 +447,265 @@ describe('ImportsService', () => {
     });
   });
 
+  it('persists mixed private address package rule buckets without collapsing them', async () => {
+    const storedPath = join(storageRoot, 'mixed-package-rules.xlsx');
+    await writeFile(storedPath, 'xlsx bytes');
+    const record = importRecord({
+      id: 'import-mixed-packages',
+      originalFilename: 'mixed-package-rules.xlsx',
+      storedPath,
+      fileSha256: 'mixed-package-sha256',
+    });
+    const containers: any[] = [];
+    const lines: any[] = [];
+    const destinations: any[] = [];
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.importFile.update.mockImplementation(({ data }) => {
+      Object.assign(record, data, {
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      });
+      return Promise.resolve(record);
+    });
+    prisma.container.findMany.mockImplementation(({ where, include }) => {
+      const found = containers.filter(
+        (container) => container.importFileId === where.importFileId,
+      );
+      if (!include) {
+        return Promise.resolve(
+          found.map((container) => ({ id: container.id })),
+        );
+      }
+
+      return Promise.resolve(
+        found.map((container) => ({
+          ...container,
+          lines: lines.filter((line) => line.containerId === container.id),
+          destinations: destinations.filter(
+            (destination) => destination.containerId === container.id,
+          ),
+        })),
+      );
+    });
+    prisma.container.create.mockImplementation(({ data }) => {
+      const container = {
+        id: 'container-1',
+        ...data,
+        createdAt: new Date('2026-06-26T00:01:00.000Z'),
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      };
+      containers.push(container);
+      return Promise.resolve(container);
+    });
+    prisma.containerLine.createMany.mockImplementation(({ data }) => {
+      lines.push(
+        ...data.map((line, index) => ({
+          id: `line-${index + 1}`,
+          ...line,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    prisma.containerDestination.createMany.mockImplementation(({ data }) => {
+      destinations.push(
+        ...data.map((destination, index) => ({
+          id: `destination-${index + 1}`,
+          ...destination,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    workerParser.parseFile.mockResolvedValue({
+      task_status: 'WARNING',
+      source_file: storedPath,
+      sha256: record.fileSha256,
+      detection: { format_type: 'UNLOADING_PLAN_CN' },
+      parsed_result: {
+        containerNo: 'TSTU1234567',
+        formatType: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        lines: [
+          {
+            rowNumber: 2,
+            destinationCode: 'Private Address / ADDR-MIXED',
+            packageType: 'CARTON',
+            deliveryMethod: 'LTL',
+            cartons: 10,
+            volumeCbm: 3.59,
+            raw_json: { 仓库代码: 'Private Address', 件数: 10 },
+          },
+          {
+            rowNumber: 3,
+            destinationCode: 'Private Address / ADDR-MIXED',
+            packageType: 'WOODEN_CRATE',
+            deliveryMethod: 'LTL',
+            cartons: 7,
+            volumeCbm: 0.1,
+            raw_json: { 仓库代码: 'Private Address', 件数: 7 },
+          },
+          {
+            rowNumber: 4,
+            destinationCode: 'Private Address / ADDR-UNKNOWN',
+            packageType: 'UNKNOWN',
+            deliveryMethod: 'LTL',
+            cartons: 10,
+            volumeCbm: 3.61,
+            raw_json: { 仓库代码: 'Private Address', 件数: 10 },
+          },
+        ],
+        destinationSummaries: [
+          {
+            destinationCode: 'Private Address / ADDR-MIXED',
+            packageType: 'CARTON',
+            totalCartons: 10,
+            totalVolumeCbm: 3.59,
+            lineCount: 1,
+          },
+          {
+            destinationCode: 'Private Address / ADDR-MIXED',
+            packageType: 'WOODEN_CRATE',
+            totalCartons: 7,
+            totalVolumeCbm: 0.1,
+            lineCount: 1,
+          },
+          {
+            destinationCode: 'Private Address / ADDR-UNKNOWN',
+            packageType: 'UNKNOWN',
+            totalCartons: 10,
+            totalVolumeCbm: 3.61,
+            lineCount: 1,
+          },
+        ],
+        warnings: [
+          {
+            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+            field: 'packageType',
+            message: 'Manual confirmation required.',
+          },
+        ],
+        errors: [],
+        rawMetadata: { matchedSheet: 'Sheet1' },
+      },
+      pallet_result: {
+        plans: [
+          {
+            destinationCode: 'Private Address / ADDR-MIXED',
+            destinationType: 'PARCEL_PRIVATE',
+            packageType: 'CARTON',
+            ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+            calculationBasisCbm: 1.8,
+            roundingMode: 'CEIL',
+            totalCartons: 10,
+            totalVolumeCbm: 3.59,
+            calculatedPallets: 2,
+            manualPallets: null,
+            finalPallets: 2,
+            warnings: [],
+          },
+          {
+            destinationCode: 'Private Address / ADDR-MIXED',
+            destinationType: 'PARCEL_PRIVATE',
+            packageType: 'WOODEN_CRATE',
+            ruleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+            calculationBasisCbm: null,
+            roundingMode: 'PIECE_COUNT',
+            totalCartons: 7,
+            totalVolumeCbm: 0.1,
+            calculatedPallets: 7,
+            manualPallets: null,
+            finalPallets: 7,
+            warnings: [],
+          },
+          {
+            destinationCode: 'Private Address / ADDR-UNKNOWN',
+            destinationType: 'PARCEL_PRIVATE',
+            packageType: 'UNKNOWN',
+            ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+            calculationBasisCbm: 1.8,
+            roundingMode: 'CEIL',
+            totalCartons: 10,
+            totalVolumeCbm: 3.61,
+            calculatedPallets: 3,
+            manualPallets: null,
+            finalPallets: 3,
+            warnings: [
+              {
+                code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+                message: 'Manual confirmation required.',
+              },
+            ],
+          },
+        ],
+        warnings: [
+          {
+            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+            message: 'Manual confirmation required.',
+          },
+        ],
+        errors: [],
+      },
+      warnings: [
+        {
+          code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+          message: 'Manual confirmation required.',
+        },
+      ],
+      errors: [],
+      exception: null,
+    });
+
+    const result = await service.parse(record.id, officeActor);
+
+    expect(result.containers[0].destinations).toMatchObject([
+      {
+        destinationCode: 'Private Address / ADDR-MIXED',
+        packageType: 'CARTON',
+        cartons: 10,
+        calculatedPallets: 2,
+        finalPallets: 2,
+        palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+        calculationBasisCbm: '1.800',
+        roundingMode: 'CEIL',
+      },
+      {
+        destinationCode: 'Private Address / ADDR-MIXED',
+        packageType: 'WOODEN_CRATE',
+        cartons: 7,
+        calculatedPallets: 7,
+        finalPallets: 7,
+        palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+        calculationBasisCbm: null,
+        roundingMode: 'PIECE_COUNT',
+      },
+      {
+        destinationCode: 'Private Address / ADDR-UNKNOWN',
+        packageType: 'UNKNOWN',
+        cartons: 10,
+        calculatedPallets: 3,
+        finalPallets: 3,
+        palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+        calculationBasisCbm: '1.800',
+        roundingMode: 'CEIL',
+      },
+    ]);
+    expect(destinations).toHaveLength(3);
+    expect(
+      destinations.map((destination) => [
+        destination.destinationCode,
+        destination.packageType,
+        destination.finalPallets,
+      ]),
+    ).toEqual([
+      ['Private Address / ADDR-MIXED', 'CARTON', 2],
+      ['Private Address / ADDR-MIXED', 'WOODEN_CRATE', 7],
+      ['Private Address / ADDR-UNKNOWN', 'UNKNOWN', 3],
+    ]);
+  });
+
   async function loadFixtureFile(): Promise<Express.Multer.File> {
     const buffer = await readFile(fixturePath);
 

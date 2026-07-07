@@ -199,6 +199,21 @@ export function formatNullable(value: string | number | null): string {
   return value === null || value === "" ? "-" : String(value);
 }
 
+export function ruleSummary(
+  destination: ContainerDetailDestinationResponse,
+): string {
+  const parts = [
+    destination.packageType ? `Package ${destination.packageType}` : null,
+    destination.palletRuleCode ? `Rule ${destination.palletRuleCode}` : null,
+    destination.calculationBasisCbm
+      ? `Basis ${Number(destination.calculationBasisCbm).toFixed(3)} CBM`
+      : null,
+    destination.roundingMode ? `Rounding ${destination.roundingMode}` : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(" · ") : formatNullable(null);
+}
+
 function parseManualPallets(
   value: string,
 ): { ok: true; value: number | null } | { ok: false; error: string } {

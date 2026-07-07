@@ -5,6 +5,7 @@ import {
   draftFromDestination,
   formatIssueSummary,
   issueList,
+  ruleSummary,
   summarizeIssues,
 } from "../src/components/containers/container-detail-flow";
 import type { ContainerDetailDestinationResponse } from "../src/lib/api-client";
@@ -92,6 +93,45 @@ test("destination warning summaries group repeated business issues", () => {
       "Destination code is missing.  2x",
       "Volume is 0 while cartons are greater than 0.  2x",
     ],
+  );
+});
+
+test("container detail rule summary exposes pallet calculation metadata", () => {
+  assert.equal(
+    ruleSummary(destinationRecord()),
+    "Package CARTON · Rule ADDRESS_CARTON_VOLUME_1_8 · Basis 1.800 CBM · Rounding CEIL",
+  );
+});
+
+test("container detail keeps unknown package warning visible", () => {
+  const destination = destinationRecord({
+    packageType: "UNKNOWN",
+    warnings: [
+      {
+        code: "PACKAGE_TYPE_CONFIRMATION_REQUIRED",
+        message:
+          "Private or commercial address package type was not recognized; manual confirmation is required.",
+      },
+    ],
+  });
+
+  assert.equal(ruleSummary(destination).includes("Package UNKNOWN"), true);
+  assert.deepEqual(issueList(destination.warnings), [
+    "Private or commercial address package type was not recognized; manual confirmation is required.",
+  ]);
+});
+
+test("container detail rule summary falls back cleanly when metadata is absent", () => {
+  assert.equal(
+    ruleSummary(
+      destinationRecord({
+        calculationBasisCbm: null,
+        packageType: null,
+        palletRuleCode: null,
+        roundingMode: null,
+      }),
+    ),
+    "-",
   );
 });
 

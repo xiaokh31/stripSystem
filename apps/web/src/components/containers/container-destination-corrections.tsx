@@ -16,6 +16,7 @@ import {
   draftFromDestination,
   formatIssueSummary,
   formatNullable,
+  ruleSummary,
   summarizeIssues,
   type DestinationCorrectionDraft,
 } from "./container-detail-flow";
@@ -720,19 +721,6 @@ function supplementalLabelRange(prompt: SupplementalLabelPrompt): string {
   }
 
   return `#${first}-#${prompt.toPallets}`;
-}
-
-function ruleSummary(destination: ContainerDetailDestinationResponse): string {
-  const parts = [
-    destination.packageType ? `Package ${destination.packageType}` : null,
-    destination.palletRuleCode ? `Rule ${destination.palletRuleCode}` : null,
-    destination.calculationBasisCbm
-      ? `Basis ${Number(destination.calculationBasisCbm).toFixed(3)} CBM`
-      : null,
-    destination.roundingMode ? `Rounding ${destination.roundingMode}` : null,
-  ].filter((part): part is string => Boolean(part));
-
-  return parts.length > 0 ? parts.join(" · ") : formatNullable(null);
 }
 
 function emptyDestinationDraft(): DestinationCorrectionDraft {
