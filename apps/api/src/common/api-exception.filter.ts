@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { operationalDateTime } from './operational-time';
+import { StructuredLogger } from './structured-logger.service';
 
 interface ApiErrorBody {
   code: string;
@@ -18,6 +19,8 @@ interface ApiErrorBody {
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
+  private readonly logger = new StructuredLogger(ApiExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -27,9 +30,19 @@ export class ApiExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const code = this.errorCode(status, exception);
+    const message = this.errorMessage(exception);
+    this.logException({
+      code,
+      exception,
+      message,
+      path: request.url ?? '',
+      status,
+    });
+
     response.status(status).json({
-      code: this.errorCode(status, exception),
-      message: this.errorMessage(exception),
+      code,
+      message,
       details: this.errorDetails(exception),
       timestamp: operationalDateTime(),
       path: request.url ?? '',
@@ -99,5 +112,31 @@ export class ApiExceptionFilter implements ExceptionFilter {
       'message' in value &&
       typeof value.message === 'string'
     );
+  }
+
+  private logException(input: {
+    code: string;
+    exception: unknown;
+    message: string;
+    path: string;
+    status: number;
+  }): void {
+    const payload = {
+      code: input.code,
+      event: 'api_exception',
+      message: input.message,
+      path: input.path,
+      status: input.status,
+    };
+
+    if (input.status >= 500) {
+      this.logger.error(
+        payload,
+        input.exception instanceof Error ? input.exception.stack : undefined,
+      );
+      return;
+    }
+
+    this.logger.warn(payload);
   }
 }

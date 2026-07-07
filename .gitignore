@@ -28,6 +28,7 @@ docs/runbooks/*
 !docs/runbooks/native-scan-app-testing.md
 !docs/runbooks/native-scan-app-release.md
 !docs/runbooks/work-hours-settlement-regression.md
+!docs/runbooks/monitoring-alerting-siem.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html
@@ -63,6 +64,7 @@ __pycache__/
 
 # storage runtime
 backups/
+audit-exports/
 storage/original_files/*
 storage/parsed_json/*
 storage/reports/*

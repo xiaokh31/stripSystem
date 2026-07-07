@@ -269,12 +269,17 @@
           按 1.8 CBM、私人/商业木箱按件数，并对未知包装类型产生人工确认 warning；
           API 已通过 migration 持久化 `packageType`、`palletRuleCode`、
           `calculationBasisCbm` 和 `roundingMode`，report、label、container detail
-          和 task report 均可追溯托盘计算依据。
+          和 task report 均可追溯托盘计算依据。2026-07-07 本轮补齐上线前运维
+          readiness：API structured JSON logs、HTTP request/exception logs、
+          backup freshness alert、disk usage alert、SIEM audit JSONL export 和
+          monitoring runbook 已加入；Docker full-stack pilot smoke 已用真实
+          unloading plan 派生 Excel 通过上传、解析、报告、label、load job、扫码和
+          duplicate scan 全链路。
         </p>
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>98%</dd>
+            <dd>99%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -287,6 +292,10 @@
           <dl class="metric">
             <dt>Native App</dt>
             <dd>92%</dd>
+          </dl>
+          <dl class="metric">
+            <dt>Ops Readiness</dt>
+            <dd>95%</dd>
           </dl>
         </div>
       </header>
@@ -305,13 +314,64 @@
           和 P6-MOBILE 任务拆解，并已完成 P6-MOBILE-01 至 P6-MOBILE-08。
           当前未完成项主要是 native camera platform module wiring、
           iOS/Windows generated platform project hardening、Android 真机扫码验收、真正的
-          异步队列化、自动打印代理实现、集中监控告警和更深的端到端业务流程回归。
-          2026-07-07 本轮复查已通过 worker 全量 pytest、API typecheck/test、
-          Web lint/typecheck/test、mobile-scan-app typecheck/test，以及排除 generated
-          Prisma client 后的 API eslint；本轮未重新运行 Docker full-stack / Playwright
-          全量 smoke。直接对 API 全目录运行 read-only eslint 会命中 `src/generated/prisma/**`
-          的 Prettier 生成文件问题，建议后续从 lint 配置中排除 generated Prisma client。
+          异步队列化和自动打印代理实现。集中监控告警已完成到本地生产可落地范围：
+          Docker 日志输出结构化 JSON，backup/disk alert 可由 cron/systemd/webhook 接入，
+          audit streams 可定时导出 JSONL 给 SIEM。2026-07-07 本轮复查已通过
+          API generated Prisma lint ignore、API lint/typecheck、Web lint/typecheck、
+          Docker full-stack targeted Playwright pilot smoke、Docker health/API health、
+          backup/disk scripts 和 SIEM export smoke；完整 Playwright 全量套件未重跑。
         </p>
+      </section>
+
+      <section>
+        <h2>生产监控 / SIEM 进度</h2>
+        <p class="note">
+          上线前运维硬化已完成到 local Docker full-stack 可执行范围。API 启动、
+          HTTP request 和 exception 均输出单行 JSON，并自动为请求设置
+          `x-request-id`；日志会 redaction authorization、cookie、jwt、password、
+          secret、token 等敏感字段。新增 `scripts/check-backups.sh` 检查 PostgreSQL
+          和 storage backup freshness，`scripts/check-disk-usage.sh` 检查磁盘阈值，
+          两者支持 `ALERT_WEBHOOK_URL` webhook；新增
+          `scripts/export-siem-audit.sh` 从 `pallet_events`、`correction_feedback`、
+          `generated_files`、`import_files`、`wage_generated_files` 和 unloading wage
+          表导出 JSONL。操作手册见 `docs/runbooks/monitoring-alerting-siem.md`。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>能力</th>
+              <th>状态</th>
+              <th>证据</th>
+              <th>剩余风险</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Structured logs</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`StructuredLogger`、request middleware、exception filter logging；API unit/typecheck/lint 通过。</td>
+              <td>未绑定具体企业日志平台，由 Docker stdout/stderr 或现有 collector 采集。</td>
+            </tr>
+            <tr>
+              <td>Backup alert</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`scripts/check-backups.sh` 输出 JSON 并按 stale/missing backup 返回非 0，可选 webhook。</td>
+              <td>需要现场 IT 配置 cron/systemd/任务计划器和异地备份保留策略。</td>
+            </tr>
+            <tr>
+              <td>Disk usage alert</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`scripts/check-disk-usage.sh` 输出 JSON，warning 默认 80%，critical 默认 90%，可选 webhook。</td>
+              <td>需要现场确认磁盘容量和 retention 策略，避免误删业务/audit 文件。</td>
+            </tr>
+            <tr>
+              <td>Central audit / SIEM export</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`scripts/export-siem-audit.sh` 已能导出 6 类 audit JSONL stream；本地 Docker smoke 已执行。</td>
+              <td>SIEM 平台本身未随仓库交付，需要客户或现场 IT 配置采集、保留和告警规则。</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section>
@@ -605,7 +665,7 @@
               <td><span class="badge done">Done</span></td>
               <td>Regression</td>
               <td>`apps/worker-python/tests/integration/test_batch_cli.py` 构造详细规则 workbook，验证 parsed JSON、pallet plans、warning、Excel report 写入托数、Label PDF 数量、唯一 palletIds/QR payload、150mm x 100mm PDF MediaBox 和 task report rule metadata；API imports tests 覆盖混合私人地址纸箱/木箱/unknown 三条 destination summary 分开持久化；Web container detail flow tests 覆盖 rule summary 和 unknown package warning 可见。</td>
-              <td>本轮复查通过 `uv run pytest` 106 passed、`pnpm --filter api typecheck`、`pnpm --filter api test` 18 suites / 122 tests、`pnpm --filter web typecheck`、`pnpm --filter web test` 150 tests。Docker/Playwright full-stack 本轮未重跑，生产 pilot 前仍建议按 runbook 做真实上传、报告、label 和扫码 smoke。</td>
+              <td>本轮复查通过 `uv run pytest` 106 passed、`pnpm --filter api typecheck`、`pnpm --filter api test` 18 suites / 122 tests、`pnpm --filter web typecheck`、`pnpm --filter web test` 150 tests。2026-07-07 已新增并通过 Docker full-stack targeted Playwright pilot smoke：真实样例派生 Excel 上传、parse、Excel report、Label PDF、load job、scan 和 duplicate scan 全链路。</td>
             </tr>
           </tbody>
         </table>

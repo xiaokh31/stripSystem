@@ -1,8 +1,10 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ApiExceptionFilter } from './common/api-exception.filter';
+import { requestLoggingMiddleware } from './common/request-logging.middleware';
 
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
+  app.use(requestLoggingMiddleware());
   app.enableCors({
     allowedHeaders: ['Authorization', 'Content-Type'],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
