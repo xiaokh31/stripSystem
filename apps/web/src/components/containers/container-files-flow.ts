@@ -1,15 +1,14 @@
 import type { GeneratedFileResponse } from "@/lib/api-client";
+import type { Locale } from "../../lib/i18n/catalog";
+import { containerLifecycleStatusLabel } from "../../lib/i18n/status-labels";
 
 export type GenerationAction = "labels" | "report";
 
-const containerStatusLabels: Record<string, string> = {
-  LOADED: "已送库",
-  LOADING_IN_PROGRESS: "装车中",
-  UNLOADED: "已拆完",
-};
-
-export function containerStatusLabel(status: string): string {
-  return containerStatusLabels[status] ?? status;
+export function containerStatusLabel(
+  status: string,
+  locale?: Locale,
+): string {
+  return containerLifecycleStatusLabel(status, locale);
 }
 
 export function isContainerOperationLocked(status: string): boolean {

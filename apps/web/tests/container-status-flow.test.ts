@@ -16,12 +16,18 @@ test("container status update options keep loaded visible but scan-only", () => 
     ["UNLOADED", "LOADING_IN_PROGRESS", "LOADED"],
   );
 
-  assert.equal(containerStatusSelectLabel("UNLOADED"), "已拆完 (UNLOADED)");
+  assert.equal(containerStatusSelectLabel("UNLOADED"), "Unloaded");
   assert.equal(
     containerStatusSelectLabel("LOADING_IN_PROGRESS"),
-    "装车中 (LOADING_IN_PROGRESS)",
+    "Loading in progress",
   );
-  assert.equal(containerStatusSelectLabel("LOADED"), "已送库 (LOADED)");
+  assert.equal(containerStatusSelectLabel("LOADED"), "Delivered to warehouse");
+  assert.equal(containerStatusSelectLabel("UNLOADED", "zh-CN"), "已拆完");
+  assert.equal(
+    containerStatusSelectLabel("LOADING_IN_PROGRESS", "zh-CN"),
+    "装车中",
+  );
+  assert.equal(containerStatusSelectLabel("LOADED", "zh-CN"), "已送库");
   assert.equal(isContainerStatusScanOnly("LOADED"), true);
   assert.equal(isContainerStatusScanOnly("UNLOADED"), false);
   assert.equal(isContainerStatusOptionDisabled("LOADED", "UNLOADED"), true);

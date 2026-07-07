@@ -3,6 +3,8 @@ import type {
   PalletStatsResponse,
 } from "@/lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
+import type { Locale } from "../../lib/i18n/catalog";
+import { palletStatusLabel } from "../../lib/i18n/status-labels";
 
 export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
 export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
@@ -17,6 +19,24 @@ export const PALLET_STATUS_OPTIONS = [
   { label: "Cancelled", value: "CANCELLED" },
   { label: "Exception", value: "EXCEPTION" },
 ] as const;
+
+export function palletStatusOptions(locale?: Locale) {
+  return [
+    {
+      label: locale === "zh-CN" ? "全部状态" : "All statuses",
+      value: "",
+    },
+    { label: palletStatusLabel("PLANNED", locale), value: "PLANNED" },
+    {
+      label: palletStatusLabel("LABEL_PRINTED", locale),
+      value: "LABEL_PRINTED",
+    },
+    { label: palletStatusLabel("LOADING", locale), value: "LOADING" },
+    { label: palletStatusLabel("LOADED", locale), value: "LOADED" },
+    { label: palletStatusLabel("CANCELLED", locale), value: "CANCELLED" },
+    { label: palletStatusLabel("EXCEPTION", locale), value: "EXCEPTION" },
+  ] as const;
+}
 
 export type InventorySearchParams = Record<
   string,

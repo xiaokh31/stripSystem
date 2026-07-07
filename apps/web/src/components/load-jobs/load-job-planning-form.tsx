@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import {
   ApiClientError,
   createLoadJob,
@@ -47,6 +49,7 @@ const idleSuggestionState: SuggestionState = {
 };
 
 export function LoadJobPlanningForm() {
+  const { locale } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<LoadJobDraft>(() => defaultLoadJobDraft());
   const [saveState, setSaveState] = useState<SaveState>(idleSaveState);
@@ -341,6 +344,7 @@ export function LoadJobPlanningForm() {
             ))}
           </div>
           <ContainerSuggestionPanel
+            locale={locale}
             onSelect={selectSuggestion}
             state={suggestions}
           />
@@ -528,9 +532,11 @@ function TextField({
 }
 
 function ContainerSuggestionPanel({
+  locale,
   onSelect,
   state,
 }: {
+  locale: ReturnType<typeof useI18n>["locale"];
   onSelect: (suggestion: LoadJobContainerSuggestionResponse) => void;
   state: SuggestionState;
 }) {
@@ -571,7 +577,10 @@ function ContainerSuggestionPanel({
               </span>
               <span className="text-xs text-zinc-600">
                 Remaining {item.remainingPallets} pallets, loaded{" "}
-                {item.loadedPallets}, status {item.status}
+                {item.loadedPallets}, status{" "}
+                <span title={item.status}>
+                  {containerStatusLabel(item.status, locale)}
+                </span>
               </span>
             </button>
           ))}

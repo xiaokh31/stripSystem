@@ -19,6 +19,8 @@ import {
   type GeneratedFileResponse,
   type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   canManageContainerUnloadingWage,
   canReprintLabels,
@@ -45,6 +47,7 @@ export default async function ContainerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const locale = await getServerLocale();
   const state = await loadContainerDetail(id);
 
   if (!state.ok) {
@@ -105,7 +108,9 @@ export default async function ContainerDetailPage({
             />
             <DetailRow
               label="Status"
-              value={<StatusBadge status={state.container.status} />}
+              value={
+                <StatusBadge locale={locale} status={state.container.status} />
+              }
             />
             <DetailRow
               label="Total cartons"
@@ -266,7 +271,13 @@ function DetailRow({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: string;
+}) {
   const styles = statusBadgeStyles(status);
 
   return (
@@ -274,7 +285,7 @@ function StatusBadge({ status }: { status: string }) {
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold ${styles}`}
       title={status}
     >
-      {containerStatusLabel(status)}
+      {containerStatusLabel(status, locale)}
     </span>
   );
 }

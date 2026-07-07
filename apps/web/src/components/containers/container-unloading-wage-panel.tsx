@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   completeContainerUnloading,
@@ -66,6 +67,7 @@ export function ContainerUnloadingWagePanel({
   workerOptions: UnloadingWageWorkerResponse[];
   workerOptionsError: ApiClientError | null;
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const [wageDraft, setWageDraft] = useState<ContainerUnloadingWageDraft>(() =>
     wageDraftFromContainer(container),
@@ -350,14 +352,14 @@ export function ContainerUnloadingWagePanel({
             wage?.status ?? null,
           )}`}
         >
-          {completionStatusLabel(wage?.status ?? null)}
+          {completionStatusLabel(wage?.status ?? null, locale)}
         </span>
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
         <SummaryItem
           label="柜子标签"
-          value={classificationLabel(wage?.classification ?? null)}
+          value={classificationLabel(wage?.classification ?? null, locale)}
         />
         <SummaryItem
           label="金额规则"
@@ -456,8 +458,12 @@ export function ContainerUnloadingWagePanel({
                   }
                   value={wageDraft.classification}
                 >
-                  <option value="OCEAN_CONTAINER">海柜</option>
-                  <option value="US_TO_CANADA_TRANSFER">美转加</option>
+                  <option value="OCEAN_CONTAINER">
+                    {classificationLabel("OCEAN_CONTAINER", locale)}
+                  </option>
+                  <option value="US_TO_CANADA_TRANSFER">
+                    {classificationLabel("US_TO_CANADA_TRANSFER", locale)}
+                  </option>
                 </select>
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">

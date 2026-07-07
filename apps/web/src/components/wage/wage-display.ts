@@ -1,9 +1,12 @@
+import type { Locale } from "../../lib/i18n/catalog";
+import { businessStatusLabel } from "../../lib/i18n/status-labels";
+
 export interface StatusStyle {
   label: string;
   styles: string;
 }
 
-export function statusStyle(status: string): StatusStyle {
+export function statusStyle(status: string, locale?: Locale): StatusStyle {
   const normalized = status.toUpperCase();
   if (
     normalized === "GENERATED" ||
@@ -12,7 +15,7 @@ export function statusStyle(status: string): StatusStyle {
     normalized === "PARSED"
   ) {
     return {
-      label: status,
+      label: businessStatusLabel(status, locale),
       styles: "border-emerald-200 bg-emerald-50 text-emerald-800",
     };
   }
@@ -23,7 +26,7 @@ export function statusStyle(status: string): StatusStyle {
     normalized === "NOT_PARSED"
   ) {
     return {
-      label: status,
+      label: businessStatusLabel(status, locale),
       styles: "border-amber-200 bg-amber-50 text-amber-800",
     };
   }
@@ -33,18 +36,18 @@ export function statusStyle(status: string): StatusStyle {
     normalized === "CANCELLED"
   ) {
     return {
-      label: status,
+      label: businessStatusLabel(status, locale),
       styles: "border-red-200 bg-red-50 text-red-800",
     };
   }
   if (normalized === "SETTLED" || normalized === "SUPERSEDED") {
     return {
-      label: status,
+      label: businessStatusLabel(status, locale),
       styles: "border-zinc-300 bg-zinc-100 text-zinc-800",
     };
   }
   return {
-    label: status || "-",
+    label: businessStatusLabel(status, locale),
     styles: "border-zinc-200 bg-zinc-50 text-zinc-700",
   };
 }

@@ -3,6 +3,8 @@ import type {
   UnloadingSummaryReviewItemResponse,
   UnloadingSummaryRowResponse,
 } from "@/lib/api-client";
+import type { Locale } from "../../lib/i18n/catalog";
+import { payClassificationLabel } from "../../lib/i18n/status-labels";
 
 export const COMPLETED_UNLOADING_STATUS_VALUES = [
   "UNLOADED",
@@ -65,16 +67,20 @@ export function unloadingSummaryBusinessTypeCounts(
 
 export function unloadingSummaryWageTag(
   row: Pick<UnloadingSummaryRowResponse, "businessTag" | "classification">,
+  locale?: Locale,
 ): string {
   const tag = row.businessTag.trim();
+  if (tag === "海柜" || tag === "Ocean container") {
+    return payClassificationLabel("OCEAN_CONTAINER", locale);
+  }
+  if (tag === "美转加" || tag === "US-to-Canada transfer") {
+    return payClassificationLabel("US_TO_CANADA_TRANSFER", locale);
+  }
   if (tag) {
     return tag;
   }
-  if (row.classification === "OCEAN_CONTAINER") {
-    return "海柜";
-  }
-  if (row.classification === "US_TO_CANADA_TRANSFER") {
-    return "美转加";
+  if (row.classification) {
+    return payClassificationLabel(row.classification, locale);
   }
   return "-";
 }

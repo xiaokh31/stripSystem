@@ -21,6 +21,9 @@ import {
   type PayContainerResponse,
   type UnloadingWageSettlementResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { payClassificationLabel } from "@/lib/i18n/status-labels";
 import {
   canReviewUnloadingWage,
   canSettleUnloadingWage,
@@ -49,6 +52,7 @@ export default async function UnloadingWagePage({
   searchParams: Promise<UnloadingWageSearchParams>;
 }) {
   const params = await searchParams;
+  const locale = await getServerLocale();
   const settlementMonth =
     firstSearchValue(params.settlementMonth) ?? currentSettlementMonth();
   const requestedSettlementId = firstSearchValue(params.settlementId);
@@ -87,6 +91,7 @@ export default async function UnloadingWagePage({
         />
       ) : (
         <MonthSourceRecords
+          locale={locale}
           settlementMonth={settlementMonth}
           sourceRecords={state.sourceRecords}
         />
@@ -103,11 +108,15 @@ export default async function UnloadingWagePage({
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <SettlementVersions
             selectedSettlementId={state.selectedSettlement?.id ?? null}
+            locale={locale}
             settlementMonth={settlementMonth}
             settlements={state.monthSettlements}
           />
           {state.selectedSettlement ? (
-            <SettlementDetail settlement={state.selectedSettlement} />
+            <SettlementDetail
+              locale={locale}
+              settlement={state.selectedSettlement}
+            />
           ) : (
             <NoSettlementSelected settlementMonth={settlementMonth} />
           )}
@@ -258,9 +267,11 @@ function SettlementMonthFilter({
 }
 
 function MonthSourceRecords({
+  locale,
   settlementMonth,
   sourceRecords,
 }: {
+  locale: Locale;
   settlementMonth: string;
   sourceRecords: PayContainerResponse[];
 }) {
@@ -334,10 +345,10 @@ function MonthSourceRecords({
                   </p>
                 </td>
                 <td className="px-3 py-4">
-                  <StatusBadge status={record.status} />
+                  <StatusBadge locale={locale} status={record.status} />
                 </td>
                 <td className="px-3 py-4">
-                  <p>{classificationLabel(record.classification)}</p>
+                  <p>{payClassificationLabel(record.classification, locale)}</p>
                   <p className="mt-1 text-xs text-zinc-500">
                     Trailer: {record.trailerNumber ?? "-"}
                   </p>
@@ -396,10 +407,12 @@ function ReviewAlerts({ alerts }: { alerts: string[] }) {
 }
 
 function SettlementVersions({
+  locale,
   selectedSettlementId,
   settlementMonth,
   settlements,
 }: {
+  locale: Locale;
   selectedSettlementId: string | null;
   settlementMonth: string;
   settlements: UnloadingWageSettlementResponse[];
@@ -431,7 +444,7 @@ function SettlementVersions({
                 <p className="font-semibold text-zinc-950">
                   {settlement.settlementMonth}
                 </p>
-                <StatusBadge status={settlement.status} />
+                <StatusBadge locale={locale} status={settlement.status} />
               </div>
               <p className="mt-2 font-semibold text-zinc-800">
                 {formatMoney(settlement.totalAmount, settlement.currency)}
@@ -467,8 +480,10 @@ function NoSettlementSelected({
 }
 
 function SettlementDetail({
+  locale,
   settlement,
 }: {
+  locale: Locale;
   settlement: UnloadingWageSettlementResponse;
 }) {
   const issues = [
@@ -490,7 +505,7 @@ function SettlementDetail({
             </p>
           </div>
           <div className="text-right">
-            <StatusBadge status={settlement.status} />
+            <StatusBadge locale={locale} status={settlement.status} />
             <p className="mt-2 text-lg font-semibold text-zinc-950">
               {formatMoney(settlement.totalAmount, settlement.currency)}
             </p>
@@ -549,7 +564,7 @@ function SettlementDetail({
                       {formatMoney(worker.totalAmount, settlement.currency)}
                     </td>
                     <td className="px-3 py-3">
-                      <StatusBadge status={settlement.status} />
+                      <StatusBadge locale={locale} status={settlement.status} />
                     </td>
                   </tr>
                 ))}
@@ -593,7 +608,7 @@ function SettlementDetail({
                         {settlementLineWorkUnit(line)}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {classificationLabel(line.classification)}
+                        {payClassificationLabel(line.classification, locale)}
                       </p>
                     </td>
                     <td className="px-3 py-3">
@@ -653,7 +668,7 @@ function SettlementDetail({
                       {file.fileSha256 ?? "No SHA-256 recorded"}
                     </p>
                   </div>
-                  <StatusBadge status={file.status} />
+                  <StatusBadge locale={locale} status={file.status} />
                 </div>
                 {file.status === "GENERATED" ? (
                   <Link
@@ -684,11 +699,12 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const style = statusStyle(status);
+function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
+  const style = statusStyle(status, locale);
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded border px-2.5 text-xs font-semibold uppercase ${style.styles}`}
+      title={status}
     >
       {style.label}
     </span>
@@ -727,16 +743,6 @@ function settlementLineWorkUnit(line: SettlementLine): string {
     settlementLineContainerNumbers(line.containerNumbers)[0] ??
     line.payContainerNo
   );
-}
-
-function classificationLabel(value: string): string {
-  if (value === "OCEAN_CONTAINER") {
-    return "Ocean container";
-  }
-  if (value === "US_TO_CANADA_TRANSFER") {
-    return "US-to-Canada transfer";
-  }
-  return value;
 }
 
 function allocationMethodLabel(value: string): string {

@@ -13,6 +13,9 @@ import {
   type LoadJobResponse,
 } from "@/lib/api-client";
 import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { loadJobStatusLabel } from "@/lib/i18n/status-labels";
 import {
   canManageAccounts,
   canManageOfficeLoadJobs,
@@ -36,6 +39,7 @@ type MobileLoadJobsState =
     };
 
 export default async function MobileLoadJobsPage() {
+  const locale = await getServerLocale();
   const currentUser = await getServerCurrentUser();
 
   if (!currentUser) {
@@ -82,6 +86,7 @@ export default async function MobileLoadJobsPage() {
       {state.ok ? (
         <LoadJobList
           canOpenOfficeLoadJobs={canManageOfficeLoadJobs(currentUser)}
+          locale={locale}
           loadJobs={state.loadJobs}
         />
       ) : (
@@ -197,9 +202,11 @@ async function loadOpenLoadJobs(): Promise<MobileLoadJobsState> {
 
 function LoadJobList({
   canOpenOfficeLoadJobs,
+  locale,
   loadJobs,
 }: {
   canOpenOfficeLoadJobs: boolean;
+  locale: Locale;
   loadJobs: LoadJobListResponse;
 }) {
   if (loadJobs.items.length === 0) {
@@ -226,13 +233,19 @@ function LoadJobList({
   return (
     <section className="grid gap-3">
       {loadJobs.items.map((loadJob) => (
-        <LoadJobCard key={loadJob.id} loadJob={loadJob} />
+        <LoadJobCard key={loadJob.id} loadJob={loadJob} locale={locale} />
       ))}
     </section>
   );
 }
 
-function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
+function LoadJobCard({
+  loadJob,
+  locale,
+}: {
+  loadJob: LoadJobResponse;
+  locale: Locale;
+}) {
   const href = mobileLoadJobScanHref(loadJob.id);
   const visibleLines = loadJob.lines.slice(0, 4);
   const hiddenLineCount = Math.max(
@@ -257,8 +270,11 @@ function LoadJobCard({ loadJob }: { loadJob: LoadJobResponse }) {
             {loadJob.truckNo?.trim() || "No truck"}
           </p>
         </div>
-        <span className="inline-flex min-h-8 items-center border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold uppercase text-emerald-800">
-          {loadJob.status}
+        <span
+          className="inline-flex min-h-8 items-center border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-semibold uppercase text-emerald-800"
+          title={loadJob.status}
+        >
+          {loadJobStatusLabel(loadJob.status, locale)}
         </span>
       </div>
 

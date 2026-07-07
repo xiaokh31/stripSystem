@@ -36,9 +36,27 @@ test("parsed containers produce detail links", () => {
   assert.deepEqual(links, [
     {
       href: "/containers/container-1",
-      label: "CSNU8877228 · PARSED",
+      label: "CSNU8877228 · Parsed",
     },
   ]);
+  assert.deepEqual(
+    containerLinks(
+      [
+        {
+          id: "container-1",
+          containerNo: "CSNU8877228",
+          status: "PARSED",
+        },
+      ],
+      "zh-CN",
+    ),
+    [
+      {
+        href: "/containers/container-1",
+        label: "CSNU8877228 · 已解析",
+      },
+    ],
+  );
 });
 
 test("manual report fallback panel appears after parse failure or empty parsed result", () => {

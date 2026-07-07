@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { LoadJobCard } from "@/components/load-jobs/load-job-card";
 import {
-  LOAD_JOB_HISTORY_STATUS_OPTIONS,
   activeLoadJobHistoryFilterCount,
+  loadJobHistoryStatusOptions,
   loadJobHistoryHref,
   normalizeLoadJobHistoryFilters,
   type LoadJobHistoryFilters,
@@ -14,6 +14,8 @@ import {
   type AuthUserResponse,
   type LoadJobListResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   canManageOfficeLoadJobs,
   canViewMobileLoadJobs,
@@ -37,6 +39,7 @@ export default async function LoadJobHistoryPage({
 }: {
   searchParams: Promise<LoadJobHistorySearchParams>;
 }) {
+  const locale = await getServerLocale();
   const currentUser = await getServerCurrentUser();
 
   if (!canManageOfficeLoadJobs(currentUser)) {
@@ -81,10 +84,14 @@ export default async function LoadJobHistoryPage({
         </div>
       </section>
 
-      <HistoryFilterForm activeFilters={activeFilters} filters={filters} />
+      <HistoryFilterForm
+        activeFilters={activeFilters}
+        filters={filters}
+        locale={locale}
+      />
 
       {state.ok ? (
-        <HistoryList filters={filters} loadJobs={state.loadJobs} />
+        <HistoryList filters={filters} loadJobs={state.loadJobs} locale={locale} />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
@@ -144,9 +151,11 @@ async function loadHistory(
 function HistoryFilterForm({
   activeFilters,
   filters,
+  locale,
 }: {
   activeFilters: number;
   filters: LoadJobHistoryFilters;
+  locale: Locale;
 }) {
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
@@ -197,7 +206,7 @@ function HistoryFilterForm({
             defaultValue={filters.status ?? ""}
             name="status"
           >
-            {LOAD_JOB_HISTORY_STATUS_OPTIONS.map((option) => (
+            {loadJobHistoryStatusOptions(locale).map((option) => (
               <option key={option.value || "all"} value={option.value}>
                 {option.label}
               </option>
@@ -219,9 +228,11 @@ function HistoryFilterForm({
 
 function HistoryList({
   filters,
+  locale,
   loadJobs,
 }: {
   filters: LoadJobHistoryFilters;
+  locale: Locale;
   loadJobs: LoadJobListResponse;
 }) {
   const hasPrevious = loadJobs.offset > 0;
@@ -264,7 +275,7 @@ function HistoryList({
 
       <div className="mt-5 grid gap-3">
         {loadJobs.items.map((loadJob) => (
-          <LoadJobCard key={loadJob.id} loadJob={loadJob} />
+          <LoadJobCard key={loadJob.id} loadJob={loadJob} locale={locale} />
         ))}
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   deleteLoadJob,
@@ -9,6 +10,7 @@ import {
   type LoadJobResponse,
   type UpdateLoadJobRequest,
 } from "@/lib/api-client";
+import { loadJobStatusLabel } from "@/lib/i18n/status-labels";
 import {
   buildLoadJobRequest,
   emptyLoadJobLineDraft,
@@ -29,6 +31,7 @@ export function LoadJobManagementPanel({
 }: {
   loadJob: LoadJobResponse;
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<LoadJobDraft>(() =>
     loadJobToDraft(loadJob),
@@ -264,9 +267,15 @@ export function LoadJobManagementPanel({
               }
               value={statusDraft}
             >
-              <option value="PLANNED">PLANNED</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="COMPLETED">COMPLETED</option>
+              <option title="PLANNED" value="PLANNED">
+                {loadJobStatusLabel("PLANNED", locale)}
+              </option>
+              <option title="IN_PROGRESS" value="IN_PROGRESS">
+                {loadJobStatusLabel("IN_PROGRESS", locale)}
+              </option>
+              <option title="COMPLETED" value="COMPLETED">
+                {loadJobStatusLabel("COMPLETED", locale)}
+              </option>
             </select>
           </label>
         </div>

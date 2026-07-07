@@ -1,5 +1,7 @@
 import type { ContainerResponse, ImportFileResponse } from "@/lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
+import type { Locale } from "../../lib/i18n/catalog";
+import { containerLifecycleStatusLabel } from "../../lib/i18n/status-labels";
 
 export type StatusTone = "amber" | "emerald" | "red" | "zinc";
 
@@ -63,10 +65,14 @@ export function shouldOfferManualReportEntry(input: {
 
 export function containerLinks(
   containers: readonly Pick<ContainerResponse, "id" | "containerNo" | "status">[],
+  locale?: Locale,
 ): ContainerLink[] {
   return containers.map((container) => ({
     href: `/containers/${container.id}`,
-    label: `${container.containerNo} · ${container.status}`,
+    label: `${container.containerNo} · ${containerLifecycleStatusLabel(
+      container.status,
+      locale,
+    )}`,
   }));
 }
 

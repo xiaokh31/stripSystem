@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import { ApiClientError, updateContainer } from "@/lib/api-client";
 import { containerStatusLabel } from "./container-files-flow";
 import {
   CONTAINER_STATUS_UPDATE_VALUES,
-  LOADED_SCAN_ONLY_NOTICE,
   containerStatusSelectLabel,
   isContainerStatusOptionDisabled,
   isContainerStatusScanOnly,
+  loadedScanOnlyNotice,
 } from "./container-status-flow";
 
 interface StatusUpdateState {
@@ -31,6 +32,7 @@ export function ContainerStatusControl({
   containerId: string;
   currentStatus: string;
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
   const [note, setNote] = useState("");
@@ -77,7 +79,7 @@ export function ContainerStatusControl({
           <p className="mt-1 text-sm text-zinc-600">
             Current status:{" "}
             <span className="font-semibold text-zinc-950">
-              {containerStatusLabel(currentStatus)}
+              {containerStatusLabel(currentStatus, locale)}
             </span>
           </p>
         </div>
@@ -107,14 +109,15 @@ export function ContainerStatusControl({
                   currentStatus,
                 )}
                 key={status}
+                title={status}
                 value={status}
               >
-                {containerStatusSelectLabel(status)}
+                {containerStatusSelectLabel(status, locale)}
               </option>
             ))}
           </select>
           <span className="text-xs font-medium text-zinc-500">
-            {LOADED_SCAN_ONLY_NOTICE}
+            {loadedScanOnlyNotice(locale)}
           </span>
         </label>
         <label className="grid gap-1 text-sm font-medium text-zinc-700">

@@ -520,6 +520,13 @@
               <td>恢复并加固 `LOADED` 装车完成状态可见性：shared container status label 现在明确 `UNLOADED=已拆完`、`LOADING_IN_PROGRESS=装车中`、`LOADED=已送库`；container detail、container index 和 inventory container summary 均使用该 label，保留 enum title 便于审计；container status control 已把当前 `LOADED` 纳入选项显示，不会空白或丢失，但 `LOADED` 仍为 scan-only，非当前状态时禁用手工选择，当前 `LOADED` 时禁用人工状态保存并显示 scan-only 说明；库存 pallet status filter 保留 `LOADED` 且不加入 `UNLOADED`，避免把拆柜完成和装车完成合并。</td>
               <td>已通过 `pnpm --filter api test -- container-lifecycle inventory-reports`、`pnpm --filter web test`、`pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/build`。API lifecycle 测试覆盖 `UNLOADED -> LOADING_IN_PROGRESS -> LOADED`，inventory report 测试覆盖 fully loaded container 在 `status=LOADED` 筛选下仍显示为 `LOADED`；Web 测试覆盖三种中文状态名和 `LOADED` scan-only option。Docker full-stack smoke 已通过 `docker compose -f infra/docker/compose.local.yml up -d --build --force-recreate web nginx`、`scripts/healthcheck.sh` 和 nginx 页面验证：真实 ADMIN 创建 U11 临时柜并分别推进到 `UNLOADED`/已拆完、`LOADING_IN_PROGRESS`/装车中、`LOADED`/已送库，container detail 保留 `已送库 (LOADED)` 与 scan-only 说明，inventory `status=LOADED` 仍能显示已送库柜；U11 smoke 数据和临时 label PDF 已清理为 0。</td>
             </tr>
+            <tr>
+              <td>Stage 6.8: WAGE-P2-04 Locale Aware Status and Business Labels</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2 i18n</td>
+              <td>新增 locale-aware status/business label matrix，覆盖 container lifecycle、pallet inventory、load job、unloading wage completion、pay classification、generated/import、upload queue、offline queue 和 scan result 标签；container `LOADED` 英文为 `Delivered to warehouse`、中文为 `已送库`，pallet `LOADED` 仍为 `Loaded` / `已装车`，避免送库状态和托盘装车状态混用；container status select、container/detail/index/inventory badges、imports parse/import badges、work-hours generated files、unloading wage source/settlement/file badges、unloading summary current status/wage tag、load-job history filter、load-job management status select、mobile load jobs、offline queue 和 upload queue 均接入当前 locale。普通用户可见 label 不再显示 `已送库 (LOADED)` 或 raw enum 双语混排，raw enum 只保留在 `title` 等审计/排错位置。</td>
+              <td>已通过 `pnpm --filter web test`（145 tests）、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。新增 `status-labels.test.ts` 覆盖中英文 matrix，更新 container status、container files、import detail 和 unloading summary tests 验证 locale-aware 输出。</td>
+            </tr>
           </tbody>
         </table>
       </section>

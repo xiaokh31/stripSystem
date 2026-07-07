@@ -21,6 +21,9 @@ import {
   type UnloadingSummaryResponse,
   type UnloadingSummaryRowResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { businessStatusLabel } from "@/lib/i18n/status-labels";
 import {
   canExportUnloadingSummary,
   canReviewUnloadingSummary,
@@ -39,6 +42,7 @@ export default async function UnloadingSummaryPage({
 }: {
   searchParams: Promise<UnloadingSummarySearchParams>;
 }) {
+  const locale = await getServerLocale();
   const month = normalizeUnloadingSummaryMonth(await searchParams);
   const currentUser = await getServerCurrentUser();
   const canRead = canReviewUnloadingSummary(currentUser);
@@ -78,8 +82,8 @@ export default async function UnloadingSummaryPage({
         <>
           <SummaryMetrics summary={state.summary} />
           <ReviewWarnings summary={state.summary} />
-          <SummaryRowsTable rows={state.summary.rows} />
-          <GeneratedSummaryFiles summary={state.summary} />
+          <SummaryRowsTable locale={locale} rows={state.summary.rows} />
+          <GeneratedSummaryFiles locale={locale} summary={state.summary} />
         </>
       ) : null}
     </UnloadingSummaryPageShell>
@@ -272,7 +276,13 @@ function ReviewWarnings({ summary }: { summary: UnloadingSummaryResponse }) {
   );
 }
 
-function SummaryRowsTable({ rows }: { rows: UnloadingSummaryRowResponse[] }) {
+function SummaryRowsTable({
+  locale,
+  rows,
+}: {
+  locale: Locale;
+  rows: UnloadingSummaryRowResponse[];
+}) {
   if (rows.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -342,7 +352,7 @@ function SummaryRowsTable({ rows }: { rows: UnloadingSummaryRowResponse[] }) {
                   </p>
                 </td>
                 <td className="px-3 py-4">
-                  <StatusBadge status={row.status} />
+                  <StatusBadge locale={locale} status={row.status} />
                 </td>
                 <td className="px-3 py-4">
                   <p>{formatUnloadingSummaryDate(row.completedAt)}</p>
@@ -352,7 +362,7 @@ function SummaryRowsTable({ rows }: { rows: UnloadingSummaryRowResponse[] }) {
                 </td>
                 <td className="px-3 py-4">
                   <p className="font-semibold">
-                    {unloadingSummaryWageTag(row)}
+                    {unloadingSummaryWageTag(row, locale)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {displayText(row.classification)}
@@ -396,8 +406,10 @@ function SummaryRowsTable({ rows }: { rows: UnloadingSummaryRowResponse[] }) {
 }
 
 function GeneratedSummaryFiles({
+  locale,
   summary,
 }: {
+  locale: Locale;
   summary: UnloadingSummaryResponse;
 }) {
   return (
@@ -423,7 +435,7 @@ function GeneratedSummaryFiles({
                     Created {formatUnloadingSummaryDate(file.createdAt)}
                   </p>
                 </div>
-                <StatusBadge status={file.status} />
+                <StatusBadge locale={locale} status={file.status} />
               </div>
               <p className="mt-3 break-all text-xs text-zinc-600">
                 {unloadingSummaryGeneratedFileAuditText(file)}
@@ -453,13 +465,20 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: string;
+}) {
   const styles = statusBadgeStyles(status);
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded border px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status || "-"}
+      {businessStatusLabel(status, locale)}
     </span>
   );
 }

@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   uploadImportFile,
   type ImportFileResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import {
   buildUploadQueue,
   clampProgressPercent,
   classifyUploadFailure,
   formatFileSize,
+  uploadStatusLabel,
   type UploadQueueItem,
 } from "./import-upload-flow";
 
@@ -21,6 +25,7 @@ type UploadItemState = UploadQueueItem & {
 };
 
 export function ImportUploadForm() {
+  const { locale } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItemState[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -209,7 +214,7 @@ export function ImportUploadForm() {
                 </thead>
                 <tbody>
                   {items.map((item) => (
-                    <UploadRow item={item} key={item.id} />
+                    <UploadRow item={item} key={item.id} locale={locale} />
                   ))}
                 </tbody>
               </table>
@@ -221,7 +226,13 @@ export function ImportUploadForm() {
   );
 }
 
-function UploadRow({ item }: { item: UploadItemState }) {
+function UploadRow({
+  item,
+  locale,
+}: {
+  item: UploadItemState;
+  locale: Locale;
+}) {
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
       <td className="py-3 pr-4">
@@ -231,19 +242,25 @@ function UploadRow({ item }: { item: UploadItemState }) {
         </p>
       </td>
       <td className="py-3 pr-4">
-        <StatusChip status={item.status} />
+        <StatusChip locale={locale} status={item.status} />
       </td>
       <td className="py-3 pr-4">
         <ProgressCell item={item} />
       </td>
       <td className="py-3">
-        <ResultCell item={item} />
+        <ResultCell item={item} locale={locale} />
       </td>
     </tr>
   );
 }
 
-function StatusChip({ status }: { status: UploadQueueItem["status"] }) {
+function StatusChip({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: UploadQueueItem["status"];
+}) {
   const styles: Record<UploadQueueItem["status"], string> = {
     duplicate: "border-amber-200 bg-amber-50 text-amber-800",
     error: "border-red-200 bg-red-50 text-red-800",
@@ -252,20 +269,12 @@ function StatusChip({ status }: { status: UploadQueueItem["status"] }) {
     success: "border-emerald-200 bg-emerald-50 text-emerald-800",
     uploading: "border-cyan-200 bg-cyan-50 text-cyan-800",
   };
-  const labels: Record<UploadQueueItem["status"], string> = {
-    duplicate: "duplicate",
-    error: "error",
-    invalid: "invalid",
-    queued: "ready",
-    success: "success",
-    uploading: "uploading",
-  };
 
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles[status]}`}
     >
-      {labels[status]}
+      {uploadStatusLabel(status, locale)}
     </span>
   );
 }
@@ -300,7 +309,13 @@ function ProgressCell({ item }: { item: UploadItemState }) {
   );
 }
 
-function ResultCell({ item }: { item: UploadItemState }) {
+function ResultCell({
+  item,
+  locale,
+}: {
+  item: UploadItemState;
+  locale: Locale;
+}) {
   if (item.result) {
     return (
       <div className="space-y-1">
@@ -321,8 +336,11 @@ function ResultCell({ item }: { item: UploadItemState }) {
         </p>
         <p className="text-xs text-zinc-600">
           Status:{" "}
-          <span className="font-medium text-zinc-950">
-            {item.result.importStatus}
+          <span
+            className="font-medium text-zinc-950"
+            title={item.result.importStatus}
+          >
+            {generatedOrImportStatusLabel(item.result.importStatus, locale)}
           </span>
         </p>
         <p className="break-all text-xs text-zinc-600">

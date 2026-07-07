@@ -1,3 +1,6 @@
+import type { Locale } from "../../lib/i18n/catalog";
+import { uploadQueueStatusLabel } from "../../lib/i18n/status-labels";
+
 export const XLSX_EXTENSION = ".xlsx";
 
 export type UploadStatus =
@@ -97,6 +100,13 @@ export function formatFileSize(bytes: number): string {
   }
 
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+export function uploadStatusLabel(
+  status: UploadStatus,
+  locale?: Locale,
+): string {
+  return uploadQueueStatusLabel(status, locale);
 }
 
 function extractExistingImport(details: unknown): ExistingImportSummary | undefined {

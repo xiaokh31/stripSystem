@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   generateContainerLabels,
@@ -11,6 +12,8 @@ import {
   type ContainerLabelReprintResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   canShowLabelReprintAction,
@@ -68,6 +71,7 @@ export function ContainerGeneratedFiles({
   containerStatus: string;
   initialFiles: GeneratedFileResponse[];
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const [generation, setGeneration] = useState<GenerationState>(idleState);
   const [reprint, setReprint] = useState<ReprintState>(idleReprintState);
@@ -259,7 +263,11 @@ export function ContainerGeneratedFiles({
         />
       ) : null}
 
-      <GeneratedFilesTable containerId={containerId} files={files} />
+      <GeneratedFilesTable
+        containerId={containerId}
+        files={files}
+        locale={locale}
+      />
     </section>
   );
 }
@@ -267,9 +275,11 @@ export function ContainerGeneratedFiles({
 function GeneratedFilesTable({
   containerId,
   files,
+  locale,
 }: {
   containerId: string;
   files: GeneratedFileResponse[];
+  locale: Locale;
 }) {
   if (files.length === 0) {
     return (
@@ -309,7 +319,7 @@ function GeneratedFilesTable({
                 {generatedFileTypeLabel(file.fileType)}
               </td>
               <td className="px-3 py-4 align-top">
-                <StatusBadge status={file.status} />
+                <StatusBadge locale={locale} status={file.status} />
               </td>
               <td className="px-3 py-4 text-right align-top">
                 {formatFileSizeBytes(file.fileSizeBytes)}
@@ -417,7 +427,7 @@ function ReprintStatus({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
   const styles =
     status === "GENERATED"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -428,8 +438,9 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {generatedOrImportStatusLabel(status, locale)}
     </span>
   );
 }

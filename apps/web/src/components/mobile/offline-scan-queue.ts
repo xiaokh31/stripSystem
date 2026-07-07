@@ -1,3 +1,6 @@
+import type { Locale } from "../../lib/i18n/catalog";
+import { offlineQueueStatusLabel } from "../../lib/i18n/status-labels";
+
 export type OfflineScanSyncStatus = "failed" | "pending" | "synced";
 
 export interface OfflineScanQueueItem {
@@ -116,6 +119,13 @@ export function offlineQueueCounts(items: OfflineScanQueueItem[]): {
     }),
     { failed: 0, pending: 0, synced: 0 },
   );
+}
+
+export function offlineScanSyncStatusLabel(
+  status: OfflineScanSyncStatus,
+  locale?: Locale,
+): string {
+  return offlineQueueStatusLabel(status, locale);
 }
 
 export function offlineScanErrorMessage(error: unknown): string {

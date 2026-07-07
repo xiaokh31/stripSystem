@@ -1,4 +1,6 @@
 import type { LoadJobListFilters } from "@/lib/api-client";
+import type { Locale } from "../../lib/i18n/catalog";
+import { loadJobStatusLabel } from "../../lib/i18n/status-labels";
 
 export const LOAD_JOB_HISTORY_PAGE_SIZE = 25;
 export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
@@ -7,6 +9,21 @@ export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
   { label: "In progress", value: "IN_PROGRESS" },
   { label: "Completed", value: "COMPLETED" },
 ] as const;
+
+export function loadJobHistoryStatusOptions(locale?: Locale) {
+  return [
+    {
+      label: locale === "zh-CN" ? "全部状态" : "All statuses",
+      value: "",
+    },
+    { label: loadJobStatusLabel("PLANNED", locale), value: "PLANNED" },
+    {
+      label: loadJobStatusLabel("IN_PROGRESS", locale),
+      value: "IN_PROGRESS",
+    },
+    { label: loadJobStatusLabel("COMPLETED", locale), value: "COMPLETED" },
+  ] as const;
+}
 
 export type LoadJobHistorySearchParams = Record<
   string,

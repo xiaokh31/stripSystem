@@ -84,7 +84,21 @@ test("unloading summary review and file text is readable", () => {
     unloadingSummaryWageTag(
       rowFixture({ businessTag: "", classification: "US_TO_CANADA_TRANSFER" }),
     ),
+    "US-to-Canada transfer",
+  );
+  assert.equal(
+    unloadingSummaryWageTag(
+      rowFixture({ businessTag: "", classification: "US_TO_CANADA_TRANSFER" }),
+      "zh-CN",
+    ),
     "美转加",
+  );
+  assert.equal(
+    unloadingSummaryWageTag(
+      rowFixture({ businessTag: "海柜", classification: "OCEAN_CONTAINER" }),
+      "en",
+    ),
+    "Ocean container",
   );
   assert.equal(
     unloadingSummaryReviewText({

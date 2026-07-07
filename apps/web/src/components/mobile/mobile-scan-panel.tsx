@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   closeLoadJob,
@@ -23,6 +24,7 @@ import {
   type LoadJobScanResponse,
   type ScannedPalletResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   isReverseScanDisabled,
@@ -40,6 +42,7 @@ import {
   offlineQueuedNotice,
   offlineQueueCounts,
   offlineScanErrorMessage,
+  offlineScanSyncStatusLabel,
   queueOfflineScan,
   readOfflineScanQueue,
   markOfflineScanFailed,
@@ -101,6 +104,7 @@ export function MobileScanPanel({
   initialLoadJob: LoadJobResponse;
   permissions: MobileScanPermissions;
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -877,6 +881,7 @@ export function MobileScanPanel({
       <OfflineQueuePanel
         canSync={permissions.canScan}
         items={currentLoadJobQueue}
+        locale={locale}
         queueError={queueError}
         syncableCount={syncableCount}
         syncing={syncingQueue}
@@ -1175,6 +1180,7 @@ function ReverseScanPanel({
 function OfflineQueuePanel({
   canSync,
   items,
+  locale,
   onSync,
   queueError,
   syncableCount,
@@ -1183,6 +1189,7 @@ function OfflineQueuePanel({
 }: {
   canSync: boolean;
   items: OfflineScanQueueItem[];
+  locale: Locale;
   onSync: () => void;
   queueError: string | null;
   syncableCount: number;
@@ -1260,7 +1267,7 @@ function OfflineQueuePanel({
               {items.map((item) => (
                 <tr key={item.localId} className="align-top">
                   <td className="px-3 py-3">
-                    <QueueStatusBadge status={item.syncStatus} />
+                    <QueueStatusBadge locale={locale} status={item.syncStatus} />
                   </td>
                   <td className="px-3 py-3 break-all font-semibold text-zinc-950">
                     {item.loadJobId}
@@ -1303,7 +1310,13 @@ function ScanNoticePanel({ notice }: { notice: ScanNotice }) {
   );
 }
 
-function QueueStatusBadge({ status }: { status: OfflineScanQueueItem["syncStatus"] }) {
+function QueueStatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: OfflineScanQueueItem["syncStatus"];
+}) {
   const styles = {
     failed: "border-red-200 bg-red-50 text-red-800",
     pending: "border-amber-200 bg-amber-50 text-amber-800",
@@ -1313,8 +1326,9 @@ function QueueStatusBadge({ status }: { status: OfflineScanQueueItem["syncStatus
   return (
     <span
       className={`inline-flex min-h-7 items-center border px-2 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {offlineScanSyncStatusLabel(status, locale)}
     </span>
   );
 }

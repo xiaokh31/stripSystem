@@ -7,6 +7,8 @@ import {
   type AuthUserResponse,
   type LoadJobListResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   canManageOfficeLoadJobs,
   canViewMobileLoadJobs,
@@ -28,6 +30,7 @@ type LoadJobsPageState =
     };
 
 export default async function LoadJobsPage() {
+  const locale = await getServerLocale();
   const currentUser = await getServerCurrentUser();
 
   if (!canManageOfficeLoadJobs(currentUser)) {
@@ -79,7 +82,7 @@ export default async function LoadJobsPage() {
       <LoadJobPlanningForm />
 
       {state.ok ? (
-        <LoadJobHistory loadJobs={state.loadJobs} />
+        <LoadJobHistory loadJobs={state.loadJobs} locale={locale} />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
@@ -137,7 +140,13 @@ async function loadLoadJobs(): Promise<LoadJobsPageState> {
   }
 }
 
-function LoadJobHistory({ loadJobs }: { loadJobs: LoadJobListResponse }) {
+function LoadJobHistory({
+  loadJobs,
+  locale,
+}: {
+  loadJobs: LoadJobListResponse;
+  locale: Locale;
+}) {
   if (loadJobs.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -179,7 +188,7 @@ function LoadJobHistory({ loadJobs }: { loadJobs: LoadJobListResponse }) {
 
       <div className="mt-5 grid gap-3">
         {loadJobs.items.map((loadJob) => (
-          <LoadJobCard key={loadJob.id} loadJob={loadJob} />
+          <LoadJobCard key={loadJob.id} loadJob={loadJob} locale={locale} />
         ))}
       </div>
     </section>

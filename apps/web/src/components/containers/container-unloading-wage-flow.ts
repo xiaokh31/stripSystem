@@ -6,6 +6,11 @@ import type {
   UpdateContainerUnloadersRequest,
   UpdateContainerUnloadingWageAssociationsRequest,
 } from "@/lib/api-client";
+import type { Locale } from "../../lib/i18n/catalog";
+import {
+  payClassificationLabel,
+  unloadingWageCompletionDescription,
+} from "../../lib/i18n/status-labels";
 
 export interface ContainerUnloadingWageDraft {
   associatedContainerNosText: string;
@@ -238,14 +243,9 @@ export function buildContainerUnloadingCompletionRequest(
 
 export function classificationLabel(
   classification: ContainerPayClassification | null,
+  locale?: Locale,
 ): string {
-  if (classification === "US_TO_CANADA_TRANSFER") {
-    return "美转加";
-  }
-  if (classification === "OCEAN_CONTAINER") {
-    return "海柜";
-  }
-  return "未选择";
+  return payClassificationLabel(classification, locale);
 }
 
 export function rateRuleLabel(
@@ -256,17 +256,11 @@ export function rateRuleLabel(
     : "CAD 300 / container";
 }
 
-export function completionStatusLabel(status: string | null): string {
-  if (status === "COMPLETED") {
-    return "已拆完，可进入月结";
-  }
-  if (status === "SETTLED") {
-    return "已结算";
-  }
-  if (status === "NEEDS_REVIEW") {
-    return "已拆完，需复核后进入月结";
-  }
-  return "未拆完，不会进入月结";
+export function completionStatusLabel(
+  status: string | null,
+  locale?: Locale,
+): string {
+  return unloadingWageCompletionDescription(status, locale);
 }
 
 export function parseAssociatedContainerNos(

@@ -7,7 +7,7 @@ import {
   formatPalletCount,
   inventoryReportHref,
   normalizeInventoryFilters,
-  PALLET_STATUS_OPTIONS,
+  palletStatusOptions,
   sumPalletStats,
   type InventorySearchParams,
 } from "@/components/reports/inventory-report-flow";
@@ -19,6 +19,8 @@ import {
   type DestinationInventoryItemResponse,
   type InventoryReportFilters,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +37,7 @@ export default async function InventoryReportPage({
 }: {
   searchParams: Promise<InventorySearchParams>;
 }) {
+  const locale = await getServerLocale();
   const filters = normalizeInventoryFilters(await searchParams);
   const state = await loadInventoryReport(filters);
   const totals = sumPalletStats(state.containers);
@@ -65,6 +68,7 @@ export default async function InventoryReportPage({
       <InventoryFilterForm
         activeFilters={activeFilters}
         filters={filters}
+        locale={locale}
       />
 
       <InventoryRefreshControls
@@ -96,7 +100,7 @@ export default async function InventoryReportPage({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <ContainerSummaryTable containers={state.containers} />
+        <ContainerSummaryTable containers={state.containers} locale={locale} />
         <DestinationInventoryTable destinations={state.destinations} />
       </section>
     </main>
@@ -133,9 +137,11 @@ async function loadInventoryReport(
 function InventoryFilterForm({
   activeFilters,
   filters,
+  locale,
 }: {
   activeFilters: number;
   filters: InventoryReportFilters;
+  locale: Locale;
 }) {
   const clearHref = inventoryReportHref({});
 
@@ -182,7 +188,7 @@ function InventoryFilterForm({
             defaultValue={filters.status ?? ""}
             name="status"
           >
-            {PALLET_STATUS_OPTIONS.map((option) => (
+            {palletStatusOptions(locale).map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -219,8 +225,10 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function ContainerSummaryTable({
   containers,
+  locale,
 }: {
   containers: ContainerSummaryItemResponse[];
+  locale: Locale;
 }) {
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
@@ -251,7 +259,7 @@ function ContainerSummaryTable({
                     </Link>
                   </td>
                   <td className="px-3 py-3">
-                    <StatusBadge status={container.status} />
+                    <StatusBadge locale={locale} status={container.status} />
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
                     {formatPalletCount(container.totalPallets)}
@@ -330,7 +338,13 @@ function DestinationInventoryTable({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: string;
+}) {
   const styles = statusBadgeStyles(status);
 
   return (
@@ -338,7 +352,7 @@ function StatusBadge({ status }: { status: string }) {
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
       title={status}
     >
-      {containerStatusLabel(status)}
+      {containerStatusLabel(status, locale)}
     </span>
   );
 }

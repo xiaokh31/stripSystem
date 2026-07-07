@@ -12,6 +12,9 @@ import {
 } from "@/components/imports/import-detail-flow";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import { ImportDeleteButton } from "@/components/imports/import-delete-button";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { canDeleteImports } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
@@ -30,6 +33,7 @@ type ImportsPageState =
     };
 
 export default async function ImportsPage() {
+  const locale = await getServerLocale();
   const currentUser = await getServerCurrentUser();
   const state = await loadImports();
   const canDelete = canDeleteImports(currentUser);
@@ -68,7 +72,11 @@ export default async function ImportsPage() {
       </section>
 
       {state.ok ? (
-        <ImportHistory canDelete={canDelete} imports={state.imports} />
+        <ImportHistory
+          canDelete={canDelete}
+          imports={state.imports}
+          locale={locale}
+        />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
@@ -92,9 +100,11 @@ async function loadImports(): Promise<ImportsPageState> {
 function ImportHistory({
   canDelete,
   imports,
+  locale,
 }: {
   canDelete: boolean;
   imports: ImportFileListResponse;
+  locale: Locale;
 }) {
   if (imports.items.length === 0) {
     return (
@@ -153,6 +163,7 @@ function ImportHistory({
                 canDelete={canDelete}
                 importFile={item}
                 key={item.id}
+                locale={locale}
               />
             ))}
           </tbody>
@@ -165,9 +176,11 @@ function ImportHistory({
 function ImportRow({
   canDelete,
   importFile,
+  locale,
 }: {
   canDelete: boolean;
   importFile: ImportFileResponse;
+  locale: Locale;
 }) {
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
@@ -184,10 +197,12 @@ function ImportRow({
       </td>
       <td className="space-y-2 py-3 pr-4">
         <StatusBadge
+          locale={locale}
           status={importFile.importStatus}
           tone={statusTone(importFile.importStatus)}
         />
         <StatusBadge
+          locale={locale}
           status={importFile.parseStatus}
           tone={statusTone(importFile.parseStatus)}
         />
@@ -202,7 +217,7 @@ function ImportRow({
             >
               <span className="block">{container.containerNo}</span>
               <span className="font-medium text-zinc-600">
-                {containerStatusLabel(container.status)}
+                {containerStatusLabel(container.status, locale)}
               </span>
             </Link>
           ))
@@ -235,9 +250,11 @@ function ImportRow({
 }
 
 function StatusBadge({
+  locale,
   status,
   tone,
 }: {
+  locale: Locale;
   status: string;
   tone: StatusTone;
 }) {
@@ -251,8 +268,9 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {generatedOrImportStatusLabel(status, locale)}
     </span>
   );
 }

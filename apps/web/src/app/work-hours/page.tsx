@@ -25,6 +25,8 @@ import {
   type AttendanceParseResultResponse,
   type WageGeneratedFileResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import {
   canGenerateWorkHours,
   canParseWorkHours,
@@ -74,6 +76,7 @@ export default async function WorkHoursPage({
   searchParams: Promise<WorkHoursSearchParams>;
 }) {
   const params = await searchParams;
+  const locale = await getServerLocale();
   const currentUser = await getServerCurrentUser();
   const permissions: WorkHoursPermissions = {
     canGenerate: canGenerateWorkHours(currentUser),
@@ -101,6 +104,7 @@ export default async function WorkHoursPage({
         <>
           <AttendanceImportTable
             imports={state.imports}
+            locale={locale}
             selectedImportId={state.selectedImportId}
           />
           {state.detailError ? (
@@ -114,6 +118,7 @@ export default async function WorkHoursPage({
               canParse={permissions.canParse}
               files={state.files}
               filesError={state.filesError}
+              locale={locale}
               parseResult={state.parseResult}
             />
           ) : (
@@ -226,9 +231,11 @@ async function loadWorkHoursState(
 
 function AttendanceImportTable({
   imports,
+  locale,
   selectedImportId,
 }: {
   imports: AttendanceImportListResponse;
+  locale: Locale;
   selectedImportId: string | null;
 }) {
   if (imports.items.length === 0) {
@@ -283,6 +290,7 @@ function AttendanceImportTable({
                 importFile={item}
                 isSelected={item.id === selectedImportId}
                 key={item.id}
+                locale={locale}
               />
             ))}
           </tbody>
@@ -295,9 +303,11 @@ function AttendanceImportTable({
 function AttendanceImportRow({
   importFile,
   isSelected,
+  locale,
 }: {
   importFile: AttendanceImportResponse;
   isSelected: boolean;
+  locale: Locale;
 }) {
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
@@ -310,8 +320,8 @@ function AttendanceImportRow({
         </p>
       </td>
       <td className="space-y-2 break-words px-3 py-4">
-        <StatusBadge status={importFile.importStatus} />
-        <StatusBadge status={importFile.parseStatus} />
+        <StatusBadge locale={locale} status={importFile.importStatus} />
+        <StatusBadge locale={locale} status={importFile.parseStatus} />
       </td>
       <td className="break-words px-3 py-4 text-zinc-700">
         <p>{importFile.settlementMonth ?? "-"}</p>
@@ -353,12 +363,14 @@ function AttendanceDetail({
   canParse,
   files,
   filesError,
+  locale,
   parseResult,
 }: {
   canGenerate: boolean;
   canParse: boolean;
   files: WageGeneratedFileResponse[];
   filesError: ApiClientError | null;
+  locale: Locale;
   parseResult: AttendanceParseResultResponse;
 }) {
   const importFile = parseResult.attendanceImport;
@@ -419,6 +431,7 @@ function AttendanceDetail({
                 attendanceImportId={importFile.id}
                 file={file}
                 key={file.id}
+                locale={locale}
               />
             ))}
           </div>
@@ -512,9 +525,11 @@ function AttendanceRowsTable({
 function GeneratedFileLink({
   attendanceImportId,
   file,
+  locale,
 }: {
   attendanceImportId: string;
   file: WageGeneratedFileResponse;
+  locale: Locale;
 }) {
   const downloadable = file.status === "GENERATED";
   return (
@@ -526,7 +541,7 @@ function GeneratedFileLink({
             {formatDateTime(file.updatedAt)}
           </p>
         </div>
-        <StatusBadge status={file.status} />
+        <StatusBadge locale={locale} status={file.status} />
       </div>
       <p className="mt-3 break-all text-xs leading-5 text-zinc-600">
         {generatedFileAuditText(file)}
@@ -545,11 +560,12 @@ function GeneratedFileLink({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const style = statusStyle(status);
+function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
+  const style = statusStyle(status, locale);
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded border px-2.5 text-xs font-semibold uppercase ${style.styles}`}
+      title={status}
     >
       {style.label}
     </span>

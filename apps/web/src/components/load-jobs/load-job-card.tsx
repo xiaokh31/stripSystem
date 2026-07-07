@@ -5,12 +5,16 @@ import {
   mobileLoadJobScanHref,
 } from "@/components/mobile/load-job-flow";
 import type { LoadJobResponse } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { loadJobStatusLabel } from "@/lib/i18n/status-labels";
 import { LoadJobManagementPanel } from "./load-job-management-panel";
 
 export function LoadJobCard({
+  locale,
   loadJob,
   showManagement = true,
 }: {
+  locale?: Locale;
   loadJob: LoadJobResponse;
   showManagement?: boolean;
 }) {
@@ -33,7 +37,7 @@ export function LoadJobCard({
               (loadJob.truckNo ?? "No truck")}
           </p>
         </div>
-        <StatusBadge status={loadJob.status} />
+        <StatusBadge locale={locale} status={loadJob.status} />
       </div>
 
       <dl className="mt-4 grid gap-2 text-sm md:grid-cols-6">
@@ -106,7 +110,13 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale?: Locale;
+  status: string;
+}) {
   const styles =
     status === "IN_PROGRESS"
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -117,8 +127,9 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex min-h-8 items-center border px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {loadJobStatusLabel(status, locale)}
     </span>
   );
 }

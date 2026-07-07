@@ -19,6 +19,9 @@ import {
   statusTone,
   toParseResultSummary,
 } from "@/components/imports/import-detail-flow";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +44,7 @@ export default async function ImportDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const locale = await getServerLocale();
   const state = await loadImportDetail(id);
 
   if (!state.ok) {
@@ -101,7 +105,10 @@ export default async function ImportDetailPage({
             <DetailRow
               label="Parse status"
               value={
-                <StatusBadge status={state.importFile.parseStatus} />
+                <StatusBadge
+                  locale={locale}
+                  status={state.importFile.parseStatus}
+                />
               }
             />
             <DetailRow
@@ -184,7 +191,13 @@ function DetailRow({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: string;
+}) {
   const tone = statusTone(status);
   const styles = {
     amber: "border-amber-200 bg-amber-50 text-amber-800",
@@ -196,8 +209,9 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {status}
+      {generatedOrImportStatusLabel(status, locale)}
     </span>
   );
 }

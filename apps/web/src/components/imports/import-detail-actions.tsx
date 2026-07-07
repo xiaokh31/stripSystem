@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   parseImportFile,
@@ -118,6 +119,7 @@ export function ParseResultSummary({
   compact?: boolean;
   parseResult: ParseResultSummaryData | null;
 }) {
+  const { locale } = useI18n();
   if (!parseResult) {
     return compact ? (
       <p className="mt-4 text-sm text-zinc-600">
@@ -135,7 +137,7 @@ export function ParseResultSummary({
     );
   }
 
-  const links = containerLinks(parseResult.containers);
+  const links = containerLinks(parseResult.containers, locale);
 
   const content =
     links.length > 0 ? (

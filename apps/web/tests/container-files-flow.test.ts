@@ -107,11 +107,17 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
 });
 
 test("container lifecycle labels and operation locks are visible", () => {
-  assert.equal(containerStatusLabel("CORRECTED"), "CORRECTED");
-  assert.equal(containerStatusLabel("LABELS_GENERATED"), "LABELS_GENERATED");
-  assert.equal(containerStatusLabel("UNLOADED"), "已拆完");
-  assert.equal(containerStatusLabel("LOADING_IN_PROGRESS"), "装车中");
-  assert.equal(containerStatusLabel("LOADED"), "已送库");
+  assert.equal(containerStatusLabel("CORRECTED"), "Corrected");
+  assert.equal(containerStatusLabel("LABELS_GENERATED"), "Labels generated");
+  assert.equal(containerStatusLabel("UNLOADED"), "Unloaded");
+  assert.equal(
+    containerStatusLabel("LOADING_IN_PROGRESS"),
+    "Loading in progress",
+  );
+  assert.equal(containerStatusLabel("LOADED"), "Delivered to warehouse");
+  assert.equal(containerStatusLabel("UNLOADED", "zh-CN"), "已拆完");
+  assert.equal(containerStatusLabel("LOADING_IN_PROGRESS", "zh-CN"), "装车中");
+  assert.equal(containerStatusLabel("LOADED", "zh-CN"), "已送库");
   assert.equal(isContainerOperationLocked("LABELS_GENERATED"), false);
   assert.equal(isContainerOperationLocked("UNLOADED"), true);
   assert.equal(isContainerOperationLocked("LOADING_IN_PROGRESS"), true);

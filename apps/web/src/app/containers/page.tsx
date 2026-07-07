@@ -5,6 +5,8 @@ import {
   type ContainerSummaryItemResponse,
 } from "@/lib/api-client";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
+import type { Locale } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
 import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,7 @@ type ContainersPageState =
     };
 
 export default async function ContainersPage() {
+  const locale = await getServerLocale();
   const state = await loadContainers();
 
   return (
@@ -56,7 +59,7 @@ export default async function ContainersPage() {
       </section>
 
       {state.ok ? (
-        <ContainerTable containers={state.containers} />
+        <ContainerTable containers={state.containers} locale={locale} />
       ) : (
         <ApiErrorPanel error={state.error} />
       )}
@@ -78,8 +81,10 @@ async function loadContainers(): Promise<ContainersPageState> {
 
 function ContainerTable({
   containers,
+  locale,
 }: {
   containers: ContainerSummaryItemResponse[];
+  locale: Locale;
 }) {
   if (containers.length === 0) {
     return (
@@ -131,7 +136,7 @@ function ContainerTable({
                   {container.containerNo}
                 </td>
                 <td className="px-3 py-4">
-                  <StatusBadge status={container.status} />
+                  <StatusBadge locale={locale} status={container.status} />
                 </td>
                 <td className="px-3 py-4 text-right font-medium">
                   {container.totalPallets}
@@ -159,14 +164,21 @@ function ContainerTable({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  locale,
+  status,
+}: {
+  locale: Locale;
+  status: string;
+}) {
   const styles = statusBadgeStyles(status);
 
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
+      title={status}
     >
-      {containerStatusLabel(status)}
+      {containerStatusLabel(status, locale)}
     </span>
   );
 }
