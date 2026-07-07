@@ -80,9 +80,14 @@ describe('Monthly unloading summary API (e2e)', () => {
 
     expect(summary.body).toMatchObject({
       month: '2026-06',
-      sourceContainerCount: 1,
-      rowCount: 1,
+      sourceContainerCount: 3,
+      rowCount: 3,
     });
+    expect(summary.body.rows.map((row) => row.status)).toEqual([
+      'UNLOADED',
+      'LOADING_IN_PROGRESS',
+      'LOADED',
+    ]);
     expect(summary.body.rows[0]).toMatchObject({
       containerNo: 'BEAU5946301',
       status: 'UNLOADED',
@@ -259,6 +264,100 @@ describe('Monthly unloading summary API (e2e)', () => {
         payContainerLinks: [],
       },
       {
+        id: 'container-4',
+        containerNo: 'INPROGRESS01',
+        status: 'LOADING_IN_PROGRESS',
+        rawJson: {},
+        destinations: [
+          {
+            id: 'destination-4',
+            destinationCode: 'YVR1',
+            destinationType: 'TRANSFER',
+            cartons: 24,
+            calculatedPallets: 4,
+            manualPallets: null,
+            finalPallets: 4,
+            note: null,
+            warnings: null,
+            errors: null,
+          },
+        ],
+        lines: [
+          {
+            id: 'line-4',
+            lineNo: 1,
+            destinationCode: 'YVR1',
+            destinationType: 'TRANSFER',
+            cartons: 24,
+            rawJson: {
+              referenceNo: 'INPROGRESS-REF',
+              appointmentTime: '06/05/2026 11:00 MDT',
+            },
+          },
+        ],
+        payContainerLinks: [
+          {
+            id: 'link-in-progress',
+            payContainerId: 'pay-container-in-progress',
+            containerId: 'container-4',
+            containerNo: 'INPROGRESS01',
+            payContainer: {
+              id: 'pay-container-in-progress',
+              payContainerNo: 'PC-OCEAN-INPROGRESS01',
+              completedAt: new Date('2026-06-06T09:30:00.000Z'),
+              status: 'COMPLETED',
+            },
+          },
+        ],
+      },
+      {
+        id: 'container-5',
+        containerNo: 'LOADEDROW001',
+        status: 'LOADED',
+        rawJson: {},
+        destinations: [
+          {
+            id: 'destination-5',
+            destinationCode: 'YEG2',
+            destinationType: null,
+            cartons: 12,
+            calculatedPallets: 2,
+            manualPallets: null,
+            finalPallets: 2,
+            note: null,
+            warnings: null,
+            errors: null,
+          },
+        ],
+        lines: [
+          {
+            id: 'line-5',
+            lineNo: 1,
+            destinationCode: 'YEG2',
+            destinationType: null,
+            cartons: 12,
+            rawJson: {
+              shipment: 'SHIP-LOADED',
+              appointment: '06/07/2026 09:00 MDT',
+            },
+          },
+        ],
+        payContainerLinks: [
+          {
+            id: 'link-loaded-row',
+            payContainerId: 'pay-container-loaded-row',
+            containerId: 'container-5',
+            containerNo: 'LOADEDROW001',
+            payContainer: {
+              id: 'pay-container-loaded-row',
+              payContainerNo: 'PC-OCEAN-LOADEDROW001',
+              completedAt: new Date('2026-06-07T15:00:00.000Z'),
+              status: 'SETTLED',
+            },
+          },
+        ],
+      },
+      {
         id: 'container-3',
         containerNo: 'LABELS000001',
         status: 'LABELS_GENERATED',
@@ -290,7 +389,39 @@ describe('Monthly unloading summary API (e2e)', () => {
             id: 'link-3',
             containerId: 'container-3',
             containerNo: 'LABELS000001',
+            container: containers[4],
+          },
+        ],
+      },
+      {
+        id: 'pay-container-in-progress',
+        payContainerNo: 'PC-OCEAN-INPROGRESS01',
+        classification: 'OCEAN_CONTAINER',
+        trailerNumber: null,
+        status: 'COMPLETED',
+        completedAt: new Date('2026-06-06T09:30:00.000Z'),
+        sourceContainers: [
+          {
+            id: 'link-in-progress',
+            containerId: 'container-4',
+            containerNo: 'INPROGRESS01',
             container: containers[2],
+          },
+        ],
+      },
+      {
+        id: 'pay-container-loaded-row',
+        payContainerNo: 'PC-OCEAN-LOADEDROW001',
+        classification: 'OCEAN_CONTAINER',
+        trailerNumber: null,
+        status: 'SETTLED',
+        completedAt: new Date('2026-06-07T15:00:00.000Z'),
+        sourceContainers: [
+          {
+            id: 'link-loaded-row',
+            containerId: 'container-5',
+            containerNo: 'LOADEDROW001',
+            container: containers[3],
           },
         ],
       },

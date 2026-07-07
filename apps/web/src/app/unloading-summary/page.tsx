@@ -211,7 +211,7 @@ function CompletionStatusRule() {
     <section className="border border-sky-200 bg-sky-50 p-5 text-sm text-sky-950 shadow-sm">
       <h2 className="text-base font-semibold">Completed status filter</h2>
       <p className="mt-2 leading-6">
-        Summary includes API rows from{" "}
+        Summary includes API rows from completed unloading /{" "}
         {COMPLETED_UNLOADING_STATUS_VALUES.join(" / ")}. LABELS_GENERATED stays
         out until unloading is marked complete.
       </p>

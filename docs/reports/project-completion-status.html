@@ -247,7 +247,10 @@
           `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED` 已拆完状态集合、review
           warnings、明细行和 generated export 下载链接，并通过 Reports workflow
           按 `unloading_summary.read/export` 权限开放给 OFFICE、WAREHOUSE_MANAGER
-          和 ADMIN。
+          和 ADMIN。WAGE-QA-04 已完成 unloaded status 与 monthly unloading
+          summary 回归：确认 `LABELS_GENERATED` 可标记为 `UNLOADED`，可进入
+          loading workflow，scan 推进到 `LOADING_IN_PROGRESS` / `LOADED`，
+          summary 包含三个已拆完状态且排除未标记已拆完的 `LABELS_GENERATED`。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -499,6 +502,13 @@
               <td>P2 UI</td>
               <td>`/unloading-summary` 已接入 `GET /api/unloading-summary?month=YYYY-MM` 和 `POST /api/unloading-summary/exports`，页面默认当前月并支持月份筛选，summary 显示 selected month、completed container count、ocean / US-to-Canada count、warning count，明细表展示柜号、当前状态、完成日期、工资标签、拖车号、目的仓/服务行、箱数/托数、reference、appointment、差异和备注；页面明确说明已拆完状态集合为 `UNLOADED` / `LOADING_IN_PROGRESS` / `LOADED`，`LABELS_GENERATED` 未标记已拆完不会进入汇总；review warnings 和缺 completion date 项可见；导出成功后显示 Web 下载链接 `/unloading-summary/exports/:fileId/download`，不暴露内部 storage path；Reports 入口和导出动作按 `unloading_summary.read/export` 权限显示，普通 `WAREHOUSE` 默认无入口。</td>
               <td>已通过 `pnpm --filter web test`、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.6: WAGE-QA-04 Unloaded Status / Monthly Summary Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA-04</td>
+              <td>API unit 与 E2E 已补充 `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED` 三种已拆完状态的 monthly summary fixture，继续证明 `LABELS_GENERATED` 未标记已拆完不会进入汇总，缺 completion date 的 completed status 会产生 `MISSING_UNLOADING_COMPLETED_AT` review item；Web 文案明确展示“已拆完 / UNLOADED / LOADING_IN_PROGRESS / LOADED”规则。Docker full-stack smoke 通过 nginx API 路径使用真实 ADMIN 创建临时真实 OFFICE/WAREHOUSE_MANAGER 账号，验证 `LABELS_GENERATED -> UNLOADED`、手动 `LOADED` 返回 409、`UNLOADED` 可进入 load-job suggestion、scan 后状态推进到 `LOADING_IN_PROGRESS` / `LOADED`、对已 `LOADED` 柜再次保存 unloading completion 不降级、OFFICE 可读 summary/export 但 `POST /api/unloading-wage-settlements` 返回 403、导出下载 MIME 为 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`。</td>
+              <td>已通过 `pnpm --filter api test -- unloading-summary`、`pnpm --filter api test:e2e -- unloading-summary`、`pnpm --filter web test`、`pnpm --filter api lint/typecheck/test/test:e2e`、`pnpm --filter web lint/typecheck/test/build`、`uv run pytest`、`docker compose -f infra/docker/compose.local.yml up -d --build`、`docker compose -f infra/docker/compose.local.yml ps`、`scripts/healthcheck.sh`、容器内 `prisma migrate status` 和 Docker nginx smoke。结论：unloaded status and monthly unloading summary complete。</td>
             </tr>
           </tbody>
         </table>

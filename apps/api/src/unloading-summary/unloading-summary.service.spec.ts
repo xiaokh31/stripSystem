@@ -109,10 +109,16 @@ describe('UnloadingSummaryService', () => {
   it('summarizes completed unloading containers by selected completion month', async () => {
     const response = await service.getSummary('2026-06');
 
-    expect(response.sourceContainerCount).toBe(2);
+    expect(response.sourceContainerCount).toBe(3);
     expect(response.rows.map((row) => row.containerNo)).toEqual([
       'BEAU5946301',
+      'INPROGRESS01',
       'LOADED1234567',
+    ]);
+    expect(response.rows.map((row) => row.status)).toEqual([
+      'UNLOADED',
+      'LOADING_IN_PROGRESS',
+      'LOADED',
     ]);
     expect(response.rows[0]).toMatchObject({
       businessTag: '海柜',
@@ -279,6 +285,53 @@ describe('UnloadingSummaryService', () => {
         ],
       },
       {
+        id: 'container-6',
+        containerNo: 'INPROGRESS01',
+        status: 'LOADING_IN_PROGRESS',
+        rawJson: {},
+        destinations: [
+          {
+            id: 'destination-6',
+            destinationCode: 'YVR1',
+            destinationType: 'TRANSFER',
+            cartons: 24,
+            calculatedPallets: 4,
+            manualPallets: null,
+            finalPallets: 4,
+            note: null,
+            warnings: null,
+            errors: null,
+          },
+        ],
+        lines: [
+          {
+            id: 'line-6',
+            lineNo: 1,
+            destinationCode: 'YVR1',
+            destinationType: 'TRANSFER',
+            cartons: 24,
+            rawJson: {
+              referenceNo: 'INPROGRESS-REF',
+              appointmentTime: '06/05/2026 11:00 MDT',
+            },
+          },
+        ],
+        payContainerLinks: [
+          {
+            id: 'link-in-progress',
+            payContainerId: 'pay-container-in-progress',
+            containerId: 'container-6',
+            containerNo: 'INPROGRESS01',
+            payContainer: {
+              id: 'pay-container-in-progress',
+              payContainerNo: 'PC-OCEAN-INPROGRESS01',
+              completedAt: new Date('2026-06-06T09:30:00.000Z'),
+              status: 'COMPLETED',
+            },
+          },
+        ],
+      },
+      {
         id: 'container-4',
         containerNo: 'JULY0000001',
         status: 'UNLOADED',
@@ -350,6 +403,22 @@ describe('UnloadingSummaryService', () => {
         ],
       },
       {
+        id: 'pay-container-in-progress',
+        payContainerNo: 'PC-OCEAN-INPROGRESS01',
+        classification: 'OCEAN_CONTAINER',
+        trailerNumber: null,
+        status: 'COMPLETED',
+        completedAt: new Date('2026-06-06T09:30:00.000Z'),
+        sourceContainers: [
+          {
+            id: 'link-in-progress',
+            containerId: 'container-6',
+            containerNo: 'INPROGRESS01',
+            container: containers[3],
+          },
+        ],
+      },
+      {
         id: 'pay-container-loaded',
         payContainerNo: 'PC-OCEAN-LOADED1234567',
         classification: 'OCEAN_CONTAINER',
@@ -377,7 +446,7 @@ describe('UnloadingSummaryService', () => {
             id: 'link-4',
             containerId: 'container-4',
             containerNo: 'JULY0000001',
-            container: containers[3],
+            container: containers[4],
           },
         ],
       },

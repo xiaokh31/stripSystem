@@ -914,6 +914,8 @@ export const zhMessages = {
   "Selected month": "所选月份",
   "Split variance and note": "拆分差异和备注",
   "Summary includes API rows from": "汇总包含来自 API 的状态",
+  "Summary includes API rows from completed unloading /":
+    "汇总包含来自 API 的已拆完状态 /",
   "Summary month filter": "汇总月份筛选",
   "Summary month must use YYYY-MM.": "汇总月份必须使用 YYYY-MM。",
   "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.":

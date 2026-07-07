@@ -985,6 +985,8 @@ export const enMessages = {
   "Selected month": "Selected month",
   "Split variance and note": "Split variance and note",
   "Summary includes API rows from": "Summary includes API rows from",
+  "Summary includes API rows from completed unloading /":
+    "Summary includes API rows from completed unloading /",
   "Summary month filter": "Summary month filter",
   "Summary month must use YYYY-MM.": "Summary month must use YYYY-MM.",
   "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.":
