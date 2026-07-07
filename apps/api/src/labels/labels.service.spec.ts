@@ -15,11 +15,15 @@ interface ContainerDestinationRecord {
   containerId: string;
   destinationCode: string;
   destinationType: string;
+  packageType?: string | null;
   cartons: number;
   volume: string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode?: string | null;
+  calculationBasisCbm?: string | null;
+  roundingMode?: string | null;
   pallets: Array<{
     id: string;
     loadJobId: string | null;
@@ -203,7 +207,14 @@ interface WorkerLabelMock {
 }
 
 interface PalletResultRequest {
-  plans: Array<{ destinationCode: string; palletIds: string[] }>;
+  plans: Array<{
+    destinationCode: string;
+    packageType?: string | null;
+    ruleCode?: string | null;
+    calculationBasisCbm?: number | null;
+    roundingMode?: string | null;
+    palletIds: string[];
+  }>;
   totalFinalPallets: number;
 }
 
@@ -296,6 +307,25 @@ describe('LabelsService', () => {
     expect(outputDir).toBe(join(storageRoot, 'labels'));
     expect(labelDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(palletResult.totalFinalPallets).toBe(3);
+    expect(request.parsed_result).toMatchObject({
+      destinationSummaries: [
+        expect.objectContaining({
+          destinationCode: 'YYZ',
+          packageType: 'CARTON',
+        }),
+        expect.objectContaining({
+          destinationCode: 'YVR',
+          packageType: null,
+        }),
+      ],
+    });
+    expect(palletResult.plans[0]).toMatchObject({
+      destinationCode: 'YYZ',
+      packageType: 'CARTON',
+      ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: 1.8,
+      roundingMode: 'CEIL',
+    });
     expect(result.pallets.map((pallet) => pallet.qrPayload)).toEqual([
       expect.stringContaining('|YYZ|1|'),
       expect.stringContaining('|YYZ|2|'),
@@ -753,11 +783,15 @@ describe('LabelsService', () => {
           containerId: 'container-1',
           destinationCode: 'YYZ',
           destinationType: 'AMAZON_FBA',
+          packageType: 'CARTON',
           cartons: 40,
           volume: '5.250',
           calculatedPallets: 2,
           manualPallets: null,
           finalPallets: 2,
+          palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+          calculationBasisCbm: '1.800',
+          roundingMode: 'CEIL',
           pallets: [],
         },
         {

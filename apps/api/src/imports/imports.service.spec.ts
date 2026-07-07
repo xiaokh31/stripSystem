@@ -363,6 +363,7 @@ describe('ImportsService', () => {
           {
             rowNumber: 2,
             destinationCode: 'YYZ',
+            packageType: 'CARTON',
             deliveryMethod: 'LTL',
             cartons: 12,
             volumeCbm: 1.25,
@@ -372,6 +373,7 @@ describe('ImportsService', () => {
         destinationSummaries: [
           {
             destinationCode: 'YYZ',
+            packageType: 'CARTON',
             totalCartons: 12,
             totalVolumeCbm: 1.25,
             lineCount: 1,
@@ -386,6 +388,10 @@ describe('ImportsService', () => {
           {
             destinationCode: 'YYZ',
             destinationType: 'UNKNOWN',
+            packageType: 'CARTON',
+            ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+            calculationBasisCbm: 1.8,
+            roundingMode: 'CEIL',
             totalCartons: 12,
             totalVolumeCbm: 1.25,
             calculatedPallets: 1,
@@ -424,11 +430,21 @@ describe('ImportsService', () => {
     expect(result.containers[0].destinations).toMatchObject([
       {
         destinationCode: 'YYZ',
+        packageType: 'CARTON',
         cartons: 12,
         calculatedPallets: 1,
         finalPallets: 1,
+        palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+        calculationBasisCbm: '1.800',
+        roundingMode: 'CEIL',
       },
     ]);
+    expect(destinations[0]).toMatchObject({
+      packageType: 'CARTON',
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+    });
   });
 
   async function loadFixtureFile(): Promise<Express.Multer.File> {

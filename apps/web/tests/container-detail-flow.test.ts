@@ -100,6 +100,7 @@ function destinationRecord(
 ): ContainerDetailDestinationResponse {
   return {
     calculatedPallets: 4,
+    calculationBasisCbm: "1.800",
     containerId: "container-1",
     createdAt: "2026-06-27T00:00:00.000Z",
     destinationCode: "YYZ",
@@ -109,6 +110,9 @@ function destinationRecord(
     id: "destination-1",
     manualPallets: null,
     note: null,
+    packageType: "CARTON",
+    palletRuleCode: "ADDRESS_CARTON_VOLUME_1_8",
+    roundingMode: "CEIL",
     totalCartons: 40,
     totalVolumeCbm: "5.250",
     updatedAt: "2026-06-27T00:00:00.000Z",

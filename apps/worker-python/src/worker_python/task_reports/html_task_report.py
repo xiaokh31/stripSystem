@@ -30,6 +30,10 @@ class TaskIssue:
 @dataclass(frozen=True)
 class TaskDestinationSummary:
     destinationCode: str | None
+    packageType: str | None
+    palletRuleCode: str | None
+    calculationBasisCbm: float | None
+    roundingMode: str | None
     totalCartons: int
     totalVolumeCbm: float
     lineCount: int
@@ -167,18 +171,28 @@ def record_from_parsed_result(
 
 
 def _summaries_from(parsed_result: Any, pallet_result: Any | None) -> list[TaskDestinationSummary]:
-    plans_by_destination = {
-        getattr(plan, "destinationCode", None): plan
+    plans_by_destination_and_package = {
+        _destination_plan_key(
+            getattr(plan, "destinationCode", None),
+            getattr(plan, "packageType", None),
+        ): plan
         for plan in getattr(pallet_result, "plans", ())
     }
     summaries: list[TaskDestinationSummary] = []
 
     for summary in getattr(parsed_result, "destinationSummaries", ()):
         destination_code = getattr(summary, "destinationCode", None)
-        plan = plans_by_destination.get(destination_code)
+        package_type = getattr(summary, "packageType", None)
+        plan = plans_by_destination_and_package.get(
+            _destination_plan_key(destination_code, package_type)
+        )
         summaries.append(
             TaskDestinationSummary(
                 destinationCode=destination_code,
+                packageType=getattr(plan, "packageType", package_type),
+                palletRuleCode=getattr(plan, "ruleCode", None),
+                calculationBasisCbm=getattr(plan, "calculationBasisCbm", None),
+                roundingMode=getattr(plan, "roundingMode", None),
                 totalCartons=int(getattr(summary, "totalCartons", 0) or 0),
                 totalVolumeCbm=float(getattr(summary, "totalVolumeCbm", 0) or 0),
                 lineCount=int(getattr(summary, "lineCount", 0) or 0),
@@ -187,6 +201,12 @@ def _summaries_from(parsed_result: Any, pallet_result: Any | None) -> list[TaskD
         )
 
     return summaries
+
+
+def _destination_plan_key(destination_code: Any, package_type: Any) -> tuple[str | None, str | None]:
+    destination = str(destination_code) if destination_code is not None else None
+    package = str(package_type) if package_type is not None else None
+    return destination, package
 
 
 def _render_html(
@@ -271,10 +291,25 @@ def _destination_list(summaries: tuple[TaskDestinationSummary, ...]) -> str:
             f"{summary.destinationCode or 'NEED_MANUAL_DESTINATION'}: "
             f"{summary.totalCartons} ctn, {summary.totalVolumeCbm:.3f} cbm, "
             f"{summary.calculatedPallets} plt"
+            f"{_rule_text(summary)}"
         )
         for summary in summaries
     ]
     return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
+
+
+def _rule_text(summary: TaskDestinationSummary) -> str:
+    parts: list[str] = []
+    if summary.palletRuleCode:
+        parts.append(f"rule {summary.palletRuleCode}")
+    if summary.packageType:
+        parts.append(f"package {summary.packageType}")
+    if summary.calculationBasisCbm is not None:
+        parts.append(f"basis {summary.calculationBasisCbm:.3f} cbm")
+    if summary.roundingMode:
+        parts.append(f"rounding {summary.roundingMode}")
+
+    return f" ({', '.join(parts)})" if parts else ""
 
 
 def _issue_list(issues: tuple[TaskIssue, ...]) -> str:

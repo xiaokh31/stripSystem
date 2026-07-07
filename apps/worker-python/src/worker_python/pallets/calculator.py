@@ -47,6 +47,8 @@ class PalletPlan:
     heightLimitM: float
     palletCapacityCbm: float
     volumeDivisorCbm: float | None
+    calculationBasisCbm: float | None
+    roundingMode: str
     calculatedPallets: int
     manualPallets: int | None
     finalPallets: int
@@ -206,6 +208,10 @@ def _calculate_one(
             volumeDivisorCbm=float(classification.volume_divisor_cbm)
             if classification.volume_divisor_cbm is not None
             else None,
+            calculationBasisCbm=float(classification.volume_divisor_cbm)
+            if classification.volume_divisor_cbm is not None
+            else None,
+            roundingMode="PIECE_COUNT" if classification.uses_piece_count else "CEIL",
             calculatedPallets=calculated_pallets,
             manualPallets=item.manualPallets,
             finalPallets=final_pallets,

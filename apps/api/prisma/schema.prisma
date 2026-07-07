@@ -339,30 +339,35 @@ model DestinationRule {
 }
 
 model ContainerDestination {
-  id                 String               @id @default(cuid())
-  containerId        String               @map("container_id")
-  container          Container            @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  destinationCode    String               @map("destination_code")
-  destinationType    String?              @map("destination_type")
-  cartons            Int                  @default(0)
-  volume             Decimal              @default(0) @db.Decimal(12, 3)
-  calculatedPallets  Int                  @default(0) @map("calculated_pallets")
-  manualPallets      Int?                 @map("manual_pallets")
-  finalPallets       Int                  @default(0) @map("final_pallets")
-  note               String?
-  warnings           Json?
-  errors             Json?
-  destinationRuleId  String?              @map("destination_rule_id")
-  destinationRule    DestinationRule?     @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  pallets            Pallet[]
-  loadJobLines       LoadJobLine[]
-  correctionFeedback CorrectionFeedback[]
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
+  id                  String               @id @default(cuid())
+  containerId         String               @map("container_id")
+  container           Container            @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  destinationCode     String               @map("destination_code")
+  destinationType     String?              @map("destination_type")
+  packageType         String               @default("UNSPECIFIED") @map("package_type")
+  cartons             Int                  @default(0)
+  volume              Decimal              @default(0) @db.Decimal(12, 3)
+  calculatedPallets   Int                  @default(0) @map("calculated_pallets")
+  manualPallets       Int?                 @map("manual_pallets")
+  finalPallets        Int                  @default(0) @map("final_pallets")
+  palletRuleCode      String?              @map("pallet_rule_code")
+  calculationBasisCbm Decimal?             @map("calculation_basis_cbm") @db.Decimal(12, 3)
+  roundingMode        String?              @map("rounding_mode")
+  note                String?
+  warnings            Json?
+  errors              Json?
+  destinationRuleId   String?              @map("destination_rule_id")
+  destinationRule     DestinationRule?     @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  pallets             Pallet[]
+  loadJobLines        LoadJobLine[]
+  correctionFeedback  CorrectionFeedback[]
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
 
-  @@unique([containerId, destinationCode, destinationType])
+  @@unique([containerId, destinationCode, destinationType, packageType], map: "container_destinations_container_id_destination_code_destin_key")
   @@index([containerId])
   @@index([destinationCode])
+  @@index([palletRuleCode])
   @@index([destinationRuleId])
   @@map("container_destinations")
 }

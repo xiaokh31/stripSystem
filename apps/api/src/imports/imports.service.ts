@@ -112,11 +112,15 @@ interface ContainerDestinationRecord {
   id: string;
   destinationCode: string;
   destinationType: string | null;
+  packageType: string;
   cartons: number;
   volume: { toString(): string } | number | string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode: string | null;
+  calculationBasisCbm: { toString(): string } | number | string | null;
+  roundingMode: string | null;
   note: string | null;
   warnings: unknown;
   errors: unknown;
@@ -358,7 +362,11 @@ export class ImportsService {
               },
             },
           },
-          orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+          orderBy: [
+            { destinationCode: 'asc' },
+            { destinationType: 'asc' },
+            { packageType: 'asc' },
+          ],
         },
       },
     })) as ContainerRecord[];
@@ -765,13 +773,11 @@ export class ImportsService {
     plans: WorkerPalletPlan[],
   ): Prisma.ContainerDestinationCreateManyInput[] {
     const plansByDestination = new Map(
-      plans.map((plan) => [this.destinationKey(plan.destinationCode), plan]),
+      plans.map((plan) => [this.destinationPlanKey(plan), plan]),
     );
 
     return summaries.map((summary) => {
-      const plan = plansByDestination.get(
-        this.destinationKey(summary.destinationCode),
-      );
+      const plan = plansByDestination.get(this.destinationSummaryKey(summary));
       const destinationCode =
         this.stringOrNull(summary.destinationCode) ??
         this.stringOrNull(summary.status) ??
@@ -791,11 +797,19 @@ export class ImportsService {
         containerId,
         destinationCode,
         destinationType: this.stringOrNull(plan?.destinationType),
+        packageType: this.packageTypeValue(
+          plan?.packageType ?? summary.packageType,
+        ),
         cartons,
         volume,
         calculatedPallets,
         manualPallets: this.nullableIntValue(plan?.manualPallets),
         finalPallets,
+        palletRuleCode: this.stringOrNull(plan?.ruleCode),
+        calculationBasisCbm: this.nullableDecimalString(
+          plan?.calculationBasisCbm ?? plan?.volumeDivisorCbm,
+        ),
+        roundingMode: this.stringOrNull(plan?.roundingMode),
         note: null,
         warnings: this.nullableJsonValue(plan?.warnings ?? []),
         errors: this.nullableJsonValue([]),
@@ -1058,11 +1072,15 @@ export class ImportsService {
       id: record.id,
       destinationCode: record.destinationCode,
       destinationType: record.destinationType,
+      packageType: this.packageTypeOrNull(record.packageType),
       cartons: record.cartons,
       volume: this.stringValue(record.volume),
       calculatedPallets: record.calculatedPallets,
       manualPallets: record.manualPallets,
       finalPallets: record.finalPallets,
+      palletRuleCode: record.palletRuleCode,
+      calculationBasisCbm: this.nullableStringValue(record.calculationBasisCbm),
+      roundingMode: record.roundingMode,
       note: record.note,
       warnings: record.warnings,
       errors: record.errors,
@@ -1151,8 +1169,32 @@ export class ImportsService {
     );
   }
 
-  private destinationKey(value: unknown): string {
-    return this.stringOrNull(value) ?? '';
+  private destinationPlanKey(plan: WorkerPalletPlan): string {
+    return this.destinationKey(plan.destinationCode, plan.packageType);
+  }
+
+  private destinationSummaryKey(summary: WorkerDestinationSummary): string {
+    return this.destinationKey(summary.destinationCode, summary.packageType);
+  }
+
+  private destinationKey(
+    destinationCode: unknown,
+    packageType: unknown,
+  ): string {
+    return `${this.stringOrNull(destinationCode) ?? ''}\u0000${
+      this.stringOrNull(packageType) ?? ''
+    }`;
+  }
+
+  private packageTypeValue(value: unknown): string {
+    return this.stringOrNull(value) ?? 'UNSPECIFIED';
+  }
+
+  private packageTypeOrNull(value: string | null | undefined): string | null {
+    if (!value || value === 'UNSPECIFIED') {
+      return null;
+    }
+    return value;
   }
 
   private stringOrNull(value: unknown): string | null {

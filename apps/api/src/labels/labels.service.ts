@@ -57,11 +57,15 @@ interface ContainerDestinationRecord {
   containerId: string;
   destinationCode: string;
   destinationType: string | null;
+  packageType?: string | null;
   cartons: number;
   volume: { toString(): string } | number | string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode?: string | null;
+  calculationBasisCbm?: { toString(): string } | number | string | null;
+  roundingMode?: string | null;
   pallets?: Array<{
     id: string;
     status: string;
@@ -412,7 +416,11 @@ export class LabelsService {
       where: { id },
       include: {
         destinations: {
-          orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+          orderBy: [
+            { destinationCode: 'asc' },
+            { destinationType: 'asc' },
+            { packageType: 'asc' },
+          ],
           include: includePallets
             ? {
                 pallets: {
@@ -758,6 +766,7 @@ export class LabelsService {
         parserVersion: container.parserVersion,
         destinationSummaries: destinations.map((destination) => ({
           destinationCode: destination.destinationCode,
+          packageType: this.packageTypeOrNull(destination.packageType),
           totalCartons: destination.cartons,
           totalVolumeCbm: this.numberValue(destination.volume),
           lineCount: 0,
@@ -778,6 +787,12 @@ export class LabelsService {
           return {
             destinationCode: destination.destinationCode,
             destinationType: destination.destinationType ?? 'UNKNOWN',
+            packageType: this.packageTypeOrNull(destination.packageType),
+            ruleCode: destination.palletRuleCode ?? null,
+            calculationBasisCbm: this.nullableNumberValue(
+              destination.calculationBasisCbm,
+            ),
+            roundingMode: destination.roundingMode ?? null,
             totalCartons: destination.cartons,
             totalVolumeCbm: this.numberValue(destination.volume),
             lineCount: 0,
@@ -1001,6 +1016,24 @@ export class LabelsService {
   private numberValue(value: { toString(): string } | number | string): number {
     const parsed = Number(value.toString());
     return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private nullableNumberValue(
+    value: { toString(): string } | number | string | null | undefined,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const parsed = Number(value.toString());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private packageTypeOrNull(value: string | null | undefined): string | null {
+    if (!value || value === 'UNSPECIFIED') {
+      return null;
+    }
+    return value;
   }
 
   private safeFilename(value: string): string {

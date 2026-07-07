@@ -352,6 +352,7 @@ function DestinationTable({
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <th className="px-3 py-3 font-semibold">Destination</th>
             <th className="px-3 py-3 font-semibold">Type</th>
+            <th className="px-3 py-3 font-semibold">Rule</th>
             <th className="px-3 py-3 text-right font-semibold">
               Actual cartons
             </th>
@@ -425,6 +426,9 @@ function DestinationTable({
                     placeholder="No type"
                     value={draft.destinationType}
                   />
+                </td>
+                <td className="max-w-56 px-3 py-4 align-top text-xs text-zinc-600">
+                  {ruleSummary(destination)}
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
@@ -716,6 +720,19 @@ function supplementalLabelRange(prompt: SupplementalLabelPrompt): string {
   }
 
   return `#${first}-#${prompt.toPallets}`;
+}
+
+function ruleSummary(destination: ContainerDetailDestinationResponse): string {
+  const parts = [
+    destination.packageType ? `Package ${destination.packageType}` : null,
+    destination.palletRuleCode ? `Rule ${destination.palletRuleCode}` : null,
+    destination.calculationBasisCbm
+      ? `Basis ${Number(destination.calculationBasisCbm).toFixed(3)} CBM`
+      : null,
+    destination.roundingMode ? `Rounding ${destination.roundingMode}` : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(" · ") : formatNullable(null);
 }
 
 function emptyDestinationDraft(): DestinationCorrectionDraft {

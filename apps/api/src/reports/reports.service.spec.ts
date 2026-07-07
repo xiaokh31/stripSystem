@@ -14,11 +14,15 @@ interface ContainerDestinationRecord {
   id: string;
   destinationCode: string;
   destinationType: string;
+  packageType?: string | null;
   cartons: number;
   volume: string;
   calculatedPallets: number;
   manualPallets: number;
   finalPallets: number;
+  palletRuleCode?: string | null;
+  calculationBasisCbm?: string | null;
+  roundingMode?: string | null;
   pallets?: Array<{
     status: string;
     loadJobId: string | null;
@@ -107,6 +111,10 @@ interface WorkerReportMock {
 
 interface PalletReportPlan {
   destinationCode: string;
+  packageType?: string | null;
+  ruleCode?: string | null;
+  calculationBasisCbm?: number | null;
+  roundingMode?: string | null;
   calculatedPallets: number;
   manualPallets: number;
   finalPallets: number;
@@ -177,9 +185,21 @@ describe('ReportsService', () => {
     const palletResult =
       request.pallet_result as unknown as PalletReportPayload;
     expect(reportDir).toBe(join(storageRoot, 'reports'));
+    expect(request.parsed_result).toMatchObject({
+      destinationSummaries: [
+        expect.objectContaining({
+          destinationCode: 'YYZ',
+          packageType: 'CARTON',
+        }),
+      ],
+    });
     expect(palletResult.totalFinalPallets).toBe(7);
     expect(palletResult.plans[0]).toMatchObject({
       destinationCode: 'YYZ',
+      packageType: 'CARTON',
+      ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: 1.8,
+      roundingMode: 'CEIL',
       calculatedPallets: 4,
       manualPallets: 7,
       finalPallets: 7,
@@ -382,11 +402,15 @@ describe('ReportsService', () => {
           id: 'destination-1',
           destinationCode: 'YYZ',
           destinationType: 'AMAZON_FBA',
+          packageType: 'CARTON',
           cartons: 40,
           volume: '5.250',
           calculatedPallets: 4,
           manualPallets: 7,
           finalPallets: 7,
+          palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+          calculationBasisCbm: '1.800',
+          roundingMode: 'CEIL',
           pallets: [],
         },
       ],

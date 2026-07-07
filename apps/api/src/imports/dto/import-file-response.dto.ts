@@ -48,11 +48,15 @@ export interface ContainerDestinationResponseDto {
   id: string;
   destinationCode: string;
   destinationType: string | null;
+  packageType: string | null;
   cartons: number;
   volume: string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode: string | null;
+  calculationBasisCbm: string | null;
+  roundingMode: string | null;
   note: string | null;
   warnings: unknown;
   errors: unknown;

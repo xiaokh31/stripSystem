@@ -19,6 +19,7 @@ export interface WorkerIssue {
 export interface WorkerParsedLine {
   rowNumber?: number;
   destinationCode?: string | null;
+  packageType?: string | null;
   deliveryMethod?: string | null;
   cartons?: number | null;
   totalCartons?: number | null;
@@ -29,6 +30,7 @@ export interface WorkerParsedLine {
 
 export interface WorkerDestinationSummary {
   destinationCode?: string | null;
+  packageType?: string | null;
   status?: string | null;
   totalCartons?: number | null;
   totalVolumeCbm?: number | null;
@@ -52,6 +54,11 @@ export interface WorkerParsedResult {
 export interface WorkerPalletPlan {
   destinationCode?: string | null;
   destinationType?: string | null;
+  packageType?: string | null;
+  ruleCode?: string | null;
+  volumeDivisorCbm?: number | null;
+  calculationBasisCbm?: number | null;
+  roundingMode?: string | null;
   totalCartons?: number | null;
   totalVolumeCbm?: number | null;
   calculatedPallets?: number | null;

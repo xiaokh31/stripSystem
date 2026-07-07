@@ -100,11 +100,15 @@ interface ContainerDestinationRecord {
   containerId: string;
   destinationCode: string;
   destinationType: string | null;
+  packageType?: string | null;
   cartons: number;
   volume: { toString(): string } | number | string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode?: string | null;
+  calculationBasisCbm?: { toString(): string } | number | string | null;
+  roundingMode?: string | null;
   note: string | null;
   warnings?: unknown;
   errors?: unknown;
@@ -164,7 +168,11 @@ export class CorrectionsService {
       where: { id },
       include: {
         destinations: {
-          orderBy: [{ destinationCode: 'asc' }, { destinationType: 'asc' }],
+          orderBy: [
+            { destinationCode: 'asc' },
+            { destinationType: 'asc' },
+            { packageType: 'asc' },
+          ],
           include: {
             pallets: {
               select: {
@@ -1106,11 +1114,19 @@ export class CorrectionsService {
       containerId: record.containerId,
       destinationCode: record.destinationCode,
       destinationType: record.destinationType,
+      packageType: this.packageTypeOrNull(record.packageType),
       cartons: record.cartons,
       volume: record.volume.toString(),
       calculatedPallets: record.calculatedPallets,
       manualPallets: record.manualPallets,
       finalPallets: record.finalPallets,
+      palletRuleCode: record.palletRuleCode ?? null,
+      calculationBasisCbm:
+        record.calculationBasisCbm === undefined ||
+        record.calculationBasisCbm === null
+          ? null
+          : record.calculationBasisCbm.toString(),
+      roundingMode: record.roundingMode ?? null,
       note: record.note,
       updatedAt: this.toIsoString(record.updatedAt),
     };
@@ -1124,11 +1140,19 @@ export class CorrectionsService {
       containerId: record.containerId,
       destinationCode: record.destinationCode,
       destinationType: record.destinationType,
+      packageType: this.packageTypeOrNull(record.packageType),
       cartons: record.cartons,
       volume: record.volume.toString(),
       calculatedPallets: record.calculatedPallets,
       manualPallets: record.manualPallets,
       finalPallets: record.finalPallets,
+      palletRuleCode: record.palletRuleCode ?? null,
+      calculationBasisCbm:
+        record.calculationBasisCbm === undefined ||
+        record.calculationBasisCbm === null
+          ? null
+          : record.calculationBasisCbm.toString(),
+      roundingMode: record.roundingMode ?? null,
       note: record.note,
       warnings: record.warnings ?? null,
       errors: record.errors ?? null,
@@ -1175,11 +1199,19 @@ export class CorrectionsService {
         containerId: destination.containerId,
         destinationCode: destination.destinationCode,
         destinationType: destination.destinationType,
+        packageType: this.packageTypeOrNull(destination.packageType),
         totalCartons: destination.cartons,
         totalVolumeCbm: destination.volume.toString(),
         calculatedPallets: destination.calculatedPallets,
         manualPallets: destination.manualPallets,
         finalPallets: destination.finalPallets,
+        palletRuleCode: destination.palletRuleCode ?? null,
+        calculationBasisCbm:
+          destination.calculationBasisCbm === undefined ||
+          destination.calculationBasisCbm === null
+            ? null
+            : destination.calculationBasisCbm.toString(),
+        roundingMode: destination.roundingMode ?? null,
         note: destination.note,
         warnings: destination.warnings ?? null,
         errors: destination.errors ?? null,
@@ -1344,6 +1376,13 @@ export class CorrectionsService {
       0,
     );
     return total.toFixed(3);
+  }
+
+  private packageTypeOrNull(value: string | null | undefined): string | null {
+    if (!value || value === 'UNSPECIFIED') {
+      return null;
+    }
+    return value;
   }
 
   private toCorrectionResponse(

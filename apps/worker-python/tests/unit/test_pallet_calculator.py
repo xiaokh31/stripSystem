@@ -54,6 +54,8 @@ def test_pallet_calculator_uses_destination_divisor_rules(
     plan = result.plans[0]
     assert plan.ruleCode == rule_code
     assert plan.volumeDivisorCbm == pytest.approx(divisor)
+    assert plan.calculationBasisCbm == pytest.approx(divisor)
+    assert plan.roundingMode == "CEIL"
     assert plan.calculatedPallets == expected
     assert plan.finalPallets == expected
     assert len(plan.palletIds) == expected
@@ -138,6 +140,8 @@ def test_pallet_calculator_uses_address_wooden_crate_piece_count() -> None:
     assert plan.ruleCode == "ADDRESS_WOODEN_CRATE_PIECE_COUNT"
     assert plan.packageType == "WOODEN_CRATE"
     assert plan.volumeDivisorCbm is None
+    assert plan.calculationBasisCbm is None
+    assert plan.roundingMode == "PIECE_COUNT"
     assert plan.calculatedPallets == 7
 
 

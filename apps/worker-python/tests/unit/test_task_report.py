@@ -69,6 +69,11 @@ def test_task_report_displays_warnings_errors_and_totals_from_real_results(
     assert "Unsupported Excel format for Phase 0 parser detector." in html
     assert "CAAU8011090" in html
     assert "896" in html
+    assert "rule VOLUME_1_7" in html
+    assert "basis 1.700 cbm" in html
+    assert "rounding CEIL" in html
+    assert "package UNKNOWN" in html
+    assert "Private or commercial address package type was not recognized" in html
     assert result.warningCount > 0
     assert result.errorCount > 0
 
