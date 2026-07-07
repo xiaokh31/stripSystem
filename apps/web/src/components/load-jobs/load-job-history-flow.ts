@@ -1,6 +1,7 @@
 import type { LoadJobListFilters } from "@/lib/api-client";
-import type { Locale } from "../../lib/i18n/catalog";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { loadJobStatusLabel } from "../../lib/i18n/status-labels";
+import { translateMessage } from "../../lib/i18n/translator";
 
 export const LOAD_JOB_HISTORY_PAGE_SIZE = 25;
 export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
@@ -13,7 +14,9 @@ export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
 export function loadJobHistoryStatusOptions(locale?: Locale) {
   return [
     {
-      label: locale === "zh-CN" ? "全部状态" : "All statuses",
+      label:
+        translateMessage("All statuses", locale ?? DEFAULT_LOCALE) ??
+        "All statuses",
       value: "",
     },
     { label: loadJobStatusLabel("PLANNED", locale), value: "PLANNED" },

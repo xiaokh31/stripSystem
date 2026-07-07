@@ -254,6 +254,10 @@
           UNLOAD-WAGE-11 已恢复并保护原有装车完成状态显示：`LOADED`
           继续表示扫描/装车送库完成，中文显示为 `已送库`，不再和
           `UNLOADED` / `已拆完` 混淆。
+          WAGE-P2-05 已完成 Web 全量 i18n copy coverage：`apps/web/src/app`、
+          `apps/web/src/components` 和 `apps/web/src/lib` 的用户可见文案、
+          placeholder、aria/title、状态/筛选/动态 action/API fallback 均纳入
+          locale 资源或明确列为 raw code/source-data 例外。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -526,6 +530,13 @@
               <td>P2 i18n</td>
               <td>新增 locale-aware status/business label matrix，覆盖 container lifecycle、pallet inventory、load job、unloading wage completion、pay classification、generated/import、upload queue、offline queue 和 scan result 标签；container `LOADED` 英文为 `Delivered to warehouse`、中文为 `已送库`，pallet `LOADED` 仍为 `Loaded` / `已装车`，避免送库状态和托盘装车状态混用；container status select、container/detail/index/inventory badges、imports parse/import badges、work-hours generated files、unloading wage source/settlement/file badges、unloading summary current status/wage tag、load-job history filter、load-job management status select、mobile load jobs、offline queue 和 upload queue 均接入当前 locale。普通用户可见 label 不再显示 `已送库 (LOADED)` 或 raw enum 双语混排，raw enum 只保留在 `title` 等审计/排错位置。</td>
               <td>已通过 `pnpm --filter web test`（145 tests）、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。新增 `status-labels.test.ts` 覆盖中英文 matrix，更新 container status、container files、import detail 和 unloading summary tests 验证 locale-aware 输出。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.9: WAGE-P2-05 Full Web I18n Copy Coverage</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P2 i18n</td>
+              <td>完成 `apps/web/src/app`、`apps/web/src/components`、`apps/web/src/lib` 的 i18n 覆盖审计：`i18n.test.ts` 现在扫描三段源码，覆盖 JSX text、placeholder、title、aria-label、常见 UI property、动态 action/API fallback 模板，并输出文件行号；locale catalog、dynamic catalog 和 status label matrix 作为 i18n 管理资源单独测试。修复 container detail 拆柜工资面板残留中文主文案，补齐 Unloading wage information、Unsaved pay unit、Rate rule、Unloaders、Saved unloaders、Save wage information、Create temporary unloader、Create and select、Save unloaders、Unloading status、Mark unloaded 等中英文词条；scan error fallback 改为英文 canonical message 并补中文翻译；inventory/load-job status filter 的 `All statuses` 不再用硬编码中文三元表达式。</td>
+              <td>新增/更新动态模板覆盖 API HTTP fallback、admin/role save notice、upload/parse/generate/settlement action notice、label reprint、dock save、offline pending scan、legacy/duplicate unloader、manual/container/load-job validation message 等。已通过 `pnpm --filter web test`（147 tests）、`pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web build` 和 `git diff --check`；build 仅保留 Next.js workspace root / middleware-to-proxy 既有 warning。</td>
             </tr>
           </tbody>
         </table>

@@ -64,27 +64,86 @@ test("translates dynamic count and login text patterns", () => {
   );
 });
 
+test("translates dynamic action and API fallback text patterns", () => {
+  assert.equal(
+    translateTextContent("API request failed with HTTP status 500.", "zh-CN"),
+    "API 请求失败，HTTP 状态：500。",
+  );
+  assert.equal(
+    translateTextContent("Uploaded june-attendance.xls.", "zh-CN"),
+    "已上传 june-attendance.xls。",
+  );
+  assert.equal(
+    translateTextContent("Parsed 12 employee-day row(s).", "zh-CN"),
+    "已解析 12 条员工日工时行。",
+  );
+  assert.equal(
+    translateTextContent("Generated settlement set-2026-06.", "zh-CN"),
+    "已生成结算 set-2026-06。",
+  );
+  assert.equal(
+    translateTextContent("PAY-2026-06 marked completed.", "zh-CN"),
+    "PAY-2026-06 已标记完成。",
+  );
+  assert.equal(
+    translateTextContent(
+      "Scan saved as pending for load job LJ-1. Inventory will not change until sync succeeds.",
+      "zh-CN",
+    ),
+    "扫码已保存为装车任务 LJ-1 的待同步记录。同步成功前库存不会变化。",
+  );
+  assert.equal(
+    translateTextContent(
+      'Legacy unloader "Alex" must be reselected from the temporary unloader directory before saving.',
+      "zh-CN",
+    ),
+    '旧拆柜人 "Alex" 保存前必须从临时拆柜工目录重新选择。',
+  );
+  assert.equal(
+    translateTextContent("Duplicate unloader: Alex.", "zh-CN"),
+    "重复拆柜人：Alex。",
+  );
+});
+
 test("restores Chinese exact translations by shared message key", () => {
   assert.equal(translateTextContent("仪表盘", "en"), "Dashboard");
   assert.equal(translateTextContent("移动扫码", "en"), "Mobile Scan");
 });
 
 test("all extracted UI display strings are managed by the English locale file", () => {
-  const unmanaged = extractUiStrings().filter(
-    (value) => translateMessage(value, "en") === null,
+  const unmanaged = extractUiStringRecords().filter(
+    (record) => translateMessage(record.value, "en") === null,
   );
 
-  assert.deepEqual(unmanaged, []);
+  assert.deepEqual(unmanaged.map(formatUiRecord), []);
 });
 
-function extractUiStrings(): string[] {
-  const roots = ["src/app", "src/components"].map((root) =>
+test("non-i18n source files do not hard-code Chinese UI copy", () => {
+  const chineseCopy = extractUiStringRecords().filter((record) =>
+    /[\u4e00-\u9fff]/.test(record.value),
+  );
+
+  assert.deepEqual(chineseCopy.map(formatUiRecord), []);
+});
+
+interface UiStringRecord {
+  file: string;
+  line: number;
+  value: string;
+}
+
+function extractUiStringRecords(): UiStringRecord[] {
+  const roots = ["src/app", "src/components", "src/lib"].map((root) =>
     path.join(process.cwd(), root),
   );
   const files = roots.flatMap((root) => listSourceFiles(root));
-  const strings = new Set<string>();
+  const records = new Map<string, UiStringRecord>();
 
   for (const file of files) {
+    if (shouldSkipSourceFile(file)) {
+      continue;
+    }
+
     const sourceText = fs.readFileSync(file, "utf8");
     const sourceFile = ts.createSourceFile(
       file,
@@ -94,10 +153,12 @@ function extractUiStrings(): string[] {
       file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
 
-    collectUiStrings(sourceFile, sourceFile, strings);
+    collectUiStrings(sourceFile, sourceFile, records);
   }
 
-  return Array.from(strings).sort();
+  return Array.from(records.values()).sort((left, right) =>
+    formatUiRecord(left).localeCompare(formatUiRecord(right)),
+  );
 }
 
 function listSourceFiles(root: string): string[] {
@@ -114,6 +175,20 @@ function listSourceFiles(root: string): string[] {
   }
 
   return files;
+}
+
+const I18N_MANAGED_SOURCE_FILE_PATTERNS = [
+  path.join("src", "lib", "i18n", "catalog.ts"),
+  path.join("src", "lib", "i18n", "locales", "en.ts"),
+  path.join("src", "lib", "i18n", "locales", "zh.ts"),
+  path.join("src", "lib", "i18n", "status-labels.ts"),
+];
+
+function shouldSkipSourceFile(file: string): boolean {
+  const relative = path.relative(process.cwd(), file);
+  return I18N_MANAGED_SOURCE_FILE_PATTERNS.some((pattern) =>
+    relative.endsWith(pattern),
+  );
 }
 
 const TRANSLATABLE_ATTRIBUTES = new Set([
@@ -138,10 +213,10 @@ const TRANSLATABLE_PROPERTY_NAMES = new Set([
 function collectUiStrings(
   node: ts.Node,
   sourceFile: ts.SourceFile,
-  strings: Set<string>,
+  records: Map<string, UiStringRecord>,
 ): void {
   if (ts.isJsxText(node)) {
-    addCandidate(node.getText(sourceFile), strings);
+    addCandidate(node.getText(sourceFile), node, sourceFile, records);
   }
 
   if (
@@ -151,15 +226,19 @@ function collectUiStrings(
     node.initializer &&
     ts.isStringLiteral(node.initializer)
   ) {
-    addCandidate(node.initializer.text, strings);
+    addCandidate(node.initializer.text, node.initializer, sourceFile, records);
   }
 
   if (ts.isStringLiteralLike(node) && isLikelyUiString(node)) {
-    addCandidate(node.text, strings);
+    addCandidate(node.text, node, sourceFile, records);
+  }
+
+  if (ts.isTemplateExpression(node) && isLikelyUiTemplate(node)) {
+    addCandidate(templateExpressionSample(node), node, sourceFile, records);
   }
 
   ts.forEachChild(node, (child) =>
-    collectUiStrings(child, sourceFile, strings),
+    collectUiStrings(child, sourceFile, records),
   );
 }
 
@@ -195,9 +274,70 @@ function isLikelyUiString(node: ts.StringLiteralLike): boolean {
   return false;
 }
 
-function addCandidate(value: string, strings: Set<string>): void {
+function isLikelyUiTemplate(node: ts.TemplateExpression): boolean {
+  const parent = node.parent;
+
+  if (
+    ts.isPropertyAssignment(parent) &&
+    parent.initializer === node &&
+    ts.isIdentifier(parent.name) &&
+    TRANSLATABLE_PROPERTY_NAMES.has(parent.name.text)
+  ) {
+    return true;
+  }
+
+  if (
+    ts.isCallExpression(parent) &&
+    parent.arguments.includes(node) &&
+    ts.isIdentifier(parent.expression) &&
+    /^(setNotice|confirm)$/.test(parent.expression.text)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function templateExpressionSample(node: ts.TemplateExpression): string {
+  return [
+    node.head.text,
+    ...node.templateSpans.flatMap((span) => [
+      expressionSample(span.expression),
+      span.literal.text,
+    ]),
+  ].join("");
+}
+
+function expressionSample(expression: ts.Expression): string {
+  if (ts.isConditionalExpression(expression)) {
+    const whenTrue = literalExpressionSample(expression.whenTrue);
+    const whenFalse = literalExpressionSample(expression.whenFalse);
+    return whenTrue.length >= whenFalse.length ? whenTrue : whenFalse;
+  }
+
+  return "TEST";
+}
+
+function literalExpressionSample(expression: ts.Expression): string {
+  if (ts.isStringLiteralLike(expression)) {
+    return expression.text;
+  }
+
+  if (ts.isTemplateExpression(expression)) {
+    return templateExpressionSample(expression);
+  }
+
+  return "TEST";
+}
+
+function addCandidate(
+  value: string,
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+  records: Map<string, UiStringRecord>,
+): void {
   const candidate = value.replace(/\s+/g, " ").trim();
-  if (!candidate || !/[A-Za-z]/.test(candidate)) {
+  if (!candidate || !/[A-Za-z\u4e00-\u9fff]/.test(candidate)) {
     return;
   }
 
@@ -205,7 +345,16 @@ function addCandidate(value: string, strings: Set<string>): void {
     return;
   }
 
-  strings.add(candidate);
+  const position = sourceFile.getLineAndCharacterOfPosition(
+    node.getStart(sourceFile),
+  );
+  const relative = path.relative(process.cwd(), sourceFile.fileName);
+  const key = `${relative}:${candidate}`;
+  records.set(key, {
+    file: relative,
+    line: position.line + 1,
+    value: candidate,
+  });
 }
 
 function shouldIgnoreCandidate(value: string): boolean {
@@ -213,8 +362,10 @@ function shouldIgnoreCandidate(value: string): boolean {
     value.length < 2 ||
     value === "Promise" ||
     value === "string" ||
+    value === "; Secure" ||
     /^[,.]/.test(value) ||
     /^[./#?&=:_a-z0-9-]+$/i.test(value) ||
+    /^(TEST[\s·:/#().-]*)+$/.test(value) ||
     /^(border|bg|text|mt|break|inline|flex|grid|space|px|py|p|m|w|h|min|max|items|justify|rounded|shadow|hover|disabled|focus|overflow|uppercase|font|leading|tracking|tabular)-/.test(
       value,
     ) ||
@@ -225,4 +376,8 @@ function shouldIgnoreCandidate(value: string): boolean {
     value.endsWith('."') ||
     value.endsWith(',"')
   );
+}
+
+function formatUiRecord(record: UiStringRecord): string {
+  return `${record.file}:${record.line} ${JSON.stringify(record.value)}`;
 }

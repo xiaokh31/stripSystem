@@ -341,10 +341,10 @@ export function ContainerUnloadingWagePanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            拆柜工资信息
+            Unloading wage information
           </h2>
           <p className="mt-2 text-sm text-zinc-600">
-            {wage?.payContainerNo ?? "未保存工资单元"}
+            {wage?.payContainerNo ?? "Unsaved pay unit"}
           </p>
         </div>
         <span
@@ -358,16 +358,16 @@ export function ContainerUnloadingWagePanel({
 
       <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
         <SummaryItem
-          label="柜子标签"
+          label="Wage tag"
           value={classificationLabel(wage?.classification ?? null, locale)}
         />
         <SummaryItem
-          label="金额规则"
+          label="Rate rule"
           value={rateRuleLabel(wage?.classification ?? wageDraft.classification)}
         />
         <SummaryItem label="Trailer number" value={wage?.trailerNumber ?? "-"} />
         <SummaryItem
-          label="拆柜人"
+          label="Unloaders"
           value={wage ? String(wage.unloaders.length) : "-"}
         />
       </dl>
@@ -375,7 +375,7 @@ export function ContainerUnloadingWagePanel({
       {wage?.associatedContainers.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase text-zinc-500">
-            关联柜号
+            Associated containers
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {wage.associatedContainers.map((item) => (
@@ -393,7 +393,7 @@ export function ContainerUnloadingWagePanel({
       {wage?.unloaders.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase text-zinc-500">
-            已保存拆柜人
+            Saved unloaders
           </p>
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-[520px] w-full border-collapse text-left text-sm">
@@ -447,7 +447,7 @@ export function ContainerUnloadingWagePanel({
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <div className="grid gap-3 lg:grid-cols-[220px_260px_minmax(0,1fr)]">
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                柜子标签
+                Wage tag
                 <select
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -479,7 +479,7 @@ export function ContainerUnloadingWagePanel({
                 />
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                关联柜号
+                Associated containers
                 <textarea
                   className="min-h-11 border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 disabled:bg-zinc-100 disabled:text-zinc-500"
                   disabled={!isTransfer}
@@ -513,7 +513,7 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void saveWage()}
                 type="button"
               >
-                保存工资信息
+                Save wage information
               </button>
             </div>
             <ActionMessage state={wageState} />
@@ -521,7 +521,7 @@ export function ContainerUnloadingWagePanel({
 
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-zinc-950">拆柜人</h3>
+              <h3 className="text-sm font-semibold text-zinc-950">Unloaders</h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
@@ -533,7 +533,7 @@ export function ContainerUnloadingWagePanel({
                   }
                   type="button"
                 >
-                  增加拆柜人
+                  Add unloader
                 </button>
                 <button
                   className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
@@ -543,7 +543,7 @@ export function ContainerUnloadingWagePanel({
                   }}
                   type="button"
                 >
-                  新增临时拆柜工（无需登录账号）
+                  Create temporary unloader (no login account)
                 </button>
               </div>
             </div>
@@ -605,7 +605,7 @@ export function ContainerUnloadingWagePanel({
                     onClick={() => void createTemporaryWorker()}
                     type="button"
                   >
-                    新增并选择
+                    Create and select
                   </button>
                   <ActionMessage state={workerCreateState} />
                 </div>
@@ -720,17 +720,19 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void saveUnloaders()}
                 type="button"
               >
-                保存拆柜人
+                Save unloaders
               </button>
               <ActionMessage state={unloaderState} />
             </div>
           </div>
 
           <div className="mt-6 border-t border-zinc-100 pt-5">
-            <h3 className="text-sm font-semibold text-zinc-950">拆柜状态</h3>
+            <h3 className="text-sm font-semibold text-zinc-950">
+              Unloading status
+            </h3>
             <div className="mt-3 grid gap-3 md:grid-cols-[260px_minmax(0,1fr)_180px]">
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                已拆完时间
+                Completed at
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -756,7 +758,7 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void markCompleted()}
                 type="button"
               >
-                标记已拆完
+                Mark unloaded
               </button>
             </div>
             <ActionMessage state={completionState} />

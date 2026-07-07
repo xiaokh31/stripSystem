@@ -152,14 +152,16 @@ export function scanErrorMessage(code: string, fallback: string): string {
   const messages: Record<string, string> = {
     API_NETWORK_ERROR: "The scanner could not reach the API.",
     INVALID_QR_PAYLOAD: "Invalid label. Scan a Bestar pallet QR label.",
-    LOAD_JOB_LINE_PALLET_LIMIT_REACHED: "当前计划行托数已装满",
+    LOAD_JOB_LINE_PALLET_LIMIT_REACHED:
+      "Current plan line pallet count is full.",
     LOAD_JOB_NOT_OPEN: "This load job is closed or not open for scanning.",
     LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED:
       "Confirm the progress adjustment before removing a pallet from this load job.",
     PALLET_ALREADY_LOADED: "This pallet was already loaded by another load job.",
     PALLET_CANCELLED: "This pallet is cancelled and cannot be loaded.",
     PALLET_NOT_FOUND: "Pallet was not found in system inventory.",
-    PALLET_NOT_IN_LOAD_PLAN: "该托盘不在当前发车计划中",
+    PALLET_NOT_IN_LOAD_PLAN:
+      "This pallet is not in the current departure plan.",
     PALLET_NOT_LOADED_IN_LOAD_JOB:
       "This pallet is not currently loaded in the selected load job.",
   };

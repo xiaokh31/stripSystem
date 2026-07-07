@@ -559,11 +559,15 @@ export const enMessages = {
   "The container list could not be loaded.":
     "The container list could not be loaded.",
   "The file could not be uploaded.": "The file could not be uploaded.",
+  "File uploads must be started from a browser session.":
+    "File uploads must be started from a browser session.",
   "The import could not be deleted.": "The import could not be deleted.",
   "The import list could not be loaded.": "The import list could not be loaded.",
   "The load job could not be completed.":
     "The load job could not be completed.",
   "The page failed to load.": "The page failed to load.",
+  "The API request could not be sent.":
+    "The API request could not be sent.",
   "The request failed.": "The request failed.",
   "The running API has not loaded load job edit routes. Restart the API service and try again.":
     "The running API has not loaded load job edit routes. Restart the API service and try again.",
@@ -813,6 +817,9 @@ export const enMessages = {
     "Create pay container for this container",
   "Create pay containers from reviewed container records before monthly settlement.":
     "Create pay containers from reviewed container records before monthly settlement.",
+  "Create and select": "Create and select",
+  "Create temporary unloader (no login account)":
+    "Create temporary unloader (no login account)",
   "Creating pay container.": "Creating pay container.",
   "Created and selected temporary unloader.":
     "Created and selected temporary unloader.",
@@ -906,6 +913,7 @@ export const enMessages = {
   "Paid unit": "Paid unit",
   "Paid units": "Paid units",
   "Paid work": "Paid work",
+  "Rate rule": "Rate rule",
   "Read-only source records for": "Read-only source records for",
   "Recent pay units from the unloading wage API.":
     "Recent pay units from the unloading wage API.",
@@ -924,6 +932,8 @@ export const enMessages = {
   "Warehouse manager permission required":
     "Warehouse manager permission required",
   "Save classification": "Save classification",
+  "Save unloaders": "Save unloaders",
+  "Save wage information": "Save wage information",
   "Saved. Refreshing from API.": "Saved. Refreshing from API.",
   "Saving pay classification.": "Saving pay classification.",
   "Saving unloaders.": "Saving unloaders.",
@@ -1047,6 +1057,16 @@ export const enMessages = {
   "Temporary directory": "Temporary directory",
   "Temporary unloader name is required.":
     "Temporary unloader name is required.",
+  "Unloading status": "Unloading status",
+  "Unloading wage information": "Unloading wage information",
+  "Unsaved pay unit": "Unsaved pay unit",
+  "Unloaders": "Unloaders",
+  "Saved unloaders": "Saved unloaders",
+  "Mark unloaded": "Mark unloaded",
+  "Current plan line pallet count is full.":
+    "Current plan line pallet count is full.",
+  "This pallet is not in the current departure plan.":
+    "This pallet is not in the current departure plan.",
   "allocation line(s)": "allocation line(s)",
   "carton(s),": "carton(s),",
   "detail line(s)": "detail line(s)",

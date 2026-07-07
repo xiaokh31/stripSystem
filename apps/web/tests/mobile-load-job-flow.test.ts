@@ -332,9 +332,12 @@ test("scan API errors map load plan codes to operator-readable messages", () => 
     }),
   );
 
-  assert.equal(notInPlan.message, "该托盘不在当前发车计划中");
+  assert.equal(
+    notInPlan.message,
+    "This pallet is not in the current departure plan.",
+  );
   assert.equal(notInPlan.title, "Wrong load job");
-  assert.equal(lineFull.message, "当前计划行托数已装满");
+  assert.equal(lineFull.message, "Current plan line pallet count is full.");
   assert.equal(lineFull.title, "Plan line full");
   assert.equal(
     reverseRejected.message,

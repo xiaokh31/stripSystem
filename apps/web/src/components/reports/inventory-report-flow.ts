@@ -3,8 +3,9 @@ import type {
   PalletStatsResponse,
 } from "@/lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
-import type { Locale } from "../../lib/i18n/catalog";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { palletStatusLabel } from "../../lib/i18n/status-labels";
+import { translateMessage } from "../../lib/i18n/translator";
 
 export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
 export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
@@ -23,7 +24,9 @@ export const PALLET_STATUS_OPTIONS = [
 export function palletStatusOptions(locale?: Locale) {
   return [
     {
-      label: locale === "zh-CN" ? "全部状态" : "All statuses",
+      label:
+        translateMessage("All statuses", locale ?? DEFAULT_LOCALE) ??
+        "All statuses",
       value: "",
     },
     { label: palletStatusLabel("PLANNED", locale), value: "PLANNED" },
