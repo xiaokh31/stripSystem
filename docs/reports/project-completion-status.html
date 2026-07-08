@@ -814,9 +814,9 @@
               <td>P5</td>
               <td>Docker Compose full stack、备份脚本、Windows/Linux 部署文档、pilot checklist。</td>
               <td><span class="badge done">Done</span></td>
-              <td>97%</td>
-              <td>compose.local、nginx、backup/restore scripts、deployment runbooks、auth initial admin runbook、pilot checklist。</td>
-              <td>现场 secrets、打印机、扫码枪、PDA 和网络环境仍需 pilot 验证。</td>
+              <td>99%</td>
+              <td>compose.local、nginx、backup/restore scripts、backup freshness alert、disk usage alert、SIEM audit export、structured API logs、deployment runbooks、auth initial admin runbook、pilot checklist。</td>
+              <td>现场 secrets、打印机、扫码枪、PDA、网络环境和外部 SIEM/log collector 仍需 pilot 目标机配置验证。</td>
             </tr>
             <tr>
               <td>P6-MOBILE</td>
@@ -950,9 +950,9 @@
             </tr>
             <tr>
               <td>集中审计日志和 SIEM</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>业务审计 userId 已落库；账号/角色管理 API 返回 actorUserId 并写应用日志，但没有独立 audit_log 表。</td>
-              <td>生产硬化阶段可新增 audit_log 表、日志导出和保留策略。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>业务审计 userId 已落库；scan/correction/generated/import/wage audit streams 可通过 `scripts/export-siem-audit.sh` 导出 JSONL；API structured logs 已输出 startup、request 和 exception JSON。</td>
+              <td>仓库侧已提供 SIEM export 和 runbook；客户或现场 IT 仍需配置 Splunk/ELK/Graylog/Filebeat 等外部 collector、索引和保留策略。</td>
             </tr>
             <tr>
               <td>BullMQ/Redis 异步任务队列</td>
@@ -980,9 +980,9 @@
             </tr>
             <tr>
               <td>深度浏览器业务流 E2E</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>Playwright 已覆盖登录、核心页面渲染和 Settings 保存；导入、报告、面单、扫码等长业务流仍可继续扩展。</td>
-              <td>后续按真实 pilot 缺陷补充 Playwright：导入、解析失败手工创建、报告/面单、扫码、history。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>新增 Docker full-stack targeted Playwright pilot smoke，使用真实 unloading plan 派生 Excel 走通上传、parse、Excel report、Label PDF、load job、scan 和 duplicate scan。</td>
+              <td>后续仍可按真实 pilot 缺陷继续扩展负向路径和历史页覆盖，但当前长业务主链路已完成。</td>
             </tr>
             <tr>
               <td>包装类型现场数据口径</td>
@@ -992,15 +992,15 @@
             </tr>
             <tr>
               <td>API generated Prisma lint 配置</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>API 业务代码在排除 `src/generated/prisma/**` 后通过 read-only eslint；但当前 API lint glob 会扫描 Prisma generated client，直接 read-only eslint 会因生成文件 Prettier 格式失败。</td>
-              <td>把 `apps/api/src/generated/prisma/**` 加入 ESLint ignore，或调整 Prisma client 生成位置/格式策略；避免 `pnpm lint` 依赖 `--fix` 修改 generated files 才能通过。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`apps/api/eslint.config.mjs` 已将 `src/generated/**`、`dist/**`、`coverage/**` 加入 ignore；`pnpm --filter api lint`、`typecheck` 和 generated client ignore smoke 已通过。</td>
+              <td>保持 Prisma generated client 不纳入 ESLint gate；lint schema 和调用方代码即可。</td>
             </tr>
             <tr>
               <td>生产级监控和告警</td>
-              <td><span class="badge deferred">Deferred</span></td>
-              <td>本地 pilot 能健康检查，但没有集中日志、指标和报警。</td>
-              <td>上线前加入 structured logs、backup alert、disk usage alert。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>API structured JSON logs、request id、HTTP request/exception logs、backup freshness alert、disk usage alert 和 `docs/runbooks/monitoring-alerting-siem.md` 已完成并验证。</td>
+              <td>现场需要把脚本接入 cron/systemd/Windows Task Scheduler 和告警 webhook；企业级 APM/SaaS 监控平台不随仓库交付。</td>
             </tr>
           </tbody>
         </table>
@@ -1072,7 +1072,7 @@
           <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>用真实包含私人/商业地址的 Excel 验证详细托盘规则：`YYC4` / `YYC6` / `YEG2`、`YVR2` / `YVR3` / `YVR4`、`YEG1`、纸箱和木箱都应显示正确 rule metadata；业务方需要确认“取整”按向上取整接受。</li>
-          <li>整理 API lint 配置，排除 `src/generated/prisma/**` 后再把根目录 `pnpm lint` 作为只读 CI gate 使用。</li>
+          <li>保持 API lint 配置排除 `src/generated/**`，把 Prisma generated client 视为生成产物，不作为人工代码 lint gate。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
           <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>
           <li>执行 pilot checklist，并记录缺陷到 runbook/error-fix-log。</li>

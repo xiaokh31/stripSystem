@@ -98,8 +98,12 @@ prompts/tasks/*
 !prompts/tasks/P2-AUTH-02User Role Permission Admin UI.md
 !prompts/tasks/P3-AUTH-01Mobile Warehouse Auth + Permission UX.md
 !prompts/tasks/P4-AUTH-01Permissioned Reprint Audit Controls.md
+!prompts/tasks/P4-PRINT*.md
 !prompts/tasks/P5-AUTH-01Auth Deployment Runbook + Initial Admin Setup.md
+!prompts/tasks/P5-PILOT*.md
 !prompts/tasks/P6-MOBILE*.md
+!prompts/tasks/P1-QUEUE*.md
+!prompts/tasks/OPEN-FUNCTIONS*.md
 !prompts/tasks/WAGE-P*.md
 !prompts/tasks/WAGE-QA*.md
 !prompts/tasks/UNLOAD-WAGE*.md
