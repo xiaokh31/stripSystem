@@ -15,7 +15,57 @@ export interface ApiHealthResponse {
     status: "up" | "down";
     message?: string;
   };
+  queue?: QueueHealthResponse;
   timestamp: string;
+}
+
+export type AsyncJobStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export interface AsyncJobResponse {
+  id: string;
+  jobType: string;
+  status: AsyncJobStatus;
+  queueName: string;
+  bullJobId: string | null;
+  targetType: string;
+  targetId: string;
+  idempotencyKey: string;
+  importFileId: string | null;
+  containerId: string | null;
+  attendanceImportId: string | null;
+  generatedFileId: string | null;
+  wageGeneratedFileId: string | null;
+  actorUserId: string | null;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  result: unknown;
+  metadata: unknown;
+  queuedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QueueHealthResponse {
+  status: "up" | "down" | "disabled";
+  queueName: string;
+  redisUrl: string | null;
+  waiting?: number;
+  active?: number;
+  delayed?: number;
+  failed?: number;
+  error?: {
+    code: "QUEUE_UNAVAILABLE" | "QUEUE_DISABLED";
+    message: string;
+  };
 }
 
 export interface AuthUserResponse {
@@ -522,8 +572,7 @@ export interface UnloadingWageSettlementListResponse {
   items: UnloadingWageSettlementResponse[];
 }
 
-export interface UnloadingSummaryGeneratedFileResponse
-  extends GeneratedFileResponse {
+export interface UnloadingSummaryGeneratedFileResponse extends GeneratedFileResponse {
   downloadUrl: string;
 }
 
@@ -577,8 +626,7 @@ export interface ExportUnloadingSummaryRequest {
   month: string;
 }
 
-export interface ExportUnloadingSummaryResponse
-  extends UnloadingSummaryResponse {
+export interface ExportUnloadingSummaryResponse extends UnloadingSummaryResponse {
   generatedFile: UnloadingSummaryGeneratedFileResponse;
   exportWarnings: unknown[];
   exportErrors: unknown[];
@@ -734,6 +782,7 @@ export interface UpdateContainerDestinationRequest {
   destinationType?: string | null;
   manualPallets?: number | null;
   note?: string | null;
+  packageType?: string | null;
   volume?: number;
 }
 
@@ -754,6 +803,7 @@ export interface CreateContainerDestinationRequest {
   destinationType?: string | null;
   manualPallets?: number | null;
   note?: string | null;
+  packageType?: string | null;
   volume: number;
 }
 
@@ -1244,6 +1294,21 @@ export async function getApiHealth(): Promise<ApiHealthResponse> {
   return createApiClient().get<ApiHealthResponse>("/health");
 }
 
+export function getQueueHealth(
+  options: ApiClientOptions = {},
+): Promise<QueueHealthResponse> {
+  return createApiClient(options).get<QueueHealthResponse>("/queue/health");
+}
+
+export function getAsyncJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).get<AsyncJobResponse>(
+    `/queue/jobs/${encodeURIComponent(id)}`,
+  );
+}
+
 export function login(
   body: LoginRequest,
   options: ApiClientOptions = {},
@@ -1413,6 +1478,24 @@ export function generateAttendanceWageRecord(
   );
 }
 
+export function submitAttendanceParseJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).post<AsyncJobResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/parse-job`,
+  );
+}
+
+export function submitAttendanceWageRecordJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).post<AsyncJobResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/generate-wage-record-job`,
+  );
+}
+
 export function listAttendanceImportFiles(
   id: string,
   options: ApiClientOptions = {},
@@ -1469,6 +1552,15 @@ export function parseImportFile(
   );
 }
 
+export function submitImportParseJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).post<AsyncJobResponse>(
+    `/imports/${encodeURIComponent(id)}/parse-job`,
+  );
+}
+
 export function getContainerDetail(
   id: string,
   options: ApiClientOptions = {},
@@ -1494,7 +1586,9 @@ export function updateContainerPayClassification(
   body: UpdateContainerPayClassificationRequest,
   options: ApiClientOptions = {},
 ): Promise<ContainerPayClassificationMutationResponse> {
-  return createApiClient(options).patch<ContainerPayClassificationMutationResponse>(
+  return createApiClient(
+    options,
+  ).patch<ContainerPayClassificationMutationResponse>(
     `/containers/${encodeURIComponent(id)}/pay-classification`,
     { ...body },
   );
@@ -1566,9 +1660,12 @@ export function createPayContainer(
   body: CreatePayContainerRequest,
   options: ApiClientOptions = {},
 ): Promise<PayContainerResponse> {
-  return createApiClient(options).post<PayContainerResponse>("/pay-containers", {
-    ...body,
-  });
+  return createApiClient(options).post<PayContainerResponse>(
+    "/pay-containers",
+    {
+      ...body,
+    },
+  );
 }
 
 export function listPayContainers(
@@ -1673,7 +1770,9 @@ export function deleteContainerDestination(
   id: string,
   options: ApiClientOptions = {},
 ): Promise<ContainerDestinationCorrectionResponse> {
-  return createApiClient(options).delete<ContainerDestinationCorrectionResponse>(
+  return createApiClient(
+    options,
+  ).delete<ContainerDestinationCorrectionResponse>(
     `/container-destinations/${encodeURIComponent(id)}`,
   );
 }
@@ -1715,12 +1814,30 @@ export function generateContainerReport(
   );
 }
 
+export function submitContainerReportJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).post<AsyncJobResponse>(
+    `/containers/${encodeURIComponent(id)}/generate-report-job`,
+  );
+}
+
 export function generateContainerLabels(
   id: string,
   options: ApiClientOptions = {},
 ): Promise<GenerateLabelsResponse> {
   return createApiClient(options).post<GenerateLabelsResponse>(
     `/containers/${encodeURIComponent(id)}/generate-labels`,
+  );
+}
+
+export function submitContainerLabelsJob(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AsyncJobResponse> {
+  return createApiClient(options).post<AsyncJobResponse>(
+    `/containers/${encodeURIComponent(id)}/generate-labels-job`,
   );
 }
 
@@ -1962,7 +2079,9 @@ export class ApiClient {
 
   constructor(options: ApiClientOptions = {}) {
     this.authToken =
-      options.authToken === undefined ? getBrowserAuthToken() : options.authToken;
+      options.authToken === undefined
+        ? getBrowserAuthToken()
+        : options.authToken;
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? getApiBaseUrl());
     this.fetcher = options.fetcher ?? defaultFetcher();
   }
@@ -2276,7 +2395,9 @@ function uploadFormData<TResponse>(
     xhr.responseType = "text";
 
     const authToken =
-      options.authToken === undefined ? getBrowserAuthToken() : options.authToken;
+      options.authToken === undefined
+        ? getBrowserAuthToken()
+        : options.authToken;
     if (authToken) {
       xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
     }

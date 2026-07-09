@@ -62,6 +62,11 @@ HTTPS secure-context rules, but API credential transport is still a security
 decision. If HTTPS is enabled, install the internal CA certificate on Windows,
 Android, and iOS devices before login testing.
 
+Local JWT storage must use `NativeModules.BestarSecureTokenStore`. Do not ship
+a production build that silently falls back to AsyncStorage for auth tokens.
+Android uses Android Keystore-backed AES-GCM; iOS uses Keychain; Windows uses
+Credential Locker after the generated RNW project includes the module source.
+
 ## Shared Build Checks
 
 Run these from the repository root before any platform packaging:
@@ -75,8 +80,20 @@ pnpm --filter mobile-scan-app package:check
 ```
 
 `package:check` verifies shared React Native prerequisites and reports whether
-the Android, iOS, and Windows platform projects exist on this checkout. It does
-not create signing secrets and does not claim an install package exists.
+the Android, iOS, and Windows platform projects exist on this checkout. It
+distinguishes native module source boundaries from generated platform projects;
+source files alone are not enough for MSIX/IPA readiness. It does not create
+signing secrets and does not claim an install package exists.
+
+Use strict mode for release gate checks:
+
+```bash
+pnpm --filter mobile-scan-app package:check -- --strict
+```
+
+Strict mode returns non-zero when any platform is missing required generated
+project markers such as iOS `Podfile`/`.xcodeproj`/`.xcworkspace` or Windows
+`.sln`/`.vcxproj`/`Package.appxmanifest`.
 
 ## Windows MSIX
 
@@ -103,6 +120,46 @@ pnpm --filter mobile-scan-app exec react-native-windows-init --overwrite
 
 Review generated files before committing. Do not overwrite hand-edited native
 project files without a diff review.
+
+P6-MOBILE-11 readiness markers:
+
+```text
+apps\mobile-scan-app\windows\*.sln
+apps\mobile-scan-app\windows\**\*.vcxproj
+apps\mobile-scan-app\windows\**\Package.appxmanifest
+```
+
+The current source boundary files must be added to the generated C# project:
+
+```text
+apps\mobile-scan-app\windows\BestarQrScanner\BestarQrScannerModule.cs
+apps\mobile-scan-app\windows\BestarQrScanner\BestarSecureTokenStoreModule.cs
+```
+
+Run this after generation:
+
+```powershell
+pnpm --filter mobile-scan-app package:check
+pnpm --filter mobile-scan-app package:check -- --strict
+```
+
+Common blockers:
+
+- `dotnet.exe` or `where` not found: the command is running on macOS/Linux or a
+  Windows machine without Visual Studio/.NET build tools. Move to the Windows
+  11 build machine.
+- `unknown command 'run-windows'`: the React Native Windows platform command is
+  not available in the current checkout/host. Confirm the generated RNW project
+  exists, run on Windows 11, and verify `react-native config` lists a `windows`
+  project.
+- `.sln` or `.vcxproj` missing: RNW project generation has not completed.
+- `Package.appxmanifest` missing: MSIX packaging metadata has not been generated
+  or restored.
+- Native modules unavailable at runtime: include the two C# module files in the
+  generated project and verify `BestarQrScanner` and `BestarSecureTokenStore`
+  are registered.
+- MSIX signing failure: install/use the company signing certificate outside git;
+  do not commit `.pfx` or signing passwords.
 
 ### Development Build
 
@@ -195,13 +252,13 @@ Use a build machine with:
 - USB debugging enabled for device testing.
 - A release keystore stored outside git.
 
-Verified local debug build matrix:
+Target local debug build matrix:
 
 ```text
-Android Studio JBR: JDK 21.0.10
-React Native: 0.84.0
+Android Studio JBR or Temurin: JDK 17+
+React Native: 0.84.1
 Android Gradle Plugin: 8.12.0
-Gradle wrapper: 8.14.3
+Gradle wrapper: 9.0.0
 Kotlin Gradle plugin: 2.1.20
 compileSdk: 36
 targetSdk: 36
@@ -232,13 +289,12 @@ For Android Studio Quail 1 and newer, the Android project uses a standard
 Gradle layout instead of relying on legacy root `buildscript` classpath wiring:
 
 - `settings.gradle` declares plugin repositories, applies the React Native
-  settings plugin, includes `:app`, and pins `project(':app').projectDir`.
-- `gradle/libs.versions.toml` is the central declaration for AGP, Kotlin,
-  SDK/NDK versions, and Android dependencies used by the app module.
-- Root `build.gradle` declares shared Android/Kotlin plugins with `apply false`
-  and applies the React Native root project plugin.
-- `app/build.gradle` uses the plugins DSL and references SDK/dependency values
-  through the version catalog.
+  settings plugin, runs autolinking through the pinned local React Native CLI,
+  includes `:app`, and includes the local React Native Gradle plugin build.
+- Root `build.gradle` declares shared Android/Kotlin/React plugins with
+  `apply false`.
+- `app/build.gradle` uses the plugins DSL and declares the app SDK values,
+  React Native dependencies, CameraX dependencies, and ML Kit barcode scanning.
 
 Open this exact directory in Android Studio:
 
@@ -313,15 +369,35 @@ testing:
 
 Scanner-gun and manual input must still work when camera permission is denied.
 
-### Debug APK
+Android P6-MOBILE-09 camera module source:
 
-From the repository root, start Metro for device install/run workflows:
-
-```bash
-pnpm --filter mobile-scan-app start
+```text
+apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan/BestarQrScannerModule.kt
+apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan/BestarQrScannerPackage.kt
+apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan/BestarQrScannerActivity.kt
 ```
 
-In a second terminal, install and run on a connected Android device or emulator:
+`BestarQrScannerActivity` uses CameraX and ML Kit barcode scanning, accepts QR
+payloads only, and returns the trimmed payload to
+`NativeModules.BestarQrScanner.scanOnce()`. The app still submits scans through
+the existing backend `POST /api/load-jobs/:id/scan` route.
+
+Android P6-MOBILE-10 secure token storage source:
+
+```text
+apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan/BestarSecureTokenStoreModule.kt
+```
+
+`BestarSecureTokenStoreModule` encrypts JWT values with an Android Keystore
+AES-GCM key and stores only ciphertext plus IV in private SharedPreferences.
+The app will fail explicitly if `NativeModules.BestarSecureTokenStore` is not
+available.
+
+### Debug APK
+
+The project debug APK is configured as a standalone device smoke package: it
+bundles `index.android.bundle` and does not require Metro to be running. Install
+and run on a connected Android device or emulator:
 
 ```bash
 pnpm --filter mobile-scan-app android
@@ -415,6 +491,65 @@ If `apps/mobile-scan-app/ios/` is absent, generate the React Native iOS project
 from the pinned React Native template on the macOS build machine. Review the
 generated native files before committing.
 
+P6-MOBILE-11 readiness markers:
+
+```text
+apps/mobile-scan-app/ios/Podfile
+apps/mobile-scan-app/ios/*.xcodeproj
+apps/mobile-scan-app/ios/*.xcworkspace
+apps/mobile-scan-app/ios/**/Info.plist
+```
+
+The current source boundary files must be added to the generated Xcode app
+target:
+
+```text
+apps/mobile-scan-app/ios/BestarQrScanner/BestarQrScanner.swift
+apps/mobile-scan-app/ios/BestarQrScanner/BestarSecureTokenStore.swift
+apps/mobile-scan-app/ios/BestarQrScanner/BestarQrScannerBridge.m
+```
+
+The generated project must include:
+
+- `NSCameraUsageDescription` in the app target `Info.plist`.
+- Swift/Objective-C bridge support for React Native modules.
+- `pod install` result that produces the workspace used by Xcode.
+- No signing profiles, private keys, or Apple credentials in git.
+
+Recommended generation workflow:
+
+1. On the macOS build machine, generate a scratch React Native app from the
+   pinned `react-native@0.84.1` template using the company-approved package
+   mirror.
+2. Merge the generated `ios/` project into `apps/mobile-scan-app/ios/` without
+   deleting `BestarQrScanner/` or `PLATFORM-STATUS.md`.
+3. Set the bundle identifier to the company-owned value.
+4. Add the three Bestar native module files to the Xcode app target.
+5. Add `NSCameraUsageDescription`.
+6. Run:
+
+```bash
+cd apps/mobile-scan-app/ios
+pod install
+cd ../../..
+pnpm --filter mobile-scan-app package:check
+pnpm --filter mobile-scan-app package:check -- --strict
+pnpm --filter mobile-scan-app exec react-native build-ios --mode Debug
+```
+
+Common blockers:
+
+- No `Podfile`: iOS platform project has not been generated.
+- No `.xcodeproj`/`.xcworkspace`: Xcode project generation or `pod install` is
+  incomplete.
+- `Cannot read properties of null (reading 'automaticPodsInstallation')` from
+  `react-native run-ios`: React Native CLI sees `project.ios = null`; generate
+  or restore the Xcode project before running iOS commands.
+- `NSCameraUsageDescription` missing: camera permission prompt will fail App
+  Review and device acceptance.
+- Signing error: select the company team/provisioning profile in Xcode or CI;
+  do not commit `.mobileprovision`, `.p12`, or Apple credentials.
+
 ### Debug Device Build
 
 ```bash
@@ -448,6 +583,7 @@ Before distributing any MSIX/APK/IPA:
 - API health works from the target device network.
 - Login succeeds with a real warehouse account.
 - `GET /api/auth/me` returns the expected current user, roles, and permissions.
+- App restart restores a valid token through platform secure storage.
 - Load job list shows real planned or in-progress jobs.
 - Scanner-gun/manual input submits a real pallet QR to the selected load job.
 - Native camera scan works on the target platform or a documented platform
@@ -459,6 +595,7 @@ Before distributing any MSIX/APK/IPA:
 - Dock No. is required before complete loading.
 - Complete loading updates the job to `COMPLETED` and history shows the loader.
 - Logout clears the local session.
+- Reopening after logout does not restore a previous token.
 - App logs do not expose passwords, JWTs, signing secrets, or keystore
   passwords.
 - The package version and release notes are recorded.
@@ -473,13 +610,22 @@ If a release fails:
 4. Preserve app logs and backend audit events for diagnosis.
 5. Do not delete queued scans until the backend state is checked.
 
-## Known Limits At P6-MOBILE-08
+## Current Status At P6-MOBILE-12
 
-- The Android platform project is generated and `assembleDebug` has produced a
-  debug APK locally.
-- The `ios/` and `windows/` platform projects may still need to be generated on
-  their matching build machines.
-- Native camera module implementation must be wired in platform code before
-  camera acceptance can pass.
-- Secure token storage still needs platform-specific implementation before
-  production pilot.
+- The Android platform project is generated. Debug builds include the
+  `BestarQrScanner` CameraX/ML Kit module and the Android Keystore-backed
+  `BestarSecureTokenStore`; Android real-device smoke has validated LAN API URL
+  configuration, login, and native camera pallet QR scan.
+- The iOS platform project is generated with `Podfile`, Xcode project,
+  workspace, Pods, app target, `BestarQrScanner`, and `BestarSecureTokenStore`
+  target wiring. After local Apple signing was configured, iOS real-device
+  debug smoke was completed and passed on 2026-07-09.
+- Windows still has only the native module source boundary. Windows MSIX
+  readiness remains blocked until a Windows 11 build machine generates/restores
+  `.sln`, `.vcxproj`, and `Package.appxmanifest`, adds the module files to the
+  RNW project, builds an MSIX, and completes device smoke.
+- `pnpm --filter mobile-scan-app package:check` reports Android and iOS ready
+  and Windows blocked. Strict all-platform release checks still fail until
+  Windows generated project markers exist.
+- P6 mobile exit gate is passed for the Android+iOS pilot route. Do not present
+  Windows MSIX as ready until the Windows follow-up above is complete.

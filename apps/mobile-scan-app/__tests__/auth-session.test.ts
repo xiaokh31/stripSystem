@@ -9,8 +9,10 @@ import {
   canUpdateMobileDock,
   canUseMobileScan,
 } from "../src/auth/mobile-permissions";
-import { authTokenStorageKey, AsyncStorageTokenStore } from "../src/auth/token-store";
-import { MemorySettingsStore } from "../src/storage/settings-store";
+import {
+  createNativeSecureTokenStore,
+  MemorySecureTokenStore,
+} from "../src/auth/token-store";
 
 const warehouseUser = {
   email: "warehouse@example.com",
@@ -103,8 +105,7 @@ test("auth client preserves explicit API error codes for bad credentials and sys
 });
 
 test("session stores token, exposes current user, and gates missing scan permissions", async () => {
-  const store = new MemorySettingsStore();
-  const tokenStore = new AsyncStorageTokenStore(store);
+  const tokenStore = new MemorySecureTokenStore();
   const officeOnlyUser = {
     ...warehouseUser,
     permissions: ["load_jobs.read"],
@@ -129,9 +130,78 @@ test("session stores token, exposes current user, and gates missing scan permiss
     },
   );
 
-  assert.equal(await store.getItem(authTokenStorageKey), "office-token");
+  assert.equal(await tokenStore.getToken(), "office-token");
   assert.equal(session.status, "permission_denied");
   assert.equal(canUseMobileScan(session.user), false);
+});
+
+test("native secure token store delegates to the native module and preserves token boundaries", async () => {
+  let storedToken: string | null = null;
+  const tokenStore = createNativeSecureTokenStore({
+    BestarSecureTokenStore: {
+      async clearToken() {
+        storedToken = null;
+      },
+      async getToken() {
+        return storedToken;
+      },
+      async setToken(token: string) {
+        storedToken = token;
+      },
+    },
+  });
+
+  await tokenStore.setToken("secure-jwt-token");
+  assert.equal(await tokenStore.getToken(), "secure-jwt-token");
+
+  await tokenStore.clearToken();
+  assert.equal(await tokenStore.getToken(), null);
+});
+
+test("native secure token store fails explicitly when secure storage is unavailable or rejects writes", async () => {
+  const unavailableStore = createNativeSecureTokenStore({
+    BestarSecureTokenStore: null,
+  });
+
+  await assert.rejects(
+    () => unavailableStore.getToken(),
+    /secure token storage is required/,
+  );
+
+  const tokenStore = createNativeSecureTokenStore({
+    BestarSecureTokenStore: {
+      async clearToken() {},
+      async getToken() {
+        return null;
+      },
+      async setToken() {
+        throw new Error("keystore write failed");
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => tokenStore.setToken("secure-jwt-token"),
+    /keystore write failed/,
+  );
+});
+
+test("restoreSession reports secure storage read failures without falling back to AsyncStorage", async () => {
+  const session = await restoreSession({
+    apiBaseUrl: "http://api.local/api",
+    tokenStore: createNativeSecureTokenStore({
+      BestarSecureTokenStore: {
+        async clearToken() {},
+        async getToken() {
+          throw new Error("secure store read failed");
+        },
+        async setToken() {},
+      },
+    }),
+  });
+
+  assert.equal(session.status, "error");
+  assert.equal(session.message, "secure store read failed");
 });
 
 test("native scan permissions separate ordinary warehouse users from supervisors", () => {
@@ -164,8 +234,7 @@ test("native scan permissions separate ordinary warehouse users from supervisors
 });
 
 test("restoreSession clears expired tokens and logout clears active tokens", async () => {
-  const store = new MemorySettingsStore();
-  const tokenStore = new AsyncStorageTokenStore(store);
+  const tokenStore = new MemorySecureTokenStore();
   await tokenStore.setToken("expired-token");
 
   const expired = await restoreSession({
@@ -182,11 +251,11 @@ test("restoreSession clears expired tokens and logout clears active tokens", asy
   });
 
   assert.equal(expired.status, "session_expired");
-  assert.equal(await store.getItem(authTokenStorageKey), null);
+  assert.equal(await tokenStore.getToken(), null);
 
   await tokenStore.setToken("active-token");
   const signedOut = await signOut(tokenStore);
 
   assert.equal(signedOut.status, "logged_out");
-  assert.equal(await store.getItem(authTokenStorageKey), null);
+  assert.equal(await tokenStore.getToken(), null);
 });

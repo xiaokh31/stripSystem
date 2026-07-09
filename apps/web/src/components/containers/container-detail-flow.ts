@@ -11,6 +11,7 @@ export interface DestinationCorrectionDraft {
   destinationType: string;
   manualPallets: string;
   note: string;
+  packageType: string;
   volume: string;
 }
 
@@ -36,6 +37,7 @@ export function draftFromDestination(
     manualPallets:
       destination.manualPallets === null ? "" : String(destination.manualPallets),
     note: destination.note ?? "",
+    packageType: destination.packageType ?? "",
     volume: destination.totalVolumeCbm,
   };
 }
@@ -79,6 +81,12 @@ export function buildDestinationCorrectionRequest(
     changedFields.push("destinationType");
   }
 
+  const packageType = nullableTrimmedString(draft.packageType);
+  if (packageType !== destination.packageType) {
+    payload.packageType = packageType;
+    changedFields.push("packageType");
+  }
+
   if (cartons.value !== destination.totalCartons) {
     payload.cartons = cartons.value;
     changedFields.push("cartons");
@@ -108,7 +116,7 @@ export function buildDestinationCorrectionRequest(
     return {
       ok: false,
       error:
-        "Change destination, actual cartons, actual CBM, actual pallets, or note before saving.",
+        "Change destination, package type, actual cartons, actual CBM, actual pallets, or note before saving.",
     };
   }
 
@@ -144,6 +152,7 @@ export function buildCreateDestinationRequest(
     destinationType: nullableTrimmedString(draft.destinationType),
     manualPallets: manualPallets.value,
     note: nullableTrimmedString(draft.note),
+    packageType: nullableTrimmedString(draft.packageType),
     volume: volume.value,
   };
   const correctionNote = nullableTrimmedString(draft.correctionNote);

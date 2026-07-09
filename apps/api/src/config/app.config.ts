@@ -2,6 +2,7 @@ import { resolve, sep } from 'node:path';
 
 export const DEFAULT_DATABASE_URL =
   'postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public';
+export const DEFAULT_REDIS_URL = 'redis://localhost:16379';
 
 export interface AppConfiguration {
   port: number;
@@ -11,6 +12,10 @@ export interface AppConfiguration {
   workerPythonDir: string;
   reportTemplatePath: string;
   wageTemplatePath: string;
+  redisUrl?: string;
+  queueEnabled: boolean;
+  queueName: string;
+  queueConcurrency: number;
   jwtSecret?: string;
   jwtExpiresInSeconds: number;
 }
@@ -29,6 +34,10 @@ export const appConfig = (): { app: AppConfiguration } => ({
       process.env.REPORT_TEMPLATE_PATH ?? defaultReportTemplatePath(),
     wageTemplatePath:
       process.env.WAGE_TEMPLATE_PATH ?? defaultWageTemplatePath(),
+    redisUrl: process.env.REDIS_URL ?? DEFAULT_REDIS_URL,
+    queueEnabled: queueEnabled(),
+    queueName: process.env.QUEUE_NAME ?? 'bestar-async-jobs',
+    queueConcurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY ?? '2', 10),
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresInSeconds: Number.parseInt(
       process.env.JWT_EXPIRES_IN_SECONDS ?? '28800',
@@ -36,6 +45,20 @@ export const appConfig = (): { app: AppConfiguration } => ({
     ),
   },
 });
+
+function queueEnabled(): boolean {
+  if (process.env.QUEUE_ENABLED !== undefined) {
+    return !['0', 'false', 'off', 'no'].includes(
+      process.env.QUEUE_ENABLED.toLowerCase(),
+    );
+  }
+
+  if (process.env.JEST_WORKER_ID !== undefined) {
+    return false;
+  }
+
+  return process.env.NODE_ENV !== 'test';
+}
 
 function defaultStorageRoot(): string {
   return resolve(defaultRepoRoot(), 'storage');

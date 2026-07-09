@@ -102,6 +102,8 @@ number, destination code, cartons, pallets, and notes before printing labels.
 - Do not print labels from screenshots.
 - Do not edit generated label PDFs outside the system.
 - Reprints must use the system reprint flow so the event is audited.
+- The pilot path is PDF/manual printing. No local print agent or Tauri desktop
+  app is installed unless a later ADR/runbook explicitly says so.
 
 If QR scans are unreliable, stop printing and check:
 
@@ -110,6 +112,22 @@ If QR scans are unreliable, stop printing and check:
 - QR physical size
 - label damage
 - scanner focus and Enter suffix
+
+Record the following before asking for a local print agent:
+
+- printer model
+- label stock and supplier
+- driver version and default paper/scaling settings
+- PDF viewer or browser used for printing
+- measured outer label size
+- measured QR size
+- number of failed labels and total labels printed
+- whether failures were caused by scaling, damaged stock, scanner focus, or
+  operator workflow
+
+Continue using the generated PDF download/manual print fallback until the
+supervisor and local IT confirm that repeated print failures justify direct
+printer control.
 
 ## Warehouse Loading Workflow
 

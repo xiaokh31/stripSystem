@@ -1255,9 +1255,9 @@ export class ImportsService {
   }
 
   private nullableStringValue(
-    value: { toString(): string } | number | string | null,
+    value: { toString(): string } | number | string | null | undefined,
   ): string | null {
-    return value === null ? null : value.toString();
+    return value === null || value === undefined ? null : value.toString();
   }
 
   private unknownArray(value: unknown): unknown[] {

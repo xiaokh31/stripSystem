@@ -13,13 +13,20 @@ import {
   GenerateReportResponseDto,
 } from './dto/generated-file-response.dto';
 import { ReportsService } from './reports.service';
+import { AsyncJobResponseDto } from '../async-jobs/async-job-response.dto';
+import { AsyncJobsService } from '../async-jobs/async-jobs.service';
+import { ASYNC_JOB_TARGET_TYPES } from '../async-jobs/async-jobs.types';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
+import { AsyncJobType } from '../generated/prisma/enums';
 
 @Controller('containers')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly asyncJobsService: AsyncJobsService,
+  ) {}
 
   @Post(':id/generate-report')
   @RequirePermissions(...ROUTE_PERMISSIONS.reports.generate)
@@ -28,6 +35,24 @@ export class ReportsController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<GenerateReportResponseDto> {
     return this.reportsService.generateReport(id, actor);
+  }
+
+  @Post(':id/generate-report-job')
+  @RequirePermissions(...ROUTE_PERMISSIONS.reports.generate)
+  submitGenerateReportJob(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<AsyncJobResponseDto> {
+    return this.asyncJobsService.submitJob({
+      jobType: AsyncJobType.UNLOADING_REPORT,
+      targetType: ASYNC_JOB_TARGET_TYPES.container,
+      targetId: id,
+      containerId: id,
+      actor,
+      metadata: {
+        sourceRoute: 'POST /containers/:id/generate-report-job',
+      },
+    });
   }
 
   @Get(':id/files')

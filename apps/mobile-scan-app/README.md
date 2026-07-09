@@ -26,21 +26,27 @@ as Android APK, iOS IPA, and Windows MSIX.
 - Dock No. update and complete loading through the existing protected load job
   APIs.
 - Release packaging runbook for Windows MSIX, Android APK, and iOS IPA.
-- Future tasks add platform camera module wiring and generated native platform
-  project hardening.
+- Android native camera QR module source for `BestarQrScanner`.
+- Platform secure token store through `NativeModules.BestarSecureTokenStore`.
+- iOS/Windows native module source boundaries awaiting generated platform
+  project integration and build-machine smoke results.
 
 ## Token Storage
 
-P6-MOBILE-03 stores tokens behind a `SecureTokenStore` interface. The current
-scaffold uses an AsyncStorage fallback so the native auth flow can be tested
-before platform projects and native secure-storage modules are generated.
+P6-MOBILE-10 keeps tokens behind the `SecureTokenStore` interface and requires
+the native module named `BestarSecureTokenStore` in production builds. There is
+no silent production fallback to AsyncStorage for JWT storage.
 
-Risk: AsyncStorage is not the final production token store. Before pilot
-release, replace the fallback with platform secure storage:
+Platform storage:
 
-- iOS: Keychain.
-- Android: Keystore-backed secure storage.
-- Windows: Windows Credential Locker or a reviewed native module.
+- Android: Android Keystore AES-GCM key with ciphertext and IV in private
+  SharedPreferences.
+- iOS: Keychain generic-password storage.
+- Windows: Windows Credential Locker.
+
+Tests may explicitly inject `MemorySecureTokenStore`. Local settings such as
+the LAN API URL and offline scan queue remain in app-controlled storage and are
+separate from auth token storage.
 
 ## Native Camera Scanner
 
@@ -51,9 +57,11 @@ NativeModules.BestarQrScanner.scanOnce(): Promise<string>
 ```
 
 This keeps camera scanning native and avoids browser `getUserMedia` and HTTPS
-secure-context rules. Platform projects still need the Android/iOS/Windows
-native implementation of that module before camera scanning can pass device
-acceptance. Scanner-gun and manual input remain available when the native camera
+secure-context rules. Android now includes a CameraX/ML Kit implementation under
+`android/app/src/main/java/com/bestar/nativescan`. iOS and Windows have
+reviewable module source boundaries under `ios/BestarQrScanner` and
+`windows/BestarQrScanner`, but still need generated platform projects and device
+validation. Scanner-gun and manual input remain available when the native camera
 module or camera permission is unavailable.
 
 ## Offline Queue
@@ -81,7 +89,11 @@ pnpm --filter mobile-scan-app typecheck
 pnpm --filter mobile-scan-app test
 pnpm --filter mobile-scan-app build
 pnpm --filter mobile-scan-app package:check
+pnpm --filter mobile-scan-app package:check -- --strict
 ```
+
+`package:check` reports all three platform states. Strict mode is the release
+gate and fails while iOS or Windows generated project markers are missing.
 
 Task-by-task manual testing is documented in:
 

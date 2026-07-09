@@ -62,6 +62,22 @@ enum GeneratedFileStatus {
   SUPERSEDED
 }
 
+enum AsyncJobType {
+  UNLOADING_PARSE
+  UNLOADING_REPORT
+  UNLOADING_LABELS
+  ATTENDANCE_PARSE
+  WAGE_RECORD_GENERATION
+}
+
+enum AsyncJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 enum PalletStatus {
   PLANNED
   LABEL_PRINTED
@@ -154,6 +170,7 @@ model User {
   operationalSettings      OperationalSetting[]      @relation("OperationalSettingUpdatedBy")
   attendanceImports        AttendanceImport[]        @relation("AttendanceImportImportedBy")
   wageGeneratedFiles       WageGeneratedFile[]       @relation("WageGeneratedFileGeneratedBy")
+  asyncJobs                AsyncJob[]                @relation("AsyncJobActor")
   payContainersCreated     PayContainer[]            @relation("PayContainerCreatedBy")
   payContainersCompleted   PayContainer[]            @relation("PayContainerCompletedBy")
   unloaderAssignments      UnloaderAssignment[]      @relation("UnloaderAssignmentUser")
@@ -255,6 +272,7 @@ model ImportFile {
   deleteReason       String?              @map("delete_reason")
   containers         Container[]
   generatedFiles     GeneratedFile[]
+  asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -287,6 +305,7 @@ model Container {
   lines              ContainerLine[]
   destinations       ContainerDestination[]
   generatedFiles     GeneratedFile[]
+  asyncJobs          AsyncJob[]
   loadJobs           LoadJob[]
   loadJobLines       LoadJobLine[]
   correctionFeedback CorrectionFeedback[]
@@ -411,6 +430,7 @@ model GeneratedFile {
   errorMessage       String?              @map("error_message")
   generatedById      String?              @map("generated_by_id")
   generatedBy        User?                @relation("GeneratedFileGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -586,6 +606,7 @@ model AttendanceImport {
   importedBy         User?                @relation("AttendanceImportImportedBy", fields: [importedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   rows               AttendanceRow[]
   generatedFiles     WageGeneratedFile[]
+  asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
@@ -642,6 +663,7 @@ model WageGeneratedFile {
   errorMessage              String?                  @map("error_message")
   generatedById             String?                  @map("generated_by_id")
   generatedBy               User?                    @relation("WageGeneratedFileGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  asyncJobs                 AsyncJob[]
   createdAt                 DateTime                 @default(now()) @map("created_at")
   updatedAt                 DateTime                 @updatedAt @map("updated_at")
 
@@ -652,6 +674,53 @@ model WageGeneratedFile {
   @@index([generatedById])
   @@index([createdAt])
   @@map("wage_generated_files")
+}
+
+model AsyncJob {
+  id                  String              @id @default(cuid())
+  jobType             AsyncJobType        @map("job_type")
+  status              AsyncJobStatus      @default(QUEUED)
+  queueName           String              @map("queue_name")
+  bullJobId           String?             @map("bull_job_id")
+  targetType          String              @map("target_type")
+  targetId            String              @map("target_id")
+  idempotencyKey      String              @map("idempotency_key")
+  importFileId        String?             @map("import_file_id")
+  importFile          ImportFile?         @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerId         String?             @map("container_id")
+  container           Container?          @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  attendanceImportId  String?             @map("attendance_import_id")
+  attendanceImport    AttendanceImport?   @relation(fields: [attendanceImportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  generatedFileId     String?             @map("generated_file_id")
+  generatedFile       GeneratedFile?      @relation(fields: [generatedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  wageGeneratedFileId String?             @map("wage_generated_file_id")
+  wageGeneratedFile   WageGeneratedFile?  @relation(fields: [wageGeneratedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorUserId         String?             @map("actor_user_id")
+  actorUser           User?               @relation("AsyncJobActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  attempts            Int                 @default(0)
+  maxAttempts         Int                 @default(3) @map("max_attempts")
+  lastError           String?             @map("last_error")
+  result              Json?
+  metadata            Json?
+  queuedAt            DateTime            @default(now()) @map("queued_at")
+  startedAt           DateTime?           @map("started_at")
+  finishedAt          DateTime?           @map("finished_at")
+  cancelledAt         DateTime?           @map("cancelled_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  @@index([jobType])
+  @@index([status])
+  @@index([targetType, targetId])
+  @@index([idempotencyKey])
+  @@index([importFileId])
+  @@index([containerId])
+  @@index([attendanceImportId])
+  @@index([generatedFileId])
+  @@index([wageGeneratedFileId])
+  @@index([actorUserId])
+  @@index([queuedAt])
+  @@map("async_jobs")
 }
 
 model PayContainer {

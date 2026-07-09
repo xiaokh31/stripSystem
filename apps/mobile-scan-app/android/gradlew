@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+RN_GRADLEW="$SCRIPT_DIR/../node_modules/@react-native/gradle-plugin/gradlew"
+
+exec "$RN_GRADLEW" -p "$SCRIPT_DIR" "$@"

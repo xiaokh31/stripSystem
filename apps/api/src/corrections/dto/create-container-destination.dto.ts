@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -17,6 +18,11 @@ export class CreateContainerDestinationDto {
   @IsOptional()
   @IsString()
   destinationType?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CARTON', 'WOODEN_CRATE', 'UNKNOWN', 'UNSPECIFIED'])
+  packageType?: string | null;
 
   @Type(() => Number)
   @IsInt()

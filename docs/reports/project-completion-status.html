@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-07</p>
+        <p class="small">Generated: 2026-07-09</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -218,11 +218,26 @@
           standalone native scan app 已进入实现阶段：架构决策、workspace scaffold、
           LAN API 设置、登录/session、open load job list、scan workflow、offline
           queue、supervisor override、dock update、complete loading、三端 release
-          runbook、packaging readiness check 和 Android debug APK 构建已完成。
+          runbook、packaging readiness check、Android debug APK 构建、
+          P6-MOBILE-09 Android native camera module source wiring、
+          P6-MOBILE-10 secure token storage、P6-MOBILE-11 Windows/iOS
+          platform readiness hardening 和 iOS generated project / Pods
+          smoke build 已完成；P6-MOBILE-12 按 Android+iOS pilot route
+          条件通过，但完整 cross-platform release 仍缺 Windows MSIX gate。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
-          P6 Exit Gate 当前结论为有条件阻塞：Android 平台工程已生成并可构建
-          debug APK，但 MSIX/IPA 仍需在对应平台构建机生成原生工程，native camera
-          module、secure token storage 和真实设备安装扫码验收仍未完成。新增
+          P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
+          Android 平台工程已包含
+          `BestarQrScanner` CameraX/ML Kit 源码和 Android Keystore-backed
+          `BestarSecureTokenStore`，且真实 Android 设备已验证 LAN API
+          URL、login 和 native camera scan pallet QR；iOS 已生成
+          Xcode workspace、完成 `pod install` 和 native module target wiring，
+          并在 Apple signing 配置后完成真机安装调试 smoke；该 iOS 设备结果为
+          现场确认，本轮未复跑。Windows 仍需在
+          Windows 11 构建机生成 RNW 工程并验收 MSIX；`package:check`
+          已能明确区分 source boundary 与 generated platform project，
+          normal check 显示 Android/iOS ready、Windows blocked，strict
+          all-platform release gate 当前会因 Windows marker 缺失失败。
+          新增
           Work Hours / Unloading Wage P0/P1/P2 扩展已完成到 API/DB/Web review
           workflow 范围：attendance upload/parse/generate、unloading pay
           container、completion/unloader assignment、monthly settlement、
@@ -269,17 +284,21 @@
           按 1.8 CBM、私人/商业木箱按件数，并对未知包装类型产生人工确认 warning；
           API 已通过 migration 持久化 `packageType`、`palletRuleCode`、
           `calculationBasisCbm` 和 `roundingMode`，report、label、container detail
-          和 task report 均可追溯托盘计算依据。2026-07-07 本轮补齐上线前运维
+          和 task report 均可追溯托盘计算依据。UNLOAD-PALLET-04 已补齐
+          container detail packageType 人工修正入口、API 自动重算和 correction
+          audit；由于真实 pilot 私人/商业地址 workbook 尚未提供，包装类型现场识别
+          仍标记为 Needs Pilot Verification。2026-07-07 本轮补齐上线前运维
           readiness：API structured JSON logs、HTTP request/exception logs、
           backup freshness alert、disk usage alert、SIEM audit JSONL export 和
           monitoring runbook 已加入；Docker full-stack pilot smoke 已用真实
           unloading plan 派生 Excel 通过上传、解析、报告、label、load job、扫码和
-          duplicate scan 全链路。
+          duplicate scan 全链路。2026-07-09 本轮重新复查发现 API E2E
+          仍受 BullMQ/ioredis teardown 问题影响，不能记录为全量通过。
         </p>
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>99%</dd>
+            <dd>98%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -291,7 +310,7 @@
           </dl>
           <dl class="metric">
             <dt>Native App</dt>
-            <dd>92%</dd>
+            <dd>95%</dd>
           </dl>
           <dl class="metric">
             <dt>Ops Readiness</dt>
@@ -311,10 +330,14 @@
           单独交付为 Windows MSIX、Android APK、iOS IPA 三端原生 App，以规避
           LAN 浏览器 HTTPS/camera 限制。目前已新增
           docs/product/01-cross-platform-mobile-scan-app.md、docs/adr/0003-native-scan-app.md
-          和 P6-MOBILE 任务拆解，并已完成 P6-MOBILE-01 至 P6-MOBILE-08。
-          当前未完成项主要是 native camera platform module wiring、
-          iOS/Windows generated platform project hardening、Android 真机扫码验收、真正的
-          异步队列化和自动打印代理实现。集中监控告警已完成到本地生产可落地范围：
+          和 P6-MOBILE 任务拆解，并已完成 P6-MOBILE-01 至 P6-MOBILE-12
+          的 Android+iOS pilot gate 范围。完整三端 native release 当前未完成项主要是
+          Windows generated platform project 生成、Windows camera decoder
+          dependency、MSIX 打包和 Windows 设备 smoke；BullMQ/Redis
+          异步队列已完成 API/DB/worker 垂直线并接入 office web review
+          workflow，P1-QUEUE-02 已修复 API E2E teardown 并完成 Docker
+          full-stack parse/generation 并发回归与 failed job review；
+          自动打印代理仍是后续增强项。集中监控告警已完成到本地生产可落地范围：
           Docker 日志输出结构化 JSON，backup/disk alert 可由 cron/systemd/webhook 接入，
           audit streams 可定时导出 JSONL 给 SIEM。2026-07-07 本轮复查已通过
           API generated Prisma lint ignore、API lint/typecheck、Web lint/typecheck、
@@ -380,10 +403,19 @@
           P6-MOBILE 工程和文档任务已完成到当前仓库可验证范围：standalone native app
           不包含 office/admin/import/report/label 页面，使用真实 API client，离线队列不伪造库存，
           duplicate/override/complete loading 规则由后端 scan transaction 和权限审计保护。
-          Gate 不能标记为完全通过，原因是 Android native platform project 已生成并通过
-          `assembleDebug` 产出 APK，但 Windows/iOS native platform projects 仍是 placeholder，
-          `BestarQrScanner` native module 尚未接入，secure token storage 尚未替换 AsyncStorage fallback，
-          且未在真实设备完成安装和真实 QR smoke test。
+          P6-MOBILE-12 结论为 Conditional Pass（Android+iOS pilot route）：
+          Android native
+          platform project 已生成，`assembleDebug` 已通过，并已有
+          `BestarQrScanner` CameraX/ML Kit 原生模块源码与 Android Keystore-backed
+          `BestarSecureTokenStore`；真实 Android 设备已验证 LAN API URL、login 和
+          native camera scan pallet QR。iOS native platform project 已生成并完成
+          Pods/workspace、camera module 和 secure-token module target wiring；2026-07-09
+          在 Apple signing 配置后，iOS 真机安装调试 smoke 已由现场确认全部通过，
+          但本轮没有在本机复跑 iOS 设备验收。
+          Windows native platform project 仍需在 Windows 11 构建机生成并验收 MSIX，
+          Windows camera 与 secure-token module 仍需平台工程验收；该项作为 Windows
+          MSIX release follow-up 保留，不阻塞 Android+iOS pilot gate，但阻塞完整
+          三端 native release。
         </p>
         <table>
           <thead>
@@ -411,13 +443,18 @@
             </tr>
             <tr>
               <td>Platform device readiness</td>
-              <td><span class="badge partial">Blocked</span></td>
-              <td>Android platform project 已生成，`./gradlew assembleDebug` 已产出 `app-debug.apk`；Windows/iOS 仍是 placeholder；未完成 camera module、secure token storage 和真机安装扫码。</td>
+              <td><span class="badge partial">Conditional Pass</span></td>
+              <td>Android platform project 已生成并加入 `BestarQrScanner` CameraX/ML Kit 原生模块与 `BestarSecureTokenStore` Android Keystore 模块；`./gradlew assembleDebug` 已通过，debug APK 已改为内置 JS bundle，真实 Android 设备已验证 LAN API URL、login 和 native camera scan pallet QR。iOS 已生成 `Podfile`、`.xcodeproj`、`.xcworkspace`、app target 和 Pods，`xcodebuild -list` 可识别 workspace，camera 与 secure-token native module 已接入 target；2026-07-09 现场完成 iOS 真机安装调试 smoke 并确认全部通过。Windows 已有 native module source boundary 和 `PLATFORM-STATUS.md`，但仍缺 `.sln`/`.vcxproj`/`Package.appxmanifest`，保持 Windows MSIX follow-up。</td>
             </tr>
             <tr>
               <td>Automated checks</td>
-              <td><span class="badge done">Pass</span></td>
-              <td>`pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm --filter api test:e2e`、mobile app build/package:check 和 Docker healthcheck 均已通过。</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>2026-07-09 P1-QUEUE-02 复查通过 `CI=true pnpm --filter api lint`、`CI=true pnpm --filter api typecheck`、`CI=true pnpm --filter api test`（20 suites / 134 passed）、`CI=true pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand`（13 suites / 72 passed）和 `CI=true pnpm --filter api test:e2e`（13 suites / 72 passed）。E2E 输出已不再出现 BullMQ/ioredis teardown 的 `Connection is closed`、`write EPIPE` 或 `Cannot log after tests are done`。本行仍为 Partial 仅因 Windows MSIX follow-up 尚未完成。</td>
+            </tr>
+            <tr>
+              <td>Windows MSIX follow-up</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>`pnpm --filter mobile-scan-app package:check` 明确显示 Windows source boundary present，但 generated markers 缺少 `windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。需要 Windows 11 + Visual Studio 2022 构建机生成 RNW 工程、接入 C# modules、打包 MSIX 并做设备 smoke。</td>
             </tr>
           </tbody>
         </table>
@@ -632,7 +669,8 @@
         <p class="note">
           本段跟踪 2026-07-07 新增的详细托盘计算规则。结论：UNLOAD-PALLET-01、
           UNLOAD-PALLET-02、UNLOAD-PALLET-03 已在当前代码中完成到 worker/API/Web
-          review 和回归测试范围；规则按向上取整执行，不使用四舍五入。后续如果业务确认
+          review 和回归测试范围；UNLOAD-PALLET-04 的 correction workflow 已补齐，
+          真实 pilot workbook 验证待业务提供样本后关闭。规则按向上取整执行，不使用四舍五入。后续如果业务确认
           “取整”实际是向下截断，需要重新开规则变更任务。
         </p>
         <table>
@@ -658,7 +696,7 @@
               <td><span class="badge done">Done</span></td>
               <td>API + report + label</td>
               <td>新增 `20260707110000_pallet_rule_metadata` migration：`container_destinations` 持久化 `package_type`、`pallet_rule_code`、`calculation_basis_cbm` 和 `rounding_mode`，并将 destination 唯一键扩展到 `package_type`；imports service 按 destination + packageType 对齐 worker plans，API DTO 返回 rule metadata；reports、labels、corrections 和 Web API client 已透传 metadata；HTML task report 显示 rule/package/basis/rounding；label generation 继续以 `finalPallets` 生成 pallet records 和 QR payload。</td>
-              <td>已完成持久化和生成链路；如果未来要让办公室手动改 packageType/ruleCode，需要单独设计 auditable correction workflow。</td>
+              <td>已完成持久化和生成链路；packageType 人工修正 workflow 已在 UNLOAD-PALLET-04 补齐。</td>
             </tr>
             <tr>
               <td>UNLOAD-PALLET-03 Detailed Pallet Calculation Regression</td>
@@ -666,6 +704,13 @@
               <td>Regression</td>
               <td>`apps/worker-python/tests/integration/test_batch_cli.py` 构造详细规则 workbook，验证 parsed JSON、pallet plans、warning、Excel report 写入托数、Label PDF 数量、唯一 palletIds/QR payload、150mm x 100mm PDF MediaBox 和 task report rule metadata；API imports tests 覆盖混合私人地址纸箱/木箱/unknown 三条 destination summary 分开持久化；Web container detail flow tests 覆盖 rule summary 和 unknown package warning 可见。</td>
               <td>本轮复查通过 `uv run pytest` 106 passed、`pnpm --filter api typecheck`、`pnpm --filter api test` 18 suites / 122 tests、`pnpm --filter web typecheck`、`pnpm --filter web test` 150 tests。2026-07-07 已新增并通过 Docker full-stack targeted Playwright pilot smoke：真实样例派生 Excel 上传、parse、Excel report、Label PDF、load job、scan 和 duplicate scan 全链路。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-04 Packaging Type Pilot Verification + Correction</td>
+              <td><span class="badge partial">Code Complete / Data Pending</span></td>
+              <td>Correction workflow</td>
+              <td>当前样例审计结果为 `UNKNOWN=53`、`WOODEN_CRATE=1`、`CARTON=0`，因此不新增伪真实 fixture。已补 `packageType` correction DTO/API/Web 表单：办公室可把 unknown 修正为 `CARTON` 或 `WOODEN_CRATE`，API 按纸箱 1.8 CBM 或木箱件数自动重算 `calculatedPallets`、`finalPallets`、rule metadata 和 warnings，并写入 correction_feedback；manual pallets override 继续优先；packageType 改动导致托数增加时 Web 会提示重新生成 label。</td>
+              <td>等待业务提供真实或脱敏 pilot workbook，覆盖私人/商业纸箱、木箱和 unknown 后，补 fixture 证据并把包装类型现场数据口径从 Needs Pilot Verification 改为 Done。</td>
             </tr>
           </tbody>
         </table>
@@ -805,26 +850,26 @@
             <tr>
               <td>P4</td>
               <td>打印尺寸验证、重打审计 API、Tauri/print-agent 决策。</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>88%</td>
-              <td>150mm x 100mm PDF、permissioned reprint audit endpoints/UI、printing ADR。</td>
-              <td>本地自动打印代理未实现；仍依赖浏览器/PDF 打印流程。</td>
+              <td><span class="badge done">Decision Complete</span></td>
+              <td>92%</td>
+              <td>150mm x 100mm PDF、permissioned reprint audit endpoints/UI、printing ADR；P4-PRINT-03 已复核并记录：当前 printer/platform blocker 是缺少打印机型号、标签纸、驱动、PDF viewer、失败样本和频率等 pilot 数据，因此不启动 local print agent/Tauri 原型，继续 PDF/manual printing + calibration + reprint audit。</td>
+              <td>本地自动打印代理仍为后续升级项；只有 pilot issue log 证明反复缩放错误、QR 扫码失败或人工打印效率瓶颈时才重新开启 agent 设计。</td>
             </tr>
             <tr>
               <td>P5</td>
               <td>Docker Compose full stack、备份脚本、Windows/Linux 部署文档、pilot checklist。</td>
-              <td><span class="badge done">Done</span></td>
-              <td>99%</td>
-              <td>compose.local、nginx、backup/restore scripts、backup freshness alert、disk usage alert、SIEM audit export、structured API logs、deployment runbooks、auth initial admin runbook、pilot checklist。</td>
-              <td>现场 secrets、打印机、扫码枪、PDA、网络环境和外部 SIEM/log collector 仍需 pilot 目标机配置验证。</td>
+              <td><span class="badge partial">Target Pending</span></td>
+              <td>95%</td>
+              <td>compose.local、nginx、backup/restore scripts、backup freshness alert、disk usage alert、SIEM audit export、structured API logs、deployment runbooks、auth initial admin runbook、pilot checklist；2026-07-08 本机 Docker rehearsal 已通过 `docker compose ps`、`scripts/healthcheck.sh`、PostgreSQL/storage backup、backup freshness、restore dry-run、SIEM export 和 targeted Playwright pilot smoke 2/2。</td>
+              <td>P5-PILOT-01 还不能关闭：当前执行环境不是目标 Windows 11 主机；按当前指示，Windows target 复跑暂时标记为不复跑/暂缓。生产 secrets、打印机、扫码枪/PDA、LAN、防火墙、备份目录、任务计划和外部 SIEM/log collector 仍需现场目标机配置验证；本机 `/private/tmp` 磁盘检查返回 warning，不能作为目标机容量 Pass。</td>
             </tr>
             <tr>
               <td>P6-MOBILE</td>
               <td>Standalone native scan app：只包含登录和 mobile scan，面向 Windows MSIX、Android APK、iOS IPA 三端。</td>
-              <td><span class="badge partial">Gate Blocked</span></td>
-              <td>92%</td>
-              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
-              <td>Exit Gate 剩余阻塞项：Windows/iOS native projects 尚未生成验收；platform native camera module wiring、secure token storage、真实设备安装扫码仍未完成。</td>
+              <td><span class="badge partial">Conditional Pass</span></td>
+              <td>95%</td>
+              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Android `BestarQrScanner` CameraX/ML Kit source wiring、Android `BestarSecureTokenStore` Keystore storage、iOS generated Xcode project/Pods/workspace、iOS camera 与 secure-token native module target wiring、P6-MOBILE-11 platform readiness hardening、P6-MOBILE-12 Android+iOS device smoke exit gate、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
+              <td>Android+iOS pilot route 条件通过；完整 PRD 要求的 Windows MSIX 尚未完成。需执行 P6-MOBILE-13，在 Windows 11 构建机生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并做 Windows device smoke。</td>
             </tr>
           </tbody>
         </table>
@@ -905,8 +950,8 @@
             <tr>
               <td>移动扫码</td>
               <td><span class="badge done">Done</span></td>
-              <td>94%</td>
-              <td>Web/PWA mobile scan 支持扫码枪输入、手机摄像头扫码、重复扫码处理、当前 progress 修正；但它仍可能受浏览器 HTTPS/camera 限制。standalone native app 已实现到 release runbook 和 packaging readiness check，仍需 platform camera module wiring 与平台设备验收。</td>
+              <td>95%</td>
+              <td>Web/PWA mobile scan 支持扫码枪输入、手机摄像头扫码、重复扫码处理、当前 progress 修正；但它仍可能受浏览器 HTTPS/camera 限制。standalone native app 已实现到 release runbook、packaging readiness check、Android native camera module source wiring、Android secure token storage、iOS generated project/Pods/native module target wiring 和 P6-MOBILE-12 Android+iOS device smoke exit gate，且 Android/iOS 真机 smoke 已验证安装调试、LAN API/login/native camera QR；Windows project generation 和 MSIX 设备验收作为后续平台项。</td>
             </tr>
             <tr>
               <td>离线扫码队列</td>
@@ -937,10 +982,10 @@
           </thead>
           <tbody>
             <tr>
-              <td>Standalone native scan app</td>
-              <td><span class="badge partial">Gate Blocked</span></td>
-              <td>新增需求要求 MSIX/APK/IPA 三端独立原生 App，只包含登录和 mobile scan；目标是绕开浏览器 HTTPS/camera 限制。目前已完成 PRD、ADR、任务拆解、scaffold、LAN settings、login/session、open load job list、scan workflow、offline queue、supervisor override、complete loading、release runbook、packaging readiness check 和 Android debug APK。</td>
-              <td>补齐 Exit Gate 剩余阻塞项：生成并验收 Windows/iOS native project，接入 camera module 和 secure token storage，完成 MSIX/IPA 打包以及 Android/Windows/iOS 设备 smoke test。</td>
+              <td>Windows native scan app MSIX</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>P6 mobile exit gate 已按 Android+iOS pilot route 通过；Windows 仍只有 native module source boundary，没有 generated RNW project marker。</td>
+              <td>在 Windows 11 build machine 生成并验收 Windows native project，完成 Windows camera decoder 集成、MSIX 打包以及 Windows 设备 smoke test；完成前不要把 Windows MSIX 标记为 ready。</td>
             </tr>
             <tr>
               <td>外部身份集成 / SSO</td>
@@ -956,15 +1001,15 @@
             </tr>
             <tr>
               <td>BullMQ/Redis 异步任务队列</td>
-              <td><span class="badge deferred">Deferred</span></td>
-              <td>解析/生成目前主要同步执行，超大文件或并发场景需要队列化。</td>
-              <td>把 parse/report/labels 改成 job 状态和 worker 消费。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>P1-QUEUE-01 已新增 async_jobs schema/migration、BullMQ queue service/processor、`/api/queue/health`、`/api/queue/jobs/:id`，并为 unloading parse/report/labels 与 attendance parse/wage record 提供 `*-job` 提交入口；office web review workflow 按钮已切到 submit job + poll status + failed error 展示；原同步端点保留作兼容。P1-QUEUE-02 已固定 E2E 默认 queue disabled、Jest 进程防误启真实 Worker，并为 Queue/Worker 增加关闭期 Redis error 保护。</td>
+              <td>Docker full-stack 已通过认证 parse 并发、report/labels/wage generation 并发、generated file 下载、async_jobs actor/target/generated refs 审计，以及锁定 container labels job 的 failed result review。Queue failed count 保留 failed BullMQ job 用于审计，符合 `removeOnFail=false` 设计。</td>
             </tr>
             <tr>
               <td>自动打印代理或 Tauri 应用</td>
-              <td><span class="badge deferred">Deferred</span></td>
-              <td>目前仍依赖下载 PDF 后人工打印，现场缩放设置需要培训。</td>
-              <td>按 ADR 先验证浏览器打印，再决定 print-agent/Tauri。</td>
+              <td><span class="badge deferred">Deferred / Not Activated</span></td>
+              <td>P4-PRINT-03 已确认无足够 pilot 打印失败数据，不应提前引入 local service、Tauri、ZPL/TSPL 或 vendor SDK；现有 PDF/manual print 路径和 reprint audit 保留。</td>
+              <td>现场先记录打印机型号、标签纸、驱动、PDF viewer、缩放设置、失败率、尺寸测量和 QR 扫码结果；只有失败率或效率问题达到业务阈值后，再按 ADR 设计带 healthcheck 和 dry-run 的 local print agent。</td>
             </tr>
             <tr>
               <td>Load Job container suggestion</td>
@@ -987,8 +1032,8 @@
             <tr>
               <td>包装类型现场数据口径</td>
               <td><span class="badge partial">Needs Pilot Verification</span></td>
-              <td>详细托盘规则已实现纸箱/木箱分支和未知包装 warning，但私人/商业地址的真实 workbook 是否稳定提供包装类型仍需现场样本确认。</td>
-              <td>pilot 前用真实私人/商业地址 Excel 验证 parser 能识别纸箱/木箱；不能识别时必须进入人工确认和 correction 流程，不应静默套用默认规则。</td>
+              <td>详细托盘规则、未知包装 warning、packageType 人工修正、自动重算和 audit workflow 已实现；当前真实样例审计没有 CARTON packageType，因此 parser 现场识别稳定性仍需真实 pilot 样本确认。</td>
+              <td>pilot 前提供真实/脱敏私人或商业地址 Excel，覆盖纸箱、木箱和 unknown；完成 parser fixture 证据后关闭该项。</td>
             </tr>
             <tr>
               <td>API generated Prisma lint 配置</td>
@@ -1009,8 +1054,10 @@
       <section>
         <h2>Windows 11 内部生产部署结论</h2>
         <p class="note">
-          可以开始 Windows 11 企业内网生产部署准备，但建议按“条件通过”执行：
-          在目标 Windows 11 主机完成 Docker Desktop full stack 启动、数据库 migration、
+          可以开始 Windows 11 企业内网生产部署准备，但 P5-PILOT-01 当前仍是
+          Target Pending：本轮只在 macOS 开发工作区完成 Docker rehearsal，
+          不能替代目标 Windows 11 主机证据。正式切换前必须在目标 Windows 11
+          主机完成 Docker Desktop full stack 启动、数据库 migration、
           RBAC seed、首个 ADMIN 登录、OFFICE/WAREHOUSE 登录、权限拒绝、备份恢复 dry-run、
           真实打印机和真实 PDA/手机扫码验证后，再正式切换给仓库使用。
         </p>
@@ -1024,6 +1071,11 @@
           </thead>
           <tbody>
             <tr>
+              <td>P5-PILOT-01 本机 rehearsal</td>
+              <td><span class="badge done">Evidence Ready</span></td>
+              <td>2026-07-08 本机 Docker full-stack 通过 healthcheck、backup、restore dry-run、SIEM export 和 Playwright pilot smoke 2/2；仅证明脚本和主业务链路可执行，不等同于 Windows 目标机验收。</td>
+            </tr>
+            <tr>
               <td>Windows 11 Docker full stack</td>
               <td><span class="badge partial">Needs Target Verification</span></td>
               <td>在目标机执行 `docker compose -f infra/docker/compose.local.yml up -d --build` 和 `scripts/healthcheck.sh`。</td>
@@ -1035,8 +1087,8 @@
             </tr>
             <tr>
               <td>账号初始化</td>
-              <td><span class="badge done">Ready</span></td>
-              <td>执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建或恢复 ADMIN，再按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER 账号。</td>
+              <td><span class="badge partial">Needs Target Verification</span></td>
+              <td>在目标机执行 `prisma db seed`，用 `SEED_ADMIN_EMAIL` 和 `SEED_ADMIN_PASSWORD` 创建或恢复 ADMIN，再按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER 账号；报告中只记录账号/角色结果，不记录密码。</td>
             </tr>
             <tr>
               <td>业务 smoke test</td>
@@ -1047,6 +1099,11 @@
               <td>备份和恢复</td>
               <td><span class="badge partial">Needs Target Verification</span></td>
               <td>在生产路径外配置 `BACKUP_DIR`，执行 PostgreSQL/storage backup 和 restore dry-run；pilot 前按 `docs/runbooks/pilot-data-cleanup-archive.md` 完成数据清理/归档签字。</td>
+            </tr>
+            <tr>
+              <td>告警和 SIEM schedule</td>
+              <td><span class="badge partial">Needs Target Schedule</span></td>
+              <td>在目标机把 `scripts/check-backups.sh`、`scripts/check-disk-usage.sh` 和 `scripts/export-siem-audit.sh` 接入 Windows Task Scheduler、cron 或本地 IT 认可的调度器；外部 SIEM collector、索引和保留策略由现场 IT 配置。</td>
             </tr>
             <tr>
               <td>生产 pilot 数据清理/归档</td>
@@ -1067,13 +1124,16 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
-          <li>P6 Exit Gate 当前仍为 Gate Blocked：Android debug APK 已可构建，但在 platform camera wiring、secure token storage 与真实设备打包验收完成前，仓库移动扫码仍可使用现有 Web/PWA mobile scan，但要注意 LAN 浏览器摄像头可能受 HTTPS 限制。</li>
+          <li>执行 `prompts/tasks/P6-MOBILE-13Windows MSIX Release Completion.md`，补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
+          <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
+          <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>
           <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
           <li>用真实包含私人/商业地址的 Excel 验证详细托盘规则：`YYC4` / `YYC6` / `YEG2`、`YVR2` / `YVR3` / `YVR4`、`YEG1`、纸箱和木箱都应显示正确 rule metadata；业务方需要确认“取整”按向上取整接受。</li>
           <li>保持 API lint 配置排除 `src/generated/**`，把 Prisma generated client 视为生成产物，不作为人工代码 lint gate。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
+          <li>P4-PRINT-03 当前不复跑 local print agent 原型：继续 PDF/manual printing，pilot checklist 记录打印机、驱动、PDF viewer、失败率和尺寸测量；有重复失败证据后再重新开 agent 任务。</li>
           <li>用真实 PDA/手机验证 mobile scan、camera scan、离线队列和重复扫码。</li>
           <li>执行 pilot checklist，并记录缺陷到 runbook/error-fix-log。</li>
         </ul>

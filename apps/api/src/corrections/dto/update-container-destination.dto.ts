@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -18,6 +19,11 @@ export class UpdateContainerDestinationDto {
   @IsOptional()
   @IsString()
   destinationType?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CARTON', 'WOODEN_CRATE', 'UNKNOWN', 'UNSPECIFIED'])
+  packageType?: string | null;
 
   @ValidateIf((_, value: unknown) => value !== undefined && value !== null)
   @Type(() => Number)

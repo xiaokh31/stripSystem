@@ -5,6 +5,7 @@ docs/
 docs/*
 !docs/adr/
 docs/adr/*
+!docs/adr/0002-printing-strategy.md
 !docs/adr/0003-native-scan-app.md
 !docs/architecture/
 docs/architecture/*
@@ -116,3 +117,25 @@ apps/mobile-scan-app/android/app/.cxx/
 apps/mobile-scan-app/android/build/
 apps/mobile-scan-app/android/app/build/
 apps/mobile-scan-app/android/local.properties
+apps/mobile-scan-app/ios/Pods/
+apps/mobile-scan-app/ios/build/
+apps/mobile-scan-app/ios/DerivedData/
+apps/mobile-scan-app/ios/.xcode.env.local
+apps/mobile-scan-app/ios/*.xcuserdata/
+apps/mobile-scan-app/ios/**/*.xcuserdata/
+apps/mobile-scan-app/windows/.vs/
+apps/mobile-scan-app/windows/**/bin/
+apps/mobile-scan-app/windows/**/obj/
+apps/mobile-scan-app/windows/**/Generated\ Files/
+
+# native signing secrets and local packages
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.mobileprovision
+*.ipa
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle

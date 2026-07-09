@@ -6,9 +6,14 @@ import { useState } from "react";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
-  parseImportFile,
+  getImportParseResult,
+  submitImportParseJob,
   type ImportFileResponse,
 } from "@/lib/api-client";
+import {
+  asyncJobFailureMessage,
+  waitForAsyncJob,
+} from "@/lib/async-job-polling";
 import {
   canTriggerParse,
   containerLinks,
@@ -35,8 +40,10 @@ export function ImportDetailActions({
   const router = useRouter();
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<ParseFailure | null>(null);
-  const [parseResult, setParseResult] =
-    useState<ParseResultSummaryData | null>(null);
+  const [parseJobId, setParseJobId] = useState<string | null>(null);
+  const [parseResult, setParseResult] = useState<ParseResultSummaryData | null>(
+    null,
+  );
 
   const currentResult = parseResult ?? initialParseResult;
   const disabled = parsing || !canTriggerParse(importFile.parseStatus);
@@ -55,10 +62,23 @@ export function ImportDetailActions({
 
     setParsing(true);
     setParseError(null);
+    setParseJobId(null);
     setParseResult(null);
 
     try {
-      const result = await parseImportFile(importFile.id);
+      const submitted = await submitImportParseJob(importFile.id);
+      setParseJobId(submitted.id);
+      const job = await waitForAsyncJob(submitted.id);
+      if (job.status !== "succeeded") {
+        setParseError({
+          code: `ASYNC_JOB_${job.status.toUpperCase()}`,
+          message: asyncJobFailureMessage(job),
+          status: 0,
+        });
+        return;
+      }
+
+      const result = await getImportParseResult(importFile.id);
       setParseResult(toParseResultSummary(result));
       router.refresh();
     } catch (error) {
@@ -87,6 +107,12 @@ export function ImportDetailActions({
       {importFile.parseStatus === "PARSING" ? (
         <p className="mt-3 text-sm text-amber-800">
           The API currently reports this import as parsing.
+        </p>
+      ) : null}
+
+      {parsing && parseJobId ? (
+        <p className="mt-3 break-all text-xs font-medium text-zinc-500">
+          {`Job ${parseJobId} submitted. Waiting for worker result.`}
         </p>
       ) : null}
 
@@ -162,9 +188,7 @@ export function ParseResultSummary({
   if (compact) {
     return (
       <div className="mt-5 border-t border-zinc-100 pt-4">
-        <p className="text-sm font-semibold text-zinc-950">
-          Parsed containers
-        </p>
+        <p className="text-sm font-semibold text-zinc-950">Parsed containers</p>
         {content}
       </div>
     );
@@ -195,7 +219,11 @@ export function ManualReportEntryPanel({
           : "border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
       }
     >
-      <h2 className={compact ? "text-sm font-semibold" : "text-base font-semibold"}>
+      <h2
+        className={
+          compact ? "text-sm font-semibold" : "text-base font-semibold"
+        }
+      >
         Manual unloading report
       </h2>
       <p className="mt-2 text-sm leading-6">

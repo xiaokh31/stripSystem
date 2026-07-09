@@ -67,7 +67,7 @@ services:
       - bestar_worker_venv:/workspace/apps/worker-python/.venv
     command: >
       sh -lc "corepack enable &&
-      pnpm install --frozen-lockfile=false &&
+      pnpm install --frozen-lockfile=false --ignore-scripts &&
       pnpm --filter api prisma generate &&
       pnpm --filter api prisma migrate deploy &&
       pnpm --filter api build &&
@@ -109,7 +109,7 @@ services:
       - bestar_web_next:/workspace/apps/web/.next
     command: >
       sh -lc "corepack enable &&
-      pnpm install --frozen-lockfile=false &&
+      pnpm install --frozen-lockfile=false --ignore-scripts &&
       pnpm --filter web build &&
       pnpm --filter web exec next start --hostname 0.0.0.0 --port 3000"
     expose:

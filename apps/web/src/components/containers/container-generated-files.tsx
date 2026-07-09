@@ -5,13 +5,17 @@ import { useState } from "react";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
-  generateContainerLabels,
-  generateContainerReport,
   getGeneratedFileDownloadUrl,
   reprintContainerLabels,
+  submitContainerLabelsJob,
+  submitContainerReportJob,
   type ContainerLabelReprintResponse,
   type GeneratedFileResponse,
 } from "@/lib/api-client";
+import {
+  asyncJobFailureMessage,
+  waitForAsyncJob,
+} from "@/lib/async-job-polling";
 import type { Locale } from "@/lib/i18n/catalog";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { formatOperationalDateTime } from "../../lib/date-time";
@@ -77,7 +81,8 @@ export function ContainerGeneratedFiles({
   const [reprint, setReprint] = useState<ReprintState>(idleReprintState);
   const [reprintReason, setReprintReason] = useState("");
   const files = newestGeneratedFiles(initialFiles);
-  const runningAction = generation.status === "running" ? generation.action : null;
+  const runningAction =
+    generation.status === "running" ? generation.action : null;
   const locked = isContainerOperationLocked(containerStatus);
   const lockedMessage = containerOperationLockMessage(containerStatus);
   const latestLabelFile =
@@ -105,18 +110,36 @@ export function ContainerGeneratedFiles({
     });
 
     try {
-      const result =
+      const submitted =
         action === "report"
-          ? await generateContainerReport(containerId)
-          : await generateContainerLabels(containerId);
+          ? await submitContainerReportJob(containerId)
+          : await submitContainerLabelsJob(containerId);
       setGeneration({
         action,
         code: null,
-        file: result.generatedFile,
+        file: null,
+        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        status: "running",
+      });
+      const job = await waitForAsyncJob(submitted.id);
+      if (job.status !== "succeeded") {
+        setGeneration({
+          action,
+          code: `ASYNC_JOB_${job.status.toUpperCase()}`,
+          file: null,
+          message: asyncJobFailureMessage(job),
+          status: "error",
+        });
+        return;
+      }
+      setGeneration({
+        action,
+        code: null,
+        file: null,
         message:
           action === "report"
-            ? "Excel report generated."
-            : "Label PDF generated.",
+            ? "Excel report generated. File history refreshed."
+            : "Label PDF generated. File history refreshed.",
         status: "success",
       });
       router.refresh();
@@ -180,7 +203,9 @@ export function ContainerGeneratedFiles({
             onClick={() => void generate("report")}
             type="button"
           >
-            {runningAction === "report" ? "Generating" : "Generate Excel Report"}
+            {runningAction === "report"
+              ? "Generating"
+              : "Generate Excel Report"}
           </button>
           <button
             className="min-h-11 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -230,9 +255,7 @@ export function ContainerGeneratedFiles({
           <div className="flex flex-wrap items-center gap-2">
             <button
               className="min-h-11 border border-amber-700 bg-amber-700 px-4 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-              disabled={
-                reprint.status === "running" || !reprintReason.trim()
-              }
+              disabled={reprint.status === "running" || !reprintReason.trim()}
               type="submit"
             >
               {reprint.status === "running"
@@ -242,7 +265,10 @@ export function ContainerGeneratedFiles({
             {latestLabelFile && isDownloadableGeneratedFile(latestLabelFile) ? (
               <a
                 className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-100"
-                href={getGeneratedFileDownloadUrl(containerId, latestLabelFile.id)}
+                href={getGeneratedFileDownloadUrl(
+                  containerId,
+                  latestLabelFile.id,
+                )}
               >
                 Download current label PDF
               </a>
@@ -365,9 +391,7 @@ function GenerationStatus({
       }`}
       role={isError ? "alert" : "status"}
     >
-      <p className="font-semibold">
-        {generation.message}
-      </p>
+      <p className="font-semibold">{generation.message}</p>
       {generation.code ? (
         <p className="mt-1 text-xs font-semibold uppercase">
           {generation.code}
@@ -468,7 +492,9 @@ function toGenerationError(
   };
 }
 
-function generatedFileFromError(details: unknown): GeneratedFileResponse | null {
+function generatedFileFromError(
+  details: unknown,
+): GeneratedFileResponse | null {
   if (!details || typeof details !== "object") {
     return null;
   }

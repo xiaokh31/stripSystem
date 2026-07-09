@@ -120,10 +120,10 @@ Device test:
 7. Tap Logout, restart the app, and confirm protected session data is cleared or
    restored only when a valid token still exists.
 
-Known limitation:
-- P6-MOBILE-03 uses a `SecureTokenStore` abstraction but the current scaffold
-  stores tokens through AsyncStorage fallback. Before pilot release, replace it
-  with Keychain, Android Keystore-backed storage, and Windows Credential Locker.
+Secure-storage note:
+- P6-MOBILE-10 replaces the original AsyncStorage token fallback. Production
+  builds require `NativeModules.BestarSecureTokenStore`; tests may explicitly
+  inject the memory token store.
 
 ## P6-MOBILE-04 Native Load Job List
 
@@ -213,10 +213,10 @@ Native camera acceptance:
    clear camera unavailable message and keep scanner-gun/manual input usable.
 
 Known limitation:
-- The current repository has a TypeScript native scanner adapter and UI, but
-  the generated Android/iOS/Windows native module implementation is not present
-  yet. Device camera acceptance requires wiring `BestarQrScanner` in platform
-  code before pilot release.
+- The current repository has the TypeScript native scanner adapter and Android
+  `BestarQrScanner` module source. iOS and Windows have reviewable native module
+  source boundaries, but the generated platform projects still need to be
+  created on their matching build machines before IPA/MSIX camera acceptance.
 
 ## P6-MOBILE-06 Native Offline Queue
 
@@ -358,13 +358,219 @@ Device smoke test when a platform package is available:
    release.
 
 Known limitation:
-- P6-MOBILE-08 documents platform packaging and adds readiness checks, but the
-  generated Android/iOS/Windows native platform projects and native camera
-  module still need platform-machine implementation before final device
+- P6-MOBILE-08 documents platform packaging and adds readiness checks. Android
+  project generation and native camera wiring are handled by P6-MOBILE-09; iOS
+  and Windows still need generated platform projects before final device
   acceptance.
 - Automatic network-recovery sync is currently triggered by API health recovery
   and manual sync. A later native platform task can add OS network-state
   listeners.
+
+## P6-MOBILE-09 Native Camera Module Wiring
+
+Purpose:
+- Keep scanner-gun/manual input available.
+- Wire Android `NativeModules.BestarQrScanner.scanOnce()` to a native camera QR
+  scanner.
+- Preserve scan submission through the existing backend scan transaction.
+- Add iOS/Windows native module source boundaries and document platform
+  build-machine blockers.
+
+Automated checks:
+
+```bash
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app package:check
+cd apps/mobile-scan-app/android
+./gradlew assembleDebug
+git diff --check
+```
+
+Manual Android device test:
+1. Install the debug APK on a camera-capable Android device.
+2. Set the API base URL to the Docker nginx LAN route.
+3. Login as WAREHOUSE and open an `IN_PROGRESS` load job.
+4. Tap `Start native camera scan`.
+5. Grant camera permission.
+6. Scan a real Bestar pallet label QR.
+7. Confirm the app submits the returned payload through
+   `POST /api/load-jobs/:id/scan` and shows backend progress.
+8. Deny camera permission on a second run and confirm scanner-gun/manual input
+   still works.
+9. Scan the same pallet again and confirm duplicate handling comes from the
+   backend.
+
+Platform notes:
+- Android source lives under `apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan`.
+  It uses CameraX and ML Kit barcode scanning for QR payload extraction.
+- iOS source lives under `apps/mobile-scan-app/ios/BestarQrScanner`. It must be
+  added to the generated Xcode app target, with `NSCameraUsageDescription` in
+  `Info.plist`, before device validation.
+- Windows source lives under `apps/mobile-scan-app/windows/BestarQrScanner`.
+  It preserves the module boundary but rejects with a clear platform blocker
+  until the React Native Windows solution and approved QR decoder dependency are
+  generated and reviewed.
+
+Known limitation:
+- P6-MOBILE-09 can be code-reviewed on this checkout. Full iOS/MSIX camera
+  acceptance still requires their generated platform projects and physical
+  devices. Android camera acceptance requires a physical/emulator device with a
+  camera and Gradle access to CameraX/ML Kit dependencies.
+
+## P6-MOBILE-10 Secure Token Storage
+
+Purpose:
+- Keep `SecureTokenStore` as the auth-session interface.
+- Store JWTs through platform secure storage, not AsyncStorage.
+- Fail explicitly when `BestarSecureTokenStore` is missing in a production
+  build.
+- Keep memory fallback limited to explicit tests.
+
+Automated checks:
+
+```bash
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app package:check
+cd apps/mobile-scan-app/android
+./gradlew assembleDebug
+git diff --check
+```
+
+Manual Android device test:
+1. Install the rebuilt APK on a device.
+2. Set the LAN API base URL and login with a real WAREHOUSE account.
+3. Close and reopen the app; confirm `GET /api/auth/me` restores the current
+   user without re-entering credentials.
+4. Tap Logout, close and reopen the app, and confirm the user remains logged
+   out.
+5. If testing with an expired or revoked token, confirm restore clears the local
+   token and shows the session-expired state.
+
+Platform notes:
+- Android source lives at
+  `apps/mobile-scan-app/android/app/src/main/java/com/bestar/nativescan/BestarSecureTokenStoreModule.kt`
+  and uses Android Keystore-backed AES-GCM.
+- iOS source lives under `apps/mobile-scan-app/ios/BestarQrScanner` and must be
+  added to the generated Xcode target before IPA validation.
+- Windows source lives under `apps/mobile-scan-app/windows/BestarQrScanner` and
+  must be added to the generated React Native Windows project before MSIX
+  validation.
+
+Known limitation:
+- Android can be compiled on this checkout. iOS and Windows secure-storage
+  device validation still require generated native projects on their platform
+  build machines.
+
+## P6-MOBILE-11 Windows / iOS Native Project Hardening
+
+Purpose:
+- Distinguish native module source boundaries from generated platform projects.
+- Make `package:check` report Android, iOS, and Windows readiness without
+  treating placeholders as ready.
+- Document exact generated project markers and platform build-machine blockers.
+- Do not add office web features or new scan business behavior.
+
+Automated checks:
+
+```bash
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app package:check
+pnpm --filter mobile-scan-app package:check -- --strict
+pnpm --filter mobile-scan-app ios
+pnpm --filter mobile-scan-app windows
+git diff --check
+```
+
+Expected result on this macOS checkout before generated projects are restored:
+
+- `package:check` exits successfully but reports iOS and Windows as blocked.
+- `package:check -- --strict` exits non-zero while iOS/Windows generated
+  markers are missing.
+- `pnpm --filter mobile-scan-app ios` is blocked until `ios/Podfile`,
+  `.xcodeproj`/`.xcworkspace`, and app `Info.plist` exist.
+- `pnpm --filter mobile-scan-app windows` is blocked until the command is run on
+  a Windows 11 machine with generated `.sln`/`.vcxproj`/`Package.appxmanifest`.
+
+Manual Windows 11 build-machine acceptance:
+
+1. Generate or restore the React Native Windows project.
+2. Confirm `windows/*.sln`, `windows/**/*.vcxproj`, and
+   `windows/**/Package.appxmanifest` exist.
+3. Add `windows/BestarQrScanner/*.cs` to the generated project.
+4. Run `pnpm --filter mobile-scan-app package:check -- --strict`.
+5. Run `pnpm --filter mobile-scan-app windows` or the release x64 build command.
+6. Record artifact paths under `windows/<AppName>/AppPackages/` or
+   `windows/x64/Release/`.
+
+Manual macOS/Xcode iOS acceptance:
+
+1. Generate or restore the React Native iOS project.
+2. Confirm `ios/Podfile`, `ios/*.xcodeproj`, `ios/*.xcworkspace`, and
+   `ios/**/Info.plist` exist.
+3. Add `ios/BestarQrScanner/*` to the generated app target.
+4. Add `NSCameraUsageDescription`.
+5. Run `pod install`.
+6. Run `pnpm --filter mobile-scan-app package:check -- --strict`.
+7. Run `pnpm --filter mobile-scan-app exec react-native build-ios --mode Debug`
+   or an Xcode simulator/device build.
+
+Known limitation:
+- P6-MOBILE-11 can harden readiness checks and document the exact platform
+  markers from this checkout. It cannot honestly mark Windows/iOS ready until
+  those generated native projects are produced on their required build machines
+  and their smoke-build results are recorded.
+
+## P6-MOBILE-12 Cross-Platform Device Smoke + P6 Exit Gate
+
+Purpose:
+- Run the final P6-MOBILE gate without adding new scan features.
+- Use Docker full-stack nginx routing and real API/load-job/pallet-label QR
+  data.
+- Record device smoke status without storing passwords, JWTs, signing secrets,
+  provisioning profiles, or private keys.
+
+Automated checks:
+
+```bash
+docker compose -f infra/docker/compose.local.yml up -d --build
+scripts/healthcheck.sh
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app package:check
+pnpm --filter api lint
+pnpm --filter api typecheck
+pnpm --filter api test
+pnpm --filter api test:e2e
+git diff --check
+```
+
+Device smoke evidence recorded on 2026-07-09:
+
+- Android real device: install/run path was validated with LAN API URL
+  configuration, real login, and native camera scan of a real pallet label QR.
+  Native app tests cover manual/scanner-gun submit, duplicate result handling,
+  offline queue sync, supervisor override validation, Dock No. requirement, and
+  complete-loading API calls.
+- iOS real device: signed install/debug was completed after Apple signing was
+  configured locally; the operator confirmed the iOS device smoke passed. Do
+  not record the device password, Apple credentials, JWT, or provisioning
+  profile in git.
+- Windows: `package:check` still reports Windows blocked because the generated
+  React Native Windows `.sln`, `.vcxproj`, and `Package.appxmanifest` are not in
+  this checkout. Windows MSIX generation and device smoke remain a platform
+  follow-up on a Windows 11 build machine.
+
+P6 exit decision:
+- P6 mobile exit gate is passed for the Android+iOS pilot route.
+- Windows MSIX is not marked ready and must stay visible in release planning
+  until a Windows 11 build-machine smoke produces and installs the MSIX.
 
 ## Before Pilot Release
 
@@ -386,4 +592,7 @@ pnpm test
 scripts/healthcheck.sh
 ```
 
-Native device packaging checks are deferred until P6-MOBILE-08.
+Native device packaging checks now follow P6-MOBILE-08 through P6-MOBILE-12:
+Android can be built from `apps/mobile-scan-app/android`; iOS has a generated
+Xcode workspace and device smoke evidence; Windows still requires its generated
+React Native Windows project before MSIX device acceptance.

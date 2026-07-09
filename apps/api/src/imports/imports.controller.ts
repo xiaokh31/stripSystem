@@ -19,13 +19,20 @@ import {
   ImportParseResultResponseDto,
 } from './dto/import-file-response.dto';
 import { ImportsService } from './imports.service';
+import { AsyncJobResponseDto } from '../async-jobs/async-job-response.dto';
+import { AsyncJobsService } from '../async-jobs/async-jobs.service';
+import { ASYNC_JOB_TARGET_TYPES } from '../async-jobs/async-jobs.types';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
+import { AsyncJobType } from '../generated/prisma/enums';
 
 @Controller('imports')
 export class ImportsController {
-  constructor(private readonly importsService: ImportsService) {}
+  constructor(
+    private readonly importsService: ImportsService,
+    private readonly asyncJobsService: AsyncJobsService,
+  ) {}
 
   @Post()
   @RequirePermissions(...ROUTE_PERMISSIONS.imports.upload)
@@ -82,6 +89,24 @@ export class ImportsController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<ImportParseResultResponseDto> {
     return this.importsService.parse(id, actor);
+  }
+
+  @Post(':id/parse-job')
+  @RequirePermissions(...ROUTE_PERMISSIONS.imports.parse)
+  submitParseJob(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<AsyncJobResponseDto> {
+    return this.asyncJobsService.submitJob({
+      jobType: AsyncJobType.UNLOADING_PARSE,
+      targetType: ASYNC_JOB_TARGET_TYPES.importFile,
+      targetId: id,
+      importFileId: id,
+      actor,
+      metadata: {
+        sourceRoute: 'POST /imports/:id/parse-job',
+      },
+    });
   }
 
   @Get(':id/parse-result')

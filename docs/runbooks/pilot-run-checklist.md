@@ -30,9 +30,50 @@ Record every failure in the issue log.
 | Test load job numbers | |
 | Backup directory | |
 | Printer model | |
+| Label stock / supplier | |
+| Printer driver version | |
+| PDF viewer / browser for labels | |
 | Scanner / PDA model | |
+| Docker Desktop version | |
+| Windows LAN IP | |
+| Secrets owner / vault reference | |
+| Monitoring / SIEM owner | |
 | Data cleanup/archive runbook owner | |
 | Account assignment runbook owner | |
+
+## 0. P5-PILOT-01 Target Deployment Gate
+
+Complete this gate on the target Windows 11 host. A developer workstation,
+macOS rehearsal, or CI run is useful evidence for scripts, but it is not a
+substitute for target host verification.
+
+Do not paste passwords, JWT secrets, private keys, or full access tokens into
+this checklist. Record only the owner, vault location, command result, file
+name, timestamp, and screenshot path.
+
+| Item | Pass / Fail / N/A | Evidence | Remarks |
+| --- | --- | --- | --- |
+| Target host is Windows 11 and Docker Desktop is running Linux containers. | | | |
+| Repository is deployed in a short non-synced local path, not OneDrive. | | | |
+| `.env` uses non-sample `POSTGRES_PASSWORD` and `JWT_SECRET`; values are stored in the company password manager. | | | |
+| `docker compose -f infra/docker/compose.local.yml up -d --build` succeeds. | | | |
+| `docker compose -f infra/docker/compose.local.yml ps` shows nginx, web, api, worker-python, postgres, and redis healthy. | | | |
+| `scripts/healthcheck.sh` passes from WSL or Git Bash. | | | |
+| `http://127.0.0.1/` opens through nginx on the target host. | | | |
+| `http://127.0.0.1/api/health` returns API and database status OK. | | | |
+| Prisma migrations and default RBAC seed have been applied through the Docker API container. | | | |
+| Real named `ADMIN`, `OFFICE`, `WAREHOUSE`, `HR_MANAGER`, and `WAREHOUSE_MANAGER` pilot accounts exist. | | | |
+| Real account login works and at least one forbidden action returns 403 for each restricted role. | | | |
+| Real Excel upload, parse, manual correction, report generation, label generation, load job scan, duplicate scan, reprint, and inventory review pass on target. | | | |
+| Printed label is measured as 150mm x 100mm and QR scans reliably from paper. | | | |
+| PDA/phone can reach the Windows LAN URL and complete a scan against the target host. | | | |
+| PostgreSQL and storage backups are created outside the repository. | | | |
+| `scripts/check-backups.sh` passes for the target backup directory. | | | |
+| PostgreSQL and storage restore dry-runs pass against approved backup files. | | | |
+| `scripts/check-disk-usage.sh` exits OK, or any warning has owner and free-space action before pilot. | | | |
+| `scripts/export-siem-audit.sh` creates JSONL files without SQL errors. | | | |
+| Backup, disk check, and SIEM export schedules are configured in Windows Task Scheduler, cron, or the approved local IT scheduler. | | | |
+| Any failure is recorded in the Issue Log and in `docs/runbooks/error-fix-log.md`. | | | |
 
 ## 1. Pre-Pilot Preparation
 
@@ -50,6 +91,8 @@ Record every failure in the issue log.
 | Backup directory is outside the repository. | | |
 | Label printer has 150mm x 100mm labels loaded. | | |
 | Print scaling is disabled. | | |
+| PDF viewer or browser print dialog is set to actual size / 100%. | | |
+| Printer driver default paper is 150mm x 100mm label stock. | | |
 | Scanner sends keyboard input plus Enter. | | |
 | Warehouse Wi-Fi coverage is acceptable at loading area. | | |
 | Staff know who can approve restore or No-Go decision. | | |
@@ -137,6 +180,9 @@ Use at least three real unloading files:
 | Reprint flow records audit event. | | |
 | Reprinted label scans successfully. | | |
 | Labels are not printed from screenshots. | | |
+| Failed labels / total labels printed is recorded. | | |
+| Print failure cause is classified if any labels fail: scaling, stock, driver, viewer, scanner, or operator workflow. | | |
+| Local print agent remains not needed, or escalation is approved with issue-log evidence. | | |
 
 ## 6. QR Scan Test
 

@@ -12,9 +12,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
+import { AsyncJobResponseDto } from '../async-jobs/async-job-response.dto';
+import { AsyncJobsService } from '../async-jobs/async-jobs.service';
+import { ASYNC_JOB_TARGET_TYPES } from '../async-jobs/async-jobs.types';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
+import { AsyncJobType } from '../generated/prisma/enums';
 import { AttendanceService } from './attendance.service';
 import {
   AttendanceImportListResponseDto,
@@ -27,7 +31,10 @@ import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-que
 
 @Controller('attendance-imports')
 export class AttendanceController {
-  constructor(private readonly attendanceService: AttendanceService) {}
+  constructor(
+    private readonly attendanceService: AttendanceService,
+    private readonly asyncJobsService: AsyncJobsService,
+  ) {}
 
   @Post()
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.upload)
@@ -74,6 +81,24 @@ export class AttendanceController {
     return this.attendanceService.parse(id);
   }
 
+  @Post(':id/parse-job')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.parse)
+  submitParseJob(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<AsyncJobResponseDto> {
+    return this.asyncJobsService.submitJob({
+      jobType: AsyncJobType.ATTENDANCE_PARSE,
+      targetType: ASYNC_JOB_TARGET_TYPES.attendanceImport,
+      targetId: id,
+      attendanceImportId: id,
+      actor,
+      metadata: {
+        sourceRoute: 'POST /attendance-imports/:id/parse-job',
+      },
+    });
+  }
+
   @Get(':id/parse-result')
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.getParseResult)
   getParseResult(
@@ -89,6 +114,24 @@ export class AttendanceController {
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<GenerateWageRecordResponseDto> {
     return this.attendanceService.generateWageRecord(id, actor);
+  }
+
+  @Post(':id/generate-wage-record-job')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.generateWageRecord)
+  submitGenerateWageRecordJob(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<AsyncJobResponseDto> {
+    return this.asyncJobsService.submitJob({
+      jobType: AsyncJobType.WAGE_RECORD_GENERATION,
+      targetType: ASYNC_JOB_TARGET_TYPES.attendanceImport,
+      targetId: id,
+      attendanceImportId: id,
+      actor,
+      metadata: {
+        sourceRoute: 'POST /attendance-imports/:id/generate-wage-record-job',
+      },
+    });
   }
 
   @Get(':id/files')

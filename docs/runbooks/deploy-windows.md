@@ -230,6 +230,47 @@ curl.exe -sS http://localhost/api/auth/me -H "Authorization: Bearer $env:TOKEN"
 curl.exe -sS http://localhost/api/users -H "Authorization: Bearer $env:TOKEN"
 ```
 
+## P5-PILOT-01 Target Verification Record
+
+Run this section on the target Windows 11 host before pilot. Do not treat a
+developer machine or macOS rehearsal as final production evidence.
+
+Never paste real passwords, JWT secrets, private keys, or full access tokens
+into reports. Record only the vault/reference owner and the command result.
+
+Minimum command evidence:
+
+```bash
+docker compose -f infra/docker/compose.local.yml up -d --build
+docker compose -f infra/docker/compose.local.yml ps
+scripts/healthcheck.sh
+
+export BACKUP_DIR=/mnt/d/bestar-backups
+BACKUP_DIR="$BACKUP_DIR" scripts/backup-postgres.sh
+BACKUP_DIR="$BACKUP_DIR" scripts/backup-storage.sh
+BACKUP_DIR="$BACKUP_DIR" scripts/check-backups.sh
+DRY_RUN=1 BACKUP_DIR="$BACKUP_DIR" scripts/restore-postgres.sh "$BACKUP_DIR/postgres-bestar_unloading-YYYYmmdd-HHMMSS.sql"
+DRY_RUN=1 scripts/restore-storage.sh "$BACKUP_DIR/storage-YYYYmmdd-HHMMSS.tar.gz"
+
+DISK_USAGE_PATHS="/mnt/c/bestar-unloading /mnt/c/bestar-unloading/storage $BACKUP_DIR" scripts/check-disk-usage.sh
+OUTPUT_DIR=/mnt/d/bestar-audit SIEM_SINCE_INTERVAL='24 hours' scripts/export-siem-audit.sh
+```
+
+Record the result in [pilot-run-checklist.md](pilot-run-checklist.md), including:
+
+- target Windows host name, Docker Desktop version, LAN IP, and Git commit
+- confirmation that sample secrets were replaced, without recording values
+- real `ADMIN`, `OFFICE`, `WAREHOUSE`, `HR_MANAGER`, and `WAREHOUSE_MANAGER`
+  account login and permission-denial evidence
+- real Excel upload, parse, correction, report, label, scan, duplicate scan,
+  reprint, and inventory evidence
+- 150mm x 100mm paper label measurement and QR scan evidence
+- backup, restore dry-run, disk check, and SIEM export evidence
+- Windows Task Scheduler, cron, or local IT scheduler entries for backup
+  freshness, disk usage, and SIEM export
+
+Record every failure or workaround in [error-fix-log.md](error-fix-log.md).
+
 ## LAN Access
 
 Find the Windows LAN IP:

@@ -35,6 +35,10 @@ describe('HealthController (e2e)', () => {
           status: 'ok',
           version: '0.0.1',
           database: { status: 'up' },
+          queue: {
+            status: 'disabled',
+            error: { code: 'QUEUE_DISABLED' },
+          },
         });
         expect(body.timestamp).toEqual(expect.any(String));
       });

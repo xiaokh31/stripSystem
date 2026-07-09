@@ -24,7 +24,17 @@ export interface RestoreSessionOptions {
 export async function restoreSession(
   options: RestoreSessionOptions,
 ): Promise<AuthSession> {
-  const token = await options.tokenStore.getToken();
+  let token: string | null;
+  try {
+    token = await options.tokenStore.getToken();
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Could not restore session.",
+      status: "error",
+      user: null,
+    };
+  }
+
   if (!token) {
     return {
       message: "Sign in with an existing warehouse account.",

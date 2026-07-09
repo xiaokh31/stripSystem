@@ -52,6 +52,130 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('updates packageType, recalculates address pallets, and writes audit rows', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'Private Address / WB-PILOT',
+      destinationType: 'PARCEL_PRIVATE',
+      packageType: 'UNKNOWN',
+      cartons: 7,
+      volume: '3.610',
+      calculatedPallets: 3,
+      finalPallets: 3,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+      warnings: [
+        {
+          code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+          field: 'packageType',
+          message:
+            'Private or commercial address package type was not recognized; manual confirmation is required.',
+        },
+      ],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        correctionNote: 'Pilot workbook review confirmed wooden crate',
+        packageType: 'WOODEN_CRATE',
+        reason: 'Package type pilot correction',
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      id: 'destination-1',
+      packageType: 'WOODEN_CRATE',
+      calculatedPallets: 7,
+      finalPallets: 7,
+      palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+      calculationBasisCbm: null,
+      roundingMode: 'PIECE_COUNT',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'packageType',
+      'calculatedPallets',
+      'palletRuleCode',
+      'calculationBasisCbm',
+      'roundingMode',
+      'warnings',
+      'finalPallets',
+    ]);
+    expect(result.corrections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldName: 'packageType',
+          oldValue: 'UNKNOWN',
+          newValue: 'WOODEN_CRATE',
+        }),
+        expect.objectContaining({
+          fieldName: 'warnings',
+          newValue: [],
+        }),
+      ]),
+    );
+    expect(prisma.containerDestination.update).toHaveBeenCalledWith({
+      where: { id: 'destination-1' },
+      data: expect.objectContaining({
+        calculatedPallets: 7,
+        finalPallets: 7,
+        packageType: 'WOODEN_CRATE',
+        palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+        calculationBasisCbm: null,
+        roundingMode: 'PIECE_COUNT',
+        warnings: [],
+      }),
+    });
+  });
+
+  it('keeps manual pallet override when packageType correction changes calculated pallets', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'Private Address / WB-MANUAL',
+      destinationType: 'PARCEL_PRIVATE',
+      packageType: 'UNKNOWN',
+      cartons: 7,
+      volume: '3.610',
+      calculatedPallets: 3,
+      manualPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+      warnings: [
+        {
+          code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+          field: 'packageType',
+          message:
+            'Private or commercial address package type was not recognized; manual confirmation is required.',
+        },
+      ],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        packageType: 'WOODEN_CRATE',
+        reason: 'Package type pilot correction',
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      packageType: 'WOODEN_CRATE',
+      calculatedPallets: 7,
+      manualPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+      roundingMode: 'PIECE_COUNT',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).not.toContain(
+      'finalPallets',
+    );
+  });
+
   it('reads full container detail with destination correction fields', async () => {
     const result = await service.getContainer('container-1');
 

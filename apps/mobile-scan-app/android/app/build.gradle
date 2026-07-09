@@ -1,0 +1,80 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.facebook.react")
+}
+
+def nodeBinary = System.getenv("NODE_BINARY")
+if (!nodeBinary) {
+    def miseNode = new File(System.getProperty("user.home"), ".local/share/mise/shims/node")
+    nodeBinary = miseNode.exists() ? miseNode.absolutePath : "node"
+}
+
+def hermesCommandPath = resolveHermesCommand()
+
+react {
+    nodeExecutableAndArgs = [nodeBinary]
+    if (hermesCommandPath) {
+        hermesCommand = hermesCommandPath
+    }
+    debuggableVariants = []
+    autolinkLibrariesWithApp()
+}
+
+android {
+    namespace "com.bestar.nativescan"
+    compileSdk 36
+    ndkVersion "27.1.12297006"
+
+    defaultConfig {
+        applicationId "com.bestar.nativescan"
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0"
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
+
+    implementation("androidx.activity:activity:1.7.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-core:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+}
+
+def resolveHermesCommand() {
+    def os = org.gradle.internal.os.OperatingSystem.current()
+    def platformDir = os.isMacOsX() ? "osx-bin" : os.isWindows() ? "win64-bin" : "linux64-bin"
+    def executable = os.isWindows() ? "hermesc.exe" : "hermesc"
+    def relativeCommandPath = "hermesc/${platformDir}/${executable}"
+
+    def directDependency = new File(rootProject.projectDir, "../node_modules/hermes-compiler/${relativeCommandPath}")
+    if (directDependency.exists()) {
+        return directDependency.absolutePath
+    }
+
+    def pnpmStore = new File(rootProject.projectDir, "../../../node_modules/.pnpm")
+    if (!pnpmStore.exists()) {
+        return ""
+    }
+
+    def candidates = pnpmStore
+        .listFiles({ File file -> file.name.startsWith("hermes-compiler@") } as FileFilter)
+        ?.sort { a, b -> b.name <=> a.name } ?: []
+
+    for (candidate in candidates) {
+        def command = new File(candidate, "node_modules/hermes-compiler/${relativeCommandPath}")
+        if (command.exists()) {
+            return command.absolutePath
+        }
+    }
+
+    return ""
+}

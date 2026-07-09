@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { NativeApiError } from "../src/api/api-error";
 import { scanLoadJobPallet } from "../src/load-jobs/load-jobs-client";
 import type { LoadJob, LoadJobScanResponse } from "../src/load-jobs/load-job-types";
+import { createNativeCameraScanner } from "../src/scan/native-camera-scanner";
 import {
   isCompleteLoadingDisabled,
   isScanSubmitDisabled,
@@ -158,6 +159,51 @@ test("scan input supports manual and scanner-gun Enter submission rules", () => 
     }),
     false,
   );
+});
+
+test("native camera scanner returns the trimmed QR payload from BestarQrScanner", async () => {
+  const scanner = createNativeCameraScanner({
+    BestarQrScanner: {
+      scanOnce: async () => "  SSP1|PALLET|PALLET-001  ",
+    },
+  });
+
+  assert.equal(await scanner.scanOnce(), "SSP1|PALLET|PALLET-001");
+});
+
+test("native camera scanner reports unavailable and invalid payload states", async () => {
+  await assert.rejects(
+    createNativeCameraScanner({}).scanOnce(),
+    /Native camera scanner module is not installed/,
+  );
+  await assert.rejects(
+    createNativeCameraScanner({
+      BestarQrScanner: {
+        scanOnce: async () => "  ",
+      },
+    }).scanOnce(),
+    /empty QR payload/,
+  );
+  await assert.rejects(
+    createNativeCameraScanner({
+      BestarQrScanner: {
+        scanOnce: async () => null,
+      },
+    }).scanOnce(),
+    /non-string QR payload/,
+  );
+});
+
+test("native camera scanner preserves platform scan errors for UI fallback", async () => {
+  const scanner = createNativeCameraScanner({
+    BestarQrScanner: {
+      scanOnce: async () => {
+        throw new Error("Camera permission denied.");
+      },
+    },
+  });
+
+  await assert.rejects(scanner.scanOnce(), /Camera permission denied/);
 });
 
 test("native supervisor override and completion controls require permission and required fields", () => {

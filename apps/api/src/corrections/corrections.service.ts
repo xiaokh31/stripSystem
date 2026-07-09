@@ -159,6 +159,57 @@ const TARGET_ID_FIELDS = [
   'unloadingWageSettlementId',
 ] as const;
 
+type PackageTypeForStorage =
+  | 'CARTON'
+  | 'WOODEN_CRATE'
+  | 'UNKNOWN'
+  | 'UNSPECIFIED';
+
+interface DestinationPalletRuleResult {
+  calculatedPallets: number;
+  calculationBasisCbm: string | null;
+  effectivePackageType: 'CARTON' | 'WOODEN_CRATE' | 'UNKNOWN' | null;
+  palletRuleCode: string;
+  roundingMode: 'CEIL' | 'PIECE_COUNT';
+  storedPackageType: PackageTypeForStorage;
+  warnings: Array<{
+    code: string;
+    destinationCode: string | null;
+    field?: string;
+    message: string;
+  }>;
+}
+
+const ADDRESS_CARTON_DIVISOR_CBM = 1.8;
+const VOLUME_1_7_DIVISOR_CBM = 1.7;
+const VOLUME_2_2_DIVISOR_CBM = 2.2;
+const YEG1_EXTRA_PALLETS = 5;
+const MIN_VOLUME_CBM = 0.01;
+const VOLUME_1_7_DESTINATIONS = new Set(['YYC4', 'YYC6', 'YEG2']);
+const VOLUME_2_2_DESTINATIONS = new Set(['YVR2', 'YVR3', 'YVR4']);
+const PARCEL_PRIVATE_TERMS = [
+  'UPS',
+  'PUROLATOR',
+  'PURO',
+  'P/A',
+  'PRIVATE',
+  'PRIVATE ADDRESS',
+  'COMMERCIAL',
+  'COMMERCIAL ADDRESS',
+  'BUSINESS ADDRESS',
+  '私人',
+  '私人地址',
+  '商业',
+  '商业地址',
+  '商業',
+  '商業地址',
+];
+const PALLET_RECALC_WARNING_CODES = new Set([
+  'NEED_CONFIRM_DESTINATION_TYPE',
+  'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+  'ZERO_VOLUME_WITH_CARTONS',
+]);
+
 @Injectable()
 export class CorrectionsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -440,7 +491,7 @@ export class CorrectionsService {
     this.addNumberChange(dto, existing, data, changes, 'cartons');
     this.addDecimalChange(dto, existing, data, changes, 'volume');
     this.addNullableStringChange(dto, existing, data, changes, 'note');
-    this.applyManualPalletsChange(dto, existing, data, changes);
+    this.applyDestinationPalletRuleChanges(dto, existing, data, changes);
     this.assertHasChanges(changes);
 
     try {
@@ -535,17 +586,32 @@ export class CorrectionsService {
         ? null
         : Number(dto.manualPallets);
     const volume = this.decimalString(dto.volume);
+    const packageType = this.normalizePackageTypeForStorage(dto.packageType);
+    const shouldCalculatePallets = this.hasProvided(dto, 'packageType');
+    const palletRule = shouldCalculatePallets
+      ? this.calculateDestinationPalletRule({
+          cartons: Number(dto.cartons),
+          destinationCode,
+          packageType,
+          volume: Number(dto.volume),
+        })
+      : null;
+    const calculatedPallets = palletRule?.calculatedPallets ?? 0;
     const createData: Prisma.ContainerDestinationUncheckedCreateInput = {
       containerId,
       destinationCode,
       destinationType: this.stringOrNull(dto.destinationType),
+      packageType,
       cartons: Number(dto.cartons),
       volume,
-      calculatedPallets: 0,
+      calculatedPallets,
       manualPallets,
-      finalPallets: manualPallets ?? 0,
+      finalPallets: manualPallets ?? calculatedPallets,
+      palletRuleCode: palletRule?.palletRuleCode ?? null,
+      calculationBasisCbm: palletRule?.calculationBasisCbm ?? null,
+      roundingMode: palletRule?.roundingMode ?? null,
       note: this.stringOrNull(dto.note),
-      warnings: [],
+      warnings: palletRule?.warnings ?? [],
       errors: [],
     };
     const change: Change = {
@@ -554,10 +620,14 @@ export class CorrectionsService {
       newValue: {
         destinationCode: createData.destinationCode,
         destinationType: createData.destinationType,
+        packageType: this.packageTypeOrNull(createData.packageType),
         cartons: createData.cartons,
         volume: createData.volume,
         manualPallets: createData.manualPallets,
         finalPallets: createData.finalPallets,
+        palletRuleCode: createData.palletRuleCode,
+        calculationBasisCbm: createData.calculationBasisCbm,
+        roundingMode: createData.roundingMode,
         note: createData.note,
       },
     };
@@ -879,13 +949,89 @@ export class CorrectionsService {
     this.addChange(existing, data, changes, fieldName, newValue);
   }
 
-  private applyManualPalletsChange(
+  private applyDestinationPalletRuleChanges(
     dto: UpdateContainerDestinationDto,
     existing: ContainerDestinationRecord,
     data: Prisma.ContainerDestinationUpdateInput,
     changes: Change[],
   ): void {
+    const shouldRecalculate =
+      this.hasProvided(dto, 'destinationCode') ||
+      this.hasProvided(dto, 'packageType') ||
+      this.hasProvided(dto, 'cartons') ||
+      this.hasProvided(dto, 'volume');
+    const nextPackageType = this.hasProvided(dto, 'packageType')
+      ? this.normalizePackageTypeForStorage(dto.packageType)
+      : this.normalizePackageTypeForStorage(existing.packageType);
+    const nextCartons = this.hasProvided(dto, 'cartons')
+      ? Number(dto.cartons)
+      : existing.cartons;
+    const nextVolume = this.hasProvided(dto, 'volume')
+      ? Number(dto.volume)
+      : (this.numberOrNull(existing.volume) ?? 0);
+    const nextDestinationCode = this.hasProvided(dto, 'destinationCode')
+      ? this.requiredString(dto.destinationCode, 'destinationCode')
+      : existing.destinationCode;
+    const rule = shouldRecalculate
+      ? this.calculateDestinationPalletRule({
+          cartons: nextCartons,
+          destinationCode: nextDestinationCode,
+          packageType: nextPackageType,
+          volume: nextVolume,
+        })
+      : null;
+
+    if (this.hasProvided(dto, 'packageType')) {
+      this.addPackageTypeChange(
+        existing,
+        data,
+        changes,
+        rule?.storedPackageType ?? nextPackageType,
+      );
+    }
+
+    if (rule) {
+      this.addChange(
+        existing,
+        data,
+        changes,
+        'calculatedPallets',
+        rule.calculatedPallets,
+      );
+      this.addChange(
+        existing,
+        data,
+        changes,
+        'palletRuleCode',
+        rule.palletRuleCode,
+      );
+      this.addChange(
+        existing,
+        data,
+        changes,
+        'calculationBasisCbm',
+        rule.calculationBasisCbm,
+      );
+      this.addChange(
+        existing,
+        data,
+        changes,
+        'roundingMode',
+        rule.roundingMode,
+      );
+      this.applyPalletWarningsChange(existing, data, changes, rule.warnings);
+    }
+
     if (!this.hasProvided(dto, 'manualPallets')) {
+      if (rule) {
+        this.addChange(
+          existing,
+          data,
+          changes,
+          'finalPallets',
+          existing.manualPallets ?? rule.calculatedPallets,
+        );
+      }
       return;
     }
 
@@ -893,7 +1039,9 @@ export class CorrectionsService {
       dto.manualPallets === null || dto.manualPallets === undefined
         ? null
         : Number(dto.manualPallets);
-    const finalPallets = manualPallets ?? existing.calculatedPallets;
+    const calculatedPallets =
+      rule?.calculatedPallets ?? existing.calculatedPallets;
+    const finalPallets = manualPallets ?? calculatedPallets;
 
     if (!this.sameValue(existing.manualPallets, manualPallets)) {
       data.manualPallets = manualPallets;
@@ -912,6 +1060,46 @@ export class CorrectionsService {
         newValue: finalPallets,
       });
     }
+  }
+
+  private addPackageTypeChange(
+    existing: ContainerDestinationRecord,
+    data: Prisma.ContainerDestinationUpdateInput,
+    changes: Change[],
+    packageType: PackageTypeForStorage,
+  ): void {
+    if (this.sameValue(existing.packageType ?? 'UNSPECIFIED', packageType)) {
+      return;
+    }
+
+    data.packageType = packageType;
+    changes.push({
+      fieldName: 'packageType',
+      oldValue: this.packageTypeOrNull(existing.packageType),
+      newValue: this.packageTypeOrNull(packageType),
+    });
+  }
+
+  private applyPalletWarningsChange(
+    existing: ContainerDestinationRecord,
+    data: Prisma.ContainerDestinationUpdateInput,
+    changes: Change[],
+    ruleWarnings: DestinationPalletRuleResult['warnings'],
+  ): void {
+    const warnings = this.mergePalletRuleWarnings(
+      existing.warnings,
+      ruleWarnings,
+    );
+    if (this.sameJsonValue(existing.warnings ?? [], warnings)) {
+      return;
+    }
+
+    data.warnings = this.nullableJsonValue(warnings);
+    changes.push({
+      fieldName: 'warnings',
+      oldValue: existing.warnings ?? null,
+      newValue: warnings,
+    });
   }
 
   private addStatusChange(
@@ -1385,6 +1573,231 @@ export class CorrectionsService {
     return value;
   }
 
+  private normalizePackageTypeForStorage(
+    value: unknown,
+  ): PackageTypeForStorage {
+    const packageType = this.stringOrNull(value);
+    if (!packageType) {
+      return 'UNSPECIFIED';
+    }
+
+    const normalized = this.normalizeText(packageType);
+    if (
+      normalized === 'CARTON' ||
+      normalized === 'CTN' ||
+      normalized === 'CTNS'
+    ) {
+      return 'CARTON';
+    }
+    if (
+      normalized === 'WOODEN_CRATE' ||
+      normalized === 'WOODEN CRATE' ||
+      normalized === 'WOOD' ||
+      normalized === 'WOODEN' ||
+      normalized === 'CRATE'
+    ) {
+      return 'WOODEN_CRATE';
+    }
+    if (normalized === 'UNKNOWN') {
+      return 'UNKNOWN';
+    }
+    if (normalized === 'UNSPECIFIED') {
+      return 'UNSPECIFIED';
+    }
+
+    throw new BadRequestException({
+      code: 'INVALID_PACKAGE_TYPE',
+      message: `Unsupported package type: ${packageType}`,
+      details: {
+        allowedValues: ['CARTON', 'WOODEN_CRATE', 'UNKNOWN', 'UNSPECIFIED'],
+        packageType,
+      },
+    });
+  }
+
+  private calculateDestinationPalletRule(input: {
+    cartons: number;
+    destinationCode: string | null;
+    packageType: PackageTypeForStorage;
+    volume: number;
+  }): DestinationPalletRuleResult {
+    const destination = input.destinationCode;
+    const normalizedDestination = this.normalizeText(destination);
+    const addressDestination = this.isPrivateCommercialDestination(
+      normalizedDestination,
+    );
+    let palletRuleCode = 'UNKNOWN_DESTINATION_VOLUME_1_7';
+    let divisor: number | null = VOLUME_1_7_DIVISOR_CBM;
+    let extraPallets = 0;
+    let roundingMode: DestinationPalletRuleResult['roundingMode'] = 'CEIL';
+    let usesPieceCount = false;
+    let effectivePackageType: DestinationPalletRuleResult['effectivePackageType'] =
+      null;
+    const warnings: DestinationPalletRuleResult['warnings'] = [];
+
+    if (this.containsDestinationCode(normalizedDestination, 'YEG1')) {
+      palletRuleCode = 'YEG1_VOLUME_1_7_PLUS_5';
+      divisor = VOLUME_1_7_DIVISOR_CBM;
+      extraPallets = YEG1_EXTRA_PALLETS;
+    } else if (
+      this.containsAnyDestinationCode(
+        normalizedDestination,
+        VOLUME_1_7_DESTINATIONS,
+      )
+    ) {
+      palletRuleCode = 'VOLUME_1_7';
+      divisor = VOLUME_1_7_DIVISOR_CBM;
+    } else if (
+      this.containsAnyDestinationCode(
+        normalizedDestination,
+        VOLUME_2_2_DESTINATIONS,
+      )
+    ) {
+      palletRuleCode = 'VOLUME_2_2';
+      divisor = VOLUME_2_2_DIVISOR_CBM;
+    } else if (addressDestination) {
+      effectivePackageType =
+        input.packageType === 'UNSPECIFIED' ? 'UNKNOWN' : input.packageType;
+      if (effectivePackageType === 'WOODEN_CRATE') {
+        palletRuleCode = 'ADDRESS_WOODEN_CRATE_PIECE_COUNT';
+        divisor = null;
+        roundingMode = 'PIECE_COUNT';
+        usesPieceCount = true;
+      } else {
+        palletRuleCode = 'ADDRESS_CARTON_VOLUME_1_8';
+        divisor = ADDRESS_CARTON_DIVISOR_CBM;
+        if (effectivePackageType === 'UNKNOWN') {
+          warnings.push({
+            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+            destinationCode: destination,
+            field: 'packageType',
+            message:
+              'Private or commercial address package type was not recognized; carton volume rule was used and manual confirmation is required.',
+          });
+        }
+      }
+    } else if (
+      normalizedDestination.includes('AMAZON') ||
+      normalizedDestination.includes('FBA') ||
+      /\b[A-Z]{3}\d\b/.test(normalizedDestination)
+    ) {
+      palletRuleCode = 'VOLUME_1_7';
+      divisor = VOLUME_1_7_DIVISOR_CBM;
+    } else {
+      warnings.push({
+        code: 'NEED_CONFIRM_DESTINATION_TYPE',
+        destinationCode: destination,
+        message:
+          'Destination type was not recognized; pallet rule needs confirmation.',
+      });
+    }
+
+    let volume = Math.max(0, input.volume);
+    const cartons = Math.max(0, Math.trunc(input.cartons));
+    if (cartons > 0 && volume === 0) {
+      warnings.push({
+        code: 'ZERO_VOLUME_WITH_CARTONS',
+        destinationCode: destination,
+        field: 'volume',
+        message: `${destination ?? '未识别目的仓'} 体积为0的有${cartons}箱，已按0.01 CBM参与托盘计算。`,
+      });
+      volume = MIN_VOLUME_CBM;
+    }
+
+    return {
+      calculatedPallets: this.calculatedPalletCount({
+        cartons,
+        divisor,
+        extraPallets,
+        usesPieceCount,
+        volume,
+      }),
+      calculationBasisCbm: divisor === null ? null : divisor.toFixed(3),
+      effectivePackageType,
+      palletRuleCode,
+      roundingMode,
+      storedPackageType: input.packageType,
+      warnings,
+    };
+  }
+
+  private calculatedPalletCount(input: {
+    cartons: number;
+    divisor: number | null;
+    extraPallets: number;
+    usesPieceCount: boolean;
+    volume: number;
+  }): number {
+    if (input.cartons <= 0 && input.volume <= 0) {
+      return 0;
+    }
+    if (input.usesPieceCount) {
+      return input.cartons;
+    }
+    if (input.divisor === null || input.divisor <= 0) {
+      return 0;
+    }
+
+    let calculated =
+      input.volume > 0 ? Math.ceil(input.volume / input.divisor) : 0;
+    if (input.cartons > 0 && calculated < 1) {
+      calculated = 1;
+    }
+    return calculated + input.extraPallets;
+  }
+
+  private mergePalletRuleWarnings(
+    existingWarnings: unknown,
+    ruleWarnings: DestinationPalletRuleResult['warnings'],
+  ): unknown[] {
+    const existingWarningItems: unknown[] = Array.isArray(existingWarnings)
+      ? existingWarnings
+      : [];
+    const preserved = existingWarningItems.filter((warning) => {
+      const code =
+        warning && typeof warning === 'object'
+          ? (warning as Record<string, unknown>).code
+          : null;
+      return typeof code !== 'string' || !PALLET_RECALC_WARNING_CODES.has(code);
+    });
+
+    return [...preserved, ...ruleWarnings];
+  }
+
+  private containsAnyDestinationCode(
+    normalizedDestination: string,
+    codes: Set<string>,
+  ): boolean {
+    for (const code of codes) {
+      if (this.containsDestinationCode(normalizedDestination, code)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private containsDestinationCode(
+    normalizedDestination: string,
+    code: string,
+  ): boolean {
+    return new RegExp(`\\b${code}\\b`).test(normalizedDestination);
+  }
+
+  private isPrivateCommercialDestination(
+    normalizedDestination: string,
+  ): boolean {
+    return PARCEL_PRIVATE_TERMS.some((term) =>
+      normalizedDestination.includes(this.normalizeText(term)),
+    );
+  }
+
+  private normalizeText(value: string | null | undefined): string {
+    if (!value) {
+      return '';
+    }
+    return value.trim().toUpperCase().replace(/\s+/g, ' ');
+  }
+
   private toCorrectionResponse(
     record: CorrectionFeedbackRecord,
   ): CorrectionFeedbackResponseDto {
@@ -1439,6 +1852,10 @@ export class CorrectionsService {
     }
 
     return left === right;
+  }
+
+  private sameJsonValue(left: unknown, right: unknown): boolean {
+    return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
   }
 
   private numberOrNull(value: unknown): number | null {

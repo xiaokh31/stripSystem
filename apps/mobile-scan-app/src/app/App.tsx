@@ -17,7 +17,7 @@ import {
   canUpdateMobileDock,
   canUseMobileScan,
 } from "../auth/mobile-permissions";
-import { AsyncStorageTokenStore } from "../auth/token-store";
+import { createNativeSecureTokenStore } from "../auth/token-store";
 import { defaultApiBaseUrl, loadLanSettings, saveApiBaseUrl } from "../config/lan-settings";
 import { getOrCreateDeviceId } from "../device/device-id";
 import {
@@ -79,10 +79,7 @@ export function App() {
     () => new AsyncStorageSettingsStore(),
     [],
   );
-  const tokenStore = useMemo(
-    () => new AsyncStorageTokenStore(settingsStore),
-    [settingsStore],
-  );
+  const tokenStore = useMemo(() => createNativeSecureTokenStore(), []);
   const offlineQueueStore = useMemo(
     () => new AsyncStorageOfflineQueueStore(settingsStore),
     [settingsStore],

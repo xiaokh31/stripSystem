@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './attendance/attendance.module';
 import { AuthModule } from './auth/auth.module';
+import { AsyncJobsModule } from './async-jobs/async-jobs.module';
 import { appConfig } from './config/app.config';
 import { CorrectionsModule } from './corrections/corrections.module';
 import { HealthModule } from './health/health.module';
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
       load: [appConfig],
     }),
     AuthModule,
+    AsyncJobsModule,
     AttendanceModule,
     PrismaModule,
     HealthModule,

@@ -4,10 +4,15 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import {
   type AttendanceImportResponse,
-  generateAttendanceWageRecord,
-  parseAttendanceImport,
+  getAttendanceParseResult,
+  submitAttendanceParseJob,
+  submitAttendanceWageRecordJob,
   uploadAttendanceImportFile,
 } from "@/lib/api-client";
+import {
+  asyncJobFailureMessage,
+  waitForAsyncJob,
+} from "@/lib/async-job-polling";
 import {
   attendanceApiErrorMessage,
   attendanceUploadError,
@@ -32,7 +37,8 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
     const validationError = attendanceUploadError(file);
     if (validationError || !file) {
       setState({
-        message: validationError ?? "Select one legacy .xls attendance workbook.",
+        message:
+          validationError ?? "Select one legacy .xls attendance workbook.",
         status: "error",
       });
       return;
@@ -49,7 +55,9 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
         inputRef.current.value = "";
       }
       setFile(null);
-      router.push(`/work-hours?attendanceImportId=${encodeURIComponent(result.id)}`);
+      router.push(
+        `/work-hours?attendanceImportId=${encodeURIComponent(result.id)}`,
+      );
       router.refresh();
     } catch (error) {
       setState({ message: attendanceApiErrorMessage(error), status: "error" });
@@ -151,7 +159,18 @@ export function AttendanceImportActions({
 
     setState({ message: "Parsing attendance workbook.", status: "running" });
     try {
-      const result = await parseAttendanceImport(attendanceImport.id);
+      const submitted = await submitAttendanceParseJob(attendanceImport.id);
+      setState({
+        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        status: "running",
+      });
+      const job = await waitForAsyncJob(submitted.id);
+      if (job.status !== "succeeded") {
+        setState({ message: asyncJobFailureMessage(job), status: "error" });
+        return;
+      }
+
+      const result = await getAttendanceParseResult(attendanceImport.id);
       setState({
         message: `Parsed ${result.rows.length} employee-day row(s).`,
         status: "success",
@@ -181,9 +200,23 @@ export function AttendanceImportActions({
       return;
     }
 
-    setState({ message: "Generating wage record workbook.", status: "running" });
+    setState({
+      message: "Generating wage record workbook.",
+      status: "running",
+    });
     try {
-      await generateAttendanceWageRecord(attendanceImport.id);
+      const submitted = await submitAttendanceWageRecordJob(
+        attendanceImport.id,
+      );
+      setState({
+        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        status: "running",
+      });
+      const job = await waitForAsyncJob(submitted.id);
+      if (job.status !== "succeeded") {
+        setState({ message: asyncJobFailureMessage(job), status: "error" });
+        return;
+      }
       setState({
         message: "Wage record generated. File history refreshed.",
         status: "success",
