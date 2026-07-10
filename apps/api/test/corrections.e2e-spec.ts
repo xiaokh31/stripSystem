@@ -95,6 +95,41 @@ describe('CorrectionsController (e2e)', () => {
     ).toBe(true);
   });
 
+  it('updates destination actual note only and lists audit rows', async () => {
+    const response = await authorizedRequest(app, officeAuthHeader())
+      .patch('/api/container-destinations/destination-1')
+      .send({
+        correctionNote: 'Office saved actual unloading note',
+        note: '  Revised actual note  ',
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      containerDestination: {
+        id: 'destination-1',
+        note: 'Revised actual note',
+      },
+      corrections: [
+        expect.objectContaining({
+          containerId: 'container-1',
+          containerDestinationId: 'destination-1',
+          correctedById: 'auth-office',
+          fieldName: 'note',
+          oldValue: null,
+          newValue: 'Revised actual note',
+          note: 'Office saved actual unloading note',
+        }),
+      ],
+    });
+
+    const list = await authorizedRequest(app, officeAuthHeader())
+      .get('/api/corrections?containerDestinationId=destination-1')
+      .expect(200);
+    const body = list.body as CorrectionListBody;
+
+    expect(body.items.map((item) => item.fieldName)).toEqual(['note']);
+  });
+
   it('updates container fields and creates correction feedback', async () => {
     const response = await authorizedRequest(app)
       .patch('/api/containers/container-1')
@@ -191,13 +226,13 @@ describe('CorrectionsController (e2e)', () => {
       destinations: [
         expect.objectContaining({
           destinationCode: 'YEG1',
-          calculatedPallets: 0,
+          calculatedPallets: 6,
           manualPallets: 4,
           finalPallets: 4,
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
-          calculatedPallets: 0,
+          calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
         }),

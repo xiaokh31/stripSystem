@@ -15,6 +15,7 @@ import { ImportDeleteButton } from "@/components/imports/import-delete-button";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
+import { translateMessage } from "@/lib/i18n/translator";
 import { canDeleteImports } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
@@ -106,6 +107,15 @@ function ImportHistory({
   imports: ImportFileListResponse;
   locale: Locale;
 }) {
+  const showingText =
+    translateMessage(
+      `Showing ${imports.items.length} latest records from the import API.`,
+      locale,
+    ) ?? `Showing ${imports.items.length} latest records from the import API.`;
+  const limitText =
+    translateMessage(`Limit ${imports.limit}, offset ${imports.offset}`, locale) ??
+    `Limit ${imports.limit}, offset ${imports.offset}`;
+
   if (imports.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -133,13 +143,9 @@ function ImportHistory({
           <h2 className="text-base font-semibold text-zinc-950">
             Recent imports
           </h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Showing {imports.items.length} latest records from the import API.
-          </p>
+          <p className="mt-1 text-sm text-zinc-600">{showingText}</p>
         </div>
-        <p className="text-xs font-medium text-zinc-500">
-          Limit {imports.limit}, offset {imports.offset}
-        </p>
+        <p className="text-xs font-medium text-zinc-500">{limitText}</p>
       </div>
 
       <div className="mt-5 overflow-x-auto">

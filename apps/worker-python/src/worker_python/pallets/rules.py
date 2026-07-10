@@ -137,7 +137,7 @@ def classify_destination(
             needs_confirmation=False,
             rule_code=RULE_ADDRESS_CARTON,
             volume_divisor_cbm=config.address_carton_divisor_cbm,
-            package_type=normalized_package_type or PACKAGE_UNKNOWN,
+            package_type=PACKAGE_CARTON,
         )
 
     if "AMAZON" in normalized or "FBA" in normalized or AMAZON_CODE_PATTERN.search(normalized):

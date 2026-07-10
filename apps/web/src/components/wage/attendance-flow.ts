@@ -2,6 +2,8 @@ import type {
   AttendanceImportResponse,
   WageGeneratedFileResponse,
 } from "@/lib/api-client";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
+import { translateMessage } from "../../lib/i18n/translator";
 
 export interface FileLike {
   name: string;
@@ -93,10 +95,12 @@ export function generatedFileAuditText(
     WageGeneratedFileResponse,
     "fileSha256" | "fileSizeBytes" | "mimeType"
   >,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
+  const sizeLabel = translateMessage("Size", locale) ?? "Size";
   return [
     `SHA-256 ${file.fileSha256 ?? "-"}`,
-    `Size ${formatFileSize(file.fileSizeBytes)}`,
+    `${sizeLabel} ${formatFileSize(file.fileSizeBytes)}`,
     `MIME ${file.mimeType ?? "-"}`,
   ].join(" | ");
 }

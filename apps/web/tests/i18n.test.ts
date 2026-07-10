@@ -20,7 +20,10 @@ test("normalizes supported and browser zh locales", () => {
 });
 
 test("locale files expose the same managed message keys", () => {
-  assert.deepEqual(Object.keys(zhMessages).sort(), Object.keys(enMessages).sort());
+  assert.deepEqual(
+    Object.keys(zhMessages).sort(),
+    Object.keys(enMessages).sort(),
+  );
   assert.equal(LOCALE_MESSAGES.en, enMessages);
   assert.equal(LOCALE_MESSAGES["zh-CN"], zhMessages);
 });
@@ -37,8 +40,7 @@ test("Chinese locale does not silently fall back to English for translatable cop
   const untranslated = Object.keys(enMessages).filter(
     (key) =>
       enMessages[key as keyof typeof enMessages] ===
-        zhMessages[key as keyof typeof zhMessages] &&
-      !allowedSameText.has(key),
+        zhMessages[key as keyof typeof zhMessages] && !allowedSameText.has(key),
   );
 
   assert.deepEqual(untranslated, []);
@@ -46,7 +48,10 @@ test("Chinese locale does not silently fall back to English for translatable cop
 
 test("translates exact UI strings between locale resources", () => {
   assert.equal(translateTextContent("Dashboard", "zh-CN"), "仪表盘");
-  assert.equal(translateTextContent("Generate Label PDF", "zh-CN"), "生成托盘面单 PDF");
+  assert.equal(
+    translateTextContent("Generate Label PDF", "zh-CN"),
+    "生成托盘面单 PDF",
+  );
   assert.equal(translateTextContent("Mobile Scan", "zh-CN"), "移动扫码");
   assert.equal(translateTextContent("移动扫码", "en"), "Mobile Scan");
 });
@@ -102,6 +107,65 @@ test("translates dynamic action and API fallback text patterns", () => {
   assert.equal(
     translateTextContent("Duplicate unloader: Alex.", "zh-CN"),
     "重复拆柜人：Alex。",
+  );
+  assert.equal(
+    translateTextContent(
+      'Delete import "wrong.xlsx" from active history? This permanently removes the original uploaded file and all related generated storage files. This action remains audited.',
+      "zh-CN",
+    ),
+    '从当前记录中删除导入 "wrong.xlsx"？这会永久删除原始上传文件和所有关联生成文件，并保留审计记录。',
+  );
+  assert.equal(
+    translateTextContent(
+      "This import already has business records and cannot be deleted. Blockers: load jobs 1, operational pallets 2.",
+      "zh-CN",
+    ),
+    "此导入已有业务记录，不能删除。阻塞项：load jobs 1, operational pallets 2。",
+  );
+});
+
+test("translates container rule metadata and warning messages", () => {
+  assert.equal(
+    translateTextContent(
+      "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
+      "zh-CN",
+    ),
+    "包装：纸箱 · 私人/商业地址纸箱按体积规则 · 基准 1.800 CBM · 向上取整",
+  );
+  assert.equal(
+    translateTextContent(
+      "Unknown destination 1.7 CBM review rule · Basis 1.700 CBM · Rounding up",
+      "zh-CN",
+    ),
+    "未知目的仓 1.7 CBM 待复核规则 · 基准 1.700 CBM · 向上取整",
+  );
+  assert.equal(
+    translateTextContent(
+      "Package wooden crate · Private/commercial wooden crate piece-count rule · Rounding by piece count",
+      "zh-CN",
+    ),
+    "包装：木箱/木架 · 私人/商业地址木箱按件数规则 · 按件数计算",
+  );
+  assert.equal(
+    translateTextContent(
+      "Destination type was not recognized; pallet rule needs confirmation.  2x",
+      "zh-CN",
+    ),
+    "目的仓类型无法识别，托盘规则需要复核。（2 次）",
+  );
+  assert.equal(
+    translateTextContent(
+      "Destination PUR volume is zero with 12 carton(s); 0.01 CBM was used for pallet calculation.",
+      "zh-CN",
+    ),
+    "目的仓 PUR 体积为 0，箱数 12；已按 0.01 CBM 参与托盘计算。",
+  );
+  assert.equal(
+    translateTextContent(
+      "包装：纸箱 · 私人/商业地址纸箱按体积规则 · 基准 1.800 CBM · 向上取整",
+      "en",
+    ),
+    "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
   );
 });
 
@@ -193,21 +257,38 @@ function shouldSkipSourceFile(file: string): boolean {
 
 const TRANSLATABLE_ATTRIBUTES = new Set([
   "aria-label",
+  "aria-description",
   "placeholder",
   "title",
   "alt",
 ]);
 
 const TRANSLATABLE_PROPERTY_NAMES = new Set([
+  "confirmText",
   "description",
   "emptyText",
   "error",
   "fallback",
+  "helpText",
   "label",
   "message",
+  "notice",
   "placeholder",
   "successText",
   "title",
+]);
+
+const TRANSLATABLE_JSX_PROP_NAMES = new Set([
+  ...TRANSLATABLE_ATTRIBUTES,
+  ...TRANSLATABLE_PROPERTY_NAMES,
+]);
+
+const TRANSLATABLE_SETTER_NAMES = new Set([
+  "alert",
+  "setError",
+  "setMessage",
+  "setNotice",
+  "setStatus",
 ]);
 
 function collectUiStrings(
@@ -222,11 +303,19 @@ function collectUiStrings(
   if (
     ts.isJsxAttribute(node) &&
     ts.isIdentifier(node.name) &&
-    TRANSLATABLE_ATTRIBUTES.has(node.name.text) &&
+    TRANSLATABLE_JSX_PROP_NAMES.has(node.name.text) &&
     node.initializer &&
     ts.isStringLiteral(node.initializer)
   ) {
     addCandidate(node.initializer.text, node.initializer, sourceFile, records);
+  }
+
+  if (
+    ts.isStringLiteralLike(node) &&
+    ts.isJsxExpression(node.parent) &&
+    node.parent.expression === node
+  ) {
+    addCandidate(node.text, node, sourceFile, records);
   }
 
   if (ts.isStringLiteralLike(node) && isLikelyUiString(node)) {
@@ -271,6 +360,14 @@ function isLikelyUiString(node: ts.StringLiteralLike): boolean {
     return true;
   }
 
+  if (
+    ts.isCallExpression(parent) &&
+    parent.arguments.includes(node) &&
+    isTranslatableCallExpression(parent.expression)
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -289,8 +386,28 @@ function isLikelyUiTemplate(node: ts.TemplateExpression): boolean {
   if (
     ts.isCallExpression(parent) &&
     parent.arguments.includes(node) &&
-    ts.isIdentifier(parent.expression) &&
-    /^(setNotice|confirm)$/.test(parent.expression.text)
+    isTranslatableCallExpression(parent.expression)
+  ) {
+    return true;
+  }
+
+  if (ts.isReturnStatement(parent)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isTranslatableCallExpression(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) {
+    return TRANSLATABLE_SETTER_NAMES.has(expression.text);
+  }
+
+  if (
+    ts.isPropertyAccessExpression(expression) &&
+    expression.name.text === "confirm" &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === "window"
   ) {
     return true;
   }
@@ -358,6 +475,10 @@ function addCandidate(
 }
 
 function shouldIgnoreCandidate(value: string): boolean {
+  if (isAllowedRawCandidate(value)) {
+    return true;
+  }
+
   return (
     value.length < 2 ||
     value === "Promise" ||
@@ -376,6 +497,17 @@ function shouldIgnoreCandidate(value: string): boolean {
     value.endsWith('."') ||
     value.endsWith(',"')
   );
+}
+
+function isAllowedRawCandidate(value: string): boolean {
+  const allowedRawPatterns = [
+    // File size units are standard technical units in both locales.
+    /^TEST (B|KB|MB)$/,
+    // Load job source labels combine container/destination/pallet-count codes.
+    /^TEST \/ TEST \/ TESTP$/,
+  ];
+
+  return allowedRawPatterns.some((pattern) => pattern.test(value));
 }
 
 function formatUiRecord(record: UiStringRecord): string {

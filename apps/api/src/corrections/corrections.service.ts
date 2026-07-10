@@ -168,7 +168,7 @@ type PackageTypeForStorage =
 interface DestinationPalletRuleResult {
   calculatedPallets: number;
   calculationBasisCbm: string | null;
-  effectivePackageType: 'CARTON' | 'WOODEN_CRATE' | 'UNKNOWN' | null;
+  effectivePackageType: 'CARTON' | 'WOODEN_CRATE' | null;
   palletRuleCode: string;
   roundingMode: 'CEIL' | 'PIECE_COUNT';
   storedPackageType: PackageTypeForStorage;
@@ -585,33 +585,31 @@ export class CorrectionsService {
       dto.manualPallets === null || dto.manualPallets === undefined
         ? null
         : Number(dto.manualPallets);
+    this.assertPositiveManualPallets(manualPallets, 'manualPallets');
     const volume = this.decimalString(dto.volume);
     const packageType = this.normalizePackageTypeForStorage(dto.packageType);
-    const shouldCalculatePallets = this.hasProvided(dto, 'packageType');
-    const palletRule = shouldCalculatePallets
-      ? this.calculateDestinationPalletRule({
-          cartons: Number(dto.cartons),
-          destinationCode,
-          packageType,
-          volume: Number(dto.volume),
-        })
-      : null;
-    const calculatedPallets = palletRule?.calculatedPallets ?? 0;
+    const palletRule = this.calculateDestinationPalletRule({
+      cartons: Number(dto.cartons),
+      destinationCode,
+      packageType,
+      volume: Number(dto.volume),
+    });
+    const calculatedPallets = palletRule.calculatedPallets;
     const createData: Prisma.ContainerDestinationUncheckedCreateInput = {
       containerId,
       destinationCode,
       destinationType: this.stringOrNull(dto.destinationType),
-      packageType,
+      packageType: palletRule.storedPackageType,
       cartons: Number(dto.cartons),
       volume,
       calculatedPallets,
       manualPallets,
       finalPallets: manualPallets ?? calculatedPallets,
-      palletRuleCode: palletRule?.palletRuleCode ?? null,
-      calculationBasisCbm: palletRule?.calculationBasisCbm ?? null,
-      roundingMode: palletRule?.roundingMode ?? null,
+      palletRuleCode: palletRule.palletRuleCode,
+      calculationBasisCbm: palletRule.calculationBasisCbm,
+      roundingMode: palletRule.roundingMode,
       note: this.stringOrNull(dto.note),
-      warnings: palletRule?.warnings ?? [],
+      warnings: palletRule.warnings,
       errors: [],
     };
     const change: Change = {
@@ -847,20 +845,32 @@ export class CorrectionsService {
     );
     const cartons = Number(dto.cartons);
     const pallets = Number(dto.pallets);
+    this.assertPositiveManualPallets(pallets, `destinations[${sequence}].pallets`);
+    const volume =
+      dto.volume === undefined || dto.volume === null
+        ? '0.000'
+        : this.decimalString(dto.volume);
+    const palletRule = this.calculateDestinationPalletRule({
+      cartons,
+      destinationCode,
+      packageType: 'CARTON',
+      volume: Number(volume),
+    });
 
     return {
       destinationCode,
       destinationType: this.stringOrNull(dto.destinationType),
+      packageType: 'CARTON',
       cartons,
-      volume:
-        dto.volume === undefined || dto.volume === null
-          ? '0.000'
-          : this.decimalString(dto.volume),
-      calculatedPallets: 0,
+      volume,
+      calculatedPallets: palletRule.calculatedPallets,
       manualPallets: pallets,
       finalPallets: pallets,
+      palletRuleCode: palletRule.palletRuleCode,
+      calculationBasisCbm: palletRule.calculationBasisCbm,
+      roundingMode: palletRule.roundingMode,
       note: this.stringOrNull(dto.note),
-      warnings: [],
+      warnings: palletRule.warnings,
       errors: [],
     };
   }
@@ -1039,6 +1049,7 @@ export class CorrectionsService {
       dto.manualPallets === null || dto.manualPallets === undefined
         ? null
         : Number(dto.manualPallets);
+    this.assertPositiveManualPallets(manualPallets, 'manualPallets');
     const calculatedPallets =
       rule?.calculatedPallets ?? existing.calculatedPallets;
     const finalPallets = manualPallets ?? calculatedPallets;
@@ -1142,6 +1153,22 @@ export class CorrectionsService {
       code: 'NO_CORRECTION_FIELDS_CHANGED',
       message: 'At least one correction field must change.',
       details: {},
+    });
+  }
+
+  private assertPositiveManualPallets(
+    value: number | null,
+    fieldName: string,
+  ): void {
+    if (value === null || value >= 1) {
+      return;
+    }
+
+    throw new BadRequestException({
+      code: 'INVALID_MANUAL_PALLETS',
+      message:
+        'Manual pallets must be 1 or greater. Delete the destination instead when there is no cargo.',
+      details: { fieldName },
     });
   }
 
@@ -1302,7 +1329,7 @@ export class CorrectionsService {
       containerId: record.containerId,
       destinationCode: record.destinationCode,
       destinationType: record.destinationType,
-      packageType: this.packageTypeOrNull(record.packageType),
+      packageType: this.effectivePackageTypeForResponse(record.packageType),
       cartons: record.cartons,
       volume: record.volume.toString(),
       calculatedPallets: record.calculatedPallets,
@@ -1387,7 +1414,9 @@ export class CorrectionsService {
         containerId: destination.containerId,
         destinationCode: destination.destinationCode,
         destinationType: destination.destinationType,
-        packageType: this.packageTypeOrNull(destination.packageType),
+        packageType: this.effectivePackageTypeForResponse(
+          destination.packageType,
+        ),
         totalCartons: destination.cartons,
         totalVolumeCbm: destination.volume.toString(),
         calculatedPallets: destination.calculatedPallets,
@@ -1573,12 +1602,22 @@ export class CorrectionsService {
     return value;
   }
 
+  private effectivePackageTypeForResponse(
+    value: string | null | undefined,
+  ): string | null {
+    const packageType = this.packageTypeOrNull(value);
+    if (!packageType || packageType === 'UNKNOWN') {
+      return 'CARTON';
+    }
+    return packageType;
+  }
+
   private normalizePackageTypeForStorage(
     value: unknown,
   ): PackageTypeForStorage {
     const packageType = this.stringOrNull(value);
     if (!packageType) {
-      return 'UNSPECIFIED';
+      return 'CARTON';
     }
 
     const normalized = this.normalizeText(packageType);
@@ -1598,11 +1637,8 @@ export class CorrectionsService {
     ) {
       return 'WOODEN_CRATE';
     }
-    if (normalized === 'UNKNOWN') {
-      return 'UNKNOWN';
-    }
-    if (normalized === 'UNSPECIFIED') {
-      return 'UNSPECIFIED';
+    if (normalized === 'UNKNOWN' || normalized === 'UNSPECIFIED') {
+      return 'CARTON';
     }
 
     throw new BadRequestException({
@@ -1657,7 +1693,7 @@ export class CorrectionsService {
       divisor = VOLUME_2_2_DIVISOR_CBM;
     } else if (addressDestination) {
       effectivePackageType =
-        input.packageType === 'UNSPECIFIED' ? 'UNKNOWN' : input.packageType;
+        input.packageType === 'WOODEN_CRATE' ? 'WOODEN_CRATE' : 'CARTON';
       if (effectivePackageType === 'WOODEN_CRATE') {
         palletRuleCode = 'ADDRESS_WOODEN_CRATE_PIECE_COUNT';
         divisor = null;
@@ -1666,15 +1702,6 @@ export class CorrectionsService {
       } else {
         palletRuleCode = 'ADDRESS_CARTON_VOLUME_1_8';
         divisor = ADDRESS_CARTON_DIVISOR_CBM;
-        if (effectivePackageType === 'UNKNOWN') {
-          warnings.push({
-            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
-            destinationCode: destination,
-            field: 'packageType',
-            message:
-              'Private or commercial address package type was not recognized; carton volume rule was used and manual confirmation is required.',
-          });
-        }
       }
     } else if (
       normalizedDestination.includes('AMAZON') ||

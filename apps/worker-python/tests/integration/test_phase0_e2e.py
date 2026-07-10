@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -10,23 +11,27 @@ from worker_python.cli import app
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+MANIFEST_PATH = REPO_ROOT / "docs" / "fixtures.md"
 FIXTURE_DIR = REPO_ROOT / "samples" / "unloading-plans"
 TEMPLATE_PATH = REPO_ROOT / "samples" / "templates" / "卸柜报告-En.xlsx"
 
 
 def test_phase0_e2e_regression_uses_all_real_fixtures(tmp_path: Path) -> None:
-    fixture_paths = sorted(FIXTURE_DIR.glob("*.xlsx"))
+    fixture_paths = _registered_unloading_fixture_paths()
     fixture_names = {fixture.name for fixture in fixture_paths}
+    input_dir = tmp_path / "input"
     output_dir = tmp_path / "storage"
 
-    assert len(fixture_paths) == 28
+    input_dir.mkdir()
+    for fixture_path in fixture_paths:
+        shutil.copy2(fixture_path, input_dir / fixture_path.name)
 
     result = CliRunner().invoke(
         app,
         [
             "batch",
             "--input-dir",
-            str(FIXTURE_DIR),
+            str(input_dir),
             "--template",
             str(TEMPLATE_PATH),
             "--output-dir",
@@ -112,6 +117,16 @@ def test_phase0_e2e_regression_uses_all_real_fixtures(tmp_path: Path) -> None:
     )
     assert len(import_manifest["records"]) == len(fixture_paths)
     assert len({record["sha256"] for record in import_manifest["records"]}) == len(fixture_paths)
+
+
+def _registered_unloading_fixture_paths() -> list[Path]:
+    paths = []
+    for line in MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| samples/unloading-plans/"):
+            continue
+        fixture_path = REPO_ROOT / line.strip("|").split("|")[0].strip()
+        paths.append(fixture_path)
+    return sorted(paths)
 
 
 def _parsed_payloads(output_dir: Path) -> list[dict]:

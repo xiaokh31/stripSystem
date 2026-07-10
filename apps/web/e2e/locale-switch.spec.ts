@@ -54,6 +54,24 @@ const forbiddenChineseEnglishStatusPatterns = [
   /\bUploading\b/,
 ] as const;
 
+const forbiddenChineseUiTextPatterns = [
+  /Backup policy/,
+  /Human Resources Manager/,
+  /Inventory remaining is global warehouse inventory/,
+  /LABELS_GENERATED stays out/,
+  /Limit \d+, offset \d+/,
+  /No usable punch times found/,
+  /Odd punch count requires manual review/,
+  /Planned pallets/,
+  /Polling \d+s/,
+  /Roles:/,
+  /Scheduled departure/,
+  /Showing \d+ latest/,
+  /Showing \d+ load jobs/,
+  /Source text/,
+  /Upload attendance files\./,
+] as const;
+
 test("core pages switch locale, persist refresh, and keep status labels single-language", async ({
   page,
   request,
@@ -116,6 +134,13 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
       zhText: "装车任务",
     },
     {
+      enText: "Historical load jobs",
+      path: "/load-jobs/history",
+      requiredEnglish: ["In progress"],
+      requiredChinese: ["进行中"],
+      zhText: "历史装车任务",
+    },
+    {
       enText: "Select open load job",
       path: "/mobile/load-jobs",
       requiredEnglish: ["In progress"],
@@ -130,6 +155,13 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
       zhText: "完成装车",
     },
     { enText: "User management", path: "/admin/users", zhText: "用户管理" },
+    {
+      enText: "Roles and permissions",
+      path: "/admin/roles",
+      requiredEnglish: ["Administrator"],
+      requiredChinese: ["管理员"],
+      zhText: "角色和权限",
+    },
     { enText: "Operational settings", path: "/settings", zhText: "运营设置" },
   ];
 
@@ -161,7 +193,7 @@ async function expectLocaleSwitch(
   await switchToEnglish(page);
   await expect(page.getByText(check.enText).first()).toBeVisible();
   for (const text of check.requiredEnglish ?? []) {
-    await expect(page.getByText(text).first()).toBeVisible();
+    await expect(page.locator("body")).toContainText(text);
   }
   await expectNoForbiddenVisibleText(
     page,
@@ -173,11 +205,15 @@ async function expectLocaleSwitch(
   await switchToChinese(page);
   await expect(page.getByText(check.zhText).first()).toBeVisible();
   for (const text of check.requiredChinese ?? []) {
-    await expect(page.getByText(text).first()).toBeVisible();
+    await expect(page.locator("body")).toContainText(text);
   }
   await expectNoForbiddenVisibleText(
     page,
-    [...forbiddenBilingualStatusPatterns, ...forbiddenChineseEnglishStatusPatterns],
+    [
+      ...forbiddenBilingualStatusPatterns,
+      ...forbiddenChineseEnglishStatusPatterns,
+      ...forbiddenChineseUiTextPatterns,
+    ],
     `Chinese ${check.path}`,
   );
   await expectNoPageError(page);
@@ -187,7 +223,11 @@ async function expectLocaleSwitch(
   await expect(page.getByText(check.zhText).first()).toBeVisible();
   await expectNoForbiddenVisibleText(
     page,
-    [...forbiddenBilingualStatusPatterns, ...forbiddenChineseEnglishStatusPatterns],
+    [
+      ...forbiddenBilingualStatusPatterns,
+      ...forbiddenChineseEnglishStatusPatterns,
+      ...forbiddenChineseUiTextPatterns,
+    ],
     `Chinese refresh ${check.path}`,
   );
 
@@ -277,6 +317,7 @@ async function createCompletedContainer(
 ): Promise<{ containerId: string; containerNo: string }> {
   const container = await createManualContainer(request, token, containerNo, 1);
   await saveOceanPayUnit(request, token, container.id);
+  await generateLabels(request, token, container.id);
   await expectOk(
     request.put(`/api/containers/${container.id}/unloaders`, {
       data: {

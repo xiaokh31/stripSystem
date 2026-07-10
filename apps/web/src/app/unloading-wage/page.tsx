@@ -365,7 +365,7 @@ function MonthSourceRecords({
                   ))}
                 </td>
                 <td className="px-3 py-4">
-                  {formatDateTime(record.completedAt)}
+                  {formatDateTime(record.completedAt, locale)}
                 </td>
                 <td className="px-3 py-4 text-right font-semibold">
                   {formatMoney(record.rateAmount, record.currency)}
@@ -450,7 +450,7 @@ function SettlementVersions({
                 {formatMoney(settlement.totalAmount, settlement.currency)}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                {formatDateTime(settlement.createdAt)}
+                {formatDateTime(settlement.createdAt, locale)}
               </p>
             </Link>
           ))}
@@ -620,7 +620,7 @@ function SettlementDetail({
                         : "-"}
                     </td>
                     <td className="px-3 py-3">
-                      {formatDateTime(line.completedAt)}
+                      {formatDateTime(line.completedAt, locale)}
                     </td>
                     <td className="px-3 py-3 text-right font-semibold">
                       {formatMoney(line.rateAmount, settlement.currency)}

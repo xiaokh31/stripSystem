@@ -52,6 +52,82 @@ describe('CorrectionsService', () => {
     });
   });
 
+  it('clears manualPallets and restores calculated finalPallets', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      calculatedPallets: 4,
+      manualPallets: 7,
+      finalPallets: 7,
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        manualPallets: null,
+        reason: 'Remove manual override',
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      manualPallets: null,
+      finalPallets: 4,
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'manualPallets',
+      'finalPallets',
+    ]);
+  });
+
+  it('rejects zero manualPallets and tells the user to delete empty destinations', async () => {
+    await expect(
+      service.updateContainerDestination(
+        'destination-1',
+        {
+          manualPallets: 0,
+          reason: 'No cargo on destination',
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'INVALID_MANUAL_PALLETS',
+        details: { fieldName: 'manualPallets' },
+      }),
+    });
+    expect(prisma.containerDestination.update).not.toHaveBeenCalled();
+    expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('updates actual note only and writes destination audit feedback', async () => {
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        correctionNote: 'Office saved actual unloading note',
+        note: '  Revised actual unloading note  ',
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      id: 'destination-1',
+      note: 'Revised actual unloading note',
+    });
+    expect(result.corrections).toHaveLength(1);
+    expect(result.corrections[0]).toMatchObject({
+      containerId: 'container-1',
+      containerDestinationId: 'destination-1',
+      fieldName: 'note',
+      oldValue: null,
+      newValue: 'Revised actual unloading note',
+      note: 'Office saved actual unloading note',
+    });
+    expect(prisma.containerDestination.update).toHaveBeenCalledWith({
+      where: { id: 'destination-1' },
+      data: { note: 'Revised actual unloading note' },
+    });
+  });
+
   it('updates packageType, recalculates address pallets, and writes audit rows', async () => {
     const destination = containersFixture(prisma)[0].destinations[0];
     Object.assign(destination, {
@@ -176,6 +252,187 @@ describe('CorrectionsService', () => {
     );
   });
 
+  it('recalculates historical unknown package destinations as carton without packageType input', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'Private Address / WB-HISTORICAL',
+      destinationType: 'PARCEL_PRIVATE',
+      packageType: 'UNKNOWN',
+      cartons: 7,
+      volume: '3.610',
+      calculatedPallets: 3,
+      finalPallets: 3,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+      warnings: [
+        {
+          code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
+          field: 'packageType',
+          message:
+            'Private or commercial address package type was not recognized; manual confirmation is required.',
+        },
+      ],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        cartons: 10,
+        volume: 3.61,
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      packageType: 'CARTON',
+      calculatedPallets: 3,
+      finalPallets: 3,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      roundingMode: 'CEIL',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'cartons',
+      'warnings',
+    ]);
+    expect(prisma.containerDestination.update).toHaveBeenCalledWith({
+      where: { id: 'destination-1' },
+      data: expect.objectContaining({
+        cartons: 10,
+        warnings: [],
+      }),
+    });
+  });
+
+  it('recalculates UPS courier destinations with carton rule during corrections', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'UPS',
+      destinationType: 'PARCEL_PRIVATE',
+      packageType: 'UNKNOWN',
+      cartons: 57,
+      volume: '5.390',
+      calculatedPallets: 0,
+      manualPallets: null,
+      finalPallets: 0,
+      palletRuleCode: null,
+      calculationBasisCbm: null,
+      roundingMode: null,
+      warnings: [],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        volume: 5.4,
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      destinationCode: 'UPS',
+      packageType: 'CARTON',
+      calculatedPallets: 3,
+      finalPallets: 3,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'volume',
+      'calculatedPallets',
+      'palletRuleCode',
+      'calculationBasisCbm',
+      'roundingMode',
+      'finalPallets',
+    ]);
+  });
+
+  it('updates actual cartons only and recalculates pallets with warnings', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'YEG1',
+      destinationType: 'WAREHOUSE',
+      cartons: 0,
+      volume: '0.000',
+      calculatedPallets: 0,
+      finalPallets: 0,
+      palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+      calculationBasisCbm: '1.700',
+      roundingMode: 'CEIL',
+      warnings: [],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        cartons: 6,
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      cartons: 6,
+      calculatedPallets: 6,
+      finalPallets: 6,
+      palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'cartons',
+      'calculatedPallets',
+      'warnings',
+      'finalPallets',
+    ]);
+    expect(result.corrections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldName: 'warnings',
+          newValue: [
+            expect.objectContaining({
+              code: 'ZERO_VOLUME_WITH_CARTONS',
+              field: 'volume',
+            }),
+          ],
+        }),
+      ]),
+    );
+  });
+
+  it('updates actual CBM only and recalculates pallets', async () => {
+    const destination = containersFixture(prisma)[0].destinations[0];
+    Object.assign(destination, {
+      destinationCode: 'YYC4',
+      cartons: 8,
+      volume: '3.390',
+      calculatedPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'VOLUME_1_7',
+      calculationBasisCbm: '1.700',
+      roundingMode: 'CEIL',
+      warnings: [],
+    });
+
+    const result = await service.updateContainerDestination(
+      'destination-1',
+      {
+        volume: 3.41,
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      volume: '3.410',
+      calculatedPallets: 3,
+      finalPallets: 3,
+      palletRuleCode: 'VOLUME_1_7',
+    });
+    expect(result.corrections.map((record) => record.fieldName)).toEqual([
+      'volume',
+      'calculatedPallets',
+      'finalPallets',
+    ]);
+  });
+
   it('reads full container detail with destination correction fields', async () => {
     const result = await service.getContainer('container-1');
 
@@ -286,17 +543,23 @@ describe('CorrectionsService', () => {
       destinations: [
         expect.objectContaining({
           destinationCode: 'YEG1',
+          packageType: 'CARTON',
           totalCartons: 36,
           totalVolumeCbm: '0.000',
+          calculatedPallets: 6,
           manualPallets: 4,
           finalPallets: 4,
+          palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
+          packageType: 'CARTON',
           totalCartons: 12,
           totalVolumeCbm: '1.500',
+          calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
+          palletRuleCode: 'VOLUME_2_2',
         }),
       ],
     });
@@ -318,21 +581,25 @@ describe('CorrectionsService', () => {
       data: expect.objectContaining({
         containerId: result.container.id,
         destinationCode: 'YEG1',
+        packageType: 'CARTON',
         cartons: 36,
-        calculatedPallets: 0,
+        calculatedPallets: 6,
         manualPallets: 4,
         finalPallets: 4,
+        palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
       }),
     });
     expect(prisma.containerDestination.create).toHaveBeenNthCalledWith(2, {
       data: expect.objectContaining({
         containerId: result.container.id,
         destinationCode: 'YVR2',
+        packageType: 'CARTON',
         cartons: 12,
         volume: '1.500',
-        calculatedPallets: 0,
+        calculatedPallets: 1,
         manualPallets: 2,
         finalPallets: 2,
+        palletRuleCode: 'VOLUME_2_2',
       }),
     });
     expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(3);
@@ -341,6 +608,33 @@ describe('CorrectionsService', () => {
         (call) => call[0].data.correctedById === 'auth-office',
       ),
     ).toBe(true);
+  });
+
+  it('rejects zero pallets when creating a manual unloading container', async () => {
+    await expect(
+      service.createManualContainer(
+        {
+          containerNo: 'MANU1234567',
+          destinations: [
+            {
+              destinationCode: 'YEG1',
+              cartons: 0,
+              pallets: 0,
+            },
+          ],
+          reason: 'No cargo on destination',
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'INVALID_MANUAL_PALLETS',
+        details: { fieldName: 'destinations[1].pallets' },
+      }),
+    });
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.containerDestination.create).not.toHaveBeenCalled();
+    expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
   });
 
   it('updates container lifecycle status and writes audit feedback', async () => {
@@ -452,16 +746,76 @@ describe('CorrectionsService', () => {
     expect(result.containerDestination).toMatchObject({
       containerId: 'container-1',
       destinationCode: 'MANUAL-YYZ',
+      packageType: 'CARTON',
       cartons: 12,
       volume: '1.250',
+      calculatedPallets: 1,
       manualPallets: 2,
       finalPallets: 2,
+      palletRuleCode: 'UNKNOWN_DESTINATION_VOLUME_1_7',
     });
     expect(result.corrections).toHaveLength(1);
     expect(result.corrections[0]).toMatchObject({
       containerId: 'container-1',
       containerDestinationId: result.containerDestination.id,
       fieldName: 'containerDestination',
+    });
+  });
+
+  it('rejects zero manualPallets when adding an actual unloading destination', async () => {
+    await expect(
+      service.createContainerDestination(
+        'container-1',
+        {
+          cartons: 0,
+          destinationCode: 'MANUAL-EMPTY',
+          manualPallets: 0,
+          volume: 0,
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'INVALID_MANUAL_PALLETS',
+        details: { fieldName: 'manualPallets' },
+      }),
+    });
+    expect(prisma.containerDestination.create).not.toHaveBeenCalled();
+    expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a private address destination without packageType as default carton', async () => {
+    const result = await service.createContainerDestination(
+      'container-1',
+      {
+        cartons: 10,
+        destinationCode: 'Private Address / WB-DEFAULT-CARTON',
+        destinationType: 'PARCEL_PRIVATE',
+        volume: 3.61,
+      },
+      officeActor,
+    );
+
+    expect(result.containerDestination).toMatchObject({
+      containerId: 'container-1',
+      destinationCode: 'Private Address / WB-DEFAULT-CARTON',
+      packageType: 'CARTON',
+      cartons: 10,
+      volume: '3.610',
+      calculatedPallets: 3,
+      manualPallets: null,
+      finalPallets: 3,
+      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculationBasisCbm: '1.800',
+      roundingMode: 'CEIL',
+    });
+    expect(prisma.containerDestination.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        packageType: 'CARTON',
+        calculatedPallets: 3,
+        finalPallets: 3,
+        warnings: [],
+      }),
     });
   });
 

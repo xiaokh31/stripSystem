@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   canManageOfficeLoadJobs,
   canViewMobileLoadJobs,
@@ -147,6 +148,16 @@ function LoadJobHistory({
   loadJobs: LoadJobListResponse;
   locale: Locale;
 }) {
+  const showingText =
+    translateMessage(
+      `Showing ${loadJobs.items.length} latest records from the load job API.`,
+      locale,
+    ) ??
+    `Showing ${loadJobs.items.length} latest records from the load job API.`;
+  const limitText =
+    translateMessage(`Limit ${loadJobs.limit}, offset ${loadJobs.offset}`, locale) ??
+    `Limit ${loadJobs.limit}, offset ${loadJobs.offset}`;
+
   if (loadJobs.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -168,15 +179,10 @@ function LoadJobHistory({
           <h2 className="text-base font-semibold text-zinc-950">
             Recent load jobs
           </h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Showing {loadJobs.items.length} latest records from the load job
-            API.
-          </p>
+          <p className="mt-1 text-sm text-zinc-600">{showingText}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-xs font-medium text-zinc-500">
-            Limit {loadJobs.limit}, offset {loadJobs.offset}
-          </p>
+          <p className="text-xs font-medium text-zinc-500">{limitText}</p>
           <Link
             className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-xs font-semibold uppercase text-zinc-700 hover:border-teal-700 hover:text-teal-900"
             href="/load-jobs/history"

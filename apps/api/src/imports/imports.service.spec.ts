@@ -88,11 +88,21 @@ describe('ImportsService', () => {
       },
       generatedFile: {
         count: jest.fn(),
+        findMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
       loadJob: {
         count: jest.fn(),
       },
       pallet: {
+        count: jest.fn(),
+        findMany: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      palletEvent: {
+        deleteMany: jest.fn(),
+      },
+      payContainerContainer: {
         count: jest.fn(),
       },
     };
@@ -187,6 +197,53 @@ describe('ImportsService', () => {
     expect(prisma.importFile.create).not.toHaveBeenCalled();
   });
 
+  it('releases a deleted duplicate SHA-256 before creating a new import', async () => {
+    const file = await loadFixtureFile();
+    const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
+    const deletedRecord = importRecord({
+      id: 'deleted-import',
+      originalFilename: file.originalname,
+      fileSha256,
+      deletedAt: new Date('2026-06-26T01:00:00.000Z'),
+      deletedById: 'auth-office',
+      deleteReason: 'Wrong customer file',
+    });
+
+    prisma.importFile.findUnique.mockResolvedValue(deletedRecord);
+    prisma.importFile.update.mockResolvedValue({
+      ...deletedRecord,
+      fileSha256: `deleted:${deletedRecord.id}:${fileSha256}`,
+    });
+    prisma.importFile.create.mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: 'import-2',
+        ...data,
+        createdAt: new Date('2026-06-26T02:00:00.000Z'),
+        updatedAt: new Date('2026-06-26T02:00:00.000Z'),
+      }),
+    );
+
+    const response = await service.importFile(file, officeActor);
+
+    expect(response).toMatchObject({
+      id: 'import-2',
+      fileSha256,
+      originalFilename: file.originalname,
+    });
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: deletedRecord.id },
+      data: {
+        fileSha256: `deleted:${deletedRecord.id}:${fileSha256}`,
+      },
+    });
+    expect(prisma.importFile.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        fileSha256,
+        originalFilename: file.originalname,
+      }),
+    });
+  });
+
   it('rejects non-xlsx uploads without database writes', async () => {
     const file = {
       originalname: 'not-a-plan.txt',
@@ -207,12 +264,13 @@ describe('ImportsService', () => {
       id: 'import-delete',
       containers: [],
     });
+    await writeFile(record.storedPath, 'original bytes');
 
     prisma.importFile.findUnique.mockResolvedValue(record);
-    prisma.generatedFile.count.mockResolvedValue(0);
-    prisma.pallet.count.mockResolvedValue(0);
+    prisma.generatedFile.findMany.mockResolvedValue([]);
+    prisma.pallet.findMany.mockResolvedValue([]);
     prisma.loadJob.count.mockResolvedValue(0);
-    prisma.correctionFeedback.count.mockResolvedValue(0);
+    prisma.payContainerContainer.count.mockResolvedValue(0);
     prisma.importFile.update.mockImplementation(({ data }) =>
       Promise.resolve({
         ...record,
@@ -241,6 +299,7 @@ describe('ImportsService', () => {
     expect(prisma.importFile.update).toHaveBeenCalledWith({
       where: { id: record.id },
       data: {
+        fileSha256: `deleted:${record.id}:${record.fileSha256}`,
         deletedAt: expect.any(Date),
         deletedById: 'auth-office',
         deleteReason: 'Wrong customer file',
@@ -265,10 +324,18 @@ describe('ImportsService', () => {
     });
 
     prisma.importFile.findUnique.mockResolvedValue(record);
-    prisma.generatedFile.count.mockResolvedValue(1);
-    prisma.pallet.count.mockResolvedValue(0);
+    prisma.generatedFile.findMany.mockResolvedValue([]);
+    prisma.pallet.findMany.mockResolvedValue([
+      {
+        id: 'pallet-1',
+        status: 'LOADED',
+        loadJobId: null,
+        loadedAt: new Date('2026-06-26T00:00:00.000Z'),
+        events: [],
+      },
+    ]);
     prisma.loadJob.count.mockResolvedValue(0);
-    prisma.correctionFeedback.count.mockResolvedValue(0);
+    prisma.payContainerContainer.count.mockResolvedValue(0);
 
     await expect(
       service.delete(record.id, { reason: 'Wrong file' }, officeActor),
@@ -351,7 +418,7 @@ describe('ImportsService', () => {
       return Promise.resolve({ count: data.length });
     });
     workerParser.parseFile.mockResolvedValue({
-      task_status: 'WARNING',
+      task_status: 'SUCCESS',
       source_file: storedPath,
       sha256: record.fileSha256,
       detection: { format_type: 'UNLOADING_PLAN_CN' },
@@ -445,6 +512,349 @@ describe('ImportsService', () => {
       calculationBasisCbm: '1.800',
       roundingMode: 'CEIL',
     });
+  });
+
+  it('matches courier summaries with missing package type to carton pallet plans', async () => {
+    const storedPath = join(storageRoot, 'ups-courier-rules.xlsx');
+    await writeFile(storedPath, 'xlsx bytes');
+    const record = importRecord({
+      id: 'import-ups-courier',
+      originalFilename: 'ups-courier-rules.xlsx',
+      storedPath,
+      fileSha256: 'ups-courier-sha256',
+    });
+    const containers: any[] = [];
+    const lines: any[] = [];
+    const destinations: any[] = [];
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.importFile.update.mockImplementation(({ data }) => {
+      Object.assign(record, data, {
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      });
+      return Promise.resolve(record);
+    });
+    prisma.container.findMany.mockImplementation(({ where, include }) => {
+      const found = containers.filter(
+        (container) => container.importFileId === where.importFileId,
+      );
+      if (!include) {
+        return Promise.resolve(
+          found.map((container) => ({ id: container.id })),
+        );
+      }
+
+      return Promise.resolve(
+        found.map((container) => ({
+          ...container,
+          lines: lines.filter((line) => line.containerId === container.id),
+          destinations: destinations.filter(
+            (destination) => destination.containerId === container.id,
+          ),
+        })),
+      );
+    });
+    prisma.container.create.mockImplementation(({ data }) => {
+      const container = {
+        id: 'container-ups',
+        ...data,
+        createdAt: new Date('2026-06-26T00:01:00.000Z'),
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      };
+      containers.push(container);
+      return Promise.resolve(container);
+    });
+    prisma.containerLine.createMany.mockImplementation(({ data }) => {
+      lines.push(
+        ...data.map((line, index) => ({
+          id: `line-${index + 1}`,
+          ...line,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    prisma.containerDestination.createMany.mockImplementation(({ data }) => {
+      destinations.push(
+        ...data.map((destination, index) => ({
+          id: `destination-${index + 1}`,
+          ...destination,
+          createdAt: new Date('2026-06-26T00:01:00.000Z'),
+          updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+        })),
+      );
+      return Promise.resolve({ count: data.length });
+    });
+    workerParser.parseFile.mockResolvedValue({
+      task_status: 'SUCCESS',
+      source_file: storedPath,
+      sha256: record.fileSha256,
+      detection: { format_type: 'UNLOADING_PLAN_CN' },
+      parsed_result: {
+        containerNo: 'UPSU1234567',
+        formatType: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        lines: [
+          {
+            rowNumber: 2,
+            destinationCode: 'UPS',
+            packageType: null,
+            deliveryMethod: '快递派送',
+            cartons: 57,
+            volumeCbm: 5.4,
+            raw_json: { 仓库代码: 'UPS', 件数: 57, 体积: 5.4 },
+          },
+        ],
+        destinationSummaries: [
+          {
+            destinationCode: 'UPS',
+            packageType: null,
+            totalCartons: 57,
+            totalVolumeCbm: 5.4,
+            lineCount: 1,
+          },
+        ],
+        warnings: [],
+        errors: [],
+        rawMetadata: { matchedSheet: 'Sheet1' },
+      },
+      pallet_result: {
+        plans: [
+          {
+            destinationCode: 'UPS',
+            destinationType: 'PARCEL_PRIVATE',
+            packageType: 'CARTON',
+            ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+            calculationBasisCbm: 1.8,
+            roundingMode: 'CEIL',
+            totalCartons: 57,
+            totalVolumeCbm: 5.4,
+            calculatedPallets: 3,
+            manualPallets: null,
+            finalPallets: 3,
+            warnings: [],
+          },
+        ],
+        warnings: [],
+        errors: [],
+      },
+      warnings: [],
+      errors: [],
+      exception: null,
+    });
+
+    const result = await service.parse(record.id, officeActor);
+
+    expect(result.containers[0].destinations).toMatchObject([
+      {
+        destinationCode: 'UPS',
+        destinationType: 'PARCEL_PRIVATE',
+        packageType: 'CARTON',
+        cartons: 57,
+        calculatedPallets: 3,
+        finalPallets: 3,
+        palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+        calculationBasisCbm: '1.800',
+        roundingMode: 'CEIL',
+      },
+    ]);
+    expect(destinations).toHaveLength(1);
+    expect(destinations[0]).toMatchObject({
+      destinationCode: 'UPS',
+      packageType: 'CARTON',
+      calculatedPallets: 3,
+      finalPallets: 3,
+    });
+  });
+
+  it('rejects worker payloads that omit pallet plans for destination summaries with goods', async () => {
+    const storedPath = join(storageRoot, 'missing-pallet-plan.xlsx');
+    await writeFile(storedPath, 'xlsx bytes');
+    const record = importRecord({
+      id: 'import-missing-plan',
+      originalFilename: 'missing-pallet-plan.xlsx',
+      storedPath,
+      fileSha256: 'missing-plan-sha256',
+    });
+    const containers: any[] = [];
+    const destinations: any[] = [];
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.importFile.update.mockImplementation(({ data }) => {
+      Object.assign(record, data, {
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      });
+      return Promise.resolve(record);
+    });
+    prisma.container.findMany.mockImplementation(({ where, include }) => {
+      const found = containers.filter(
+        (container) => container.importFileId === where.importFileId,
+      );
+      if (!include) {
+        return Promise.resolve(
+          found.map((container) => ({ id: container.id })),
+        );
+      }
+
+      return Promise.resolve(
+        found.map((container) => ({
+          ...container,
+          lines: [],
+          destinations: destinations.filter(
+            (destination) => destination.containerId === container.id,
+          ),
+        })),
+      );
+    });
+    workerParser.parseFile.mockResolvedValue({
+      task_status: 'SUCCESS',
+      source_file: storedPath,
+      sha256: record.fileSha256,
+      detection: { format_type: 'UNLOADING_PLAN_CN' },
+      parsed_result: {
+        containerNo: 'MISS1234567',
+        formatType: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        lines: [],
+        destinationSummaries: [
+          {
+            destinationCode: 'YYC4',
+            packageType: null,
+            totalCartons: 10,
+            totalVolumeCbm: 3.4,
+            lineCount: 1,
+          },
+        ],
+        warnings: [],
+        errors: [],
+        rawMetadata: { matchedSheet: 'Sheet1' },
+      },
+      pallet_result: {
+        plans: [],
+        warnings: [],
+        errors: [],
+      },
+      warnings: [],
+      errors: [],
+      exception: null,
+    });
+
+    const result = await service.parse(record.id, officeActor);
+
+    expect(result.importFile).toMatchObject({
+      id: record.id,
+      parseStatus: 'ERROR',
+      errorCount: 1,
+      errorMessage:
+        'Worker returned a destination summary with goods but no matching pallet plan.',
+    });
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: 'MISSING_PALLET_PLAN',
+        destinationCode: 'YYC4',
+      }),
+    ]);
+    expect(result.containers).toEqual([]);
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.containerDestination.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects worker payloads that calculate zero pallets for cartons with volume', async () => {
+    const storedPath = join(storageRoot, 'zero-pallet-plan.xlsx');
+    await writeFile(storedPath, 'xlsx bytes');
+    const record = importRecord({
+      id: 'import-zero-plan',
+      originalFilename: 'zero-pallet-plan.xlsx',
+      storedPath,
+      fileSha256: 'zero-plan-sha256',
+    });
+    const containers: any[] = [];
+
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.importFile.update.mockImplementation(({ data }) => {
+      Object.assign(record, data, {
+        updatedAt: new Date('2026-06-26T00:01:00.000Z'),
+      });
+      return Promise.resolve(record);
+    });
+    prisma.container.findMany.mockImplementation(({ where, include }) => {
+      const found = containers.filter(
+        (container) => container.importFileId === where.importFileId,
+      );
+      if (!include) {
+        return Promise.resolve(
+          found.map((container) => ({ id: container.id })),
+        );
+      }
+      return Promise.resolve(found);
+    });
+    workerParser.parseFile.mockResolvedValue({
+      task_status: 'SUCCESS',
+      source_file: storedPath,
+      sha256: record.fileSha256,
+      detection: { format_type: 'UNLOADING_PLAN_CN' },
+      parsed_result: {
+        containerNo: 'ZERO1234567',
+        formatType: 'UNLOADING_PLAN_CN',
+        parserVersion: 'unloading-plan-cn-v1',
+        lines: [],
+        destinationSummaries: [
+          {
+            destinationCode: 'UPS',
+            packageType: 'CARTON',
+            totalCartons: 57,
+            totalVolumeCbm: 5.4,
+            lineCount: 1,
+          },
+        ],
+        warnings: [],
+        errors: [],
+        rawMetadata: { matchedSheet: 'Sheet1' },
+      },
+      pallet_result: {
+        plans: [
+          {
+            destinationCode: 'UPS',
+            destinationType: 'PARCEL_PRIVATE',
+            packageType: 'CARTON',
+            ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+            calculationBasisCbm: 1.8,
+            roundingMode: 'CEIL',
+            totalCartons: 57,
+            totalVolumeCbm: 5.4,
+            calculatedPallets: 0,
+            manualPallets: null,
+            finalPallets: 0,
+            warnings: [],
+          },
+        ],
+        warnings: [],
+        errors: [],
+      },
+      warnings: [],
+      errors: [],
+      exception: null,
+    });
+
+    const result = await service.parse(record.id, officeActor);
+
+    expect(result.importFile).toMatchObject({
+      id: record.id,
+      parseStatus: 'ERROR',
+      errorCount: 1,
+      errorMessage:
+        'Worker returned zero calculated pallets for a destination with cartons and volume.',
+    });
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: 'INVALID_ZERO_CALCULATED_PALLETS',
+        destinationCode: 'UPS',
+      }),
+    ]);
+    expect(result.containers).toEqual([]);
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.containerDestination.createMany).not.toHaveBeenCalled();
   });
 
   it('persists mixed private address package rule buckets without collapsing them', async () => {
@@ -550,7 +960,7 @@ describe('ImportsService', () => {
           {
             rowNumber: 4,
             destinationCode: 'Private Address / ADDR-UNKNOWN',
-            packageType: 'UNKNOWN',
+            packageType: 'CARTON',
             deliveryMethod: 'LTL',
             cartons: 10,
             volumeCbm: 3.61,
@@ -574,19 +984,13 @@ describe('ImportsService', () => {
           },
           {
             destinationCode: 'Private Address / ADDR-UNKNOWN',
-            packageType: 'UNKNOWN',
+            packageType: 'CARTON',
             totalCartons: 10,
             totalVolumeCbm: 3.61,
             lineCount: 1,
           },
         ],
-        warnings: [
-          {
-            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
-            field: 'packageType',
-            message: 'Manual confirmation required.',
-          },
-        ],
+        warnings: [],
         errors: [],
         rawMetadata: { matchedSheet: 'Sheet1' },
       },
@@ -623,7 +1027,7 @@ describe('ImportsService', () => {
           {
             destinationCode: 'Private Address / ADDR-UNKNOWN',
             destinationType: 'PARCEL_PRIVATE',
-            packageType: 'UNKNOWN',
+            packageType: 'CARTON',
             ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
             calculationBasisCbm: 1.8,
             roundingMode: 'CEIL',
@@ -632,28 +1036,13 @@ describe('ImportsService', () => {
             calculatedPallets: 3,
             manualPallets: null,
             finalPallets: 3,
-            warnings: [
-              {
-                code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
-                message: 'Manual confirmation required.',
-              },
-            ],
+            warnings: [],
           },
         ],
-        warnings: [
-          {
-            code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
-            message: 'Manual confirmation required.',
-          },
-        ],
+        warnings: [],
         errors: [],
       },
-      warnings: [
-        {
-          code: 'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
-          message: 'Manual confirmation required.',
-        },
-      ],
+      warnings: [],
       errors: [],
       exception: null,
     });
@@ -683,7 +1072,7 @@ describe('ImportsService', () => {
       },
       {
         destinationCode: 'Private Address / ADDR-UNKNOWN',
-        packageType: 'UNKNOWN',
+        packageType: 'CARTON',
         cartons: 10,
         calculatedPallets: 3,
         finalPallets: 3,
@@ -702,7 +1091,7 @@ describe('ImportsService', () => {
     ).toEqual([
       ['Private Address / ADDR-MIXED', 'CARTON', 2],
       ['Private Address / ADDR-MIXED', 'WOODEN_CRATE', 7],
-      ['Private Address / ADDR-UNKNOWN', 'UNKNOWN', 3],
+      ['Private Address / ADDR-UNKNOWN', 'CARTON', 3],
     ]);
   });
 

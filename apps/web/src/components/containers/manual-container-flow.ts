@@ -92,6 +92,7 @@ export function buildManualContainerRequest(
     const pallets = parseWholeNumber(
       destination.pallets,
       `Destination ${index + 1} pallets`,
+      { minimum: 1 },
     );
     if (!pallets.ok) {
       return pallets;
@@ -131,10 +132,19 @@ export function buildManualContainerRequest(
 function parseWholeNumber(
   value: string,
   label: string,
+  options: { minimum?: 0 | 1 } = {},
 ): { ok: true; value: number } | { error: string; ok: false } {
   const trimmed = value.trim();
   const parsed = Number(trimmed);
-  if (!trimmed || !Number.isInteger(parsed) || parsed < 0) {
+  const minimum = options.minimum ?? 0;
+  if (!trimmed || !Number.isInteger(parsed) || parsed < minimum) {
+    if (minimum === 1) {
+      return {
+        error: `${label} must be a whole number of 1 or greater. Delete the destination row instead when there is no cargo.`,
+        ok: false,
+      };
+    }
+
     return {
       error: `${label} must be a whole number of 0 or greater.`,
       ok: false,

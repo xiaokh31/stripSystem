@@ -173,7 +173,7 @@ def test_pallet_calculator_keeps_mixed_address_packages_in_separate_rule_buckets
     assert result.totalFinalPallets == 9
 
 
-def test_pallet_calculator_warns_and_uses_carton_rule_for_unknown_address_package() -> None:
+def test_pallet_calculator_defaults_missing_address_package_to_carton_without_warning() -> None:
     result = calculate_pallets(
         (
             PalletCalculationInput(
@@ -188,13 +188,34 @@ def test_pallet_calculator_warns_and_uses_carton_rule_for_unknown_address_packag
 
     plan = result.plans[0]
     assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
-    assert plan.packageType == "UNKNOWN"
+    assert plan.packageType == "CARTON"
     assert plan.calculatedPallets == 3
-    assert any(
-        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
-        and warning.destinationCode == "Private Address / UNKNOWN"
-        for warning in result.warnings
+    assert not any(warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED" for warning in result.warnings)
+
+
+@pytest.mark.parametrize("destination_code", ["UPS", "PUROLATOR", "PURO", "P/A"])
+def test_pallet_calculator_defaults_courier_destinations_to_carton(
+    destination_code: str,
+) -> None:
+    result = calculate_pallets(
+        (
+            PalletCalculationInput(
+                destinationCode=destination_code,
+                packageType=None,
+                totalCartons=57,
+                totalVolumeCbm=5.4,
+                lineCount=1,
+            ),
+        )
     )
+
+    plan = result.plans[0]
+    assert plan.destinationType == "PARCEL_PRIVATE"
+    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
+    assert plan.packageType == "CARTON"
+    assert plan.volumeDivisorCbm == pytest.approx(1.8)
+    assert plan.calculatedPallets == 3
+    assert plan.finalPallets == 3
 
 
 def test_pallet_calculator_uses_destination_rules_for_real_fba_warehouse(tmp_path: Path) -> None:
@@ -213,7 +234,7 @@ def test_pallet_calculator_uses_destination_rules_for_real_fba_warehouse(tmp_pat
     assert len(set(plan.palletIds)) == 8
 
 
-def test_pallet_calculator_warns_for_real_private_address_without_package_type(tmp_path: Path) -> None:
+def test_pallet_calculator_defaults_real_private_address_to_carton(tmp_path: Path) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
     parsed = parse_unloading_plan_cn(imported.stored_path)
     inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
@@ -222,13 +243,9 @@ def test_pallet_calculator_warns_for_real_private_address_without_package_type(t
 
     plan = _plan(result, "Private Address / SZCA2604054725")
     assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
-    assert plan.packageType == "UNKNOWN"
+    assert plan.packageType == "CARTON"
     assert plan.calculatedPallets == 4
-    assert any(
-        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
-        and warning.destinationCode == "Private Address / SZCA2604054725"
-        for warning in result.warnings
-    )
+    assert not any(warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED" for warning in result.warnings)
 
 
 def test_pallet_calculator_floors_small_positive_volume_to_one_pallet(

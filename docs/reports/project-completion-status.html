@@ -277,22 +277,44 @@
           English -> 中文 -> English 切换、中文刷新持久化、container/pallet/load-job/wage
           状态单语显示和禁止双语状态混排；同时修复 server component 页面切换语言时
           状态文案未按 cookie locale 重渲染的问题，并兼容历史中英 display status。
+          WEB-I18N-01 已完成现场反馈后的二次全量缺口审计：扩展 i18n AST
+          抽取到 JSX string expression、`aria-description`、help/notice/confirm
+          属性、setter/confirm/alert 和 return template sample，补齐删除确认、
+          生成失败补充说明、上传多文件、parser issue fallback 等 dynamic catalog；
+          现场反馈后再次补齐 runtime 漏项：work-hours/load-jobs/imports 动态计数、
+          inventory polling、admin roles API 返回的角色/权限说明、settings 工资费率说明、
+          Work Hours 日期/文件审计摘要、pay container 中文术语和 unloading summary 状态说明；
+          locale-switch E2E 已覆盖 15 个核心页面并通过。WEB-I18N-02 已修复
+          `SMCU1225466` 暴露出的柜子详情页 rule metadata 与 warning message
+          本地化缺口：known pallet rule、package type、rounding mode 和 parser /
+          calculator warning code 会先规范成 canonical copy，再由 i18n exact/dynamic
+          catalog 翻译，保留柜号、目的仓、承运商等 source data。
           UNLOAD-PALLET-01 至 UNLOAD-PALLET-03 已完成详细托盘计算规则升级：
           worker 计算从通用体积/高度估算改为目的仓和地址包装类型规则，覆盖
           `YYC4` / `YYC6` / `YEG2` 按 1.7 CBM、`YVR2` / `YVR3` / `YVR4`
           按 2.2 CBM、`YEG1` 按 1.7 CBM 后额外加 5 托、私人/商业纸箱
-          按 1.8 CBM、私人/商业木箱按件数，并对未知包装类型产生人工确认 warning；
+          按 1.8 CBM、私人/商业木箱按件数；UNLOAD-PALLET-05 已将缺失、
+          `UNKNOWN` 和 `UNSPECIFIED` 包装类型默认等价为 `CARTON`，不再产生
+          package confirmation warning；
           API 已通过 migration 持久化 `packageType`、`palletRuleCode`、
           `calculationBasisCbm` 和 `roundingMode`，report、label、container detail
-          和 task report 均可追溯托盘计算依据。UNLOAD-PALLET-04 已补齐
-          container detail packageType 人工修正入口、API 自动重算和 correction
-          audit；由于真实 pilot 私人/商业地址 workbook 尚未提供，包装类型现场识别
+          和 task report 均可追溯托盘计算依据。普通 container detail / corrections
+          UI 已隐藏 package selector，新增或修正 destination 不需要办公室人员选择包装。
+          UNLOAD-PALLET-07 已修复 UPS/PUROLATOR/PURO/P/A courier destination
+          有箱数和体积却落库为 0 托的回归：parser 保留 UPS 目的地并默认 `CARTON`，
+          API import 使用规范化 packageType key 匹配 summary 与 pallet plan，
+          correction、report、label 和 container detail 回归测试均覆盖 UPS 57 箱
+          / 5.4 CBM -> 3 托。
+          由于真实 pilot 私人/商业地址 workbook 尚未提供，明确木箱现场识别
           仍标记为 Needs Pilot Verification。2026-07-07 本轮补齐上线前运维
           readiness：API structured JSON logs、HTTP request/exception logs、
           backup freshness alert、disk usage alert、SIEM audit JSONL export 和
           monitoring runbook 已加入；Docker full-stack pilot smoke 已用真实
           unloading plan 派生 Excel 通过上传、解析、报告、label、load job、扫码和
-          duplicate scan 全链路。2026-07-09 本轮重新复查发现 API E2E
+          duplicate scan 全链路。IMPORT-DELETE-01 已完成导入删除 storage
+          清理：删除导入会校验 storage root 后逐个删除原始上传清单和关联
+          generated files，保留业务使用 blocker 和 correction feedback 审计。
+          2026-07-09 本轮重新复查发现 API E2E
           仍受 BullMQ/ioredis teardown 问题影响，不能记录为全量通过。
         </p>
         <div class="grid">
@@ -660,6 +682,20 @@
               <td>新增 `apps/web/e2e/locale-switch.spec.ts`，使用真实 ADMIN 账号通过 API 准备 attendance import、generated wage file、unloading wage settlement、`UNLOADED` / `LOADING_IN_PROGRESS` / `LOADED` container、load job scan 和 mobile scan fixture；覆盖 `/`、`/imports`、`/containers`、container detail、`/reports/inventory`、`/work-hours`、`/unloading-wage`、`/unloading-summary`、`/load-jobs`、`/mobile/load-jobs`、mobile scan、`/admin/users`、`/settings`。测试逐页执行 English -> 中文 -> refresh -> English，验证 cookie/browser locale persistence、container `LOADED=Delivered to destination/已送库`、pallet/load scan `Loaded/Loaded pallet/Complete loading=已装车/已装托盘/完成装车`，并禁止 `已拆完 (UNLOADED)`、`已送库 (LOADED)`、`Unloaded / 已拆完`、`Delivered to destination / 已送库` 等可见双语状态。</td>
               <td>修复语言切换器：切换 locale 时先持久化 `bestar_locale`，再刷新当前页面，让 server component 状态 label 按 cookie locale 重渲染，避免仅靠 DOM translator 处理 `Uploaded` 等上下文歧义词。`status-labels.ts` 增加 legacy 中英 display status alias，兼容历史 API/import 数据中的 `已拆完`、`Unloaded`、`Warning` 等旧值；旧 unloading wage smoke 改用英文 canonical 按钮文案，避免依赖前序测试留下的 locale。已通过 `pnpm --filter web lint`、`pnpm --filter web typecheck`、`pnpm --filter web test`（147 tests）、`pnpm --filter web build`、`docker compose -f infra/docker/compose.local.yml restart web nginx`、`scripts/healthcheck.sh`、`pnpm --filter web exec playwright test e2e/locale-switch.spec.ts`（chromium + mobile-chrome 2 passed）和完整 `pnpm --filter web test:e2e`（28 passed）。</td>
             </tr>
+            <tr>
+              <td>Stage 6.11: WEB-I18N-01 Full Localization Gap Audit + Runtime Coverage</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Web i18n audit</td>
+              <td>完成现场反馈后的 Web i18n 二次缺口审计：`apps/web/tests/i18n.test.ts` 现在覆盖 JSX text、JSX string literal expression、`aria-label` / `aria-description` / placeholder / title / alt、object `helpText` / `notice` / `confirmText` 等用户可见字段、`setMessage` / `setNotice` / `setError` / `setStatus` / `window.confirm` / `alert` 调用，以及 return template sample。补齐 split text node 导致的 `Showing` / `Limit` / `Roles` / `Polling` 动态句式、admin roles API 返回的角色/权限说明、settings 工资费率说明、work-hours 表头/状态/日期/文件审计摘要、unloading summary 状态过滤说明和 pay container 中文术语；技术代码、文件 MIME、SHA-256、角色 code、柜号/托盘号/员工姓名保留为 raw source-data 例外。</td>
+              <td>已通过 `CI=true pnpm --filter web lint`、`CI=true pnpm --filter web test -- i18n`（159 passed，0 unmanaged UI strings）、`CI=true pnpm --filter web typecheck`、Docker full-stack web rebuild（Next production build compiled successfully and TypeScript finished）、非沙箱 `CI=true E2E_ADMIN_EMAIL=admin@bestarcca.com E2E_ADMIN_PASSWORD='Bestar-Admin-Local-2026!' pnpm --filter web exec playwright test e2e/locale-switch.spec.ts --project=chromium`（1 passed）和运行时中文文本审计。host `pnpm --filter web build` 在 macOS 本机受缺失 `@next/swc-darwin-x64` optional native package / network 限制阻塞；Docker Linux production build 已作为本项目 runbook 验证路径通过。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.12: WEB-I18N-02 Container Detail Rule Warning Localization</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Web i18n audit</td>
+              <td>修复柜子详情页 rule metadata 和 warning message 未本地化问题。`container-detail-flow.ts` 现在把 known `palletRuleCode`、`packageType`、`roundingMode` 和 parser/calculator warning code 规范为稳定 user-facing copy：`ADDRESS_CARTON_VOLUME_1_8` 显示为私人/商业地址纸箱按体积规则，`UNKNOWN_DESTINATION_VOLUME_1_7` 显示为未知目的仓 1.7 CBM 待复核规则，`CEIL` 显示为向上取整；`NEED_CONFIRM_DESTINATION_TYPE`、`ZERO_VOLUME_WITH_CARTONS`、missing destination/cartons/volume、waybill/courier warning 等都进入可翻译文案。i18n dynamic catalog 支持整句 rule summary、重复 warning count、带目的仓/行号/箱数的 zero-volume warning 和中文切回英文。</td>
+              <td>本地 PostgreSQL 仍保留 `SMCU1225466`，已确认真实记录包含 `PUR` / `NEED_CONFIRM_DESTINATION_TYPE`、UPS / 私人地址 `ADDRESS_CARTON_VOLUME_1_8`、YEG/YVR/YYC volume rules。已通过 `env CI=true pnpm --filter web test -- container-detail-flow.test.ts i18n.test.ts`（实际 web node:test 162 passed，0 unmanaged UI strings）、`env CI=true pnpm --filter web typecheck`、`env CI=true pnpm --filter web lint`、targeted `git diff --check`、Docker web/nginx production restart + `scripts/healthcheck.sh`，以及 authenticated runtime DOM check：`/containers/cmreiput200047lmt3pl8pdis` 中文可见文本包含私人/商业地址纸箱规则、未知目的仓待复核规则、warning 中文文案和向上取整，不包含 raw rule/warning code。</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -669,9 +705,12 @@
         <p class="note">
           本段跟踪 2026-07-07 新增的详细托盘计算规则。结论：UNLOAD-PALLET-01、
           UNLOAD-PALLET-02、UNLOAD-PALLET-03 已在当前代码中完成到 worker/API/Web
-          review 和回归测试范围；UNLOAD-PALLET-04 的 correction workflow 已补齐，
-          真实 pilot workbook 验证待业务提供样本后关闭。规则按向上取整执行，不使用四舍五入。后续如果业务确认
-          “取整”实际是向下截断，需要重新开规则变更任务。
+          review 和回归测试范围；UNLOAD-PALLET-05 已完成默认纸箱和隐藏 package
+          selector 口径修复；UNLOAD-PALLET-06 已完成 destination correction 保存
+          回归；UNLOAD-PALLET-07 已完成 UPS/courier destination 0 托现场回归修复；
+          UNLOAD-PALLET-04 的真实 pilot workbook 验证待业务提供样本后关闭。
+          规则按向上取整执行，不使用四舍五入。后续如果业务确认“取整”实际是
+          向下截断，需要重新开规则变更任务。
         </p>
         <table>
           <thead>
@@ -688,7 +727,7 @@
               <td>UNLOAD-PALLET-01 Detailed Pallet Rule Worker Calculator</td>
               <td><span class="badge done">Done</span></td>
               <td>Worker rules</td>
-              <td>`apps/worker-python/src/worker_python/pallets/rules.py` 与 `calculator.py` 已新增 rule code、package type、volume divisor、piece-count 和 rounding metadata；`unloading_plan_cn.py` 已解析/归集 `packageType`，私人/商业地址未知包装类型产生 `PACKAGE_TYPE_CONFIRMATION_REQUIRED` warning；worker tests 覆盖 `YYC4` / `YYC6` / `YEG2` 1.7 CBM、`YVR2` / `YVR3` / `YVR4` 2.2 CBM、`YEG1` 1.7 CBM + 5、纸箱 1.8 CBM、木箱按件数、混合包装按 rule bucket 分开计算、manual pallets override 和 unknown destination warning。</td>
+              <td>`apps/worker-python/src/worker_python/pallets/rules.py` 与 `calculator.py` 已新增 rule code、package type、volume divisor、piece-count 和 rounding metadata；`unloading_plan_cn.py` 已解析/归集 `packageType`，私人/商业地址缺失包装类型默认 `CARTON`，不再产生 `PACKAGE_TYPE_CONFIRMATION_REQUIRED` warning；worker tests 覆盖 `YYC4` / `YYC6` / `YEG2` 1.7 CBM、`YVR2` / `YVR3` / `YVR4` 2.2 CBM、`YEG1` 1.7 CBM + 5、纸箱 1.8 CBM、木箱按件数、混合包装按 rule bucket 分开计算、manual pallets override 和 unknown destination warning。</td>
               <td>Worker 规则已完成；继续保持新客户 Excel fixture 进入 parser/calculator regression。</td>
             </tr>
             <tr>
@@ -696,21 +735,42 @@
               <td><span class="badge done">Done</span></td>
               <td>API + report + label</td>
               <td>新增 `20260707110000_pallet_rule_metadata` migration：`container_destinations` 持久化 `package_type`、`pallet_rule_code`、`calculation_basis_cbm` 和 `rounding_mode`，并将 destination 唯一键扩展到 `package_type`；imports service 按 destination + packageType 对齐 worker plans，API DTO 返回 rule metadata；reports、labels、corrections 和 Web API client 已透传 metadata；HTML task report 显示 rule/package/basis/rounding；label generation 继续以 `finalPallets` 生成 pallet records 和 QR payload。</td>
-              <td>已完成持久化和生成链路；packageType 人工修正 workflow 已在 UNLOAD-PALLET-04 补齐。</td>
+              <td>已完成持久化和生成链路；UNLOAD-PALLET-05 后普通办公室修正界面不再要求选择 packageType。</td>
             </tr>
             <tr>
               <td>UNLOAD-PALLET-03 Detailed Pallet Calculation Regression</td>
               <td><span class="badge done">Done</span></td>
               <td>Regression</td>
-              <td>`apps/worker-python/tests/integration/test_batch_cli.py` 构造详细规则 workbook，验证 parsed JSON、pallet plans、warning、Excel report 写入托数、Label PDF 数量、唯一 palletIds/QR payload、150mm x 100mm PDF MediaBox 和 task report rule metadata；API imports tests 覆盖混合私人地址纸箱/木箱/unknown 三条 destination summary 分开持久化；Web container detail flow tests 覆盖 rule summary 和 unknown package warning 可见。</td>
+              <td>`apps/worker-python/tests/integration/test_batch_cli.py` 构造详细规则 workbook，验证 parsed JSON、pallet plans、warning、Excel report 写入托数、Label PDF 数量、唯一 palletIds/QR payload、150mm x 100mm PDF MediaBox 和 task report rule metadata；API imports tests 覆盖混合私人地址纸箱、木箱和默认纸箱 destination summary 分开持久化；Web container detail flow tests 覆盖 rule summary 和 legacy package confirmation warning 被隐藏。</td>
               <td>本轮复查通过 `uv run pytest` 106 passed、`pnpm --filter api typecheck`、`pnpm --filter api test` 18 suites / 122 tests、`pnpm --filter web typecheck`、`pnpm --filter web test` 150 tests。2026-07-07 已新增并通过 Docker full-stack targeted Playwright pilot smoke：真实样例派生 Excel 上传、parse、Excel report、Label PDF、load job、scan 和 duplicate scan 全链路。</td>
             </tr>
             <tr>
               <td>UNLOAD-PALLET-04 Packaging Type Pilot Verification + Correction</td>
               <td><span class="badge partial">Code Complete / Data Pending</span></td>
               <td>Correction workflow</td>
-              <td>当前样例审计结果为 `UNKNOWN=53`、`WOODEN_CRATE=1`、`CARTON=0`，因此不新增伪真实 fixture。已补 `packageType` correction DTO/API/Web 表单：办公室可把 unknown 修正为 `CARTON` 或 `WOODEN_CRATE`，API 按纸箱 1.8 CBM 或木箱件数自动重算 `calculatedPallets`、`finalPallets`、rule metadata 和 warnings，并写入 correction_feedback；manual pallets override 继续优先；packageType 改动导致托数增加时 Web 会提示重新生成 label。</td>
-              <td>等待业务提供真实或脱敏 pilot workbook，覆盖私人/商业纸箱、木箱和 unknown 后，补 fixture 证据并把包装类型现场数据口径从 Needs Pilot Verification 改为 Done。</td>
+              <td>当前样例审计结果为 `WOODEN_CRATE=1`，真实纸箱/木箱字段仍需 pilot workbook 复核；UNLOAD-PALLET-05 后缺失、`UNKNOWN`、`UNSPECIFIED` 已默认按 `CARTON` 计算并不再要求办公室人工确认。manual pallets override 继续优先并可审计。</td>
+              <td>等待业务提供真实或脱敏 pilot workbook，覆盖私人/商业纸箱和明确木箱后，补 fixture 证据并把包装类型现场数据口径从 Needs Pilot Verification 改为 Done。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-05 Default Carton Package Type + Hide Package Selector</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Worker + API + Web</td>
+              <td>Worker parser/calculator 已将 missing / `UNKNOWN` / `UNSPECIFIED` 私人/商业地址包装类型等价为 `CARTON`，使用 `ADDRESS_CARTON_VOLUME_1_8` 且不产生 package confirmation warning；API import/create/update 持久化或重算默认 `CARTON`，历史 unknown 重算时清除旧 package warning；Web container detail 和新增 destination 表单已隐藏 Package selector，保存 payload 不再包含 `packageType`。</td>
+              <td>明确木箱规则 `ADDRESS_WOODEN_CRATE_PIECE_COUNT` 保留；UNLOAD-PALLET-06 已补齐保存回归，下一步等待真实 pilot workbook 验证木箱识别。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-06 Destination Correction Save Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Web + API regression</td>
+              <td>Web destination correction payload 对 `destinationCode` / `destinationType` / `note` 使用 trim/null 归一化比较，actual note-only 可生成 `{ note }` payload，清空 actual note 可生成 `note: null`，volume `5.250` / `5.25` 不再误判；只填 audit note 且无业务字段变化时提示已改为“Change a business field ... actual note”。`router.refresh()` 后缺失 draft 的编辑兜底会从当前 destination 初始化，不再从空草稿开始。</td>
+              <td>API 已验证 note-only 写入 correction audit，actual cartons-only / actual CBM-only 会重算托盘，清空 manual pallets 恢复 calculated final pallets；通过 `pnpm --filter web test`（156 tests）、`pnpm --filter api exec jest src/corrections/corrections.service.spec.ts --runInBand`（19 tests）和 `pnpm --filter api exec jest --config ./test/jest-e2e.json test/corrections.e2e-spec.ts --runInBand`（7 tests，需非 sandbox 监听本地端口）。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-PALLET-07 UPS Courier Destination Pallet Count Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Worker + API + Web regression</td>
+              <td>根因确认为 API import 使用 `(destinationCode, packageType)` 匹配 worker `destinationSummaries` 与 `pallet_result.plans` 时未规范化 packageType：UPS summary 可能为 `null`，plan 默认为 `CARTON`，导致落库 plan undefined 并写入 calculated/final pallets 0。修复后 worker parser 对 UPS/PUROLATOR/PURO/P/A 默认 `CARTON` 且不拼 waybill，API key 将 missing/unknown/unspecified packageType 等价为 `CARTON`，correction 重算 UPS 走 `ADDRESS_CARTON_VOLUME_1_8`。</td>
+              <td>新增/更新回归覆盖 UPS 57 箱、5.4 CBM -> 3 托：worker calculator/parser/batch report/label、API import unit/e2e、API correction、Web container detail rule summary。已通过 `uv run pytest tests/unit/test_pallet_calculator.py tests/unit/test_unloading_plan_cn_parser.py tests/integration/test_batch_cli.py`（42 passed）、`CI=true pnpm --filter api test -- imports.service.spec.ts corrections.service.spec.ts`（28 passed）、`CI=true pnpm --filter api test:e2e -- --runTestsByPath test/imports.e2e-spec.ts`（11 passed，需非 sandbox 监听本地端口）、`CI=true pnpm --filter web test -- container-detail-flow.test.ts`（157 passed）、API/Web typecheck。</td>
             </tr>
           </tbody>
         </table>
@@ -1032,8 +1092,8 @@
             <tr>
               <td>包装类型现场数据口径</td>
               <td><span class="badge partial">Needs Pilot Verification</span></td>
-              <td>详细托盘规则、未知包装 warning、packageType 人工修正、自动重算和 audit workflow 已实现；当前真实样例审计没有 CARTON packageType，因此 parser 现场识别稳定性仍需真实 pilot 样本确认。</td>
-              <td>pilot 前提供真实/脱敏私人或商业地址 Excel，覆盖纸箱、木箱和 unknown；完成 parser fixture 证据后关闭该项。</td>
+              <td>详细托盘规则和 UNLOAD-PALLET-05 默认纸箱口径已实现：缺失、`UNKNOWN`、`UNSPECIFIED` 按 `CARTON` 计算且不再显示 package confirmation warning；明确木箱仍按件数规则。</td>
+              <td>pilot 前提供真实/脱敏私人或商业地址 Excel，覆盖纸箱和明确木箱；完成 parser fixture 证据后关闭该项。</td>
             </tr>
             <tr>
               <td>API generated Prisma lint 配置</td>
@@ -1046,6 +1106,36 @@
               <td><span class="badge done">Done</span></td>
               <td>API structured JSON logs、request id、HTTP request/exception logs、backup freshness alert、disk usage alert 和 `docs/runbooks/monitoring-alerting-siem.md` 已完成并验证。</td>
               <td>现场需要把脚本接入 cron/systemd/Windows Task Scheduler 和告警 webhook；企业级 APM/SaaS 监控平台不随仓库交付。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>导入删除 Storage 清理</h2>
+        <p class="note">
+          IMPORT-DELETE-01 已完成代码实现。导入删除仍保留 `import_files`
+          soft delete 审计字段，同时对 storage root 内的原始上传文件和关联
+          generated files 执行逐文件校验与删除；generated file 记录随导入删除
+          一并移除，旧下载链接返回 not found。若原始或 generated storage 文件已缺失，
+          删除继续完成并把 missing path 记录到 correction feedback；若路径越界或不是文件，
+          API 拒绝删除且不修改数据库。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>项目</th>
+              <th>状态</th>
+              <th>实现</th>
+              <th>验证</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>IMPORT-DELETE-01 Cascade Storage File Cleanup</td>
+              <td><span class="badge done">Done</span></td>
+              <td>`DELETE /api/imports/:id` 现在先检查 load job、operational pallet/scan history 和 pay container usage blocker；允许仅生成 report/label 的导入删除，并清理 safe pallet records/events、generated_files rows、parsed container rows 和 storage 文件。删除 audit 的 `newValue` 记录 deletedAt、deletedStorageFileCount、deletedStoragePaths、missingStoragePaths、generatedFileIds 和 palletCount。</td>
+              <td>新增 API E2E 覆盖成功清理原始文件/report/label、missing file warning、storage root 越界拒绝、operational pallet blocker；Web 确认、成功、blocker 文案和 i18n dynamic catalog 已补齐。已通过 `CI=true pnpm --filter api typecheck`、`CI=true pnpm --filter web typecheck`、`CI=true pnpm --filter web test -- i18n.test.ts api-client-imports.test.ts`（实际 web node:test 159 passed）和 `git diff --check`。当前 API Jest runtime 受本地 Jest 30/ts-jest resolver 问题阻塞，`pnpm --filter api test -- imports.service.spec.ts --runInBand` 与 import e2e 均在配置校验阶段报 `Module ts-jest ... was not found`，代码层已由 typecheck 覆盖。</td>
             </tr>
           </tbody>
         </table>

@@ -30,7 +30,13 @@ const I18nContext = createContext<I18nContextValue>({
   setLocale: () => undefined,
 });
 
-const TRANSLATABLE_ATTRIBUTES = ["aria-label", "placeholder", "title"] as const;
+const TRANSLATABLE_ATTRIBUTES = [
+  "alt",
+  "aria-description",
+  "aria-label",
+  "placeholder",
+  "title",
+] as const;
 
 export function I18nProvider({
   children,

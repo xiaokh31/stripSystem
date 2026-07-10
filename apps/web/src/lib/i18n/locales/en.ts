@@ -39,6 +39,9 @@ export const enMessages = {
   "Bestar Service CCA": "Bestar Service CCA",
   "Bestar Warehouse Office": "Bestar Warehouse Office",
   "Bestar warehouse office": "Bestar warehouse office",
+  "Basis 1.700 CBM": "Basis 1.700 CBM",
+  "Basis 1.800 CBM": "Basis 1.800 CBM",
+  "Basis 2.200 CBM": "Basis 2.200 CBM",
   "Browse files": "Browse files",
   "CALGARY LOCAL": "CALGARY LOCAL",
   CANCELLED: "CANCELLED",
@@ -50,6 +53,9 @@ export const enMessages = {
   Cancelled: "Cancelled",
   Carrier: "Carrier",
   Carton: "Carton",
+  "Cartons are missing or zero.": "Cartons are missing or zero.",
+  "Change a business field such as destination, actual cartons, actual CBM, actual pallets, or actual note before saving.":
+    "Change a business field such as destination, actual cartons, actual CBM, actual pallets, or actual note before saving.",
   "Change destination, actual cartons, actual CBM, actual pallets, or note before saving.":
     "Change destination, actual cartons, actual CBM, actual pallets, or note before saving.",
   "Change destination, package type, actual cartons, actual CBM, actual pallets, or note before saving.":
@@ -65,7 +71,11 @@ export const enMessages = {
   Closed: "Closed",
   Code: "Code",
   "Complete loading": "Complete loading",
+  "Complete this load job? Completed jobs cannot be edited.":
+    "Complete this load job? Completed jobs cannot be edited.",
   Completed: "Completed",
+  "Commercial or private address destination requires a waybill number.":
+    "Commercial or private address destination requires a waybill number.",
   "Completed jobs are locked for audit.":
     "Completed jobs are locked for audit.",
   "Completed jobs remain visible unless they were never created or a planned job was deleted before loading started.":
@@ -78,7 +88,7 @@ export const enMessages = {
   "Confirm status change": "Confirm status change",
   "Confirm this pallet should be removed from current load job progress.":
     "Confirm this pallet should be removed from current load job progress.",
-  Container: "Containers",
+  Container: "Container",
   "Container Detail": "Container Detail",
   "Container No.": "Container No.",
   "Container could not be loaded.": "Container could not be loaded.",
@@ -103,6 +113,8 @@ export const enMessages = {
   "Correction history": "Correction history",
   "Correction history failed.": "Correction history failed.",
   "Correction history for": "Correction history for",
+  "Courier delivery is requested, but the delivery method or note does not specify a carrier such as UPS, Purolator, FedEx, Canpar, DHL, or Canada Post.":
+    "Courier delivery is requested, but the delivery method or note does not specify a carrier such as UPS, Purolator, FedEx, Canpar, DHL, or Canada Post.",
   Create: "Create",
   "Create a manual unloading report when the customer workbook cannot be parsed into container records.":
     "Create a manual unloading report when the customer workbook cannot be parsed into container records.",
@@ -135,14 +147,18 @@ export const enMessages = {
   "Delete import": "Delete import",
   "Delete line": "Delete line",
   "Delete plan": "Delete plan",
+  "Delete this planned load job?": "Delete this planned load job?",
   Deleted: "Deleted",
   "Deleting destination.": "Deleting destination.",
+  "Deleting...": "Deleting...",
   "Deleting load job.": "Deleting load job.",
   "Delivery phase": "Delivery phase",
+  Department: "Department",
   Departure: "Departure",
   Destination: "Destination",
   "Destination code": "Destination code",
   "Destination code is required.": "Destination code is required.",
+  "Destination code is missing.": "Destination code is missing.",
   "Destination corrections": "Destination corrections",
   "Destination detail": "Destination detail",
   "Destination history": "Destination history",
@@ -151,6 +167,8 @@ export const enMessages = {
     "Destination inventory could not be loaded",
   "Destination region": "Destination region",
   "Destination summary": "Destination summary",
+  "Destination type was not recognized; pallet rule needs confirmation.":
+    "Destination type was not recognized; pallet rule needs confirmation.",
   "Destination type": "Destination type",
   Destinations: "Destinations",
   "Disable user": "Disable user",
@@ -161,6 +179,7 @@ export const enMessages = {
   "Dock No. is required before completing this load job.":
     "Dock No. is required before completing this load job.",
   "Dock door": "Dock door",
+  Dock: "Dock",
   "Dock number could not be saved.": "Dock number could not be saved.",
   Download: "Download",
   "Download current label PDF": "Download current label PDF",
@@ -227,6 +246,10 @@ export const enMessages = {
   "Import detail": "Import detail",
   "Import detail failed.": "Import detail failed.",
   "Import file": "Import file",
+  "Import deleted. Original and generated storage files were cleaned up.":
+    "Import deleted. Original and generated storage files were cleaned up.",
+  "Import deletion was blocked because a storage path is outside the configured storage root.":
+    "Import deletion was blocked because a storage path is outside the configured storage root.",
   "Import status": "Import status",
   Imports: "Imports",
   "Imports could not be loaded": "Imports could not be loaded",
@@ -295,8 +318,10 @@ export const enMessages = {
   "Manual container": "Manual container",
   "Manual correction": "Manual correction",
   "Manual entry created by office.": "Manual entry created by office.",
-  "Manual pallets must be a whole number of 0 or greater.":
-    "Manual pallets must be a whole number of 0 or greater.",
+  "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.":
+    "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.",
+  "Manual pallet override is negative; calculated pallet count was used instead.":
+    "Manual pallet override is negative; calculated pallet count was used instead.",
   "Manual unloading report": "Manual unloading report",
   "Manual unloading report could not be created.":
     "Manual unloading report could not be created.",
@@ -404,6 +429,8 @@ export const enMessages = {
   Pallet: "Pallet",
   "Pallet ID": "Pallet ID",
   "Pallet QR scan": "Pallet QR scan",
+  "1.7 CBM volume rule": "1.7 CBM volume rule",
+  "2.2 CBM volume rule": "2.2 CBM volume rule",
   "Pallet inventory by container and destination":
     "Pallet inventory by container and destination",
   "Pallet labels": "Pallet labels",
@@ -414,7 +441,13 @@ export const enMessages = {
     "Pallet was removed from this load job progress.",
   Pallets: "Pallets",
   Package: "Package",
+  "Package carton": "Package carton",
+  "Package wooden crate": "Package wooden crate",
   "Paper report note": "Paper report note",
+  "Private/commercial carton volume rule":
+    "Private/commercial carton volume rule",
+  "Private/commercial wooden crate piece-count rule":
+    "Private/commercial wooden crate piece-count rule",
   Parse: "Parse",
   "Parse action": "Parse action",
   "Parse failed": "Parse failed",
@@ -677,6 +710,10 @@ export const enMessages = {
     "Daily PostgreSQL backup before schema migrations.",
   "Default values are staged. Save changes to persist them.":
     "Default values are staged. Save changes to persist them.",
+  "Default unloading wage rate for one ocean pay container.":
+    "Default unloading wage rate for one ocean pay container.",
+  "Default unloading wage rate for one trailer-group pay container.":
+    "Default unloading wage rate for one trailer-group pay container.",
   "Default:": "Default:",
   "Docker Compose full stack": "Docker Compose full stack",
   "Duplicate import policy": "Duplicate import policy",
@@ -952,6 +989,7 @@ export const enMessages = {
     "Select one legacy .xls attendance workbook.",
   "Select or upload an attendance import to review parsed rows.":
     "Select or upload an attendance import to review parsed rows.",
+  Selected: "Selected",
   "Settlement detail rows": "Settlement detail rows",
   "Settlement history": "Settlement history",
   "Settlement JSON": "Settlement JSON",
@@ -1051,6 +1089,8 @@ export const enMessages = {
   "Work Hours": "Work Hours",
   "Work Hours Settlement": "Work Hours Settlement",
   "Work type": "Work type",
+  "YEG1 1.7 CBM plus 5 pallets rule":
+    "YEG1 1.7 CBM plus 5 pallets rule",
   "Worker amount": "Worker amount",
   Worker: "Worker",
   "Worker code": "Worker code",
@@ -1076,6 +1116,118 @@ export const enMessages = {
   Unloaders: "Unloaders",
   "Saved unloaders": "Saved unloaders",
   "Mark unloaded": "Mark unloaded",
+  Administrator: "Administrator",
+  "Backup policy": "Backup policy",
+  "Classify containers for unloading wage settlement.":
+    "Classify containers for unloading wage settlement.",
+  "Complete load jobs.": "Complete load jobs.",
+  "Complete unloading work and assign unloaders.":
+    "Complete unloading work and assign unloaders.",
+  Complete: "Complete",
+  "Container unloading wage settlement manager.":
+    "Container unloading wage settlement manager.",
+  "Create correction feedback.": "Create correction feedback.",
+  "Create load jobs.": "Create load jobs.",
+  "Create manual containers.": "Create manual containers.",
+  Date: "Date",
+  "Delete bad imports.": "Delete bad imports.",
+  "Delete load jobs.": "Delete load jobs.",
+  Disable: "Disable",
+  Enable: "Enable",
+  Employee: "Employee",
+  "Error details are not available yet.":
+    "Error details are not available yet.",
+  "Export monthly unloading data summary workbooks.":
+    "Export monthly unloading data summary workbooks.",
+  "External pallets": "External pallets",
+  "Final pallets": "Final pallets",
+  "Full system access.": "Full system access.",
+  "Generate monthly unloading wage settlements.":
+    "Generate monthly unloading wage settlements.",
+  "Generate pallet label PDFs.": "Generate pallet label PDFs.",
+  "Generate unloading reports.": "Generate unloading reports.",
+  "Generate wage record workbooks.": "Generate wage record workbooks.",
+  Gross: "Gross",
+  "HR work hours settlement manager.": "HR work hours settlement manager.",
+  Hours: "Hours",
+  "Human Resources Manager": "Human Resources Manager",
+  "Import ID": "Import ID",
+  Internal: "Internal",
+  "Inventory remaining is global warehouse inventory from the API, not load job planned remaining.":
+    "Inventory remaining is global warehouse inventory from the API, not load job planned remaining.",
+  Issues: "Issues",
+  Lunch: "Lunch",
+  "Manage roles and permissions.": "Manage roles and permissions.",
+  "Manage users.": "Manage users.",
+  "Manual overrides": "Manual overrides",
+  "Non-human worker account.": "Non-human worker account.",
+  "No usable punch times found for employee-day.":
+    "No usable punch times found for employee-day.",
+  "Odd punch count requires manual review before calculating hours.":
+    "Odd punch count requires manual review before calculating hours.",
+  "Office Staff": "Office Staff",
+  "Office unloading operations.": "Office unloading operations.",
+  "Ocean container unloading wage CAD": "Ocean container unloading wage CAD",
+  "Pallet No.": "Pallet No.",
+  "Parse attendance files.": "Parse attendance files.",
+  "Parse import files.": "Parse import files.",
+  Period: "Period",
+  "Planned pallets": "Planned pallets",
+  Punches: "Punches",
+  "Rate total": "Rate total",
+  "Read attendance imports and parse results.":
+    "Read attendance imports and parse results.",
+  "Read containers.": "Read containers.",
+  "Read correction feedback.": "Read correction feedback.",
+  "Read generated files.": "Read generated files.",
+  "Read import files.": "Read import files.",
+  "Read inventory and progress.": "Read inventory and progress.",
+  "Read load jobs.": "Read load jobs.",
+  "Read monthly unloading data summaries.":
+    "Read monthly unloading data summaries.",
+  "Read operational settings.": "Read operational settings.",
+  "Read unloading wage pay containers and settlements.":
+    "Read unloading wage pay containers and settlements.",
+  "Read only": "Read only",
+  "Remaining in plan": "Remaining in plan",
+  Remove: "Remove",
+  "Reprint pallet labels.": "Reprint pallet labels.",
+  "Reverse pallet scans.": "Reverse pallet scans.",
+  "Rounding by piece count": "Rounding by piece count",
+  "Rounding up": "Rounding up",
+  Rows: "Rows",
+  "Scan pallets into load jobs.": "Scan pallets into load jobs.",
+  "Scheduled departure": "Scheduled departure",
+  "Source text": "Source text",
+  "Supervisor override for loaded pallet scan conflicts.":
+    "Supervisor override for loaded pallet scan conflicts.",
+  "System Service": "System Service",
+  "Total cartons": "Total cartons",
+  "Total volume": "Total volume",
+  "US-to-Canada transfer unloading wage CAD":
+    "US-to-Canada transfer unloading wage CAD",
+  "Update containers and destinations.": "Update containers and destinations.",
+  "Update load jobs.": "Update load jobs.",
+  "Update operational settings.": "Update operational settings.",
+  "Upload attendance files.": "Upload attendance files.",
+  "Upload import files.": "Upload import files.",
+  "Uploaded at": "Uploaded at",
+  "Volume CBM": "Volume CBM",
+  "Volume is missing.": "Volume is missing.",
+  "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.":
+    "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.",
+  "Warehouse Manager": "Warehouse Manager",
+  "Warehouse Staff": "Warehouse Staff",
+  "Warehouse loading and scan operations.":
+    "Warehouse loading and scan operations.",
+  "Warning details are not available yet.":
+    "Warning details are not available yet.",
+  "Unknown destination 1.7 CBM review rule":
+    "Unknown destination 1.7 CBM review rule",
+  "Summary includes API rows from completed unloading statuses:":
+    "Summary includes API rows from completed unloading statuses:",
+  "Label-generated containers are excluded until unloading is marked complete.":
+    "Label-generated containers are excluded until unloading is marked complete.",
   "Current plan line pallet count is full.":
     "Current plan line pallet count is full.",
   "This pallet is not in the current departure plan.":
@@ -1094,6 +1246,7 @@ export const enMessages = {
   "worker(s),": "worker(s),",
   "pallets, loaded": "pallets, loaded",
   status: "status",
+  to: "to",
   "container(s)": "container(s)",
   "correction record(s).": "correction record(s).",
   "could not be loaded": "could not be loaded",

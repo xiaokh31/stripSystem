@@ -54,7 +54,7 @@ def test_parse_delivery_plan_extracts_lines_and_destination_summaries(
     assert summaries["Private Address / SZCA2604054725"].lineCount == 1
 
 
-def test_parse_real_private_address_requires_package_type_confirmation(
+def test_parse_real_private_address_defaults_missing_package_to_carton(
     tmp_path: Path,
 ) -> None:
     imported = ImportRegistry(tmp_path / "original_files").import_file(CONTENT_CONTAINER_FIXTURE)
@@ -67,7 +67,7 @@ def test_parse_real_private_address_requires_package_type_confirmation(
         if line.destinationCode and line.destinationCode.startswith("Private Address /")
     ]
     assert private_lines
-    assert {line.packageType for line in private_lines} == {"UNKNOWN"}
+    assert {line.packageType for line in private_lines} == {"CARTON"}
     assert any("特殊指令/备注" in line.raw_json for line in private_lines)
 
     private_summaries = [
@@ -76,12 +76,8 @@ def test_parse_real_private_address_requires_package_type_confirmation(
         if summary.destinationCode.startswith("Private Address /")
     ]
     assert private_summaries
-    assert {summary.packageType for summary in private_summaries} == {"UNKNOWN"}
-    assert any(
-        warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED"
-        and warning.field == "packageType"
-        for warning in result.warnings
-    )
+    assert {summary.packageType for summary in private_summaries} == {"CARTON"}
+    assert not any(warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED" for warning in result.warnings)
 
 
 def test_parse_address_package_type_and_keeps_mixed_packages_separate(
@@ -265,6 +261,86 @@ def test_parse_warns_when_courier_delivery_lacks_carrier(tmp_path: Path) -> None
     ]
     assert [warning.row_number for warning in carrier_warnings] == [4]
     assert "UPS" in carrier_warnings[0].message
+
+
+def test_parse_courier_destinations_default_to_carton_without_waybill_suffix(
+    tmp_path: Path,
+) -> None:
+    workbook_path = tmp_path / "CAAU8011090 courier destinations.xlsx"
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Plan"
+    worksheet.append(["柜号", "CAAU8011090"])
+    worksheet.append([])
+    worksheet.append(
+        [
+            "运单号",
+            "FBA NO.",
+            "PO#",
+            "箱数/件数",
+            "重量",
+            "体积",
+            "派送目的地",
+            "派送方式",
+            "特殊指令/备注",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-UPS-57",
+            "FBA-UPS",
+            "PO-UPS",
+            57,
+            120,
+            5.4,
+            "UPS",
+            "快递派送",
+            "",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-PURO",
+            "FBA-PURO",
+            "PO-PURO",
+            2,
+            10,
+            0.5,
+            "PURO",
+            "Courier",
+            "",
+        ]
+    )
+    worksheet.append(
+        [
+            "WB-PA",
+            "FBA-PA",
+            "PO-PA",
+            1,
+            5,
+            0.2,
+            "P/A",
+            "Courier",
+            "",
+        ]
+    )
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = parse_unloading_plan_cn(workbook_path)
+
+    assert [line.destinationCode for line in result.lines] == ["UPS", "PURO", "P/A"]
+    assert {line.packageType for line in result.lines} == {"CARTON"}
+    summaries = {
+        (summary.destinationCode, summary.packageType): summary
+        for summary in result.destinationSummaries
+    }
+    ups = summaries[("UPS", "CARTON")]
+    assert ups.totalCartons == 57
+    assert ups.totalVolumeCbm == pytest.approx(5.4)
+    assert ups.lineCount == 1
+    assert summaries[("PURO", "CARTON")].totalCartons == 2
+    assert summaries[("P/A", "CARTON")].totalCartons == 1
 
 
 def test_parser_reports_missing_container_when_content_and_filename_have_none(

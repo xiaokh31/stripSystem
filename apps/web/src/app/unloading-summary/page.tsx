@@ -24,6 +24,7 @@ import {
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { businessStatusLabel } from "@/lib/i18n/status-labels";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   canExportUnloadingSummary,
   canReviewUnloadingSummary,
@@ -69,7 +70,7 @@ export default async function UnloadingSummaryPage({
         <MonthFilter month={month} />
       </section>
 
-      <CompletionStatusRule />
+      <CompletionStatusRule locale={locale} />
 
       {state.error ? (
         <ApiErrorPanel
@@ -210,14 +211,29 @@ function MonthFilter({ month }: { month: string }) {
   );
 }
 
-function CompletionStatusRule() {
+function CompletionStatusRule({ locale }: { locale: Locale }) {
+  const completedLabels = COMPLETED_UNLOADING_STATUS_VALUES.map((status) =>
+    businessStatusLabel(status, locale),
+  ).join(" / ");
+  const prefix =
+    translateMessage(
+      "Summary includes API rows from completed unloading statuses:",
+      locale,
+    ) ?? "Summary includes API rows from completed unloading statuses:";
+  const suffix =
+    translateMessage(
+      "Label-generated containers are excluded until unloading is marked complete.",
+      locale,
+    ) ??
+    "Label-generated containers are excluded until unloading is marked complete.";
+  const sentenceSeparator = locale === "zh-CN" ? "。" : ".";
+
   return (
     <section className="border border-sky-200 bg-sky-50 p-5 text-sm text-sky-950 shadow-sm">
       <h2 className="text-base font-semibold">Completed status filter</h2>
       <p className="mt-2 leading-6">
-        Summary includes API rows from completed unloading /{" "}
-        {COMPLETED_UNLOADING_STATUS_VALUES.join(" / ")}. LABELS_GENERATED stays
-        out until unloading is marked complete.
+        {prefix} {completedLabels}
+        {sentenceSeparator} {suffix}
       </p>
     </section>
   );

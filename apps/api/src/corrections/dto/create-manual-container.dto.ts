@@ -27,7 +27,7 @@ export class CreateManualContainerDestinationDto {
 
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  @Min(1)
   pallets!: number;
 
   @IsOptional()

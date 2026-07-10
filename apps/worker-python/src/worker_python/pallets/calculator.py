@@ -8,8 +8,6 @@ from typing import Any, Iterable
 
 from worker_python.pallets.rules import (
     DEFAULT_PALLET_CONFIG,
-    PACKAGE_UNKNOWN,
-    PARCEL_PRIVATE,
     PalletConfig,
     classify_destination,
     normalize_package_type,
@@ -145,21 +143,6 @@ def _calculate_one(
             PalletCalculationIssue(
                 code="NEED_CONFIRM_DESTINATION_TYPE",
                 message="Destination type was not recognized; pallet rule needs confirmation.",
-                destinationCode=item.destinationCode,
-            )
-        )
-
-    if (
-        classification.destination_type == PARCEL_PRIVATE
-        and effective_package_type == PACKAGE_UNKNOWN
-    ):
-        warnings.append(
-            PalletCalculationIssue(
-                code="PACKAGE_TYPE_CONFIRMATION_REQUIRED",
-                message=(
-                    "Private or commercial address package type was not recognized; "
-                    "carton volume rule was used and manual confirmation is required."
-                ),
                 destinationCode=item.destinationCode,
             )
         )

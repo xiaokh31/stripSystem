@@ -97,13 +97,19 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
         ("YVR3", None): ("VOLUME_2_2", 2.2, "CEIL", 3),
         ("YVR4", None): ("VOLUME_2_2", 2.2, "CEIL", 1),
         ("YEG1", None): ("YEG1_VOLUME_1_7_PLUS_5", 1.7, "CEIL", 7),
+        ("UPS", "CARTON"): (
+            "ADDRESS_CARTON_VOLUME_1_8",
+            1.8,
+            "CEIL",
+            3,
+        ),
         ("Private Address / ADDR-CARTON", "CARTON"): (
             "ADDRESS_CARTON_VOLUME_1_8",
             1.8,
             "CEIL",
             3,
         ),
-        ("Private Address / ADDR-UNKNOWN", "UNKNOWN"): (
+        ("Private Address / ADDR-UNKNOWN", "CARTON"): (
             "ADDRESS_CARTON_VOLUME_1_8",
             1.8,
             "CEIL",
@@ -129,7 +135,8 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
         assert len(plan["palletIds"]) == final_pallets
 
     warning_codes = {warning["code"] for warning in payload["warnings"]}
-    assert "PACKAGE_TYPE_CONFIRMATION_REQUIRED" in warning_codes
+    assert "PACKAGE_TYPE_CONFIRMATION_REQUIRED" not in warning_codes
+    assert "DESTINATION_RANGE_EXCEEDED" in warning_codes
 
     label_result = payload["label_result"]
     pallet_result = payload["pallet_result"]
@@ -152,6 +159,11 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
             assert worksheet[f"N{row}"].value == plan["destinationCode"]
             assert worksheet[f"O{row}"].value == plan["finalPallets"]
             assert worksheet[f"P{row}"].value == plan["totalCartons"]
+        report_destinations = {
+            worksheet[f"N{row}"].value: worksheet[f"O{row}"].value
+            for row in (4, 6, 8, 10, 12, 14, 16, 18)
+        }
+        assert report_destinations["UPS"] == 3
     finally:
         workbook.close()
 
@@ -161,7 +173,8 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
     assert "rule YEG1_VOLUME_1_7_PLUS_5" in task_report_html
     assert "rule ADDRESS_WOODEN_CRATE_PIECE_COUNT" in task_report_html
     assert "rounding PIECE_COUNT" in task_report_html
-    assert "Private or commercial address package type was not recognized" in task_report_html
+    assert "Private or commercial address package type was not recognized" not in task_report_html
+    assert "package CARTON" in task_report_html
 
 
 def test_unloading_worker_batch_cli_prints_summary(tmp_path: Path) -> None:
@@ -367,6 +380,7 @@ def _write_detailed_rule_workbook(path: Path) -> None:
         ("WB-YVR3", "", "", 10, 100, 4.41, "YVR3", "LTL", ""),
         ("WB-YVR4", "", "", 10, 100, 0.50, "YVR4", "LTL", ""),
         ("WB-YEG1", "", "", 10, 100, 3.40, "YEG1", "LTL", ""),
+        ("WB-UPS-57", "", "", 57, 100, 5.40, "UPS", "快递派送", ""),
         ("ADDR-CARTON", "", "", 12, 100, 3.61, "Private Address", "LTL", "carton"),
         ("ADDR-UNKNOWN", "", "", 10, 100, 3.61, "Private Address", "LTL", ""),
         ("ADDR-WOOD", "", "", 7, 100, 9.00, "Commercial Address", "LTL", "wooden crate"),

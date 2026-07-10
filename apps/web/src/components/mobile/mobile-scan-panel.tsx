@@ -25,6 +25,7 @@ import {
   type ScannedPalletResponse,
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
+import { translateMessage } from "@/lib/i18n/translator";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   isReverseScanDisabled,
@@ -680,7 +681,11 @@ export function MobileScanPanel({
 
   return (
     <section className="border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
-      <MobileScanUserPanel currentUser={currentUser} permissions={permissions} />
+      <MobileScanUserPanel
+        currentUser={currentUser}
+        locale={locale}
+        permissions={permissions}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -1004,9 +1009,11 @@ function SupervisorOverridePanel({
 
 function MobileScanUserPanel({
   currentUser,
+  locale,
   permissions,
 }: {
   currentUser: AuthUserResponse;
+  locale: Locale;
   permissions: MobileScanPermissions;
 }) {
   const displayName = currentUser.name ?? currentUser.email ?? currentUser.id;
@@ -1016,17 +1023,22 @@ function MobileScanUserPanel({
     permissions.canScan ? "Scan" : null,
     permissions.canSupervisorOverride ? "Supervisor override" : null,
     permissions.canReverseScan ? "Reverse scan" : null,
-  ].filter(Boolean);
+  ]
+    .filter((label): label is string => Boolean(label))
+    .map((label) => translateMessage(label, locale) ?? label);
+  const roleSource = `Roles: ${currentUser.roles.join(", ") || "None"}`;
+  const roleText = translateMessage(roleSource, locale) ?? roleSource;
+  const permissionSource = `Mobile permissions: ${
+    permissionSummary.join(", ") || "Read only"
+  }`;
+  const permissionText =
+    translateMessage(permissionSource, locale) ?? permissionSource;
 
   return (
     <div className="mb-4 border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
       <p className="font-semibold text-zinc-950">Signed in as {displayName}</p>
-      <p className="mt-1 break-all">
-        Roles: {currentUser.roles.join(", ") || "None"}
-      </p>
-      <p className="mt-1">
-        Mobile permissions: {permissionSummary.join(", ") || "Read only"}
-      </p>
+      <p className="mt-1 break-all">{roleText}</p>
+      <p className="mt-1">{permissionText}</p>
     </div>
   );
 }

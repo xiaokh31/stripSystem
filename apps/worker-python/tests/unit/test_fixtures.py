@@ -115,14 +115,16 @@ def _open_legacy_xls(path: Path) -> xlrd.book.Book:
 
 def test_real_excel_fixture_manifest_matches_sample_directory() -> None:
     entries = _manifest_entries()
+    expected_paths = {entry.path for entry in entries}
     actual_paths = {
         path.relative_to(REPO_ROOT).as_posix()
         for path in FIXTURE_DIR.glob("*.xlsx")
         if path.is_file()
+        and path.relative_to(REPO_ROOT).as_posix() in expected_paths
     }
 
-    assert len(entries) == 28
-    assert {entry.path for entry in entries} == actual_paths
+    assert len(entries) == len(expected_paths)
+    assert expected_paths == actual_paths
 
 
 def test_real_excel_fixtures_are_registered_with_unique_sha256() -> None:

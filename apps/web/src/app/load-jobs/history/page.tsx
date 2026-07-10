@@ -16,6 +16,7 @@ import {
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   canManageOfficeLoadJobs,
   canViewMobileLoadJobs,
@@ -237,6 +238,12 @@ function HistoryList({
 }) {
   const hasPrevious = loadJobs.offset > 0;
   const hasNext = loadJobs.items.length === loadJobs.limit;
+  const showingText =
+    translateMessage(
+      `Showing ${loadJobs.items.length} load jobs from offset ${loadJobs.offset}.`,
+      locale,
+    ) ??
+    `Showing ${loadJobs.items.length} load jobs from offset ${loadJobs.offset}.`;
 
   if (loadJobs.items.length === 0) {
     return (
@@ -259,10 +266,7 @@ function HistoryList({
           <h2 className="text-base font-semibold text-zinc-950">
             History results
           </h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Showing {loadJobs.items.length} load jobs from offset{" "}
-            {loadJobs.offset}.
-          </p>
+          <p className="mt-1 text-sm text-zinc-600">{showingText}</p>
         </div>
         <PaginationControls
           filters={filters}

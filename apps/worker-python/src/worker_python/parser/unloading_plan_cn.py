@@ -10,7 +10,7 @@ from typing import Any
 from openpyxl import load_workbook
 
 from worker_python.pallets.rules import (
-    PACKAGE_UNKNOWN,
+    PACKAGE_CARTON,
     detect_package_type_from_values,
 )
 from worker_python.parser.detector import FormatType, detect_excel_format
@@ -32,6 +32,8 @@ COURIER_DELIVERY_TERMS = (
 COURIER_CARRIER_TERMS = (
     "UPS",
     "PUROLATOR",
+    "PURO",
+    "P/A",
     "FEDEX",
     "CANPAR",
     "DHL",
@@ -334,19 +336,12 @@ def _parse_line(
     )
     if destination_warning is not None:
         warnings.append(destination_warning)
-    if destination_code is not None and _is_address_destination(destination_code) and package_type is None:
-        package_type = PACKAGE_UNKNOWN
-        warnings.append(
-            ParseIssue(
-                code="PACKAGE_TYPE_CONFIRMATION_REQUIRED",
-                message=(
-                    "Private or commercial address package type was not recognized; "
-                    "manual confirmation is required before final pallet settlement."
-                ),
-                row_number=row_number,
-                field="packageType",
-            )
-        )
+    if (
+        destination_code is not None
+        and _uses_address_pallet_rule(destination_code)
+        and package_type is None
+    ):
+        package_type = PACKAGE_CARTON
     courier_warning = _courier_delivery_warning(
         delivery_method=delivery_method,
         note=note,
@@ -379,7 +374,7 @@ def _destination_summaries(lines: list[ParsedLine]) -> list[DestinationSummary]:
 
     for line in lines:
         destination = line.destinationCode or ""
-        package_type = line.packageType if _is_address_destination(destination) else None
+        package_type = line.packageType if _uses_address_pallet_rule(destination) else None
         key = (destination, package_type)
         if key not in grouped:
             grouped[key] = {
@@ -498,7 +493,9 @@ def _destination_with_waybill(
     waybill_no: str | None,
     row_number: int,
 ) -> tuple[str | None, ParseIssue | None]:
-    if destination_code is None or not _is_address_destination(destination_code):
+    if destination_code is None or not _needs_waybill_destination_suffix(
+        destination_code
+    ):
         return destination_code, None
 
     if waybill_no is None:
@@ -519,6 +516,10 @@ def _destination_with_waybill(
 
 
 def _is_address_destination(destination_code: str) -> bool:
+    return _needs_waybill_destination_suffix(destination_code)
+
+
+def _needs_waybill_destination_suffix(destination_code: str) -> bool:
     normalized = _normalize_address_destination(destination_code)
     return any(
         term in normalized
@@ -535,6 +536,14 @@ def _is_address_destination(destination_code: str) -> bool:
             "商業",
             "商業地址",
         )
+    )
+
+
+def _uses_address_pallet_rule(destination_code: str) -> bool:
+    normalized = _normalize_address_destination(destination_code)
+    return _needs_waybill_destination_suffix(destination_code) or any(
+        _normalize_address_destination(term) in normalized
+        for term in COURIER_CARRIER_TERMS
     )
 
 

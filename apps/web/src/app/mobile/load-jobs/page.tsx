@@ -16,6 +16,7 @@ import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { loadJobStatusLabel } from "@/lib/i18n/status-labels";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   canManageAccounts,
   canManageOfficeLoadJobs,
@@ -81,7 +82,7 @@ export default async function MobileLoadJobsPage() {
         </div>
       </section>
 
-      <MobileUserPanel currentUser={currentUser} />
+      <MobileUserPanel currentUser={currentUser} locale={locale} />
 
       {state.ok ? (
         <LoadJobList
@@ -152,9 +153,14 @@ function MobilePermissionDenied({
 
 function MobileUserPanel({
   currentUser,
+  locale,
 }: {
   currentUser: AuthUserResponse;
+  locale: Locale;
 }) {
+  const roleSource = `Roles: ${currentUser.roles.join(", ") || "None"}`;
+  const roleText = translateMessage(roleSource, locale) ?? roleSource;
+
   return (
     <section className="border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -163,9 +169,7 @@ function MobileUserPanel({
             Signed in as{" "}
             {currentUser.name ?? currentUser.email ?? currentUser.id}
           </p>
-          <p className="mt-1 break-all">
-            Roles: {currentUser.roles.join(", ") || "None"}
-          </p>
+          <p className="mt-1 break-all">{roleText}</p>
         </div>
         {canManageAccounts(currentUser) ? (
           <Link

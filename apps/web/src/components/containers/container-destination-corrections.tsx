@@ -64,6 +64,10 @@ export function ContainerDestinationCorrections({
       ]),
     );
   }, [destinations]);
+  const destinationById = useMemo(
+    () => new Map(destinations.map((destination) => [destination.id, destination])),
+    [destinations],
+  );
   const [drafts, setDrafts] =
     useState<Record<string, DestinationCorrectionDraft>>(initialDrafts);
   const [saveStates, setSaveStates] = useState<
@@ -81,10 +85,14 @@ export function ContainerDestinationCorrections({
     field: keyof DestinationCorrectionDraft,
     value: string,
   ) {
+    const destinationDraft = destinationById.get(destinationId);
     setDrafts((current) => ({
       ...current,
       [destinationId]: {
-        ...(current[destinationId] ?? emptyDestinationDraft()),
+        ...(current[destinationId] ??
+          (destinationDraft
+            ? draftFromDestination(destinationDraft)
+            : emptyDestinationDraft())),
         [field]: value,
       },
     }));
@@ -348,12 +356,11 @@ function DestinationTable({
 }) {
   return (
     <div className="mt-5 overflow-x-auto">
-      <table className="min-w-[1500px] w-full border-collapse text-left text-sm">
+      <table className="min-w-[1380px] w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <th className="px-3 py-3 font-semibold">Destination</th>
             <th className="px-3 py-3 font-semibold">Type</th>
-            <th className="px-3 py-3 font-semibold">Package</th>
             <th className="px-3 py-3 font-semibold">Rule</th>
             <th className="px-3 py-3 text-right font-semibold">
               Actual cartons
@@ -427,15 +434,6 @@ function DestinationTable({
                     }
                     placeholder="No type"
                     value={draft.destinationType}
-                  />
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <PackageTypeSelect
-                    ariaLabel={`Package type for ${destination.destinationCode}`}
-                    onChange={(value) =>
-                      onChange(destination.id, "packageType", value)
-                    }
-                    value={draft.packageType}
                   />
                 </td>
                 <td className="max-w-56 px-3 py-4 align-top text-xs text-zinc-600">
@@ -587,13 +585,6 @@ function NewDestinationForm({
             value={draft.destinationType}
           />
         </Field>
-        <Field label="Package">
-          <PackageTypeSelect
-            ariaLabel="Package type for new destination"
-            onChange={(value) => onChange("packageType", value)}
-            value={draft.packageType}
-          />
-        </Field>
         <Field label="Actual cartons">
           <input
             className={inputClass("w-full text-right font-semibold")}
@@ -673,30 +664,6 @@ function Field({
   );
 }
 
-function PackageTypeSelect({
-  ariaLabel,
-  onChange,
-  value,
-}: {
-  ariaLabel: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  return (
-    <select
-      aria-label={ariaLabel}
-      className={inputClass("w-44")}
-      onChange={(event) => onChange(event.target.value)}
-      value={value}
-    >
-      <option value="">Unspecified</option>
-      <option value="CARTON">Carton</option>
-      <option value="WOODEN_CRATE">Wooden crate</option>
-      <option value="UNKNOWN">Unknown - review</option>
-    </select>
-  );
-}
-
 function SaveMessage({
   onGenerateLabels,
   state,
@@ -744,13 +711,7 @@ function supplementalLabelPrompt(
 ): SupplementalLabelPrompt | undefined {
   const addedPallets = nextFinalPallets - destination.finalPallets;
   const palletAffectingChange = changedFields.some((field) =>
-    [
-      "cartons",
-      "destinationCode",
-      "manualPallets",
-      "packageType",
-      "volume",
-    ].includes(field),
+    ["cartons", "destinationCode", "manualPallets", "volume"].includes(field),
   );
   if (addedPallets <= 0 || !palletAffectingChange) {
     return undefined;
@@ -781,7 +742,6 @@ function emptyDestinationDraft(): DestinationCorrectionDraft {
     destinationType: "",
     manualPallets: "",
     note: "",
-    packageType: "",
     volume: "0",
   };
 }

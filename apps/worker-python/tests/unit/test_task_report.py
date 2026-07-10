@@ -35,7 +35,7 @@ def test_task_report_generates_html_for_every_real_fixture(tmp_path: Path) -> No
     )
 
     html = result.htmlPath.read_text(encoding="utf-8")
-    assert result.recordCount == 28
+    assert result.recordCount == len(list(FIXTURE_DIR.glob("*.xlsx")))
     for fixture in FIXTURE_DIR.glob("*.xlsx"):
         assert fixture.name in html
     assert "SUCCESS" in html
@@ -72,8 +72,8 @@ def test_task_report_displays_warnings_errors_and_totals_from_real_results(
     assert "rule VOLUME_1_7" in html
     assert "basis 1.700 cbm" in html
     assert "rounding CEIL" in html
-    assert "package UNKNOWN" in html
-    assert "Private or commercial address package type was not recognized" in html
+    assert "package CARTON" in html
+    assert "Private or commercial address package type was not recognized" not in html
     assert result.warningCount > 0
     assert result.errorCount > 0
 
@@ -91,7 +91,7 @@ def test_corrections_json_schema_contains_manual_fields(tmp_path: Path) -> None:
     draft = json.loads(result.correctionsPath.read_text(encoding="utf-8"))
     first = draft["corrections"][0]
     assert draft["schema_version"] == 1
-    assert len(draft["corrections"]) == 28
+    assert len(draft["corrections"]) == len(list(FIXTURE_DIR.glob("*.xlsx")))
     assert {
         "correctionId",
         "originalFilename",
@@ -113,7 +113,7 @@ def test_correction_draft_can_be_created_without_writing_files(tmp_path: Path) -
     draft = correction_draft_from_records(records, generated_at=datetime(2026, 6, 25, 10, 0))
 
     assert draft["generated_at"] == "2026-06-25T10:00:00"
-    assert len(draft["corrections"]) == 28
+    assert len(draft["corrections"]) == len(list(FIXTURE_DIR.glob("*.xlsx")))
 
 
 def _records_from_all_fixtures(tmp_path: Path):

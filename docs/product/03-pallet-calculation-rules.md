@@ -50,15 +50,21 @@ the final override and must stay auditable.
 
 - Address destinations include private address, commercial address, business
   address, and Chinese variants such as `私人地址` and `商业地址`.
-- If the goods are paper cartons, use `1.8 CBM` per pallet.
+- Courier / parcel destinations such as `UPS`, `PUROLATOR`, `PURO`, and `P/A`
+  are treated as private/commercial address cargo for pallet calculation.
+- The default package type for all imported or manually created destination
+  cargo is paper carton. The normal office correction UI must not ask users to
+  choose a package type before saving actual unloading data.
+- If the goods are paper cartons, or if no explicit wooden-crate signal is
+  present, use `1.8 CBM` per pallet.
 - Calculation: `ceil(totalVolumeCbm / 1.8)`.
 - If the goods are wooden crates, use piece count directly.
 - Calculation: `totalCartons` / parsed piece count, where one piece equals one
   pallet.
-- Wooden-crate lines must not be divided by volume.
-- If package type cannot be detected from the workbook fields, raw JSON, note,
-  service name, or other parsed text, create a warning requiring manual
-  confirmation. Do not silently mark unknown address cargo as wooden crates.
+- Wooden-crate lines must not be divided by volume, but wooden crate should only
+  be used when the source workbook/text explicitly identifies wood/crate cargo.
+- Missing or unknown package type no longer creates a manual-confirmation
+  warning by itself. It is treated as carton for pallet calculation.
 
 ## Mixed Package Type
 
@@ -67,7 +73,8 @@ wooden crates and paper cartons into one destination summary before applying
 rules.
 
 Required behavior:
-- classify package type at line level when possible;
+- default missing/unknown package type to carton at line level;
+- classify explicit wooden-crate lines at line level when possible;
 - calculate each line or homogeneous rule bucket with the proper rule;
 - aggregate final pallets only after applying the correct rule per bucket;
 - preserve enough metadata to explain which rule created the pallet count.
@@ -96,6 +103,11 @@ Required behavior:
 - `YEG1` volume `0` with cartons -> warning, minimum base `1`, plus `5`, final `6`.
 - Private/commercial paper cartons volume `3.59` -> `2` pallets.
 - Private/commercial paper cartons volume `3.61` -> `3` pallets.
+- Private/commercial missing package type volume `3.61` -> `3` pallets using
+  the carton rule, without a package-confirmation warning.
+- `UPS` carton cargo with cartons greater than `0` and volume greater than `0`
+  must use the private/commercial carton rule and must never produce `0`
+  calculated pallets.
 - Private/commercial wooden crates count `7` -> `7` pallets.
 - Mixed private/commercial paper and wooden-crate lines calculate by separate
   rule buckets before aggregation.

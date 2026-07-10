@@ -1,4 +1,4 @@
-import type { Locale } from "../../lib/i18n/catalog";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { businessStatusLabel } from "../../lib/i18n/status-labels";
 
 export interface StatusStyle {
@@ -89,7 +89,10 @@ export function formatDateOnly(value: string | null): string {
   return value.slice(0, 10);
 }
 
-export function formatDateTime(value: string | null): string {
+export function formatDateTime(
+  value: string | null,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
   if (!value) {
     return "-";
   }
@@ -99,7 +102,7 @@ export function formatDateTime(value: string | null): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-CA", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);

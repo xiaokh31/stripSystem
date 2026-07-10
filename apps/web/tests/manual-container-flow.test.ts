@@ -82,4 +82,12 @@ test("manual container validation requires container and destination fields", ()
     error: "Destination 1 cartons must be a whole number of 0 or greater.",
     ok: false,
   });
+
+  draft.destinations[0].cartons = "0";
+  draft.destinations[0].pallets = "0";
+  assert.deepEqual(buildManualContainerRequest(draft), {
+    error:
+      "Destination 1 pallets must be a whole number of 1 or greater. Delete the destination row instead when there is no cargo.",
+    ok: false,
+  });
 });

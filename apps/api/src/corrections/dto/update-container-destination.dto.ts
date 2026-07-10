@@ -28,7 +28,7 @@ export class UpdateContainerDestinationDto {
   @ValidateIf((_, value: unknown) => value !== undefined && value !== null)
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  @Min(1)
   manualPallets?: number | null;
 
   @IsOptional()

@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { mkdtemp, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
+import { WorkerParserService } from './../src/imports/worker-parser.service';
 import { PrismaService } from './../src/prisma/prisma.service';
 import {
   authorizedRequest,
@@ -30,6 +31,9 @@ interface ImportRecord {
   errorMessage: string | null;
   rawMetadata: unknown;
   importedById: string | null;
+  deletedAt?: Date | null;
+  deletedById?: string | null;
+  deleteReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,11 +74,15 @@ interface DestinationRecord {
   containerId: string;
   destinationCode: string;
   destinationType: string | null;
+  packageType: string | null;
   cartons: number;
   volume: string;
   calculatedPallets: number;
   manualPallets: number | null;
   finalPallets: number;
+  palletRuleCode: string | null;
+  calculationBasisCbm: string | null;
+  roundingMode: string | null;
   note: string | null;
   warnings: unknown;
   errors: unknown;
@@ -121,6 +129,7 @@ interface PalletEventRecord {
   scanPayload: string | null;
   metadata: unknown;
   operatorId: string | null;
+  loadJobId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -137,6 +146,7 @@ interface ImportFileBody {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  deletedAt?: string | null;
 }
 
 interface ParseResultBody {
@@ -150,9 +160,14 @@ interface ParseResultBody {
     lines: unknown[];
     destinations: Array<{
       destinationCode: string;
+      destinationType: string | null;
+      packageType: string | null;
       cartons: number;
       calculatedPallets: number;
       finalPallets: number;
+      palletRuleCode: string | null;
+      calculationBasisCbm: string | null;
+      roundingMode: string | null;
     }>;
   }>;
   warnings: unknown[];
@@ -265,6 +280,10 @@ interface ErrorBody {
       id: string;
       originalFilename: string;
     };
+    deletedStorageFileCount?: number;
+    loadJobCount?: number;
+    operationalPalletCount?: number;
+    payContainerCount?: number;
   };
 }
 
@@ -272,6 +291,7 @@ interface FindUniqueArgs {
   where: {
     id?: string;
     fileSha256?: string;
+    deletedAt?: Date | null;
   };
 }
 
@@ -295,6 +315,10 @@ interface CreateImportArgs {
 }
 
 interface FindManyArgs {
+  where?: {
+    deletedAt?: Date | null;
+  };
+  include?: unknown;
   take: number;
   skip: number;
 }
@@ -495,6 +519,102 @@ describe('ImportsController (e2e)', () => {
       });
   });
 
+  it('persists UPS courier destinations with nonzero pallets when worker summary package type is missing', async () => {
+    const uploaded = await authorizedRequest(app)
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+    const parseSpy = jest
+      .spyOn(WorkerParserService.prototype, 'parseFile')
+      .mockResolvedValue({
+        task_status: 'SUCCESS',
+        source_file: uploadedBody.storedPath,
+        sha256: uploadedBody.fileSha256,
+        detection: { format_type: 'UNLOADING_PLAN_CN' },
+        parsed_result: {
+          containerNo: 'UPSU1234567',
+          formatType: 'UNLOADING_PLAN_CN',
+          parserVersion: 'unloading-plan-cn-v1',
+          lines: [
+            {
+              rowNumber: 2,
+              destinationCode: 'UPS',
+              packageType: null,
+              deliveryMethod: '快递派送',
+              cartons: 57,
+              volumeCbm: 5.4,
+              raw_json: { 仓库代码: 'UPS', 件数: 57, 体积: 5.4 },
+            },
+          ],
+          destinationSummaries: [
+            {
+              destinationCode: 'UPS',
+              packageType: null,
+              totalCartons: 57,
+              totalVolumeCbm: 5.4,
+              lineCount: 1,
+            },
+          ],
+          warnings: [],
+          errors: [],
+          rawMetadata: { matchedSheet: 'Sheet1' },
+        },
+        pallet_result: {
+          plans: [
+            {
+              destinationCode: 'UPS',
+              destinationType: 'PARCEL_PRIVATE',
+              packageType: 'CARTON',
+              ruleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+              calculationBasisCbm: 1.8,
+              roundingMode: 'CEIL',
+              totalCartons: 57,
+              totalVolumeCbm: 5.4,
+              calculatedPallets: 3,
+              manualPallets: null,
+              finalPallets: 3,
+              warnings: [],
+            },
+          ],
+          warnings: [],
+          errors: [],
+        },
+        warnings: [],
+        errors: [],
+        exception: null,
+      });
+
+    try {
+      const parsed = await authorizedRequest(app)
+        .post(`/api/imports/${uploadedBody.id}/parse`)
+        .expect(201);
+      const parsedBody = parsed.body as ParseResultBody;
+
+      expect(parsedBody.containers[0].destinations).toMatchObject([
+        {
+          destinationCode: 'UPS',
+          destinationType: 'PARCEL_PRIVATE',
+          packageType: 'CARTON',
+          cartons: 57,
+          calculatedPallets: 3,
+          finalPallets: 3,
+          palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+          calculationBasisCbm: '1.800',
+          roundingMode: 'CEIL',
+        },
+      ]);
+      expect(destinations).toHaveLength(1);
+      expect(destinations[0]).toMatchObject({
+        destinationCode: 'UPS',
+        calculatedPallets: 3,
+        finalPallets: 3,
+      });
+    } finally {
+      parseSpy.mockRestore();
+    }
+  });
+
   it('generates an Excel unloading report from a parsed real fixture and records generated_files', async () => {
     const uploaded = await authorizedRequest(app)
       .post('/api/imports')
@@ -582,15 +702,17 @@ describe('ImportsController (e2e)', () => {
       destinations: [
         expect.objectContaining({
           destinationCode: 'YEG1',
-          calculatedPallets: 0,
+          calculatedPallets: 6,
           manualPallets: 4,
           finalPallets: 4,
+          palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
-          calculatedPallets: 0,
+          calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
+          palletRuleCode: 'VOLUME_2_2',
         }),
       ],
     });
@@ -866,6 +988,270 @@ describe('ImportsController (e2e)', () => {
       });
   }, 30_000);
 
+  it('deletes an import and removes original plus generated storage files', async () => {
+    const uploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+
+    const parsed = await authorizedRequest(app)
+      .post(`/api/imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as ParseResultBody;
+    const containerId = parsedBody.containers[0].id;
+
+    const report = await authorizedRequest(app)
+      .post(`/api/containers/${containerId}/generate-report`)
+      .expect(201);
+    const reportBody = report.body as GenerateReportBody;
+
+    const labels = await authorizedRequest(app)
+      .post(`/api/containers/${containerId}/generate-labels`)
+      .expect(201);
+    const labelsBody = labels.body as GenerateLabelsBody;
+
+    const storagePaths = [
+      uploadedBody.storedPath,
+      reportBody.generatedFile.storagePath,
+      labelsBody.generatedFile.storagePath,
+    ];
+    await Promise.all(storagePaths.map((storagePath) => stat(storagePath)));
+
+    await authorizedRequest(app)
+      .delete(`/api/imports/${uploadedBody.id}`)
+      .send({ reason: 'Wrong customer file.' })
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as ImportFileBody;
+        expect(body.id).toBe(uploadedBody.id);
+        expect(body.deletedAt).toEqual(expect.any(String));
+      });
+
+    await Promise.all(
+      storagePaths.map((storagePath) =>
+        expect(stat(storagePath)).rejects.toMatchObject({ code: 'ENOENT' }),
+      ),
+    );
+    expect(generatedFiles).toHaveLength(0);
+    expect(pallets).toHaveLength(0);
+    expect(palletEvents).toHaveLength(0);
+    expect(containers).toHaveLength(0);
+    expect(destinations).toHaveLength(0);
+
+    await authorizedRequest(app)
+      .get(
+        `/api/containers/${containerId}/files/${reportBody.generatedFile.id}/download`,
+      )
+      .expect(404);
+
+    const list = await authorizedRequest(app).get('/api/imports').expect(200);
+    expect((list.body as ImportListBody).items).toEqual([]);
+
+    const reuploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const reuploadedBody = reuploaded.body as ImportFileBody;
+    expect(reuploadedBody.fileSha256).toBe(uploadedBody.fileSha256);
+    expect(reuploadedBody.id).not.toBe(uploadedBody.id);
+
+    const auditCalls = (prisma.correctionFeedback.create as jest.Mock).mock
+      .calls;
+    const deleteAudit = auditCalls.find(
+      ([call]) => call.data.fieldName === 'deletedAt',
+    );
+    expect(deleteAudit?.[0].data.newValue).toMatchObject({
+      deletedStorageFileCount: 3,
+      generatedFileCount: 2,
+      missingStoragePaths: [],
+      palletCount: labelsBody.pallets.length,
+    });
+  }, 30_000);
+
+  it('audits missing storage files without blocking import deletion', async () => {
+    const uploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as ImportFileBody;
+
+    await unlink(uploadedBody.storedPath);
+
+    await authorizedRequest(app)
+      .delete(`/api/imports/${uploadedBody.id}`)
+      .send({ reason: 'Cleanup missing original file metadata.' })
+      .expect(200);
+
+    const auditCalls = (prisma.correctionFeedback.create as jest.Mock).mock
+      .calls;
+    const deleteAudit = auditCalls.find(
+      ([call]) => call.data.fieldName === 'deletedAt',
+    );
+    expect(deleteAudit?.[0].data.newValue).toMatchObject({
+      deletedStorageFileCount: 0,
+      deletedStoragePaths: [],
+      missingStoragePaths: [uploadedBody.storedPath],
+    });
+  });
+
+  it('rejects import deletion when a storage path escapes the storage root', async () => {
+    const outsidePath = join(
+      tmpdir(),
+      `import-delete-outside-${Date.now()}.xlsx`,
+    );
+    const now = new Date('2026-06-27T00:00:00.000Z');
+    await writeFile(outsidePath, 'outside storage root');
+    records.push({
+      id: 'import-outside-root',
+      originalFilename: 'outside.xlsx',
+      storedPath: outsidePath,
+      fileSha256: 'outside-sha',
+      mimeType: null,
+      fileSizeBytes: 20,
+      format: 'UNKNOWN',
+      importStatus: 'UPLOADED',
+      parseStatus: 'NOT_PARSED',
+      parserVersion: null,
+      warningCount: 0,
+      errorCount: 0,
+      errorMessage: null,
+      rawMetadata: null,
+      importedById: 'auth-office',
+      deletedAt: null,
+      deletedById: null,
+      deleteReason: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    try {
+      await authorizedRequest(app)
+        .delete('/api/imports/import-outside-root')
+        .send({ reason: 'Path safety check.' })
+        .expect(400)
+        .expect((response) => {
+          const body = response.body as ErrorBody;
+          expect(body.code).toBe('IMPORT_DELETE_STORAGE_PATH_OUTSIDE_ROOT');
+        });
+
+      expect(records[0].deletedAt).toBeNull();
+      await expect(stat(outsidePath)).resolves.toBeTruthy();
+    } finally {
+      await unlink(outsidePath).catch(() => undefined);
+    }
+  });
+
+  it('blocks deletion for operational pallets and leaves storage files intact', async () => {
+    const originalPath = join(storageRoot, 'blocked-original.xlsx');
+    const generatedPath = join(storageRoot, 'blocked-label.pdf');
+    await writeFile(originalPath, 'original bytes');
+    await writeFile(generatedPath, 'label bytes');
+    const now = new Date('2026-06-27T00:00:00.000Z');
+
+    records.push({
+      id: 'import-blocked',
+      originalFilename: 'blocked.xlsx',
+      storedPath: originalPath,
+      fileSha256: 'blocked-sha',
+      mimeType: null,
+      fileSizeBytes: 14,
+      format: 'CN_UNLOADING_PLAN',
+      importStatus: 'IMPORTED',
+      parseStatus: 'PARSED',
+      parserVersion: 'test',
+      warningCount: 0,
+      errorCount: 0,
+      errorMessage: null,
+      rawMetadata: null,
+      importedById: 'auth-office',
+      deletedAt: null,
+      deletedById: null,
+      deleteReason: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    containers.push({
+      id: 'container-blocked',
+      importFileId: 'import-blocked',
+      containerNo: 'BLOCKED123',
+      sourceFormat: 'CN_UNLOADING_PLAN',
+      parserVersion: 'test',
+      status: 'PARSED',
+      rawJson: {},
+      warnings: [],
+      errors: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    destinations.push({
+      id: 'destination-blocked',
+      containerId: 'container-blocked',
+      destinationCode: 'YYZ',
+      destinationType: null,
+      packageType: 'UNSPECIFIED',
+      cartons: 10,
+      volume: '1.000',
+      calculatedPallets: 1,
+      manualPallets: null,
+      finalPallets: 1,
+      palletRuleCode: null,
+      calculationBasisCbm: null,
+      roundingMode: null,
+      note: null,
+      warnings: [],
+      errors: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    generatedFiles.push({
+      id: 'generated-blocked',
+      importFileId: null,
+      containerId: 'container-blocked',
+      fileType: 'PALLET_LABEL_PDF',
+      storagePath: generatedPath,
+      fileSha256: 'generated-sha',
+      mimeType: 'application/pdf',
+      fileSizeBytes: 11,
+      status: 'GENERATED',
+      errorMessage: null,
+      generatedById: 'auth-office',
+      createdAt: now,
+      updatedAt: now,
+    });
+    pallets.push({
+      id: 'pallet-blocked',
+      containerDestinationId: 'destination-blocked',
+      palletNo: 1,
+      palletId: 'PALLET-BLOCKED',
+      qrPayload: 'SSP1|PALLET|PALLET-BLOCKED',
+      status: 'LOADED',
+      labelPrintedAt: now,
+      loadedAt: now,
+      loadJobId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await authorizedRequest(app)
+      .delete('/api/imports/import-blocked')
+      .send({ reason: 'Should be blocked.' })
+      .expect(409)
+      .expect((response) => {
+        const body = response.body as ErrorBody;
+        expect(body.code).toBe('IMPORT_DELETE_BLOCKED_IN_USE');
+        expect(body.details?.operationalPalletCount).toBe(1);
+      });
+
+    expect(
+      records.find((record) => record.id === 'import-blocked')?.deletedAt,
+    ).toBeNull();
+    await expect(stat(originalPath)).resolves.toBeTruthy();
+    await expect(stat(generatedPath)).resolves.toBeTruthy();
+    expect(generatedFiles).toHaveLength(1);
+    expect(pallets).toHaveLength(1);
+  });
+
   it('records worker parse errors without creating a successful container', async () => {
     const corruptPath = join(storageRoot, 'corrupt.xlsx');
     await writeFile(corruptPath, 'not a real Excel workbook');
@@ -930,17 +1316,73 @@ describe('ImportsController (e2e)', () => {
     palletEventRecords: PalletEventRecord[],
   ) {
     let palletSequence = 0;
+    const importContainerSummaries = (importFileId: string) =>
+      containerRecords
+        .filter((container) => container.importFileId === importFileId)
+        .map((container) => ({
+          id: container.id,
+          containerNo: container.containerNo,
+          status: container.status,
+          destinations: destinationRecords
+            .filter((destination) => destination.containerId === container.id)
+            .map((destination) => ({
+              pallets: palletRecords.filter(
+                (pallet) => pallet.containerDestinationId === destination.id,
+              ),
+            })),
+        }));
+    const importRecordResponse = (
+      record: ImportRecord,
+      args?: { include?: unknown; select?: unknown },
+    ) => {
+      if (args?.include || args?.select) {
+        return {
+          ...record,
+          containers: importContainerSummaries(record.id),
+        };
+      }
+
+      return record;
+    };
+    const matchesDeletedAtFilter = (
+      record: ImportRecord,
+      deletedAt: Date | null | undefined,
+    ) =>
+      deletedAt === undefined ||
+      (deletedAt === null ? !record.deletedAt : true);
+    const matchesContainerIdFilter = (
+      containerId: string,
+      filter: string | { in?: string[] } | undefined,
+    ) => {
+      if (filter === undefined) {
+        return true;
+      }
+      if (typeof filter === 'string') {
+        return containerId === filter;
+      }
+      if (Array.isArray(filter.in)) {
+        return filter.in.includes(containerId);
+      }
+      return true;
+    };
     const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       importFile: {
-        findUnique: jest.fn(({ where }: FindUniqueArgs) => {
-          const found = where.id
-            ? importRecords.find((record) => record.id === where.id)
-            : importRecords.find(
-                (record) => record.fileSha256 === where.fileSha256,
-              );
-          return Promise.resolve(found ?? null);
-        }),
+        findUnique: jest.fn(
+          (args: FindUniqueArgs & { include?: unknown; select?: unknown }) => {
+            const { where } = args;
+            const found = where.id
+              ? importRecords.find((record) => record.id === where.id)
+              : importRecords.find(
+                  (record) => record.fileSha256 === where.fileSha256,
+                );
+            if (!found || !matchesDeletedAtFilter(found, where.deletedAt)) {
+              return Promise.resolve(null);
+            }
+
+            return Promise.resolve(importRecordResponse(found, args));
+          },
+        ),
         create: jest.fn(({ data }: CreateImportArgs) => {
           const now = new Date('2026-06-26T00:00:00.000Z');
           const record: ImportRecord = {
@@ -959,13 +1401,16 @@ describe('ImportsController (e2e)', () => {
             errorMessage: data.errorMessage,
             rawMetadata: data.rawMetadata ?? null,
             importedById: data.importedById ?? null,
+            deletedAt: null,
+            deletedById: null,
+            deleteReason: null,
             createdAt: now,
             updatedAt: now,
           };
           importRecords.push(record);
           return Promise.resolve(record);
         }),
-        update: jest.fn(({ where, data }) => {
+        update: jest.fn(({ where, data, include }) => {
           const record = importRecords.find((item) => item.id === where.id);
           if (!record) {
             throw new Error(`Import record not found: ${where.id}`);
@@ -973,11 +1418,18 @@ describe('ImportsController (e2e)', () => {
           Object.assign(record, data, {
             updatedAt: new Date('2026-06-26T00:01:00.000Z'),
           });
-          return Promise.resolve(record);
+          return Promise.resolve(importRecordResponse(record, { include }));
         }),
-        findMany: jest.fn(({ take, skip }: FindManyArgs) =>
-          Promise.resolve(importRecords.slice(skip, skip + take).reverse()),
-        ),
+        findMany: jest.fn(({ where, include, take, skip }: FindManyArgs) => {
+          const found = importRecords
+            .filter((record) =>
+              matchesDeletedAtFilter(record, where?.deletedAt),
+            )
+            .slice(skip, skip + take)
+            .reverse()
+            .map((record) => importRecordResponse(record, { include }));
+          return Promise.resolve(found);
+        }),
       },
       container: {
         findUnique: jest.fn(({ where, include }) => {
@@ -1135,11 +1587,15 @@ describe('ImportsController (e2e)', () => {
             containerId: data.containerId,
             destinationCode: data.destinationCode,
             destinationType: data.destinationType,
+            packageType: data.packageType ?? null,
             cartons: data.cartons,
             volume: data.volume,
             calculatedPallets: data.calculatedPallets,
             manualPallets: data.manualPallets,
             finalPallets: data.finalPallets,
+            palletRuleCode: data.palletRuleCode ?? null,
+            calculationBasisCbm: data.calculationBasisCbm ?? null,
+            roundingMode: data.roundingMode ?? null,
             note: data.note,
             warnings: data.warnings,
             errors: data.errors,
@@ -1156,11 +1612,15 @@ describe('ImportsController (e2e)', () => {
             containerId: row.containerId,
             destinationCode: row.destinationCode,
             destinationType: row.destinationType,
+            packageType: row.packageType ?? null,
             cartons: row.cartons,
             volume: row.volume,
             calculatedPallets: row.calculatedPallets,
             manualPallets: row.manualPallets,
             finalPallets: row.finalPallets,
+            palletRuleCode: row.palletRuleCode ?? null,
+            calculationBasisCbm: row.calculationBasisCbm ?? null,
+            roundingMode: row.roundingMode ?? null,
             note: row.note,
             warnings: row.warnings,
             errors: row.errors,
@@ -1246,7 +1706,30 @@ describe('ImportsController (e2e)', () => {
         }),
         findMany: jest.fn(({ where, take, skip }) => {
           const found = generatedFileRecords
-            .filter((record) => record.containerId === where.containerId)
+            .filter((record) => {
+              if (Array.isArray(where?.OR)) {
+                return where.OR.some((condition) => {
+                  if (
+                    condition.importFileId !== undefined &&
+                    record.importFileId === condition.importFileId
+                  ) {
+                    return true;
+                  }
+                  if (condition.containerId?.in) {
+                    return (
+                      record.containerId !== null &&
+                      condition.containerId.in.includes(record.containerId)
+                    );
+                  }
+                  return false;
+                });
+              }
+
+              return (
+                where?.containerId === undefined ||
+                record.containerId === where.containerId
+              );
+            })
             .sort(
               (left, right) =>
                 right.createdAt.getTime() - left.createdAt.getTime(),
@@ -1254,6 +1737,22 @@ describe('ImportsController (e2e)', () => {
           const start = skip ?? 0;
           const end = take === undefined ? undefined : start + take;
           return Promise.resolve(found.slice(start, end));
+        }),
+        deleteMany: jest.fn(({ where }) => {
+          const ids = new Set<string>(where.id.in);
+          const originalLength = generatedFileRecords.length;
+          for (
+            let index = generatedFileRecords.length - 1;
+            index >= 0;
+            index -= 1
+          ) {
+            if (ids.has(generatedFileRecords[index].id)) {
+              generatedFileRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({
+            count: originalLength - generatedFileRecords.length,
+          });
         }),
         update: jest.fn(({ where, data }) => {
           const record = generatedFileRecords.find(
@@ -1289,10 +1788,14 @@ describe('ImportsController (e2e)', () => {
           return Promise.resolve(record);
         }),
         deleteMany: jest.fn(({ where }) => {
-          const destinationIds = new Set(where.containerDestinationId.in);
+          const destinationIds = new Set(
+            where.containerDestinationId?.in ?? [],
+          );
+          const ids = new Set<string>(where.id?.in ?? []);
           const originalLength = palletRecords.length;
           for (let index = palletRecords.length - 1; index >= 0; index -= 1) {
             if (
+              ids.has(palletRecords[index].id) ||
               destinationIds.has(palletRecords[index].containerDestinationId)
             ) {
               palletRecords.splice(index, 1);
@@ -1321,9 +1824,9 @@ describe('ImportsController (e2e)', () => {
               const destination = destinationRecords.find(
                 (record) => record.id === pallet.containerDestinationId,
               );
-              return (
-                destination?.containerId ===
-                where.containerDestination.containerId
+              return matchesContainerIdFilter(
+                destination?.containerId ?? '',
+                where?.containerDestination?.containerId,
               );
             })
             .map((pallet) => {
@@ -1337,6 +1840,9 @@ describe('ImportsController (e2e)', () => {
                   destinationCode: destination?.destinationCode ?? '',
                   destinationType: destination?.destinationType ?? null,
                 },
+                events: palletEventRecords.filter(
+                  (event) => event.palletId === pallet.id,
+                ),
               };
             })
             .sort((left, right) =>
@@ -1358,7 +1864,8 @@ describe('ImportsController (e2e)', () => {
             eventType: row.eventType,
             fromStatus: row.fromStatus,
             toStatus: row.toStatus,
-            scanPayload: row.scanPayload,
+            scanPayload: row.scanPayload ?? null,
+            loadJobId: row.loadJobId ?? null,
             metadata: row.metadata,
             operatorId: row.operatorId ?? null,
             createdAt: now,
@@ -1367,6 +1874,28 @@ describe('ImportsController (e2e)', () => {
           palletEventRecords.push(...rows);
           return Promise.resolve({ count: rows.length });
         }),
+        deleteMany: jest.fn(({ where }) => {
+          const ids = new Set<string>(where.palletId.in);
+          const originalLength = palletEventRecords.length;
+          for (
+            let index = palletEventRecords.length - 1;
+            index >= 0;
+            index -= 1
+          ) {
+            if (ids.has(palletEventRecords[index].palletId ?? '')) {
+              palletEventRecords.splice(index, 1);
+            }
+          }
+          return Promise.resolve({
+            count: originalLength - palletEventRecords.length,
+          });
+        }),
+      },
+      loadJob: {
+        count: jest.fn(() => Promise.resolve(0)),
+      },
+      payContainerContainer: {
+        count: jest.fn(() => Promise.resolve(0)),
       },
     };
 

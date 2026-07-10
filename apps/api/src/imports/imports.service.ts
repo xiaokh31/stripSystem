@@ -7,8 +7,15 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import {
+  lstat,
+  mkdir,
+  realpath,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import {
   ImportFileListResponseDto,
   ImportFileResponseDto,
@@ -32,6 +39,9 @@ import {
   ContainerStatus,
   CorrectionTargetType,
   FileFormat,
+  ImportStatus,
+  PalletEventType,
+  PalletStatus,
   ParseStatus,
 } from '../generated/prisma/enums';
 import { auditUserId } from '../auth/audit-user';
@@ -131,6 +141,47 @@ interface ContainerDestinationRecord {
   }>;
 }
 
+interface ImportFileDeleteRecord {
+  id: string;
+  storedPath: string;
+  fileSha256: string;
+  containers: Array<{ id: string; containerNo: string }>;
+}
+
+interface GeneratedFileDeleteRecord {
+  id: string;
+  importFileId: string | null;
+  containerId: string | null;
+  fileType: string;
+  storagePath: string;
+}
+
+interface PalletDeleteRecord {
+  id: string;
+  status: string;
+  loadJobId: string | null;
+  loadedAt: Date | string | null;
+  events?: Array<{
+    eventType: string;
+    loadJobId?: string | null;
+    scanPayload?: string | null;
+  }>;
+}
+
+interface StorageCleanupTarget {
+  storagePath: string;
+  resolvedPath: string;
+  source: 'IMPORT_ORIGINAL' | 'GENERATED_FILE';
+  generatedFileId?: string;
+  fileType?: string;
+  exists: boolean;
+}
+
+interface StorageCleanupResult {
+  deletedPaths: string[];
+  missingPaths: string[];
+}
+
 interface PersistedParseResult {
   importFile: ImportFileRecord;
   containers: ContainerRecord[];
@@ -160,27 +211,35 @@ export class ImportsService {
     });
 
     if (duplicate) {
-      this.throwDuplicate(duplicate);
+      if (duplicate.deletedAt) {
+        await this.releaseDeletedImportFileSha256(
+          this.prisma,
+          duplicate as ImportFileRecord,
+        );
+      } else {
+        this.throwDuplicate(duplicate);
+      }
     }
 
     const storedPath = await this.preserveOriginalFile(file, fileSha256);
+    const createData = {
+      originalFilename: file.originalname,
+      storedPath,
+      fileSha256,
+      mimeType: file.mimetype || null,
+      fileSizeBytes: BigInt(file.size),
+      format: FileFormat.UNKNOWN,
+      importStatus: ImportStatus.UPLOADED,
+      parseStatus: ParseStatus.NOT_PARSED,
+      warningCount: 0,
+      errorCount: 0,
+      errorMessage: null,
+      importedById: auditUserId(actor),
+    };
 
     try {
       const record = await this.prisma.importFile.create({
-        data: {
-          originalFilename: file.originalname,
-          storedPath,
-          fileSha256,
-          mimeType: file.mimetype || null,
-          fileSizeBytes: BigInt(file.size),
-          format: 'UNKNOWN',
-          importStatus: 'UPLOADED',
-          parseStatus: 'NOT_PARSED',
-          warningCount: 0,
-          errorCount: 0,
-          errorMessage: null,
-          importedById: auditUserId(actor),
-        },
+        data: createData,
       });
 
       return this.toResponse(record);
@@ -191,7 +250,19 @@ export class ImportsService {
         });
 
         if (existing) {
-          this.throwDuplicate(existing);
+          if (existing.deletedAt) {
+            await this.releaseDeletedImportFileSha256(
+              this.prisma,
+              existing as ImportFileRecord,
+            );
+            const record = await this.prisma.importFile.create({
+              data: createData,
+            });
+
+            return this.toResponse(record);
+          } else {
+            this.throwDuplicate(existing);
+          }
         }
       }
 
@@ -239,27 +310,79 @@ export class ImportsService {
   ): Promise<ImportFileResponseDto> {
     const deletedAt = new Date();
     const reason = this.stringOrNull(dto.reason);
+    const existing = await this.findImportForDeleteOrThrow(this.prisma, id);
+    const containerIds = existing.containers.map((container) => container.id);
+    const generatedFiles = await this.findGeneratedFilesForDelete(
+      this.prisma,
+      id,
+      containerIds,
+    );
+    const initialDeletePlan = await this.assertImportCanBeDeleted(
+      this.prisma,
+      id,
+      containerIds,
+    );
+    const cleanupTargets = await this.prepareStorageCleanupTargets(
+      existing,
+      generatedFiles,
+    );
+    const cleanupResult = await this.cleanupStorageFiles(cleanupTargets);
 
     const record = (await this.prisma.$transaction(async (tx) => {
-      const existing = await this.findImportForDeleteOrThrow(tx, id);
-      const containerIds = existing.containers.map((container) => container.id);
-      await this.assertImportCanBeDeleted(tx, id, containerIds);
+      const existingInTransaction = await this.findImportForDeleteOrThrow(
+        tx,
+        id,
+      );
+      const txContainerIds = existingInTransaction.containers.map(
+        (container) => container.id,
+      );
+      const deletePlan = await this.assertImportCanBeDeleted(
+        tx,
+        id,
+        txContainerIds,
+      );
+      const txGeneratedFiles = await this.findGeneratedFilesForDelete(
+        tx,
+        id,
+        txContainerIds,
+      );
+      const generatedFileIds = txGeneratedFiles.map((file) => file.id);
+      const releasedFileSha256 = this.deletedImportFileSha256(
+        existingInTransaction.id,
+        existingInTransaction.fileSha256,
+      );
 
-      if (containerIds.length > 0) {
+      if (deletePlan.palletIds.length > 0) {
+        await tx.palletEvent.deleteMany({
+          where: { palletId: { in: deletePlan.palletIds } },
+        });
+        await tx.pallet.deleteMany({
+          where: { id: { in: deletePlan.palletIds } },
+        });
+      }
+
+      if (generatedFileIds.length > 0) {
+        await tx.generatedFile.deleteMany({
+          where: { id: { in: generatedFileIds } },
+        });
+      }
+
+      if (txContainerIds.length > 0) {
         await tx.containerLine.deleteMany({
-          where: { containerId: { in: containerIds } },
+          where: { containerId: { in: txContainerIds } },
         });
         await tx.containerDestination.deleteMany({
-          where: { containerId: { in: containerIds } },
+          where: { containerId: { in: txContainerIds } },
         });
         await tx.container.deleteMany({
-          where: { id: { in: containerIds } },
+          where: { id: { in: txContainerIds } },
         });
       }
 
       const updated = await tx.importFile.update({
         where: { id },
         data: {
+          fileSha256: releasedFileSha256,
           deletedAt,
           deletedById: auditUserId(actor),
           deleteReason: reason,
@@ -273,9 +396,22 @@ export class ImportsService {
           importFileId: id,
           fieldName: 'deletedAt',
           oldValue: this.nullableJsonValue(null),
-          newValue: this.nullableJsonValue(deletedAt.toISOString()),
+          newValue: this.nullableJsonValue({
+            deletedAt: deletedAt.toISOString(),
+            deletedStorageFileCount: cleanupResult.deletedPaths.length,
+            deletedStoragePaths: cleanupResult.deletedPaths,
+            missingStoragePaths: cleanupResult.missingPaths,
+            generatedFileCount: generatedFiles.length,
+            generatedFileIds: generatedFiles.map((file) => file.id),
+            palletCount: initialDeletePlan.palletIds.length,
+            originalFileSha256: existingInTransaction.fileSha256,
+            releasedFileSha256,
+          }),
           reason,
-          note: 'Import hidden from active import history after operator deletion.',
+          note:
+            cleanupResult.missingPaths.length > 0
+              ? 'Import deleted from active history. Storage cleanup completed with missing-file warnings.'
+              : 'Import deleted from active history. Original and generated storage files were cleaned up.',
           correctedById: auditUserId(actor),
         },
       });
@@ -398,16 +534,15 @@ export class ImportsService {
   }
 
   private async findImportForDeleteOrThrow(
-    tx: Prisma.TransactionClient,
+    tx: Pick<PrismaService, 'importFile'> | Prisma.TransactionClient,
     id: string,
-  ): Promise<{
-    id: string;
-    containers: Array<{ id: string; containerNo: string }>;
-  }> {
+  ): Promise<ImportFileDeleteRecord> {
     const record = await tx.importFile.findUnique({
       where: { id, deletedAt: null },
       select: {
         id: true,
+        storedPath: true,
+        fileSha256: true,
         containers: {
           select: {
             id: true,
@@ -428,12 +563,12 @@ export class ImportsService {
     return record;
   }
 
-  private async assertImportCanBeDeleted(
-    tx: Prisma.TransactionClient,
+  private async findGeneratedFilesForDelete(
+    tx: Pick<PrismaService, 'generatedFile'> | Prisma.TransactionClient,
     importFileId: string,
     containerIds: string[],
-  ): Promise<void> {
-    const generatedFileCount = await tx.generatedFile.count({
+  ): Promise<GeneratedFileDeleteRecord[]> {
+    return (await tx.generatedFile.findMany({
       where: {
         OR: [
           { importFileId },
@@ -442,17 +577,49 @@ export class ImportsService {
             : []),
         ],
       },
-    });
-    const palletCount =
+      select: {
+        id: true,
+        importFileId: true,
+        containerId: true,
+        fileType: true,
+        storagePath: true,
+      },
+    })) as GeneratedFileDeleteRecord[];
+  }
+
+  private async assertImportCanBeDeleted(
+    tx:
+      | Pick<PrismaService, 'pallet' | 'loadJob' | 'payContainerContainer'>
+      | Prisma.TransactionClient,
+    importFileId: string,
+    containerIds: string[],
+  ): Promise<{ palletIds: string[] }> {
+    const pallets =
       containerIds.length === 0
-        ? 0
-        : await tx.pallet.count({
+        ? []
+        : ((await tx.pallet.findMany({
             where: {
               containerDestination: {
                 containerId: { in: containerIds },
               },
             },
-          });
+            select: {
+              id: true,
+              status: true,
+              loadJobId: true,
+              loadedAt: true,
+              events: {
+                select: {
+                  eventType: true,
+                  loadJobId: true,
+                  scanPayload: true,
+                },
+              },
+            },
+          })) as PalletDeleteRecord[]);
+    const operationalPalletCount = pallets.filter((pallet) =>
+      this.isOperationalPallet(pallet),
+    ).length;
     const loadJobCount =
       containerIds.length === 0
         ? 0
@@ -464,36 +631,19 @@ export class ImportsService {
               ],
             },
           });
-    const correctionCount = await tx.correctionFeedback.count({
-      where: {
-        OR: [
-          { importFileId },
-          ...(containerIds.length > 0
-            ? [
-                { containerId: { in: containerIds } },
-                {
-                  containerLine: {
-                    containerId: { in: containerIds },
-                  },
-                },
-                {
-                  containerDestination: {
-                    containerId: { in: containerIds },
-                  },
-                },
-              ]
-            : []),
-        ],
-      },
-    });
+    const payContainerCount =
+      containerIds.length === 0
+        ? 0
+        : await tx.payContainerContainer.count({
+            where: { containerId: { in: containerIds } },
+          });
 
     if (
-      generatedFileCount === 0 &&
-      palletCount === 0 &&
       loadJobCount === 0 &&
-      correctionCount === 0
+      operationalPalletCount === 0 &&
+      payContainerCount === 0
     ) {
-      return;
+      return { palletIds: pallets.map((pallet) => pallet.id) };
     }
 
     throw new ConflictException({
@@ -502,12 +652,257 @@ export class ImportsService {
         'This import already has business records and cannot be deleted from import history.',
       details: {
         importFileId,
-        generatedFileCount,
-        palletCount,
+        palletCount: pallets.length,
+        operationalPalletCount,
         loadJobCount,
-        correctionCount,
+        payContainerCount,
       },
     });
+  }
+
+  private isOperationalPallet(pallet: PalletDeleteRecord): boolean {
+    const deletablePalletStatuses: string[] = [
+      PalletStatus.PLANNED,
+      PalletStatus.LABEL_PRINTED,
+    ];
+    if (
+      pallet.loadJobId !== null ||
+      pallet.loadedAt !== null ||
+      !deletablePalletStatuses.includes(pallet.status)
+    ) {
+      return true;
+    }
+
+    const deletableEventTypes: string[] = [
+      PalletEventType.CREATED,
+      PalletEventType.LABEL_PRINTED,
+    ];
+    return (pallet.events ?? []).some((event) => {
+      return (
+        (event.loadJobId ?? null) !== null ||
+        (event.scanPayload ?? null) !== null ||
+        !deletableEventTypes.includes(event.eventType)
+      );
+    });
+  }
+
+  private async prepareStorageCleanupTargets(
+    importFile: ImportFileDeleteRecord,
+    generatedFiles: GeneratedFileDeleteRecord[],
+  ): Promise<StorageCleanupTarget[]> {
+    const candidates: Array<{
+      storagePath: string;
+      source: StorageCleanupTarget['source'];
+      generatedFileId?: string;
+      fileType?: string;
+    }> = [
+      {
+        storagePath: importFile.storedPath,
+        source: 'IMPORT_ORIGINAL',
+      },
+      ...generatedFiles.map((file) => ({
+        storagePath: file.storagePath,
+        source: 'GENERATED_FILE' as const,
+        generatedFileId: file.id,
+        fileType: file.fileType,
+      })),
+    ];
+    const targets: StorageCleanupTarget[] = [];
+    const seenResolvedPaths = new Set<string>();
+
+    for (const candidate of candidates) {
+      const resolvedPath = this.resolveStoragePathForDelete(
+        candidate.storagePath,
+      );
+      if (seenResolvedPaths.has(resolvedPath)) {
+        continue;
+      }
+      seenResolvedPaths.add(resolvedPath);
+
+      const existing = await this.storageFileStatus(
+        candidate.storagePath,
+        resolvedPath,
+      );
+      targets.push({
+        ...candidate,
+        resolvedPath,
+        exists: existing,
+      });
+    }
+
+    return targets;
+  }
+
+  private resolveStoragePathForDelete(storagePath: string): string {
+    if (!storagePath || storagePath.includes('\0')) {
+      throw new BadRequestException({
+        code: 'IMPORT_DELETE_INVALID_STORAGE_PATH',
+        message: 'Import deletion found an invalid storage path.',
+        details: { storagePath },
+      });
+    }
+
+    const storageRoot = resolve(this.storageRoot);
+    const resolvedPath = isAbsolute(storagePath)
+      ? resolve(storagePath)
+      : resolve(storageRoot, storagePath);
+
+    if (
+      resolvedPath === storageRoot ||
+      !this.isPathWithinStorageRoot(resolvedPath)
+    ) {
+      throw new BadRequestException({
+        code: 'IMPORT_DELETE_STORAGE_PATH_OUTSIDE_ROOT',
+        message:
+          'Import deletion refused to remove a file outside the configured storage root.',
+        details: {
+          storageRoot,
+          storagePath,
+          resolvedPath,
+        },
+      });
+    }
+
+    return resolvedPath;
+  }
+
+  private async storageFileStatus(
+    storagePath: string,
+    resolvedPath: string,
+  ): Promise<boolean> {
+    let fileStat;
+    try {
+      fileStat = await lstat(resolvedPath);
+    } catch (error) {
+      if (this.isFileNotFound(error)) {
+        return false;
+      }
+
+      throw new InternalServerErrorException({
+        code: 'IMPORT_DELETE_STORAGE_STAT_FAILED',
+        message: 'Import deletion could not inspect a storage file.',
+        details: {
+          storagePath,
+          resolvedPath,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
+
+    if (!fileStat.isFile()) {
+      throw new BadRequestException({
+        code: 'IMPORT_DELETE_STORAGE_PATH_NOT_FILE',
+        message: 'Import deletion only removes individual storage files.',
+        details: { storagePath, resolvedPath },
+      });
+    }
+
+    const realStorageRoot = await this.realStorageRoot();
+    let realStoragePath: string;
+    try {
+      realStoragePath = await realpath(resolvedPath);
+    } catch (error) {
+      if (this.isFileNotFound(error)) {
+        return false;
+      }
+
+      throw new InternalServerErrorException({
+        code: 'IMPORT_DELETE_STORAGE_REALPATH_FAILED',
+        message: 'Import deletion could not resolve a storage file path.',
+        details: {
+          storagePath,
+          resolvedPath,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
+    if (
+      realStoragePath === realStorageRoot ||
+      !this.isPathWithinStorageRoot(realStoragePath, realStorageRoot)
+    ) {
+      throw new BadRequestException({
+        code: 'IMPORT_DELETE_STORAGE_PATH_OUTSIDE_ROOT',
+        message:
+          'Import deletion refused to remove a file outside the configured storage root.',
+        details: {
+          storageRoot: realStorageRoot,
+          storagePath,
+          resolvedPath,
+          realStoragePath,
+        },
+      });
+    }
+
+    return true;
+  }
+
+  private async cleanupStorageFiles(
+    targets: StorageCleanupTarget[],
+  ): Promise<StorageCleanupResult> {
+    const result: StorageCleanupResult = {
+      deletedPaths: [],
+      missingPaths: [],
+    };
+
+    for (const target of targets) {
+      if (!target.exists) {
+        result.missingPaths.push(target.storagePath);
+        continue;
+      }
+
+      try {
+        await unlink(target.resolvedPath);
+        result.deletedPaths.push(target.storagePath);
+      } catch (error) {
+        if (this.isFileNotFound(error)) {
+          result.missingPaths.push(target.storagePath);
+          continue;
+        }
+
+        throw new InternalServerErrorException({
+          code: 'IMPORT_DELETE_STORAGE_CLEANUP_FAILED',
+          message: 'Import deletion could not remove a storage file.',
+          details: {
+            storagePath: target.storagePath,
+            resolvedPath: target.resolvedPath,
+            errorMessage: this.errorMessage(error),
+          },
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private async realStorageRoot(): Promise<string> {
+    try {
+      return await realpath(this.storageRoot);
+    } catch (error) {
+      if (this.isFileNotFound(error)) {
+        return resolve(this.storageRoot);
+      }
+
+      throw new InternalServerErrorException({
+        code: 'IMPORT_DELETE_STORAGE_ROOT_INVALID',
+        message: 'Import deletion could not inspect the storage root.',
+        details: {
+          storageRoot: this.storageRoot,
+          errorMessage: this.errorMessage(error),
+        },
+      });
+    }
+  }
+
+  private isPathWithinStorageRoot(
+    resolvedPath: string,
+    storageRoot = resolve(this.storageRoot),
+  ): boolean {
+    const pathFromRoot = relative(storageRoot, resolvedPath);
+    return (
+      pathFromRoot.length > 0 &&
+      !pathFromRoot.startsWith('..') &&
+      !isAbsolute(pathFromRoot)
+    );
   }
 
   private async assertStoredFileExists(
@@ -608,6 +1003,16 @@ export class ImportsService {
         message: 'Worker parsed the file without a container number.',
         field: 'containerNo',
       });
+    }
+
+    if (parsedResult) {
+      errors = [
+        ...errors,
+        ...this.palletPlanContractErrors(
+          parsedResult.destinationSummaries ?? [],
+          payload.pallet_result?.plans ?? [],
+        ),
+      ];
     }
 
     const parseStatus = this.parseStatus(payload, warnings, errors);
@@ -961,6 +1366,38 @@ export class ImportsService {
     });
   }
 
+  private async releaseDeletedImportFileSha256(
+    tx: Pick<PrismaService, 'importFile'> | Prisma.TransactionClient,
+    record: ImportFileRecord,
+  ): Promise<void> {
+    if (!record.deletedAt) {
+      return;
+    }
+
+    const releasedFileSha256 = this.deletedImportFileSha256(
+      record.id,
+      record.fileSha256,
+    );
+    if (releasedFileSha256 === record.fileSha256) {
+      return;
+    }
+
+    await tx.importFile.update({
+      where: { id: record.id },
+      data: { fileSha256: releasedFileSha256 },
+    });
+  }
+
+  private deletedImportFileSha256(
+    importFileId: string,
+    fileSha256: string,
+  ): string {
+    const prefix = `deleted:${importFileId}:`;
+    return fileSha256.startsWith(prefix)
+      ? fileSha256
+      : `${prefix}${fileSha256}`;
+  }
+
   private toResponse(record: ImportFileRecord): ImportFileResponseDto {
     return {
       id: record.id,
@@ -1177,17 +1614,95 @@ export class ImportsService {
     return this.destinationKey(summary.destinationCode, summary.packageType);
   }
 
+  private palletPlanContractErrors(
+    summaries: WorkerDestinationSummary[],
+    plans: WorkerPalletPlan[],
+  ): WorkerIssue[] {
+    const plansByDestination = new Map(
+      plans.map((plan) => [this.destinationPlanKey(plan), plan]),
+    );
+    const errors: WorkerIssue[] = [];
+
+    for (const summary of summaries) {
+      const plan = plansByDestination.get(this.destinationSummaryKey(summary));
+      const summaryCartons = this.intValue(
+        summary.totalCartons ?? summary.totalSkidCount,
+        0,
+      );
+      const summaryVolume = this.numberValue(summary.totalVolumeCbm, 0);
+      const hasGoods = summaryCartons > 0 || summaryVolume > 0;
+
+      if (hasGoods && !plan) {
+        errors.push({
+          code: 'MISSING_PALLET_PLAN',
+          destinationCode: this.stringOrNull(summary.destinationCode),
+          field: 'pallet_result.plans',
+          message:
+            'Worker returned a destination summary with goods but no matching pallet plan.',
+        });
+        continue;
+      }
+
+      if (!plan) {
+        continue;
+      }
+
+      const planCartons = this.intValue(plan.totalCartons, summaryCartons);
+      const planVolume = this.numberValue(plan.totalVolumeCbm, summaryVolume);
+      const calculatedPallets = this.intValue(plan.calculatedPallets, 0);
+
+      if (planCartons > 0 && planVolume > 0 && calculatedPallets <= 0) {
+        errors.push({
+          code: 'INVALID_ZERO_CALCULATED_PALLETS',
+          destinationCode: this.stringOrNull(
+            plan.destinationCode ?? summary.destinationCode,
+          ),
+          field: 'pallet_result.plans.calculatedPallets',
+          message:
+            'Worker returned zero calculated pallets for a destination with cartons and volume.',
+        });
+      }
+    }
+
+    return errors;
+  }
+
   private destinationKey(
     destinationCode: unknown,
     packageType: unknown,
   ): string {
-    return `${this.stringOrNull(destinationCode) ?? ''}\u0000${
-      this.stringOrNull(packageType) ?? ''
-    }`;
+    return `${this.stringOrNull(destinationCode) ?? ''}\u0000${this.packageTypeValue(
+      packageType,
+    )}`;
   }
 
   private packageTypeValue(value: unknown): string {
-    return this.stringOrNull(value) ?? 'UNSPECIFIED';
+    const packageType = this.stringOrNull(value);
+    if (!packageType) {
+      return 'CARTON';
+    }
+
+    const normalized = packageType.trim().toUpperCase().replace(/\s+/g, '_');
+    if (
+      normalized === 'WOODEN_CRATE' ||
+      normalized === 'WOODEN' ||
+      normalized === 'WOOD' ||
+      normalized === 'CRATE'
+    ) {
+      return 'WOODEN_CRATE';
+    }
+    if (
+      normalized === 'CARTON' ||
+      normalized === 'CTN' ||
+      normalized === 'CTNS'
+    ) {
+      return 'CARTON';
+    }
+    if (normalized === 'UNKNOWN' || normalized === 'UNSPECIFIED') {
+      return 'CARTON';
+    }
+
+    return packageType;
   }
 
   private packageTypeOrNull(value: string | null | undefined): string | null {
@@ -1224,6 +1739,11 @@ export class ImportsService {
       return null;
     }
     return Math.trunc(numberValue);
+  }
+
+  private numberValue(value: unknown, fallback: number): number {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
   }
 
   private decimalString(value: unknown, fallback: string): string {
@@ -1322,6 +1842,15 @@ export class ImportsService {
       error !== null &&
       'code' in error &&
       error.code === 'EEXIST'
+    );
+  }
+
+  private isFileNotFound(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'ENOENT'
     );
   }
 

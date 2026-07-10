@@ -27,6 +27,7 @@ import {
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   canGenerateWorkHours,
   canParseWorkHours,
@@ -238,6 +239,16 @@ function AttendanceImportTable({
   locale: Locale;
   selectedImportId: string | null;
 }) {
+  const showingText =
+    translateMessage(
+      `Showing ${imports.items.length} latest attendance workbook(s).`,
+      locale,
+    ) ??
+    `Showing ${imports.items.length} latest attendance workbook(s).`;
+  const limitText =
+    translateMessage(`Limit ${imports.limit}, offset ${imports.offset}`, locale) ??
+    `Limit ${imports.limit}, offset ${imports.offset}`;
+
   if (imports.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
@@ -259,13 +270,9 @@ function AttendanceImportTable({
           <h2 className="text-base font-semibold text-zinc-950">
             Attendance imports
           </h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Showing {imports.items.length} latest attendance workbook(s).
-          </p>
+          <p className="mt-1 text-sm text-zinc-600">{showingText}</p>
         </div>
-        <p className="text-xs font-medium text-zinc-500">
-          Limit {imports.limit}, offset {imports.offset}
-        </p>
+        <p className="text-xs font-medium text-zinc-500">{limitText}</p>
       </div>
       <div className="mt-5">
         <table className="w-full table-fixed border-collapse text-left text-sm">
@@ -326,7 +333,8 @@ function AttendanceImportRow({
       <td className="break-words px-3 py-4 text-zinc-700">
         <p>{importFile.settlementMonth ?? "-"}</p>
         <p className="mt-1 text-xs text-zinc-500">
-          {formatDateOnly(importFile.periodStart)} to{" "}
+          {formatDateOnly(importFile.periodStart)}{" "}
+          {translateMessage("to", locale) ?? "to"}{" "}
           {formatDateOnly(importFile.periodEnd)}
         </p>
       </td>
@@ -340,7 +348,7 @@ function AttendanceImportRow({
         {importFile.warningCount} / {importFile.errorCount}
       </td>
       <td className="break-words px-3 py-4 text-zinc-700">
-        {formatDateTime(importFile.createdAt)}
+        {formatDateTime(importFile.createdAt, locale)}
       </td>
       <td className="px-3 py-4">
         <Link
@@ -538,13 +546,13 @@ function GeneratedFileLink({
         <div>
           <p className="text-sm font-semibold text-zinc-950">{file.fileType}</p>
           <p className="mt-1 text-xs text-zinc-500">
-            {formatDateTime(file.updatedAt)}
+            {formatDateTime(file.updatedAt, locale)}
           </p>
         </div>
         <StatusBadge locale={locale} status={file.status} />
       </div>
       <p className="mt-3 break-all text-xs leading-5 text-zinc-600">
-        {generatedFileAuditText(file)}
+        {generatedFileAuditText(file, locale)}
       </p>
       {downloadable ? (
         <Link

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
+import { translateMessage } from "@/lib/i18n/translator";
 import {
   formatInventoryRefreshTime,
   normalizeInventoryPollingIntervalMs,
@@ -14,11 +16,20 @@ export function InventoryRefreshControls({
   lastUpdatedAt: string;
   pollingIntervalMs: number;
 }) {
+  const { locale } = useI18n();
   const router = useRouter();
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [isPending, startTransition] = useTransition();
   const intervalMs = normalizeInventoryPollingIntervalMs(pollingIntervalMs);
   const intervalSeconds = Math.round(intervalMs / 1000);
+  const refreshTime = formatInventoryRefreshTime(lastUpdatedAt);
+  const lastUpdatedSource = `Last updated ${refreshTime}. Inventory remaining is global warehouse inventory from the API, not load job planned remaining.`;
+  const lastUpdatedText =
+    translateMessage(lastUpdatedSource, locale) ?? lastUpdatedSource;
+  const pollingSource = `Polling ${intervalSeconds}s`;
+  const pollingText = pollingEnabled
+    ? translateMessage(pollingSource, locale) ?? pollingSource
+    : "Polling paused";
 
   const refreshInventory = useCallback(() => {
     startTransition(() => {
@@ -42,11 +53,7 @@ export function InventoryRefreshControls({
           <h2 className="text-base font-semibold text-zinc-950">
             Inventory refresh
           </h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Last updated {formatInventoryRefreshTime(lastUpdatedAt)}. Inventory
-            remaining is global warehouse inventory from the API, not load job
-            planned remaining.
-          </p>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">{lastUpdatedText}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -62,9 +69,7 @@ export function InventoryRefreshControls({
             onClick={() => setPollingEnabled((enabled) => !enabled)}
             type="button"
           >
-            {pollingEnabled
-              ? `Polling ${intervalSeconds}s`
-              : "Polling paused"}
+            {pollingText}
           </button>
         </div>
       </div>
