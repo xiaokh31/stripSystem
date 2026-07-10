@@ -1,4 +1,5 @@
 import type {
+  UnloadingSummaryAvailableMonthResponse,
   UnloadingSummaryGeneratedFileResponse,
   UnloadingSummaryReviewItemResponse,
   UnloadingSummaryRowResponse,
@@ -34,6 +35,24 @@ export function normalizeUnloadingSummaryMonth(
 ): string {
   const month = firstSearchValue(searchParams.month)?.trim();
   return isSummaryMonth(month) ? month : defaultUnloadingSummaryMonth(now);
+}
+
+export function resolveUnloadingSummaryMonth(
+  searchParams: UnloadingSummarySearchParams,
+  availableMonths: UnloadingSummaryAvailableMonthResponse[],
+  now = new Date(),
+): string {
+  const requestedMonth = firstSearchValue(searchParams.month)?.trim();
+  if (isSummaryMonth(requestedMonth)) {
+    return requestedMonth;
+  }
+
+  const currentMonth = defaultUnloadingSummaryMonth(now);
+  if (availableMonths.some((available) => available.month === currentMonth)) {
+    return currentMonth;
+  }
+
+  return availableMonths[0]?.month ?? currentMonth;
 }
 
 export function unloadingSummaryHref(month: string): string {

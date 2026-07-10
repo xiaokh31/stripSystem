@@ -576,6 +576,18 @@ export interface UnloadingSummaryGeneratedFileResponse extends GeneratedFileResp
   downloadUrl: string;
 }
 
+export interface UnloadingSummaryAvailableMonthResponse {
+  month: string;
+  completedContainerCount: number;
+  rowCount: number;
+  statusCounts: Record<string, number>;
+}
+
+export interface UnloadingSummaryMonthMetadataResponse {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  missingCompletionReviewCount: number;
+}
+
 export interface UnloadingSummaryRowResponse {
   sequence: number;
   containerId: string;
@@ -617,6 +629,9 @@ export interface UnloadingSummaryResponse {
   month: string;
   sourceContainerCount: number;
   rowCount: number;
+  selectedMonthHasRows: boolean;
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  missingCompletionReviewCount: number;
   rows: UnloadingSummaryRowResponse[];
   reviewItems: UnloadingSummaryReviewItemResponse[];
   generatedFiles: UnloadingSummaryGeneratedFileResponse[];
@@ -1731,6 +1746,14 @@ export function getUnloadingSummary(
   const params = new URLSearchParams({ month });
   return createApiClient(options).get<UnloadingSummaryResponse>(
     `/unloading-summary?${params.toString()}`,
+  );
+}
+
+export function getUnloadingSummaryMonths(
+  options: ApiClientOptions = {},
+): Promise<UnloadingSummaryMonthMetadataResponse> {
+  return createApiClient(options).get<UnloadingSummaryMonthMetadataResponse>(
+    "/unloading-summary/months",
   );
 }
 

@@ -16,6 +16,7 @@ import type { GeneratedFileDownloadDto } from '../reports/dto/generated-file-res
 import {
   ExportUnloadingSummaryDto,
   ExportUnloadingSummaryResponseDto,
+  UnloadingSummaryMonthMetadataDto,
   UnloadingSummaryMonthQueryDto,
   UnloadingSummaryResponseDto,
 } from './dto/unloading-summary.dto';
@@ -26,6 +27,12 @@ export class UnloadingSummaryController {
   constructor(
     private readonly unloadingSummaryService: UnloadingSummaryService,
   ) {}
+
+  @Get('months')
+  @RequirePermissions(...ROUTE_PERMISSIONS.unloadingSummary.read)
+  getSummaryMonths(): Promise<UnloadingSummaryMonthMetadataDto> {
+    return this.unloadingSummaryService.getSummaryMonths();
+  }
 
   @Get()
   @RequirePermissions(...ROUTE_PERMISSIONS.unloadingSummary.read)

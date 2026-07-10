@@ -27,8 +27,14 @@ describe('UnloadingSummaryService', () => {
 
     prisma = {
       payContainer: {
-        findMany: jest.fn(({ where }) =>
-          Promise.resolve(
+        findMany: jest.fn(({ where }) => {
+          if (where?.completedAt?.not === null) {
+            return Promise.resolve(
+              payContainers.filter((payContainer) => payContainer.completedAt),
+            );
+          }
+
+          return Promise.resolve(
             payContainers.filter((payContainer) => {
               const completedAt = payContainer.completedAt
                 ? new Date(payContainer.completedAt).getTime()
@@ -39,8 +45,8 @@ describe('UnloadingSummaryService', () => {
                 completedAt < where.completedAt.lt.getTime()
               );
             }),
-          ),
-        ),
+          );
+        }),
       },
       container: {
         findMany: jest.fn(({ where }) =>
@@ -110,6 +116,20 @@ describe('UnloadingSummaryService', () => {
     const response = await service.getSummary('2026-06');
 
     expect(response.sourceContainerCount).toBe(3);
+    expect(response.rowCount).toBe(3);
+    expect(response.selectedMonthHasRows).toBe(true);
+    expect(response.availableMonths).toEqual([
+      {
+        month: '2026-06',
+        completedContainerCount: 3,
+        rowCount: 3,
+        statusCounts: {
+          LOADED: 1,
+          LOADING_IN_PROGRESS: 1,
+          UNLOADED: 1,
+        },
+      },
+    ]);
     expect(response.rows.map((row) => row.containerNo)).toEqual([
       'BEAU5946301',
       'INPROGRESS01',
@@ -148,6 +168,38 @@ describe('UnloadingSummaryService', () => {
     );
   });
 
+  it('keeps an explicit empty month empty and returns available month hints', async () => {
+    const response = await service.getSummary('2026-07');
+
+    expect(response.month).toBe('2026-07');
+    expect(response.sourceContainerCount).toBe(0);
+    expect(response.rowCount).toBe(0);
+    expect(response.selectedMonthHasRows).toBe(false);
+    expect(response.availableMonths.map((month) => month.month)).toEqual([
+      '2026-06',
+    ]);
+  });
+
+  it('lists available completed unloading months from recorded completion dates', async () => {
+    const response = await service.getSummaryMonths();
+
+    expect(response).toEqual({
+      availableMonths: [
+        {
+          month: '2026-06',
+          completedContainerCount: 3,
+          rowCount: 3,
+          statusCounts: {
+            LOADED: 1,
+            LOADING_IN_PROGRESS: 1,
+            UNLOADED: 1,
+          },
+        },
+      ],
+      missingCompletionReviewCount: 1,
+    });
+  });
+
   it('generates an xlsx export record and exposes a safe download', async () => {
     const response = await service.exportSummary('2026-06', officeActor);
 
@@ -174,6 +226,29 @@ describe('UnloadingSummaryService', () => {
     const download = await service.downloadExport(response.generatedFile.id);
     expect(download.filename).toBe('monthly-summary.xlsx');
     expect(download.buffer.toString()).toBe('xlsx bytes 2026-06');
+  });
+
+  it('rejects exporting a selected month with no summary rows', async () => {
+    await expect(
+      service.exportSummary('2026-07', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH',
+        details: {
+          month: '2026-07',
+          availableMonths: [
+            expect.objectContaining({
+              month: '2026-06',
+              completedContainerCount: 3,
+              rowCount: 3,
+            }),
+          ],
+        },
+      },
+    });
+
+    expect(workerSummary.writeSummary).not.toHaveBeenCalled();
+    expect(generatedFiles).toHaveLength(0);
   });
 
   function containerFixtures() {
@@ -334,7 +409,7 @@ describe('UnloadingSummaryService', () => {
       {
         id: 'container-4',
         containerNo: 'JULY0000001',
-        status: 'UNLOADED',
+        status: 'LABELS_GENERATED',
         rawJson: {},
         destinations: [],
         lines: [],

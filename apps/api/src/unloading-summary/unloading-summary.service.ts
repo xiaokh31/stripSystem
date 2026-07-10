@@ -19,8 +19,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import type { GeneratedFileDownloadDto } from '../reports/dto/generated-file-response.dto';
 import {
+  UnloadingSummaryAvailableMonthDto,
   ExportUnloadingSummaryResponseDto,
   UnloadingSummaryGeneratedFileDto,
+  UnloadingSummaryMonthMetadataDto,
   UnloadingSummaryResponseDto,
   UnloadingSummaryReviewItemDto,
   UnloadingSummaryRowDto,
@@ -123,6 +125,12 @@ interface SummaryBuildResult {
   sourceContainerCount: number;
 }
 
+interface SummaryMonthAccumulator {
+  containerIds: Set<string>;
+  rowCount: number;
+  statusCounts: Record<string, number>;
+}
+
 @Injectable()
 export class UnloadingSummaryService {
   private readonly storageRoot: string;
@@ -136,15 +144,35 @@ export class UnloadingSummaryService {
   }
 
   async getSummary(month: string): Promise<UnloadingSummaryResponseDto> {
-    const summary = await this.buildSummary(month);
-    const generatedFiles = await this.listGeneratedFiles(month);
+    const [summary, generatedFiles, availableMonths] = await Promise.all([
+      this.buildSummary(month),
+      this.listGeneratedFiles(month),
+      this.availableSummaryMonths(),
+    ]);
     return {
       month,
       sourceContainerCount: summary.sourceContainerCount,
       rowCount: summary.rows.length,
+      selectedMonthHasRows: summary.rows.length > 0,
+      availableMonths,
+      missingCompletionReviewCount: this.missingCompletionReviewCount(
+        summary.reviewItems,
+      ),
       rows: summary.rows,
       reviewItems: summary.reviewItems,
       generatedFiles,
+    };
+  }
+
+  async getSummaryMonths(): Promise<UnloadingSummaryMonthMetadataDto> {
+    const [availableMonths, missingCompletionItems] = await Promise.all([
+      this.availableSummaryMonths(),
+      this.missingCompletionReviewItems(),
+    ]);
+
+    return {
+      availableMonths,
+      missingCompletionReviewCount: missingCompletionItems.length,
     };
   }
 
@@ -153,6 +181,20 @@ export class UnloadingSummaryService {
     actor: AuthenticatedUser,
   ): Promise<ExportUnloadingSummaryResponseDto> {
     const summary = await this.buildSummary(month);
+    if (summary.rows.length === 0) {
+      const metadata = await this.getSummaryMonths();
+      throw new BadRequestException({
+        code: 'UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH',
+        message:
+          'Selected month has no completed unloading rows. Choose an available completed month before exporting.',
+        details: {
+          month,
+          availableMonths: metadata.availableMonths,
+          missingCompletionReviewCount: metadata.missingCompletionReviewCount,
+        },
+      });
+    }
+
     const exportId = randomUUID();
     const outputDir = join(
       this.storageRoot,
@@ -197,6 +239,11 @@ export class UnloadingSummaryService {
       month,
       sourceContainerCount: summary.sourceContainerCount,
       rowCount: summary.rows.length,
+      selectedMonthHasRows: summary.rows.length > 0,
+      availableMonths: await this.availableSummaryMonths(),
+      missingCompletionReviewCount: this.missingCompletionReviewCount(
+        summary.reviewItems,
+      ),
       rows: summary.rows,
       reviewItems: summary.reviewItems,
       generatedFile: this.toGeneratedFileResponse(generatedFile),
@@ -335,6 +382,81 @@ export class UnloadingSummaryService {
       reviewItems,
       sourceContainerCount: includedContainerIds.size,
     };
+  }
+
+  private async availableSummaryMonths(): Promise<
+    UnloadingSummaryAvailableMonthDto[]
+  > {
+    const payContainers = (await this.prisma.payContainer.findMany({
+      where: { completedAt: { not: null } },
+      include: {
+        sourceContainers: {
+          include: {
+            container: {
+              include: {
+                destinations: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ completedAt: 'desc' }, { payContainerNo: 'asc' }],
+    })) as PayContainerSummaryRecord[];
+    const months = new Map<string, SummaryMonthAccumulator>();
+
+    for (const payContainer of payContainers) {
+      if (!payContainer.completedAt) {
+        continue;
+      }
+      const month = this.monthKey(payContainer.completedAt);
+      const accumulator = this.getMonthAccumulator(months, month);
+
+      for (const source of payContainer.sourceContainers ?? []) {
+        const container = source.container;
+        if (!COMPLETED_UNLOADING_STATUSES.has(container.status)) {
+          continue;
+        }
+        if (accumulator.containerIds.has(container.id)) {
+          continue;
+        }
+
+        accumulator.containerIds.add(container.id);
+        accumulator.rowCount += Math.max(
+          1,
+          container.destinations?.length ?? 0,
+        );
+        accumulator.statusCounts[container.status] =
+          (accumulator.statusCounts[container.status] ?? 0) + 1;
+      }
+    }
+
+    return Array.from(months.entries())
+      .map(([month, accumulator]) => ({
+        month,
+        completedContainerCount: accumulator.containerIds.size,
+        rowCount: accumulator.rowCount,
+        statusCounts: accumulator.statusCounts,
+      }))
+      .filter((entry) => entry.rowCount > 0)
+      .sort((left, right) => right.month.localeCompare(left.month));
+  }
+
+  private getMonthAccumulator(
+    months: Map<string, SummaryMonthAccumulator>,
+    month: string,
+  ): SummaryMonthAccumulator {
+    const existing = months.get(month);
+    if (existing) {
+      return existing;
+    }
+
+    const created = {
+      containerIds: new Set<string>(),
+      rowCount: 0,
+      statusCounts: {},
+    };
+    months.set(month, created);
+    return created;
   }
 
   private rowsForContainer(
@@ -640,6 +762,22 @@ export class UnloadingSummaryService {
       gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
       lt: new Date(Date.UTC(year, monthNumber, 1)),
     };
+  }
+
+  private monthKey(value: Date | string): string {
+    const date = value instanceof Date ? value : new Date(value);
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
+      2,
+      '0',
+    )}`;
+  }
+
+  private missingCompletionReviewCount(
+    reviewItems: UnloadingSummaryReviewItemDto[],
+  ): number {
+    return reviewItems.filter(
+      (item) => item.code === 'MISSING_UNLOADING_COMPLETED_AT',
+    ).length;
   }
 
   private dateTimeRequired(value: Date | string | null): Date {

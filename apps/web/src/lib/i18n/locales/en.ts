@@ -1006,7 +1006,9 @@ export const enMessages = {
   Apply: "Apply",
   "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.":
     "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.",
+  "Available completed months": "Available completed months",
   "Cartons and pallets": "Cartons and pallets",
+  "container(s) ·": "container(s) ·",
   "Completed containers": "Completed containers",
   "Completed status filter": "Completed status filter",
   "Destination and note lines are returned by the summary API.":
@@ -1015,6 +1017,8 @@ export const enMessages = {
   "Detail rows": "Detail rows",
   "Download generated summary": "Download generated summary",
   "Export Excel": "Export Excel",
+  "Export is disabled for empty months.":
+    "Export is disabled for empty months.",
   "Export monthly unloading data": "Export monthly unloading data",
   "Exporting monthly unloading data summary.":
     "Exporting monthly unloading data summary.",
@@ -1029,6 +1033,9 @@ export const enMessages = {
   "Monthly unloading data summary could not be loaded":
     "Monthly unloading data summary could not be loaded",
   "Monthly unloading detail": "Monthly unloading detail",
+  "Missing completed dates": "Missing completed dates",
+  "No available completed unloading months yet.":
+    "No available completed unloading months yet.",
   "No completed unloading rows for the selected month":
     "No completed unloading rows for the selected month",
   "No monthly unloading summary export has been generated for this month.":
@@ -1036,11 +1043,16 @@ export const enMessages = {
   "No review warnings for the selected month.":
     "No review warnings for the selected month.",
   "Ocean containers": "Ocean containers",
+  "Pick a month with completed unloading rows before generating a workbook.":
+    "Pick a month with completed unloading rows before generating a workbook.",
   "Reference and appointment": "Reference and appointment",
   "Review completed unloading container data for office operations without generating unloading wage settlement.":
     "Review completed unloading container data for office operations without generating unloading wage settlement.",
   "Review warnings": "Review warnings",
+  "row(s)": "row(s)",
   "Selected month": "Selected month",
+  "Selected month has no summary rows. Choose an available completed month before exporting.":
+    "Selected month has no summary rows. Choose an available completed month before exporting.",
   "Split variance and note": "Split variance and note",
   "Summary includes API rows from": "Summary includes API rows from",
   "Summary includes API rows from completed unloading /":

@@ -14,10 +14,10 @@
 
 结论：
 - P0-P3 Web/API/Worker 核心业务闭环已完成。
-- Wage / Unloading Wage 已完成到当前报告范围；monthly unloading summary 出现现场空白导出回归，需先执行 UNLOAD-WAGE-12。
+- Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
 - Detailed pallet rules 基础实现已完成；UNLOAD-PALLET-05 已修复包装类型默认值/选择器口径错误，UNLOAD-PALLET-06 已修复 destination correction 保存误判无变更；UNLOAD-PALLET-07 已修复 UPS 57 箱有体积却算 0 托的现场回归。
-- Monthly unloading summary 当前发现 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，但其 recorded completion month 为 `2026-06`，页面默认当前月导致生成空白 workbook。
+- Monthly unloading summary 已修复 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，其 recorded completion month 为 `2026-06`；页面无显式月份时会打开最新可用月份，显式空月会提示可用月份并阻止 0-row export。
 - P6 standalone native scan app 已按 Android+iOS pilot route 条件通过，但不是完整三端 release ready。
 - Windows MSIX 仍未完成：缺 Windows generated RNW project、camera decoder dependency、MSIX 打包和 Windows 设备 smoke。
 - P1 async queue 已完成 API/DB/Web 垂直线；P1-QUEUE-02 已修复 BullMQ/ioredis teardown，并补 Docker concurrency regression。
@@ -51,12 +51,10 @@
 11. WEB-I18N-02Container Detail Rule Warning Localization.md
    - 已完成。柜子详情页 rule summary、container warnings、destination warnings/errors 已按 locale 管理，覆盖 `SMCU1225466` 暴露出的 `Rule/Basis/Rounding` 和 warning code 文案。
 12. UNLOAD-WAGE-12Monthly Unloading Summary Blank Export Regression.md
-   - 新增待执行。修复月度拆柜汇总在 selected month 无 rows 时仍成功生成空白 workbook 的现场回归；默认月份需能引导到最近可用完成月份，显式空月份需展示可用月份提示并阻止 false-success 空导出。
+   - 已完成。API 返回 available months metadata，0-row export 返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 且不新增 generated_file；Web 默认页回退到最新可用完成月份，显式空月显示可用月份提示并禁用导出；worker 0-row 写出也返回 ERROR 且不生成 xlsx。
 
 必须优先执行：
-1. UNLOAD-WAGE-12Monthly Unloading Summary Blank Export Regression.md
-   - 先修复当前现场反馈：`/unloading-summary` 默认当前月但本地 completed unloading 数据归属 `2026-06`，导致 `2026-07` 导出空白且没有 warning。
-2. P6-MOBILE-13Windows MSIX Release Completion.md
+1. P6-MOBILE-13Windows MSIX Release Completion.md
    - 补齐 Windows generated RNW project、camera/secure-token modules、MSIX 打包和 Windows device smoke。
 
 Pilot 前必须验收：
@@ -74,7 +72,7 @@ Deferred，按现场反馈再执行：
 - Work hours wage：完成。
 - Unloading wage：完成。
 - Temporary unloader directory：完成。
-- Monthly unloading summary：主体已完成；当前空白导出回归需执行 UNLOAD-WAGE-12 后再重新标记完成。
+- Monthly unloading summary：完成；UNLOAD-WAGE-12 已修复空白导出回归。
 - Container unloaded / delivered-to-destination status split：完成。
 - Web i18n locale switch：完成；WEB-I18N-01 已补齐全量缺口审计、dynamic catalog 和 locale-switch E2E，WEB-I18N-02 已补齐柜子详情 rule/warning 动态业务文本。
 - Detailed pallet calculation rules基础实现：完成；默认纸箱和隐藏 package selector 已在 UNLOAD-PALLET-05 完成，destination correction 保存回归已在 UNLOAD-PALLET-06 完成；UPS/courier destination 0 托现场缺陷已在 UNLOAD-PALLET-07 完成；真实包装类型样本验收仍待业务提供 workbook。
@@ -84,8 +82,7 @@ Deferred，按现场反馈再执行：
 - Android/iOS native scan app pilot route：条件通过。
 
 给业务开发 agent 的建议执行顺序：
-1. 先做 UNLOAD-WAGE-12，修复月度拆柜汇总空白导出的现场回归。
-2. 再做 P6-MOBILE-13，补齐完整三端 native app release。
-3. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
-4. 准备上线时执行 P5-PILOT-01。
-5. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。
+1. 先做 P6-MOBILE-13，补齐完整三端 native app release。
+2. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
+3. 准备上线时执行 P5-PILOT-01。
+4. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。

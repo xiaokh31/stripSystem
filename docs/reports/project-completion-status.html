@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-09</p>
+        <p class="small">Generated: 2026-07-10</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -269,6 +269,11 @@
           UNLOAD-WAGE-11 已恢复并保护原有装车完成状态显示：`LOADED`
           继续表示扫描/装车送库完成，中文显示为 `已送库`，不再和
           `UNLOADED` / `已拆完` 混淆。
+          UNLOAD-WAGE-12 已修复 Monthly Unloading Data Summary 空白导出回归：
+          API 新增可用完成月份 metadata，`/unloading-summary` 无显式月份时会从当前月
+          回退到最新有完成记录的月份，显式空月保留为空状态并提供可用月份快捷入口；
+          0 行月份导出现在返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH`，不会再生成新的
+          blank workbook 或 generated_file。
           WAGE-P2-05 已完成 Web 全量 i18n copy coverage：`apps/web/src/app`、
           `apps/web/src/components` 和 `apps/web/src/lib` 的用户可见文案、
           placeholder、aria/title、状态/筛选/动态 action/API fallback 均纳入
@@ -695,6 +700,13 @@
               <td>Web i18n audit</td>
               <td>修复柜子详情页 rule metadata 和 warning message 未本地化问题。`container-detail-flow.ts` 现在把 known `palletRuleCode`、`packageType`、`roundingMode` 和 parser/calculator warning code 规范为稳定 user-facing copy：`ADDRESS_CARTON_VOLUME_1_8` 显示为私人/商业地址纸箱按体积规则，`UNKNOWN_DESTINATION_VOLUME_1_7` 显示为未知目的仓 1.7 CBM 待复核规则，`CEIL` 显示为向上取整；`NEED_CONFIRM_DESTINATION_TYPE`、`ZERO_VOLUME_WITH_CARTONS`、missing destination/cartons/volume、waybill/courier warning 等都进入可翻译文案。i18n dynamic catalog 支持整句 rule summary、重复 warning count、带目的仓/行号/箱数的 zero-volume warning 和中文切回英文。</td>
               <td>本地 PostgreSQL 仍保留 `SMCU1225466`，已确认真实记录包含 `PUR` / `NEED_CONFIRM_DESTINATION_TYPE`、UPS / 私人地址 `ADDRESS_CARTON_VOLUME_1_8`、YEG/YVR/YYC volume rules。已通过 `env CI=true pnpm --filter web test -- container-detail-flow.test.ts i18n.test.ts`（实际 web node:test 162 passed，0 unmanaged UI strings）、`env CI=true pnpm --filter web typecheck`、`env CI=true pnpm --filter web lint`、targeted `git diff --check`、Docker web/nginx production restart + `scripts/healthcheck.sh`，以及 authenticated runtime DOM check：`/containers/cmreiput200047lmt3pl8pdis` 中文可见文本包含私人/商业地址纸箱规则、未知目的仓待复核规则、warning 中文文案和向上取整，不包含 raw rule/warning code。</td>
+            </tr>
+            <tr>
+              <td>Stage 6.13: UNLOAD-WAGE-12 Monthly Unloading Summary Blank Export Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Regression</td>
+              <td>修复 2026-07 当前系统月无完成记录时仍可导出空白月度拆柜数据汇总的问题。API 新增 `GET /api/unloading-summary/months`，并在 summary response 返回 `availableMonths`、`selectedMonthHasRows`、`missingCompletionReviewCount`；可用月份按 `pay_containers.completed_at` 归属月统计，只纳入 `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED` 来源柜，`LABELS_GENERATED` 仍排除。`POST /api/unloading-summary/exports` 在 0 行月份直接返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 和可用月份，不调用 worker、不新增 generated_file。worker `write-unloading-summary` 也增加 0 行保护，返回 ERROR payload 且不写 xlsx，避免绕过 API 时生成误导 blank workbook。Web `/unloading-summary` 无显式月份时先读取可用月份，当前月无行但存在历史完成月份时默认打开最新可用月；显式空月保留用户选择，显示空状态、导出禁用提示和可用月份快捷入口。</td>
+              <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api build`、`pnpm --filter web test -- unloading-summary-flow.test.ts api-client-wage.test.ts i18n.test.ts`（实际 web node:test 163 passed）、`uv run pytest tests/unit/test_unloading_summary_excel_writer.py tests/integration/test_unloading_summary_cli.py`（5 passed）。API Jest unit/e2e 已补回归用例但本机 runner 在执行前错误报告已存在的 `ts-jest` 与 `setup-e2e-env.ts` 路径不存在，记录为环境性阻塞；API typecheck/build 和 Docker smoke 已覆盖运行时行为。Docker full-stack 已重建 API、强制重建 Web，使用真实 ADMIN 账号验证：`availableMonths=[2026-06]`，2026-06 有 18 个 completed containers / 18 rows，2026-07 显式 summary 为 0 rows，2026-07 导出返回 400 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH`，拒绝前后历史 2026-07 generated_file 数量保持 1 不变；`/unloading-summary` 默认页显示 2026-06，`/unloading-summary?month=2026-07` 显示空月和 2026-06 快捷入口。</td>
             </tr>
           </tbody>
         </table>

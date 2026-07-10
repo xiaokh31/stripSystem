@@ -74,6 +74,21 @@ describe('Monthly unloading summary API (e2e)', () => {
   });
 
   it('allows office and warehouse manager to review and export monthly unloading summary', async () => {
+    const months = await authorizedRequest(app, officeAuthHeader())
+      .get('/api/unloading-summary/months')
+      .expect(200);
+
+    expect(months.body).toMatchObject({
+      availableMonths: [
+        {
+          month: '2026-06',
+          completedContainerCount: 3,
+          rowCount: 3,
+        },
+      ],
+      missingCompletionReviewCount: 1,
+    });
+
     const summary = await authorizedRequest(app, officeAuthHeader())
       .get('/api/unloading-summary?month=2026-06')
       .expect(200);
@@ -82,7 +97,11 @@ describe('Monthly unloading summary API (e2e)', () => {
       month: '2026-06',
       sourceContainerCount: 3,
       rowCount: 3,
+      selectedMonthHasRows: true,
     });
+    expect(summary.body.availableMonths.map((month) => month.month)).toEqual([
+      '2026-06',
+    ]);
     expect(summary.body.rows.map((row) => row.status)).toEqual([
       'UNLOADED',
       'LOADING_IN_PROGRESS',
@@ -128,7 +147,47 @@ describe('Monthly unloading summary API (e2e)', () => {
     expect(download.text).toBe('xlsx bytes 2026-06');
   });
 
+  it('keeps explicit empty months empty and rejects blank exports', async () => {
+    const summary = await authorizedRequest(app, officeAuthHeader())
+      .get('/api/unloading-summary?month=2026-07')
+      .expect(200);
+
+    expect(summary.body).toMatchObject({
+      month: '2026-07',
+      sourceContainerCount: 0,
+      rowCount: 0,
+      selectedMonthHasRows: false,
+    });
+    expect(summary.body.availableMonths.map((month) => month.month)).toEqual([
+      '2026-06',
+    ]);
+
+    const exported = await authorizedRequest(app, warehouseManagerAuthHeader())
+      .post('/api/unloading-summary/exports')
+      .send({ month: '2026-07' })
+      .expect(400);
+
+    expect(exported.body).toMatchObject({
+      code: 'UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH',
+      details: {
+        month: '2026-07',
+        availableMonths: [
+          expect.objectContaining({
+            month: '2026-06',
+            rowCount: 3,
+          }),
+        ],
+      },
+    });
+    expect(prisma.__generatedFiles).toHaveLength(0);
+  });
+
   it('blocks ordinary warehouse users from monthly unloading summary APIs', async () => {
+    await request(app.getHttpServer())
+      .get('/api/unloading-summary/months')
+      .set('Authorization', warehouseAuthHeader())
+      .expect(403);
+
     await request(app.getHttpServer())
       .get('/api/unloading-summary?month=2026-06')
       .set('Authorization', warehouseAuthHeader())
@@ -149,8 +208,14 @@ describe('Monthly unloading summary API (e2e)', () => {
     const mock: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       payContainer: {
-        findMany: jest.fn(({ where }) =>
-          Promise.resolve(
+        findMany: jest.fn(({ where }) => {
+          if (where?.completedAt?.not === null) {
+            return Promise.resolve(
+              payContainers.filter((payContainer) => payContainer.completedAt),
+            );
+          }
+
+          return Promise.resolve(
             payContainers.filter((payContainer) => {
               const completedAt = payContainer.completedAt
                 ? new Date(payContainer.completedAt).getTime()
@@ -161,8 +226,8 @@ describe('Monthly unloading summary API (e2e)', () => {
                 completedAt < where.completedAt.lt.getTime()
               );
             }),
-          ),
-        ),
+          );
+        }),
       },
       container: {
         findMany: jest.fn(({ where }) =>

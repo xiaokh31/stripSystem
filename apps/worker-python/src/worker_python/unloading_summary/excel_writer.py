@@ -36,7 +36,7 @@ class UnloadingSummaryIssue:
 
 @dataclass(frozen=True)
 class UnloadingSummaryExportResult:
-    outputPath: Path
+    outputPath: Path | None
     warnings: tuple[UnloadingSummaryIssue, ...]
     errors: tuple[UnloadingSummaryIssue, ...]
     rowCount: int
@@ -56,6 +56,24 @@ def write_unloading_summary_workbook(
     rows = _rows(payload.get("rows"))
     review_items = _review_items(payload.get("reviewItems"))
     warnings = _warnings(rows, review_items)
+    if not rows:
+        return UnloadingSummaryExportResult(
+            outputPath=None,
+            warnings=tuple(warnings),
+            errors=(
+                UnloadingSummaryIssue(
+                    code="UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH",
+                    message=(
+                        "No monthly unloading summary rows were provided for "
+                        f"{month}; export is blocked to avoid a blank workbook."
+                    ),
+                    field="rows",
+                ),
+            ),
+            rowCount=0,
+            sourceContainerCount=0,
+        )
+
     output_path = output_dir / f"monthly-unloading-summary-{month}-{generated_at.strftime('%Y%m%d%H%M%S')}.xlsx"
 
     workbook = Workbook()
@@ -88,7 +106,7 @@ def result_payload(result: UnloadingSummaryExportResult) -> dict[str, Any]:
     return {
         "task_status": "GENERATED" if not result.errors else "ERROR",
         "summary_result": {
-            "outputPath": str(result.outputPath),
+            "outputPath": str(result.outputPath) if result.outputPath else None,
             "mimeType": EXCEL_MIME_TYPE,
             "warnings": [asdict(issue) for issue in result.warnings],
             "errors": [asdict(issue) for issue in result.errors],

@@ -53,3 +53,38 @@ def test_write_unloading_summary_cli_generates_xlsx(tmp_path: Path) -> None:
     workbook = load_workbook(output_path)
     assert workbook["6月拆柜数据"]["A1"].value == "1、BEAU5946301"
     workbook.close()
+
+
+def test_write_unloading_summary_cli_rejects_empty_rows(tmp_path: Path) -> None:
+    payload_path = tmp_path / "summary-payload.json"
+    payload_path.write_text(
+        json.dumps(
+            {
+                "month": "2026-07",
+                "rows": [],
+                "reviewItems": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "summary"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "write-unloading-summary",
+            "--payload",
+            str(payload_path),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    body = json.loads(result.output)
+    assert body["task_status"] == "ERROR"
+    assert body["summary_result"]["outputPath"] is None
+    assert body["summary_result"]["errors"][0]["code"] == (
+        "UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH"
+    )
+    assert not list(output_dir.glob("*.xlsx"))

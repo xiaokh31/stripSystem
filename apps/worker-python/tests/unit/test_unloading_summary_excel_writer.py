@@ -125,7 +125,7 @@ def test_unloading_summary_writer_does_not_modify_workform_template(
 ) -> None:
     before = _sha256(WORKFORM_TEMPLATE)
 
-    write_unloading_summary_workbook(
+    result = write_unloading_summary_workbook(
         payload={
             "month": "2026-06",
             "rows": [],
@@ -134,6 +134,11 @@ def test_unloading_summary_writer_does_not_modify_workform_template(
         output_dir=tmp_path,
     )
 
+    assert result.outputPath is None
+    assert {error.code for error in result.errors} == {
+        "UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH"
+    }
+    assert not list(tmp_path.glob("*.xlsx"))
     assert _sha256(WORKFORM_TEMPLATE) == before
 
 

@@ -15,6 +15,18 @@ export interface UnloadingSummaryGeneratedFileDto extends GeneratedFileResponseD
   downloadUrl: string;
 }
 
+export interface UnloadingSummaryAvailableMonthDto {
+  month: string;
+  completedContainerCount: number;
+  rowCount: number;
+  statusCounts: Record<string, number>;
+}
+
+export interface UnloadingSummaryMonthMetadataDto {
+  availableMonths: UnloadingSummaryAvailableMonthDto[];
+  missingCompletionReviewCount: number;
+}
+
 export interface UnloadingSummaryRowDto {
   sequence: number;
   containerId: string;
@@ -56,6 +68,9 @@ export interface UnloadingSummaryResponseDto {
   month: string;
   sourceContainerCount: number;
   rowCount: number;
+  selectedMonthHasRows: boolean;
+  availableMonths: UnloadingSummaryAvailableMonthDto[];
+  missingCompletionReviewCount: number;
   rows: UnloadingSummaryRowDto[];
   reviewItems: UnloadingSummaryReviewItemDto[];
   generatedFiles: UnloadingSummaryGeneratedFileDto[];

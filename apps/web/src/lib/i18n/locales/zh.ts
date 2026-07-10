@@ -941,7 +941,9 @@ export const zhMessages = {
   Apply: "应用",
   "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.":
     "请联系管理员分配 unloading_summary.read 权限后再打开月度拆柜数据汇总。",
+  "Available completed months": "可用已完成月份",
   "Cartons and pallets": "箱数和托数",
+  "container(s) ·": "个柜 ·",
   "Completed containers": "已拆完柜数",
   "Completed status filter": "已完成状态筛选",
   "Destination and note lines are returned by the summary API.":
@@ -950,6 +952,7 @@ export const zhMessages = {
   "Detail rows": "明细行",
   "Download generated summary": "下载生成汇总",
   "Export Excel": "导出 Excel",
+  "Export is disabled for empty months.": "空月份不能导出。",
   "Export monthly unloading data": "导出月度拆柜数据",
   "Exporting monthly unloading data summary.": "正在导出月度拆柜数据汇总。",
   "Generate an Excel workbook for office review from the selected month summary API.":
@@ -963,17 +966,24 @@ export const zhMessages = {
   "Monthly unloading data summary could not be loaded":
     "无法加载月度拆柜数据汇总",
   "Monthly unloading detail": "月度拆柜明细",
+  "Missing completed dates": "缺少完成日期",
+  "No available completed unloading months yet.": "暂无可用的已完成拆柜月份。",
   "No completed unloading rows for the selected month":
     "所选月份没有已拆完明细行",
   "No monthly unloading summary export has been generated for this month.":
     "此月份还没有生成过月度拆柜汇总导出。",
   "No review warnings for the selected month.": "所选月份没有复核警告。",
   "Ocean containers": "海柜数",
+  "Pick a month with completed unloading rows before generating a workbook.":
+    "生成工作簿前请选择有已完成拆柜明细的月份。",
   "Reference and appointment": "参考号和预约",
   "Review completed unloading container data for office operations without generating unloading wage settlement.":
     "复核办公室运营用的已拆完柜子数据，不生成拆柜工资结算。",
   "Review warnings": "复核警告",
+  "row(s)": "行",
   "Selected month": "所选月份",
+  "Selected month has no summary rows. Choose an available completed month before exporting.":
+    "所选月份没有汇总明细，请选择一个可用的已完成月份后再导出。",
   "Split variance and note": "拆分差异和备注",
   "Summary includes API rows from": "汇总包含来自 API 的状态",
   "Summary includes API rows from completed unloading /":

@@ -7,8 +7,10 @@ import {
   ApiClientError,
   exportUnloadingSummary,
   getUnloadingSummaryExportDownloadUrl,
+  type UnloadingSummaryAvailableMonthResponse,
   type UnloadingSummaryGeneratedFileResponse,
 } from "@/lib/api-client";
+import { unloadingSummaryHref } from "./unloading-summary-flow";
 
 interface ExportState {
   generatedFile: UnloadingSummaryGeneratedFileResponse | null;
@@ -23,9 +25,13 @@ const idleState: ExportState = {
 };
 
 export function UnloadingSummaryExportPanel({
+  availableMonths,
   month,
+  rowCount,
 }: {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
   month: string;
+  rowCount: number;
 }) {
   const router = useRouter();
   const [state, setState] = useState<ExportState>(idleState);
@@ -35,6 +41,15 @@ export function UnloadingSummaryExportPanel({
       setState({
         generatedFile: null,
         message: "Summary month must use YYYY-MM.",
+        status: "error",
+      });
+      return;
+    }
+    if (rowCount === 0) {
+      setState({
+        generatedFile: null,
+        message:
+          "Selected month has no summary rows. Choose an available completed month before exporting.",
         status: "error",
       });
       return;
@@ -74,7 +89,7 @@ export function UnloadingSummaryExportPanel({
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           className="inline-flex min-h-10 items-center justify-center border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
-          disabled={state.status === "running"}
+          disabled={state.status === "running" || rowCount === 0}
           onClick={() => void exportSummary()}
           type="button"
         >
@@ -90,7 +105,38 @@ export function UnloadingSummaryExportPanel({
           Download generated summary
         </Link>
       ) : null}
+      {rowCount === 0 ? (
+        <EmptyMonthExportHint availableMonths={availableMonths} />
+      ) : null}
     </section>
+  );
+}
+
+function EmptyMonthExportHint({
+  availableMonths,
+}: {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
+}) {
+  return (
+    <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+      <p className="font-semibold">Export is disabled for empty months.</p>
+      <p className="mt-1 leading-6">
+        Pick a month with completed unloading rows before generating a workbook.
+      </p>
+      {availableMonths.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {availableMonths.slice(0, 4).map((availableMonth) => (
+            <Link
+              className="inline-flex min-h-8 items-center border border-amber-300 bg-white px-3 text-xs font-semibold text-amber-950 hover:bg-amber-100"
+              href={unloadingSummaryHref(availableMonth.month)}
+              key={availableMonth.month}
+            >
+              {availableMonth.month}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

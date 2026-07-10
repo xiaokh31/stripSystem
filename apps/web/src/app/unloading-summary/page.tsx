@@ -5,7 +5,7 @@ import {
   COMPLETED_UNLOADING_STATUS_VALUES,
   displayText,
   formatUnloadingSummaryDate,
-  normalizeUnloadingSummaryMonth,
+  resolveUnloadingSummaryMonth,
   unloadingSummaryBusinessTypeCounts,
   unloadingSummaryGeneratedFileAuditText,
   unloadingSummaryHref,
@@ -18,6 +18,8 @@ import {
   ApiClientError,
   getUnloadingSummary,
   getUnloadingSummaryExportDownloadUrl,
+  getUnloadingSummaryMonths,
+  type UnloadingSummaryAvailableMonthResponse,
   type UnloadingSummaryResponse,
   type UnloadingSummaryRowResponse,
 } from "@/lib/api-client";
@@ -34,7 +36,10 @@ import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 export const dynamic = "force-dynamic";
 
 interface UnloadingSummaryState {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
   error: ApiClientError | null;
+  missingCompletionReviewCount: number;
+  month: string;
   summary: UnloadingSummaryResponse | null;
 }
 
@@ -44,12 +49,13 @@ export default async function UnloadingSummaryPage({
   searchParams: Promise<UnloadingSummarySearchParams>;
 }) {
   const locale = await getServerLocale();
-  const month = normalizeUnloadingSummaryMonth(await searchParams);
+  const requestedSearchParams = await searchParams;
   const currentUser = await getServerCurrentUser();
   const canRead = canReviewUnloadingSummary(currentUser);
   const canExport = canExportUnloadingSummary(currentUser);
 
   if (!canRead) {
+    const month = resolveUnloadingSummaryMonth(requestedSearchParams, []);
     return (
       <UnloadingSummaryPageShell month={month}>
         <PermissionRequiredPanel />
@@ -57,17 +63,24 @@ export default async function UnloadingSummaryPage({
     );
   }
 
-  const state = await loadUnloadingSummaryState(month);
+  const state = await loadUnloadingSummaryState(requestedSearchParams);
+  const month = state.month;
+  const availableMonths =
+    state.summary?.availableMonths ?? state.availableMonths;
 
   return (
     <UnloadingSummaryPageShell month={month}>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {canExport ? (
-          <UnloadingSummaryExportPanel month={month} />
+          <UnloadingSummaryExportPanel
+            availableMonths={availableMonths}
+            month={month}
+            rowCount={state.summary?.rowCount ?? 0}
+          />
         ) : (
           <ExportPermissionPanel />
         )}
-        <MonthFilter month={month} />
+        <MonthFilter availableMonths={availableMonths} month={month} />
       </section>
 
       <CompletionStatusRule locale={locale} />
@@ -83,7 +96,11 @@ export default async function UnloadingSummaryPage({
         <>
           <SummaryMetrics summary={state.summary} />
           <ReviewWarnings summary={state.summary} />
-          <SummaryRowsTable locale={locale} rows={state.summary.rows} />
+          <SummaryRowsTable
+            availableMonths={state.summary.availableMonths}
+            locale={locale}
+            rows={state.summary.rows}
+          />
           <GeneratedSummaryFiles locale={locale} summary={state.summary} />
         </>
       ) : null}
@@ -92,18 +109,38 @@ export default async function UnloadingSummaryPage({
 }
 
 async function loadUnloadingSummaryState(
-  month: string,
+  searchParams: UnloadingSummarySearchParams,
 ): Promise<UnloadingSummaryState> {
   const apiOptions = await getServerApiOptions();
+  let availableMonths: UnloadingSummaryAvailableMonthResponse[] = [];
+  let missingCompletionReviewCount = 0;
 
   try {
+    const metadata = await getUnloadingSummaryMonths(apiOptions);
+    availableMonths = metadata.availableMonths;
+    missingCompletionReviewCount = metadata.missingCompletionReviewCount;
+  } catch {
+    availableMonths = [];
+    missingCompletionReviewCount = 0;
+  }
+
+  const month = resolveUnloadingSummaryMonth(searchParams, availableMonths);
+
+  try {
+    const summary = await getUnloadingSummary(month, apiOptions);
     return {
+      availableMonths: summary.availableMonths,
       error: null,
-      summary: await getUnloadingSummary(month, apiOptions),
+      missingCompletionReviewCount: summary.missingCompletionReviewCount,
+      month,
+      summary,
     };
   } catch (error) {
     return {
+      availableMonths,
       error: toApiClientError(error, "Monthly unloading data summary failed."),
+      missingCompletionReviewCount,
+      month,
       summary: null,
     };
   }
@@ -181,7 +218,13 @@ function ExportPermissionPanel() {
   );
 }
 
-function MonthFilter({ month }: { month: string }) {
+function MonthFilter({
+  availableMonths,
+  month,
+}: {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  month: string;
+}) {
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
@@ -207,7 +250,42 @@ function MonthFilter({ month }: { month: string }) {
           Apply
         </button>
       </form>
+      <AvailableMonthShortcuts availableMonths={availableMonths} />
     </section>
+  );
+}
+
+function AvailableMonthShortcuts({
+  availableMonths,
+}: {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
+}) {
+  if (availableMonths.length === 0) {
+    return (
+      <p className="mt-4 text-sm text-zinc-600">
+        No available completed unloading months yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      <p className="text-sm font-semibold text-zinc-700">
+        Available completed months
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {availableMonths.slice(0, 8).map((availableMonth) => (
+          <Link
+            className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            href={unloadingSummaryHref(availableMonth.month)}
+            key={availableMonth.month}
+          >
+            {availableMonth.month} · {availableMonth.completedContainerCount}{" "}
+            container(s) · {availableMonth.rowCount} row(s)
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -244,7 +322,7 @@ function SummaryMetrics({ summary }: { summary: UnloadingSummaryResponse }) {
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-7">
         <Metric label="Selected month" value={summary.month} />
         <Metric
           label="Completed containers"
@@ -256,6 +334,10 @@ function SummaryMetrics({ summary }: { summary: UnloadingSummaryResponse }) {
         <Metric
           label="Review warnings"
           value={String(summary.reviewItems.length)}
+        />
+        <Metric
+          label="Missing completed dates"
+          value={String(summary.missingCompletionReviewCount)}
         />
       </div>
     </section>
@@ -293,9 +375,11 @@ function ReviewWarnings({ summary }: { summary: UnloadingSummaryResponse }) {
 }
 
 function SummaryRowsTable({
+  availableMonths,
   locale,
   rows,
 }: {
+  availableMonths: UnloadingSummaryAvailableMonthResponse[];
   locale: Locale;
   rows: UnloadingSummaryRowResponse[];
 }) {
@@ -309,6 +393,7 @@ function SummaryRowsTable({
           Mark container unloading as complete and confirm the completion date
           falls inside this month before exporting the office summary.
         </p>
+        <AvailableMonthShortcuts availableMonths={availableMonths} />
       </section>
     );
   }

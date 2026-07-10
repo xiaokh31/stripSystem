@@ -11,6 +11,7 @@ import {
   getAttendanceGeneratedFileDownloadUrl,
   getUnloadingSummary,
   getUnloadingSummaryExportDownloadUrl,
+  getUnloadingSummaryMonths,
   getUnloadingWageSettlementFileDownloadUrl,
   listAttendanceImports,
   listUnloadingWageWorkers,
@@ -186,12 +187,22 @@ test("unloading summary API client calls monthly summary and export endpoints", 
 
     return new Response(
       JSON.stringify({
+        availableMonths: [
+          {
+            completedContainerCount: 3,
+            month: "2026-06",
+            rowCount: 3,
+            statusCounts: { UNLOADED: 3 },
+          },
+        ],
         generatedFile: { id: "summary-file-1" },
         generatedFiles: [],
+        missingCompletionReviewCount: 0,
         month: "2026-06",
         reviewItems: [],
         rowCount: 0,
         rows: [],
+        selectedMonthHasRows: false,
         sourceContainerCount: 0,
       }),
       {
@@ -201,6 +212,10 @@ test("unloading summary API client calls monthly summary and export endpoints", 
     );
   };
 
+  await getUnloadingSummaryMonths({
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
   await getUnloadingSummary("2026-06", {
     baseUrl: "http://api.local/api",
     fetcher,
@@ -211,6 +226,11 @@ test("unloading summary API client calls monthly summary and export endpoints", 
   );
 
   assert.deepEqual(requests, [
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/unloading-summary/months",
+    },
     {
       body: null,
       method: "GET",

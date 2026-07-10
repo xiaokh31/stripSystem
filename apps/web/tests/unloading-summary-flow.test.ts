@@ -6,6 +6,7 @@ import {
   displayText,
   formatUnloadingSummaryDate,
   normalizeUnloadingSummaryMonth,
+  resolveUnloadingSummaryMonth,
   unloadingSummaryBusinessTypeCounts,
   unloadingSummaryGeneratedFileAuditText,
   unloadingSummaryHref,
@@ -31,6 +32,40 @@ test("unloading summary month defaults and hrefs are stable", () => {
     "2026-06",
   );
   assert.equal(unloadingSummaryHref("2026-06"), "/unloading-summary?month=2026-06");
+});
+
+test("unloading summary month resolver opens latest available month when current is empty", () => {
+  const now = new Date("2026-07-10T12:00:00.000Z");
+  const availableMonths = [
+    {
+      completedContainerCount: 18,
+      month: "2026-06",
+      rowCount: 18,
+      statusCounts: { UNLOADED: 18 },
+    },
+  ];
+
+  assert.equal(resolveUnloadingSummaryMonth({}, availableMonths, now), "2026-06");
+  assert.equal(
+    resolveUnloadingSummaryMonth({ month: "2026-07" }, availableMonths, now),
+    "2026-07",
+  );
+  assert.equal(
+    resolveUnloadingSummaryMonth(
+      { month: "bad-month" },
+      [
+        {
+          completedContainerCount: 2,
+          month: "2026-07",
+          rowCount: 4,
+          statusCounts: { LOADED: 2 },
+        },
+        ...availableMonths,
+      ],
+      now,
+    ),
+    "2026-07",
+  );
 });
 
 test("unloading summary exposes the completed status set", () => {
