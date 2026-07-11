@@ -36,6 +36,12 @@ const forbiddenEnglishChineseStatusPatterns = [
   /需复核/,
   /待同步/,
   /上传中/,
+  /行动队列/,
+  /柜子流转/,
+  /库存压力/,
+  /复核队列/,
+  /最新运营记录/,
+  /运营中控台/,
 ] as const;
 
 const forbiddenChineseEnglishStatusPatterns = [
@@ -52,6 +58,12 @@ const forbiddenChineseEnglishStatusPatterns = [
   /\bFailed\b/,
   /\bPending\b/,
   /\bUploading\b/,
+  /Action queue/,
+  /Container lifecycle/,
+  /Inventory pressure/,
+  /Review queue/,
+  /Latest operational records/,
+  /Operations dashboard/,
 ] as const;
 
 const forbiddenChineseUiTextPatterns = [
@@ -80,7 +92,17 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
   const adminToken = await loginThroughApi(page, request);
   const fixture = await prepareLocaleFixture(request, adminToken, testInfo);
   const pages: LocalePageCheck[] = [
-    { enText: "Bestar warehouse office", path: "/", zhText: "Bestar 仓库办公室" },
+    {
+      enText: "Operations dashboard",
+      path: "/",
+      requiredEnglish: [
+        "Action queue",
+        "Container lifecycle",
+        "Inventory pressure",
+      ],
+      requiredChinese: ["行动队列", "柜子流转", "库存压力"],
+      zhText: "运营中控台",
+    },
     { enText: "Imports", path: "/imports", zhText: "导入" },
     {
       enText: fixture.loadedContainerNo,

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
+import type { Stats } from 'node:fs';
 import {
   lstat,
   mkdir,
@@ -212,10 +213,7 @@ export class ImportsService {
 
     if (duplicate) {
       if (duplicate.deletedAt) {
-        await this.releaseDeletedImportFileSha256(
-          this.prisma,
-          duplicate as ImportFileRecord,
-        );
+        await this.releaseDeletedImportFileSha256(this.prisma, duplicate);
       } else {
         this.throwDuplicate(duplicate);
       }
@@ -251,10 +249,7 @@ export class ImportsService {
 
         if (existing) {
           if (existing.deletedAt) {
-            await this.releaseDeletedImportFileSha256(
-              this.prisma,
-              existing as ImportFileRecord,
-            );
+            await this.releaseDeletedImportFileSha256(this.prisma, existing);
             const record = await this.prisma.importFile.create({
               data: createData,
             });
@@ -568,7 +563,7 @@ export class ImportsService {
     importFileId: string,
     containerIds: string[],
   ): Promise<GeneratedFileDeleteRecord[]> {
-    return (await tx.generatedFile.findMany({
+    return await tx.generatedFile.findMany({
       where: {
         OR: [
           { importFileId },
@@ -584,7 +579,7 @@ export class ImportsService {
         fileType: true,
         storagePath: true,
       },
-    })) as GeneratedFileDeleteRecord[];
+    });
   }
 
   private async assertImportCanBeDeleted(
@@ -770,7 +765,7 @@ export class ImportsService {
     storagePath: string,
     resolvedPath: string,
   ): Promise<boolean> {
-    let fileStat;
+    let fileStat: Stats;
     try {
       fileStat = await lstat(resolvedPath);
     } catch (error) {

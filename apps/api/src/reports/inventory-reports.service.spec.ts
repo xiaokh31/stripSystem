@@ -50,13 +50,17 @@ describe('InventoryReportsService', () => {
             pallets: [
               { id: 'pallet-1', status: 'LABEL_PRINTED' },
               { id: 'pallet-2', status: 'LOADED' },
+              { id: 'pallet-4', status: 'ADJUSTED_OUT' },
             ],
           },
           {
             id: 'destination-2',
             destinationCode: 'YVR',
             destinationType: 'AMAZON_FBA',
-            pallets: [{ id: 'pallet-3', status: 'LABEL_PRINTED' }],
+            pallets: [
+              { id: 'pallet-3', status: 'LABEL_PRINTED' },
+              { id: 'pallet-5', status: 'CANCELLED' },
+            ],
           },
         ],
       },
@@ -85,22 +89,28 @@ describe('InventoryReportsService', () => {
         payClassification: null,
         payTrailerNumber: null,
         status: 'LOADING_IN_PROGRESS',
-        totalPallets: 3,
+        totalPallets: 5,
         loadedPallets: 1,
+        adjustedOutPallets: 1,
+        cancelledPallets: 1,
         remainingPallets: 2,
       },
     ]);
     expect(inventory.items).toEqual([
       {
         destinationCode: 'YVR',
-        totalPallets: 1,
+        totalPallets: 2,
         loadedPallets: 0,
+        adjustedOutPallets: 0,
+        cancelledPallets: 1,
         remainingPallets: 1,
       },
       {
         destinationCode: 'YYZ',
-        totalPallets: 2,
+        totalPallets: 3,
         loadedPallets: 1,
+        adjustedOutPallets: 1,
+        cancelledPallets: 0,
         remainingPallets: 1,
       },
     ]);
@@ -111,8 +121,10 @@ describe('InventoryReportsService', () => {
 
     const summary = await service.containerDetailSummary('container-1', {});
 
-    expect(summary.totalPallets).toBe(3);
+    expect(summary.totalPallets).toBe(5);
     expect(summary.loadedPallets).toBe(2);
+    expect(summary.adjustedOutPallets).toBe(1);
+    expect(summary.cancelledPallets).toBe(1);
     expect(summary.remainingPallets).toBe(1);
     expect(summary.status).toBe('LOADING_IN_PROGRESS');
     expect(summary.destinations).toEqual([
@@ -120,16 +132,20 @@ describe('InventoryReportsService', () => {
         containerDestinationId: 'destination-1',
         destinationCode: 'YYZ',
         destinationType: 'AMAZON_FBA',
-        totalPallets: 2,
+        totalPallets: 3,
         loadedPallets: 1,
+        adjustedOutPallets: 1,
+        cancelledPallets: 0,
         remainingPallets: 1,
       },
       {
         containerDestinationId: 'destination-2',
         destinationCode: 'YVR',
         destinationType: 'AMAZON_FBA',
-        totalPallets: 1,
+        totalPallets: 2,
         loadedPallets: 1,
+        adjustedOutPallets: 0,
+        cancelledPallets: 1,
         remainingPallets: 0,
       },
     ]);
@@ -150,6 +166,8 @@ describe('InventoryReportsService', () => {
         status: 'LOADING_IN_PROGRESS',
         totalPallets: 1,
         loadedPallets: 1,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
         remainingPallets: 0,
       },
     ]);
@@ -173,22 +191,28 @@ describe('InventoryReportsService', () => {
         payClassification: null,
         payTrailerNumber: null,
         status: 'LOADED',
-        totalPallets: 3,
-        loadedPallets: 3,
+        totalPallets: 5,
+        loadedPallets: 5,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
         remainingPallets: 0,
       },
     ]);
     expect(inventory.items).toEqual([
       {
         destinationCode: 'YVR',
-        totalPallets: 1,
-        loadedPallets: 1,
+        totalPallets: 2,
+        loadedPallets: 2,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
         remainingPallets: 0,
       },
       {
         destinationCode: 'YYZ',
-        totalPallets: 2,
-        loadedPallets: 2,
+        totalPallets: 3,
+        loadedPallets: 3,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
         remainingPallets: 0,
       },
     ]);

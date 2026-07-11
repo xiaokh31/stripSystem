@@ -43,6 +43,19 @@ describe('container lifecycle status', () => {
     ).toBe(ContainerStatus.LOADING_IN_PROGRESS);
   });
 
+  it('excludes manually depleted pallets from active loading inventory', () => {
+    expect(
+      effectiveContainerStatus(ContainerStatus.UNLOADED, [
+        {
+          pallets: [
+            { status: PalletStatus.ADJUSTED_OUT },
+            { status: PalletStatus.CANCELLED },
+          ],
+        },
+      ]),
+    ).toBe(ContainerStatus.UNLOADED);
+  });
+
   it('locks report and label regeneration once unloading is completed', () => {
     expect(isContainerGenerationLocked(ContainerStatus.UNLOADED)).toBe(true);
     expect(isContainerGenerationLocked(ContainerStatus.LABELS_GENERATED)).toBe(

@@ -204,6 +204,46 @@ describe('AuthController (e2e)', () => {
       });
   });
 
+  it('rejects an existing token on the next request after the user is disabled', async () => {
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'office@example.com', password: 'Correct#123' })
+      .expect(201);
+    const loginBody = loginResponse.body as LoginBody;
+
+    const user = usersById.get('user-office');
+    expect(user).toBeDefined();
+    user!.isActive = false;
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${loginBody.accessToken}`)
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('USER_INACTIVE');
+      });
+  });
+
+  it('uses current database permissions on the next request instead of stale token claims', async () => {
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'office@example.com', password: 'Correct#123' })
+      .expect(201);
+    const loginBody = loginResponse.body as LoginBody;
+
+    const user = usersById.get('user-office');
+    expect(user).toBeDefined();
+    user!.roleAssignments[0].role.permissions = [];
+
+    await request(app.getHttpServer())
+      .get('/api/imports')
+      .set('Authorization', `Bearer ${loginBody.accessToken}`)
+      .expect(403)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+  });
+
   it('validates login DTOs', () => {
     return request(app.getHttpServer())
       .post('/api/auth/login')

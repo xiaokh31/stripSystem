@@ -14,11 +14,11 @@ export function LogoutButton() {
 
   return (
     <button
-      className="min-h-9 border border-teal-600 bg-teal-950 px-3 text-xs font-semibold uppercase text-teal-50 hover:bg-teal-800"
+      className="min-h-9 border border-white/20 bg-white px-3 text-xs font-semibold uppercase text-[var(--dock-steel)] hover:bg-zinc-100"
       onClick={handleLogout}
       type="button"
     >
-      Logout
+      Sign out
     </button>
   );
 }

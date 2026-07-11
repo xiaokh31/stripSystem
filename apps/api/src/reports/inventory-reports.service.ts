@@ -65,6 +65,8 @@ export class InventoryReportsService {
         if (existing) {
           existing.totalPallets += stats.totalPallets;
           existing.loadedPallets += stats.loadedPallets;
+          existing.adjustedOutPallets += stats.adjustedOutPallets;
+          existing.cancelledPallets += stats.cancelledPallets;
           existing.remainingPallets += stats.remainingPallets;
           return;
         }
@@ -205,12 +207,26 @@ export class InventoryReportsService {
     const loadedPallets = filtered.filter(
       (pallet) => pallet.status === PalletStatus.LOADED,
     ).length;
+    const adjustedOutPallets = filtered.filter(
+      (pallet) => pallet.status === PalletStatus.ADJUSTED_OUT,
+    ).length;
+    const cancelledPallets = filtered.filter(
+      (pallet) => pallet.status === PalletStatus.CANCELLED,
+    ).length;
+    const remainingPallets = filtered.filter(
+      (pallet) =>
+        pallet.status !== PalletStatus.LOADED &&
+        pallet.status !== PalletStatus.CANCELLED &&
+        pallet.status !== PalletStatus.ADJUSTED_OUT,
+    ).length;
     const totalPallets = filtered.length;
 
     return {
       totalPallets,
       loadedPallets,
-      remainingPallets: totalPallets - loadedPallets,
+      adjustedOutPallets,
+      cancelledPallets,
+      remainingPallets,
     };
   }
 
@@ -221,6 +237,8 @@ export class InventoryReportsService {
     return {
       totalPallets: left.totalPallets + right.totalPallets,
       loadedPallets: left.loadedPallets + right.loadedPallets,
+      adjustedOutPallets: left.adjustedOutPallets + right.adjustedOutPallets,
+      cancelledPallets: left.cancelledPallets + right.cancelledPallets,
       remainingPallets: left.remainingPallets + right.remainingPallets,
     };
   }
@@ -229,6 +247,8 @@ export class InventoryReportsService {
     return {
       totalPallets: 0,
       loadedPallets: 0,
+      adjustedOutPallets: 0,
+      cancelledPallets: 0,
       remainingPallets: 0,
     };
   }

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectNoPageError, loginThroughApi } from "./helpers";
 
 const pages = [
-  { heading: "Bestar warehouse office", path: "/" },
+  { heading: "Operations dashboard", path: "/" },
   { heading: "Imports", path: "/imports" },
   { heading: "Containers", path: "/containers" },
   { heading: "Load jobs", path: "/load-jobs" },

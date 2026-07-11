@@ -54,6 +54,7 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.labels.generate,
         PERMISSIONS.labels.reprint,
         PERMISSIONS.inventory.read,
+        PERMISSIONS.inventory.adjust,
         PERMISSIONS.loadJobs.read,
         PERMISSIONS.loadJobs.create,
         PERMISSIONS.loadJobs.update,
@@ -109,6 +110,11 @@ describe('default RBAC seed data', () => {
         new Set(DEFAULT_ROLE_PERMISSION_CODES[ROLE_CODES.warehouse]),
       ),
     ).toBe(false);
+    expect(
+      new Set(DEFAULT_ROLE_PERMISSION_CODES[ROLE_CODES.warehouse]).has(
+        PERMISSIONS.inventory.adjust,
+      ),
+    ).toBe(false);
   });
 
   it('grants WAREHOUSE_MANAGER unloading wage settlement and summary permissions', () => {
@@ -130,6 +136,9 @@ describe('default RBAC seed data', () => {
       ]),
     );
     expect(hasAnyAttendancePermission(warehouseManagerPermissions)).toBe(false);
+    expect(warehouseManagerPermissions.has(PERMISSIONS.inventory.adjust)).toBe(
+      false,
+    );
   });
 });
 

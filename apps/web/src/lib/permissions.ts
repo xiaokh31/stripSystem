@@ -5,6 +5,7 @@ export const USERS_MANAGE_PERMISSION = "users.manage";
 export const ROLES_MANAGE_PERMISSION = "roles.manage";
 export const IMPORTS_DELETE_PERMISSION = "imports.delete";
 export const INVENTORY_READ_PERMISSION = "inventory.read";
+export const INVENTORY_ADJUST_PERMISSION = "inventory.adjust";
 export const LOAD_JOBS_READ_PERMISSION = "load_jobs.read";
 export const LOAD_JOBS_CREATE_PERMISSION = "load_jobs.create";
 export const LOAD_JOBS_UPDATE_PERMISSION = "load_jobs.update";
@@ -75,6 +76,10 @@ export function canManageOfficeLoadJobs(
 
 export function canDeleteImports(user: AuthUserResponse | null): boolean {
   return hasPermission(user, IMPORTS_DELETE_PERMISSION);
+}
+
+export function canAdjustInventory(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, INVENTORY_ADJUST_PERMISSION);
 }
 
 export function canSaveMobileDock(user: AuthUserResponse | null): boolean {

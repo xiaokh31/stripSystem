@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthenticatedRequest, AuthenticatedUser } from './auth-user';
 import { IS_PUBLIC_KEY, REQUIRED_PERMISSIONS_KEY } from './auth.decorators';
-import { PermissionCode, ROLE_CODES } from './permissions';
+import { PermissionCode, PERMISSIONS, ROLE_CODES } from './permissions';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -37,8 +37,9 @@ export class PermissionGuard implements CanActivate {
       return true;
     }
 
+    const code = this.permissionDeniedCode(requiredPermissions);
     throw new ForbiddenException({
-      code: 'FORBIDDEN',
+      code,
       message:
         'The authenticated user does not have permission for this route.',
       details: {
@@ -77,5 +78,12 @@ export class PermissionGuard implements CanActivate {
     return requiredPermissions.every((permission) =>
       grantedPermissions.has(permission),
     );
+  }
+
+  private permissionDeniedCode(requiredPermissions: PermissionCode[]): string {
+    if (requiredPermissions.includes(PERMISSIONS.inventory.adjust)) {
+      return 'INVENTORY_ADJUSTMENT_PERMISSION_DENIED';
+    }
+    return 'FORBIDDEN';
   }
 }

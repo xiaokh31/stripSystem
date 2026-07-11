@@ -28,6 +28,30 @@ test("locale files expose the same managed message keys", () => {
   assert.equal(LOCALE_MESSAGES["zh-CN"], zhMessages);
 });
 
+test("dashboard API label keys are present in every locale catalog", () => {
+  const repoRoot = path.resolve(process.cwd(), "../..");
+  const dashboardServiceSource = fs.readFileSync(
+    path.join(repoRoot, "apps/api/src/dashboard/dashboard.service.ts"),
+    "utf8",
+  );
+  const labelKeys = [
+    ...dashboardServiceSource.matchAll(/'dashboard\.[a-zA-Z0-9.]+?'/g),
+  ]
+    .map((match) => match[0].slice(1, -1))
+    .filter((key, index, keys) => keys.indexOf(key) === index)
+    .sort();
+
+  assert.notEqual(labelKeys.length, 0);
+  assert.deepEqual(
+    labelKeys.filter((key) => !(key in enMessages)),
+    [],
+  );
+  assert.deepEqual(
+    labelKeys.filter((key) => !(key in zhMessages)),
+    [],
+  );
+});
+
 test("Chinese locale does not silently fall back to English for translatable copy", () => {
   const allowedSameText = new Set([
     "0 B",

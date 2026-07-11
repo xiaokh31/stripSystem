@@ -36,6 +36,7 @@ const containerLifecycleStatusAliases: Record<string, string> = {
 };
 
 const palletStatusLabels: Record<string, LocalizedLabel> = {
+  ADJUSTED_OUT: { en: "Adjusted out", "zh-CN": "已人工消库存" },
   CANCELLED: { en: "Cancelled", "zh-CN": "已取消" },
   EXCEPTION: { en: "Exception", "zh-CN": "异常" },
   LABEL_PRINTED: { en: "Label printed", "zh-CN": "已打印面单" },
@@ -45,18 +46,77 @@ const palletStatusLabels: Record<string, LocalizedLabel> = {
 };
 
 const palletStatusAliases: Record<string, string> = {
+  "Adjusted out": "ADJUSTED_OUT",
   Cancelled: "CANCELLED",
   Exception: "EXCEPTION",
   "Label printed": "LABEL_PRINTED",
   Loaded: "LOADED",
   Loading: "LOADING",
   Planned: "PLANNED",
+  已人工消库存: "ADJUSTED_OUT",
   已取消: "CANCELLED",
   异常: "EXCEPTION",
   已打印面单: "LABEL_PRINTED",
   已装车: "LOADED",
   装车中: "LOADING",
   计划中: "PLANNED",
+};
+
+const palletEventTypeLabels: Record<string, LocalizedLabel> = {
+  CANCELLED: { en: "Cancelled", "zh-CN": "已取消" },
+  CREATED: { en: "Created", "zh-CN": "已创建" },
+  DUPLICATE_SCAN: { en: "Duplicate scan", "zh-CN": "重复扫码" },
+  INVALID_SCAN: { en: "Invalid scan", "zh-CN": "无效扫码" },
+  LABEL_PRINTED: { en: "Label printed", "zh-CN": "已打印面单" },
+  LOADED: { en: "Loaded", "zh-CN": "已装车" },
+  MANUAL_INVENTORY_DEPLETION: {
+    en: "Manual inventory depletion",
+    "zh-CN": "人工消库存",
+  },
+  REPRINTED: { en: "Reprinted", "zh-CN": "已重打" },
+  SCANNED: { en: "Scanned", "zh-CN": "已扫码" },
+  STATUS_CHANGED: { en: "Status changed", "zh-CN": "状态已变更" },
+};
+
+const inventoryAdjustmentReasonLabels: Record<string, LocalizedLabel> = {
+  DATA_CLEANUP: { en: "Data cleanup", "zh-CN": "数据清理" },
+  DELIVERED_WITHOUT_SCAN: {
+    en: "Delivered without scan",
+    "zh-CN": "已送达但未扫码",
+  },
+  OTHER: { en: "Other", "zh-CN": "其他" },
+  SCAN_MISSED: { en: "Scan missed", "zh-CN": "漏扫" },
+};
+
+const inventoryAdjustmentErrorLabels: Record<string, LocalizedLabel> = {
+  INVENTORY_ADJUSTMENT_COUNT_EXCEEDS_REMAINING: {
+    en: "Count exceeds remaining inventory",
+    "zh-CN": "数量超过剩余库存",
+  },
+  INVENTORY_ADJUSTMENT_NO_ELIGIBLE_PALLETS: {
+    en: "No eligible pallets",
+    "zh-CN": "没有可消库存托盘",
+  },
+  INVENTORY_ADJUSTMENT_PALLET_NOT_ELIGIBLE: {
+    en: "Pallet is not eligible",
+    "zh-CN": "托盘不可消库存",
+  },
+  INVENTORY_ADJUSTMENT_PERMISSION_DENIED: {
+    en: "Permission denied",
+    "zh-CN": "没有消库存权限",
+  },
+  INVENTORY_ADJUSTMENT_REASON_REQUIRED: {
+    en: "Reason required",
+    "zh-CN": "必须填写原因",
+  },
+  INVENTORY_ADJUSTMENT_TARGET_REQUIRED: {
+    en: "Inventory adjustment target required",
+    "zh-CN": "必须选择消库存目标",
+  },
+  PALLET_ADJUSTED_OUT: {
+    en: "Pallet adjusted out",
+    "zh-CN": "托盘已人工消库存",
+  },
 };
 
 const loadJobStatusLabels: Record<string, LocalizedLabel> = {
@@ -167,6 +227,23 @@ const scanResultLabels: Record<string, LocalizedLabel> = {
   SUCCESS: { en: "Success", "zh-CN": "成功" },
 };
 
+const roleLabels: Record<string, LocalizedLabel> = {
+  ADMIN: { en: "Administrator", "zh-CN": "管理员" },
+  HR_MANAGER: { en: "Human Resources Manager", "zh-CN": "人力资源经理" },
+  OFFICE: { en: "Office Staff", "zh-CN": "办公室员工" },
+  SYSTEM: { en: "System Service", "zh-CN": "系统服务" },
+  WAREHOUSE: { en: "Warehouse Staff", "zh-CN": "仓库员工" },
+  WAREHOUSE_MANAGER: { en: "Warehouse Manager", "zh-CN": "仓库经理" },
+};
+
+const healthStatusLabels: Record<string, LocalizedLabel> = {
+  degraded: { en: "Degraded", "zh-CN": "降级" },
+  down: { en: "Down", "zh-CN": "离线" },
+  ok: { en: "OK", "zh-CN": "正常" },
+  unknown: { en: "Unknown", "zh-CN": "未知" },
+  up: { en: "Up", "zh-CN": "在线" },
+};
+
 export function containerLifecycleStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
@@ -184,6 +261,27 @@ export function palletStatusLabel(
   locale: Locale = DEFAULT_LOCALE,
 ): string {
   return labelFrom(palletStatusLabels, status, locale, palletStatusAliases);
+}
+
+export function palletEventTypeLabel(
+  eventType: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(palletEventTypeLabels, eventType, locale);
+}
+
+export function inventoryAdjustmentReasonLabel(
+  reasonCode: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(inventoryAdjustmentReasonLabels, reasonCode, locale);
+}
+
+export function inventoryAdjustmentErrorLabel(
+  errorCode: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(inventoryAdjustmentErrorLabels, errorCode, locale);
 }
 
 export function loadJobStatusLabel(
@@ -259,6 +357,20 @@ export function scanResultLabel(
   return labelFrom(scanResultLabels, status, locale);
 }
 
+export function roleDisplayLabel(
+  roleCode: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(roleLabels, roleCode, locale);
+}
+
+export function healthStatusLabel(
+  status: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(healthStatusLabels, status, locale);
+}
+
 export function businessStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
@@ -271,6 +383,9 @@ export function businessStatusLabel(
       containerLifecycleStatusAliases,
     ) ??
     lookup(palletStatusLabels, status, locale, palletStatusAliases) ??
+    lookup(palletEventTypeLabels, status, locale) ??
+    lookup(inventoryAdjustmentReasonLabels, status, locale) ??
+    lookup(inventoryAdjustmentErrorLabels, status, locale) ??
     lookup(loadJobStatusLabels, status, locale, loadJobStatusAliases) ??
     lookup(
       unloadingWageCompletionStatusLabels,

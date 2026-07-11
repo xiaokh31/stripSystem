@@ -83,6 +83,7 @@ enum PalletStatus {
   LABEL_PRINTED
   LOADING
   LOADED
+  ADJUSTED_OUT
   CANCELLED
   EXCEPTION
 }
@@ -104,6 +105,18 @@ enum PalletEventType {
   STATUS_CHANGED
   CANCELLED
   REPRINTED
+  MANUAL_INVENTORY_DEPLETION
+}
+
+enum InventoryAdjustmentType {
+  MANUAL_DEPLETION
+}
+
+enum InventoryAdjustmentReasonCode {
+  DELIVERED_WITHOUT_SCAN
+  SCAN_MISSED
+  DATA_CLEANUP
+  OTHER
 }
 
 enum CorrectionTargetType {
@@ -166,6 +179,7 @@ model User {
   generatedFiles           GeneratedFile[]           @relation("GeneratedFileGeneratedBy")
   loadJobs                 LoadJob[]                 @relation("LoadJobCreatedBy")
   palletEvents             PalletEvent[]             @relation("PalletEventOperator")
+  inventoryAdjustments     InventoryAdjustment[]     @relation("InventoryAdjustmentCreatedBy")
   correctionFeedback       CorrectionFeedback[]      @relation("CorrectionFeedbackCorrectedBy")
   operationalSettings      OperationalSetting[]      @relation("OperationalSettingUpdatedBy")
   attendanceImports        AttendanceImport[]        @relation("AttendanceImportImportedBy")
@@ -287,30 +301,31 @@ model ImportFile {
 }
 
 model Container {
-  id                 String                      @id @default(cuid())
-  importFileId       String?                     @map("import_file_id")
-  importFile         ImportFile?                 @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  containerNo        String                      @unique @map("container_no")
-  sourceFormat       FileFormat                  @default(UNKNOWN) @map("source_format")
-  parserVersion      String?                     @map("parser_version")
-  dockNo             String?                     @map("dock_no")
-  company            String?
-  status             ContainerStatus             @default(IMPORTED)
-  rawJson            Json?                       @map("raw_json")
-  warnings           Json?
-  errors             Json?
-  payClassification  ContainerPayClassification? @map("pay_classification")
-  payTrailerNumber   String?                     @map("pay_trailer_number")
-  payContainerLinks  PayContainerContainer[]
-  lines              ContainerLine[]
-  destinations       ContainerDestination[]
-  generatedFiles     GeneratedFile[]
-  asyncJobs          AsyncJob[]
-  loadJobs           LoadJob[]
-  loadJobLines       LoadJobLine[]
-  correctionFeedback CorrectionFeedback[]
-  createdAt          DateTime                    @default(now()) @map("created_at")
-  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  id                   String                      @id @default(cuid())
+  importFileId         String?                     @map("import_file_id")
+  importFile           ImportFile?                 @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerNo          String                      @unique @map("container_no")
+  sourceFormat         FileFormat                  @default(UNKNOWN) @map("source_format")
+  parserVersion        String?                     @map("parser_version")
+  dockNo               String?                     @map("dock_no")
+  company              String?
+  status               ContainerStatus             @default(IMPORTED)
+  rawJson              Json?                       @map("raw_json")
+  warnings             Json?
+  errors               Json?
+  payClassification    ContainerPayClassification? @map("pay_classification")
+  payTrailerNumber     String?                     @map("pay_trailer_number")
+  payContainerLinks    PayContainerContainer[]
+  lines                ContainerLine[]
+  destinations         ContainerDestination[]
+  generatedFiles       GeneratedFile[]
+  asyncJobs            AsyncJob[]
+  loadJobs             LoadJob[]
+  loadJobLines         LoadJobLine[]
+  inventoryAdjustments InventoryAdjustment[]
+  correctionFeedback   CorrectionFeedback[]
+  createdAt            DateTime                    @default(now()) @map("created_at")
+  updatedAt            DateTime                    @updatedAt @map("updated_at")
 
   @@index([importFileId])
   @@index([status])
@@ -358,30 +373,31 @@ model DestinationRule {
 }
 
 model ContainerDestination {
-  id                  String               @id @default(cuid())
-  containerId         String               @map("container_id")
-  container           Container            @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  destinationCode     String               @map("destination_code")
-  destinationType     String?              @map("destination_type")
-  packageType         String               @default("UNSPECIFIED") @map("package_type")
-  cartons             Int                  @default(0)
-  volume              Decimal              @default(0) @db.Decimal(12, 3)
-  calculatedPallets   Int                  @default(0) @map("calculated_pallets")
-  manualPallets       Int?                 @map("manual_pallets")
-  finalPallets        Int                  @default(0) @map("final_pallets")
-  palletRuleCode      String?              @map("pallet_rule_code")
-  calculationBasisCbm Decimal?             @map("calculation_basis_cbm") @db.Decimal(12, 3)
-  roundingMode        String?              @map("rounding_mode")
-  note                String?
-  warnings            Json?
-  errors              Json?
-  destinationRuleId   String?              @map("destination_rule_id")
-  destinationRule     DestinationRule?     @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  pallets             Pallet[]
-  loadJobLines        LoadJobLine[]
-  correctionFeedback  CorrectionFeedback[]
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
+  id                   String                @id @default(cuid())
+  containerId          String                @map("container_id")
+  container            Container             @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  destinationCode      String                @map("destination_code")
+  destinationType      String?               @map("destination_type")
+  packageType          String                @default("UNSPECIFIED") @map("package_type")
+  cartons              Int                   @default(0)
+  volume               Decimal               @default(0) @db.Decimal(12, 3)
+  calculatedPallets    Int                   @default(0) @map("calculated_pallets")
+  manualPallets        Int?                  @map("manual_pallets")
+  finalPallets         Int                   @default(0) @map("final_pallets")
+  palletRuleCode       String?               @map("pallet_rule_code")
+  calculationBasisCbm  Decimal?              @map("calculation_basis_cbm") @db.Decimal(12, 3)
+  roundingMode         String?               @map("rounding_mode")
+  note                 String?
+  warnings             Json?
+  errors               Json?
+  destinationRuleId    String?               @map("destination_rule_id")
+  destinationRule      DestinationRule?      @relation(fields: [destinationRuleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  pallets              Pallet[]
+  loadJobLines         LoadJobLine[]
+  inventoryAdjustments InventoryAdjustment[]
+  correctionFeedback   CorrectionFeedback[]
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
 
   @@unique([containerId, destinationCode, destinationType, packageType], map: "container_destinations_container_id_destination_code_destin_key")
   @@index([containerId])
@@ -498,30 +514,59 @@ model LoadJobLine {
 }
 
 model PalletEvent {
-  id              String          @id @default(cuid())
-  palletId        String?         @map("pallet_id")
-  pallet          Pallet?         @relation(fields: [palletId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  loadJobId       String?         @map("load_job_id")
-  loadJob         LoadJob?        @relation(fields: [loadJobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  eventType       PalletEventType @map("event_type")
-  fromStatus      PalletStatus?   @map("from_status")
-  toStatus        PalletStatus?   @map("to_status")
-  scanPayload     String?         @map("scan_payload")
-  deviceId        String?         @map("device_id")
-  exceptionReason String?         @map("exception_reason")
-  metadata        Json?
-  operatorId      String?         @map("operator_id")
-  operator        User?           @relation("PalletEventOperator", fields: [operatorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  occurredAt      DateTime        @default(now()) @map("occurred_at")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id                    String               @id @default(cuid())
+  palletId              String?              @map("pallet_id")
+  pallet                Pallet?              @relation(fields: [palletId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  loadJobId             String?              @map("load_job_id")
+  loadJob               LoadJob?             @relation(fields: [loadJobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  inventoryAdjustmentId String?              @map("inventory_adjustment_id")
+  inventoryAdjustment   InventoryAdjustment? @relation(fields: [inventoryAdjustmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  eventType             PalletEventType      @map("event_type")
+  fromStatus            PalletStatus?        @map("from_status")
+  toStatus              PalletStatus?        @map("to_status")
+  scanPayload           String?              @map("scan_payload")
+  deviceId              String?              @map("device_id")
+  exceptionReason       String?              @map("exception_reason")
+  metadata              Json?
+  operatorId            String?              @map("operator_id")
+  operator              User?                @relation("PalletEventOperator", fields: [operatorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  occurredAt            DateTime             @default(now()) @map("occurred_at")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
 
   @@index([palletId])
   @@index([loadJobId])
+  @@index([inventoryAdjustmentId])
   @@index([eventType])
   @@index([occurredAt])
   @@index([operatorId])
   @@map("pallet_events")
+}
+
+model InventoryAdjustment {
+  id                     String                        @id @default(cuid())
+  containerId            String                        @map("container_id")
+  container              Container                     @relation(fields: [containerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  containerDestinationId String                        @map("container_destination_id")
+  containerDestination   ContainerDestination          @relation(fields: [containerDestinationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  adjustmentType         InventoryAdjustmentType       @default(MANUAL_DEPLETION) @map("adjustment_type")
+  palletCount            Int                           @map("pallet_count")
+  reasonCode             InventoryAdjustmentReasonCode @map("reason_code")
+  note                   String?
+  metadata               Json?
+  createdById            String?                       @map("created_by_id")
+  createdBy              User?                         @relation("InventoryAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  events                 PalletEvent[]
+  createdAt              DateTime                      @default(now()) @map("created_at")
+  updatedAt              DateTime                      @updatedAt @map("updated_at")
+
+  @@index([containerId])
+  @@index([containerDestinationId])
+  @@index([adjustmentType])
+  @@index([reasonCode])
+  @@index([createdById])
+  @@index([createdAt])
+  @@map("inventory_adjustments")
 }
 
 model CorrectionFeedback {
@@ -677,37 +722,37 @@ model WageGeneratedFile {
 }
 
 model AsyncJob {
-  id                  String              @id @default(cuid())
-  jobType             AsyncJobType        @map("job_type")
-  status              AsyncJobStatus      @default(QUEUED)
-  queueName           String              @map("queue_name")
-  bullJobId           String?             @map("bull_job_id")
-  targetType          String              @map("target_type")
-  targetId            String              @map("target_id")
-  idempotencyKey      String              @map("idempotency_key")
-  importFileId        String?             @map("import_file_id")
-  importFile          ImportFile?         @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  containerId         String?             @map("container_id")
-  container           Container?          @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  attendanceImportId  String?             @map("attendance_import_id")
-  attendanceImport    AttendanceImport?   @relation(fields: [attendanceImportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  generatedFileId     String?             @map("generated_file_id")
-  generatedFile       GeneratedFile?      @relation(fields: [generatedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  wageGeneratedFileId String?             @map("wage_generated_file_id")
-  wageGeneratedFile   WageGeneratedFile?  @relation(fields: [wageGeneratedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  actorUserId         String?             @map("actor_user_id")
-  actorUser           User?               @relation("AsyncJobActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  attempts            Int                 @default(0)
-  maxAttempts         Int                 @default(3) @map("max_attempts")
-  lastError           String?             @map("last_error")
+  id                  String             @id @default(cuid())
+  jobType             AsyncJobType       @map("job_type")
+  status              AsyncJobStatus     @default(QUEUED)
+  queueName           String             @map("queue_name")
+  bullJobId           String?            @map("bull_job_id")
+  targetType          String             @map("target_type")
+  targetId            String             @map("target_id")
+  idempotencyKey      String             @map("idempotency_key")
+  importFileId        String?            @map("import_file_id")
+  importFile          ImportFile?        @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  containerId         String?            @map("container_id")
+  container           Container?         @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  attendanceImportId  String?            @map("attendance_import_id")
+  attendanceImport    AttendanceImport?  @relation(fields: [attendanceImportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  generatedFileId     String?            @map("generated_file_id")
+  generatedFile       GeneratedFile?     @relation(fields: [generatedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  wageGeneratedFileId String?            @map("wage_generated_file_id")
+  wageGeneratedFile   WageGeneratedFile? @relation(fields: [wageGeneratedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorUserId         String?            @map("actor_user_id")
+  actorUser           User?              @relation("AsyncJobActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  attempts            Int                @default(0)
+  maxAttempts         Int                @default(3) @map("max_attempts")
+  lastError           String?            @map("last_error")
   result              Json?
   metadata            Json?
-  queuedAt            DateTime            @default(now()) @map("queued_at")
-  startedAt           DateTime?           @map("started_at")
-  finishedAt          DateTime?           @map("finished_at")
-  cancelledAt         DateTime?           @map("cancelled_at")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
+  queuedAt            DateTime           @default(now()) @map("queued_at")
+  startedAt           DateTime?          @map("started_at")
+  finishedAt          DateTime?          @map("finished_at")
+  cancelledAt         DateTime?          @map("cancelled_at")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
   @@index([jobType])
   @@index([status])

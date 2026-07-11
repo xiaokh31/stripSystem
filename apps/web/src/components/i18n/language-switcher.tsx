@@ -23,7 +23,7 @@ export function LanguageSwitcher() {
   return (
     <div
       aria-label="Language"
-      className="inline-flex min-h-9 overflow-hidden border border-teal-700 bg-teal-950/20 text-xs font-semibold"
+      className="inline-flex min-h-9 overflow-hidden border border-white/20 bg-black/10 text-xs font-semibold"
     >
       {SUPPORTED_LOCALES.map((option) => (
         <button
@@ -31,8 +31,8 @@ export function LanguageSwitcher() {
           className={[
             "min-h-9 px-3 transition-colors",
             locale === option
-              ? "bg-white text-teal-950"
-              : "text-teal-50 hover:bg-teal-800",
+              ? "bg-white text-[var(--dock-steel)]"
+              : "text-zinc-100 hover:bg-white/10",
           ].join(" ")}
           key={option}
           onClick={() => switchLocale(option)}

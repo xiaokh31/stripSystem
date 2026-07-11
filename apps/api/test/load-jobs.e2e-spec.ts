@@ -401,6 +401,36 @@ describe('LoadJobsController (e2e)', () => {
     ).toEqual(['auth-warehouse', 'auth-warehouse']);
   });
 
+  it('rejects manually depleted pallets from scan loading', async () => {
+    await authorizedRequest(app)
+      .post('/api/load-jobs')
+      .send({
+        loadNo: 'LOAD-2026-ADJUSTED',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      })
+      .expect(201);
+    await openLoadJobForScanning('load-job-1');
+    prisma.__pallets[0].status = 'ADJUSTED_OUT';
+
+    const rejected = await authorizedRequest(app, warehouseAuthHeader())
+      .post('/api/load-jobs/load-job-1/scan')
+      .send({
+        qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+      })
+      .expect(409);
+
+    expect(rejected.body).toMatchObject({
+      code: 'PALLET_ADJUSTED_OUT',
+    });
+    expect(
+      prisma.palletEvent.create.mock.calls.map(
+        (call) => call[0].data.eventType,
+      ),
+    ).toEqual(['INVALID_SCAN']);
+    expect(prisma.pallet.update).not.toHaveBeenCalled();
+  });
+
   it('splits one container destination across multiple load jobs with part suffixes', async () => {
     const firstJob = await authorizedRequest(app)
       .post('/api/load-jobs')
@@ -826,7 +856,15 @@ describe('LoadJobsController (e2e)', () => {
       if (where.status?.not && pallet.status === where.status.not) {
         return false;
       }
-      if (where.status && !where.status.not && pallet.status !== where.status) {
+      if (where.status?.notIn?.includes(pallet.status)) {
+        return false;
+      }
+      if (
+        where.status &&
+        !where.status.not &&
+        !where.status.notIn &&
+        pallet.status !== where.status
+      ) {
         return false;
       }
       if (where.loadJobId && pallet.loadJobId !== where.loadJobId) {
@@ -1086,6 +1124,7 @@ describe('LoadJobsController (e2e)', () => {
     };
 
     mock.__events = events;
+    mock.__pallets = pallets;
 
     return mock;
   }

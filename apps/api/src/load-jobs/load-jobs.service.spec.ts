@@ -875,6 +875,41 @@ describe('LoadJobsService', () => {
     ).toEqual(['LOADED', 'DUPLICATE_SCAN']);
   });
 
+  it('rejects scans for manually depleted pallets without loading inventory', async () => {
+    await service.create(
+      {
+        loadNo: 'LOAD-2026-001',
+        destinationRegion: 'YEG2',
+        lines: [{ sourceText: 'CSNU8877228-2P' }],
+      },
+      officeActor,
+    );
+    await openLoadJobForScanning('load-job-1');
+    prisma.__pallets[0].status = 'ADJUSTED_OUT';
+
+    await expectHttpErrorCode(
+      service.scan(
+        'load-job-1',
+        {
+          qrPayload: 'SSP1|PALLET|2026-06-27|CSNU8877228|YEG2|1/2|PALLET-001',
+        },
+        warehouseActor,
+      ),
+      'PALLET_ADJUSTED_OUT',
+    );
+
+    expect(prisma.pallet.update).not.toHaveBeenCalled();
+    expect(prisma.palletEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventType: 'INVALID_SCAN',
+        exceptionReason: 'PALLET_ADJUSTED_OUT',
+        fromStatus: 'ADJUSTED_OUT',
+        toStatus: 'ADJUSTED_OUT',
+        operatorId: 'auth-warehouse',
+      }),
+    });
+  });
+
   it('reverses a loaded pallet only with explicit confirmation and audit reason', async () => {
     await service.create(
       {
@@ -1467,7 +1502,15 @@ describe('LoadJobsService', () => {
       if (where.status?.not && pallet.status === where.status.not) {
         return false;
       }
-      if (where.status && !where.status.not && pallet.status !== where.status) {
+      if (where.status?.notIn?.includes(pallet.status)) {
+        return false;
+      }
+      if (
+        where.status &&
+        !where.status.not &&
+        !where.status.notIn &&
+        pallet.status !== where.status
+      ) {
         return false;
       }
       if (where.loadJobId && pallet.loadJobId !== where.loadJobId) {
@@ -1556,6 +1599,13 @@ describe('LoadJobsService', () => {
                     pallet.status !== where.pallets.some.status.not,
                 );
               }
+              if (where.pallets?.some?.status?.notIn) {
+                return pallets.some(
+                  (pallet) =>
+                    pallet.containerDestinationId === destination.id &&
+                    !where.pallets.some.status.notIn.includes(pallet.status),
+                );
+              }
 
               return true;
             })
@@ -1574,7 +1624,8 @@ describe('LoadJobsService', () => {
                 .filter(
                   (pallet) =>
                     pallet.containerDestinationId === destination.id &&
-                    pallet.status !== 'CANCELLED',
+                    pallet.status !== 'CANCELLED' &&
+                    pallet.status !== 'ADJUSTED_OUT',
                 )
                 .map((pallet) => ({ status: pallet.status })),
             }));
@@ -1766,6 +1817,7 @@ describe('LoadJobsService', () => {
 
     mock.__events = events;
     mock.__containers = containers;
+    mock.__pallets = pallets;
 
     return mock;
   }

@@ -66,7 +66,9 @@ export function effectiveContainerStatus(
   }
 
   const activePallets = pallets.filter(
-    (pallet) => pallet.status !== PalletStatus.CANCELLED,
+    (pallet) =>
+      pallet.status !== PalletStatus.CANCELLED &&
+      pallet.status !== PalletStatus.ADJUSTED_OUT,
   );
   if (activePallets.length === 0) {
     return status;

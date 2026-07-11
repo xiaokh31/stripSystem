@@ -200,7 +200,7 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=<long-random-production-secret>
-JWT_EXPIRES_IN_SECONDS=28800
+JWT_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
@@ -213,6 +213,9 @@ Rules:
 - Keep Docker internal API URLs as `http://api:4000/api`.
 - Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
   automatically switches between MDT and MST.
+- `JWT_EXPIRES_IN_SECONDS=34560000` keeps browser login sessions persistent for
+  up to 400 days by default. Shorten it if the site requires tighter
+  workstation security. Browsers may still cap persistent cookie lifetimes.
 
 ### 5. Create Runtime Folders
 
@@ -420,7 +423,7 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=<long-random-production-secret>
-JWT_EXPIRES_IN_SECONDS=28800
+JWT_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```

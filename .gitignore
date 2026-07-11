@@ -110,6 +110,8 @@ prompts/tasks/*
 !prompts/tasks/UNLOAD-WAGE*.md
 !prompts/tasks/UNLOAD-PALLET*.md
 !prompts/tasks/WEB-DASHBOARD*.md
+!prompts/tasks/AUTH-SESSION*.md
+!prompts/tasks/INVENTORY-ADJUST*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

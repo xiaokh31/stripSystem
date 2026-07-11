@@ -28,6 +28,11 @@ business file-processing risk is understood.
 - Update the domain glossary when new business terms are resolved.
 - After completing each requirement plan, split the requirement into executable
   development tasks and write those task prompts under `prompts/tasks/`.
+- For every new requirement and every generated development task, add a strict
+  i18n management requirement so user-visible copy, status labels, validation
+  messages, empty states, tooltips, aria/title/placeholder text, and dynamic
+  business messages are owned by the localization catalog instead of hardcoded
+  in API or UI code.
 
 ## Responsibility Boundaries
 
@@ -64,6 +69,13 @@ The Product Planning Agent does not own:
   unloading work, or wage totals.
 - Prefer adding explicit business concepts over overloading existing technical
   fields when the meaning differs.
+- API requirements must return stable codes, enums, raw data, or `labelKey`
+  values for user-visible concepts. Do not ask backend code to return localized
+  Chinese or English UI sentences unless the feature is explicitly about
+  exporting a user-facing document in that language.
+- Web requirements must include locale-switch behavior. Do not allow mixed
+  bilingual display such as Chinese plus English fallback in the same visible
+  status label.
 
 ## Planning Output Standard
 
@@ -77,6 +89,7 @@ Every planning document should include:
 - Phase split.
 - Acceptance criteria.
 - Testing decisions.
+- I18n management and locale-switch requirements.
 - Open questions and assumptions.
 - Out-of-scope items.
 
@@ -95,6 +108,9 @@ Required behavior:
 - If `.gitignore` ignores the new task files, update the allowlist so the task
   prompts can be tracked.
 - Do not leave the task breakdown only in chat.
+- Treat i18n as a release gate for every new task. A task is not handoff-ready
+  unless it says where new visible copy lives, how dynamic messages map to
+  stable codes/keys, and which locale-switch or i18n tests must be run.
 
 Each task file must include:
 
@@ -103,6 +119,13 @@ Each task file must include:
 - Prerequisite tasks, if any.
 - Task scope and explicit non-goals.
 - Business requirements.
+- I18n hard gate:
+  - API returns stable code / enum / `labelKey` / raw data, not localized UI
+    sentences.
+  - Web adds all visible copy to locale catalogs.
+  - Locale switching must show one language at a time, without bilingual
+    fallback labels.
+  - Tests or manual checks must cover the touched UI states.
 - Acceptance criteria.
 - Test commands to run.
 

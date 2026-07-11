@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f5f4;
-  --foreground: #18181b;
+  --manifest-paper: #f7f8f5;
+  --manifest-paper-strong: #eef1ec;
+  --dock-steel: #253238;
+  --dock-steel-muted: #36484f;
+  --forklift-amber: #d98e04;
+  --seal-teal: #0f766e;
+  --exception-red: #b42318;
+  --ink: #172026;
+  --line-soft: #d7ded8;
+  --line-strong: #aebbb4;
+  --panel-surface: #ffffff;
+  --panel-muted: #f2f5f1;
+  --focus-ring: #0f766e;
+  --background: var(--manifest-paper);
+  --foreground: var(--ink);
 }
 
 @theme inline {
@@ -16,6 +29,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  font-feature-settings: "tnum" 1;
 }
 
 @media (min-width: 1024px) {
@@ -27,4 +41,39 @@ body {
 button,
 a {
   text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.font-control {
+  font-family:
+    "Arial Narrow",
+    "Roboto Condensed",
+    "Helvetica Neue Condensed",
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+.font-data {
+  font-family:
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

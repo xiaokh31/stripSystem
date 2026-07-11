@@ -384,6 +384,37 @@ describe('RBAC route guards (e2e)', () => {
       });
   });
 
+  it('allows ADMIN and OFFICE manual inventory depletion but blocks warehouse roles', async () => {
+    for (const authorization of [adminAuthHeader(), officeAuthHeader()]) {
+      await request(app.getHttpServer())
+        .post('/api/container-destinations/destination-1/inventory-adjustments')
+        .set('Authorization', authorization)
+        .send({ reasonCode: 'SCAN_MISSED' })
+        .expect(400)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe(
+            'INVENTORY_ADJUSTMENT_TARGET_REQUIRED',
+          );
+        });
+    }
+
+    for (const authorization of [
+      warehouseAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/container-destinations/destination-1/inventory-adjustments')
+        .set('Authorization', authorization)
+        .send({ reasonCode: 'SCAN_MISSED', count: 1 })
+        .expect(403)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe(
+            'INVENTORY_ADJUSTMENT_PERMISSION_DENIED',
+          );
+        });
+    }
+  });
+
   it('allows ADMIN through protected route permission checks', async () => {
     await request(app.getHttpServer())
       .post('/api/imports')

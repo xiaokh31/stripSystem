@@ -1,6 +1,7 @@
 export const enMessages = {
   "0 B": "0 B",
   "API connection": "API connection",
+  "API status": "API status",
   "API version": "API version",
   "Account administration": "Account administration",
   "Account settings": "Account settings",
@@ -32,6 +33,9 @@ export const enMessages = {
   "Audit events:": "Audit events:",
   "Audit note": "Audit note",
   Authentication: "Authentication",
+  "Authentication service is not configured. Contact an administrator.":
+    "Authentication service is not configured. Contact an administrator.",
+  "Authentication service unavailable": "Authentication service unavailable",
   Available: "Available",
   "Back to import": "Back to import",
   "Back to imports": "Back to imports",
@@ -136,13 +140,118 @@ export const enMessages = {
   "Current status:": "Current status:",
   "Current user": "Current user",
   Dashboard: "Dashboard",
+  "30 days": "30 days",
+  "7 days": "7 days",
+  "Action queue": "Action queue",
+  "Active load jobs": "Active load jobs",
+  "Attendance imports needing parse": "Attendance imports needing parse",
+  "Attendance imports with errors": "Attendance imports with errors",
+  "Available shortcuts": "Available shortcuts",
+  Blocked: "Blocked",
+  "Container lifecycle": "Container lifecycle",
+  Correction: "Correction",
+  "Correction recorded": "Correction recorded",
+  "Dashboard error": "Dashboard error",
   "Dashboard data could not be loaded.": "Dashboard data could not be loaded.",
+  "Due today": "Due today",
+  "Generated at": "Generated at",
+  "Generated file": "Generated file",
+  "Inventory pressure": "Inventory pressure",
+  "Inventory pressure is unavailable for this account.":
+    "Inventory pressure is unavailable for this account.",
+  "Latest operational records": "Latest operational records",
+  "Live control surface for imports, containers, inventory, loading, exceptions, wage queues, and recent audit activity.":
+    "Live control surface for imports, containers, inventory, loading, exceptions, wage queues, and recent audit activity.",
+  "Load job progress is unavailable for this account.":
+    "Load job progress is unavailable for this account.",
+  "Loading progress": "Loading progress",
+  "Monthly settlement": "Monthly settlement",
+  "Monthly unloading summary": "Monthly unloading summary",
+  "Monthly unloading summary is unavailable for this account.":
+    "Monthly unloading summary is unavailable for this account.",
+  "Needs attention": "Needs attention",
+  "No action needed": "No action needed",
+  "No attendance imports need parsing": "No attendance imports need parsing",
+  "No completion dates need review": "No completion dates need review",
+  "No containers need labels": "No containers need labels",
+  "No containers need reports": "No containers need reports",
+  "No dashboard actions are visible for this account.":
+    "No dashboard actions are visible for this account.",
+  "No dashboard exceptions": "No dashboard exceptions",
+  "No destination inventory pressure": "No destination inventory pressure",
+  "No failed imports": "No failed imports",
+  "No imports need parsing": "No imports need parsing",
+  "No recent activity in this range": "No recent activity in this range",
+  "No workflow shortcuts are available for this account.":
+    "No workflow shortcuts are available for this account.",
+  Normal: "Normal",
+  "Open admin users": "Open admin users",
+  "Open containers": "Open containers",
+  "Open dashboard target": "Open dashboard target",
+  "Open imports": "Open imports",
+  "Open inventory": "Open inventory",
+  "Open reports": "Open reports",
+  "Open settings": "Open settings",
+  "Open unloading summary": "Open unloading summary",
+  "Open unloading wage": "Open unloading wage",
+  "Open work hours": "Open work hours",
+  "Operations dashboard": "Operations dashboard",
+  "Pallet pressure": "Pallet pressure",
+  Range: "Range",
+  "Recent activity": "Recent activity",
+  "Refresh dashboard": "Refresh dashboard",
+  "Review queue": "Review queue",
+  "Role-aware actions": "Role-aware actions",
+  Shortcuts: "Shortcuts",
+  "Some dashboard sections are hidden by permissions.":
+    "Some dashboard sections are hidden by permissions.",
+  "Summary and wage queues": "Summary and wage queues",
+  "Summary rows": "Summary rows",
+  "The dashboard API request could not be sent.":
+    "The dashboard API request could not be sent.",
+  Today: "Today",
+  "Top destinations by remaining pallets": "Top destinations by remaining pallets",
+  "Unavailable sections": "Unavailable sections",
+  "Unknown dashboard item": "Unknown dashboard item",
+  "Unloading wage settlement": "Unloading wage settlement",
+  "Use these routes while the dashboard API is unavailable.":
+    "Use these routes while the dashboard API is unavailable.",
+  "Wage record": "Wage record",
+  "Wage settlements needing review": "Wage settlements needing review",
+  "Work hours and unloading wage queues are unavailable for this account.":
+    "Work hours and unloading wage queues are unavailable for this account.",
+  "Work queue": "Work queue",
+  "Workflow shortcuts": "Workflow shortcuts",
+  "dashboard.exceptions.destinationCartonVolumeMissing":
+    "Missing destination, cartons, or volume",
+  "dashboard.exceptions.failedAsyncJobs": "Failed async jobs",
+  "dashboard.exceptions.failedGeneratedFiles": "Failed generated files",
+  "dashboard.exceptions.parserErrors": "Parser errors",
+  "dashboard.exceptions.scanExceptions": "Scan exceptions",
+  "dashboard.exceptions.zeroVolumeWithCartons": "Zero volume with cartons",
+  "dashboard.lifecycle.deliveredToDestination": "Delivered to destination",
+  "dashboard.lifecycle.labelsGenerated": "Labels generated",
+  "dashboard.lifecycle.loadingInProgress": "Loading in progress",
+  "dashboard.lifecycle.parsed": "Parsed",
+  "dashboard.lifecycle.reportGenerated": "Report generated",
+  "dashboard.lifecycle.unloaded": "Unloaded",
+  "dashboard.lifecycle.uploaded": "Uploaded",
+  "dashboard.workQueue.attendanceImportsNeedParse":
+    "Attendance imports needing parse",
+  "dashboard.workQueue.containersMissingLabels": "Containers missing labels",
+  "dashboard.workQueue.containersMissingReport": "Containers missing report",
+  "dashboard.workQueue.importsAwaitingParse": "Imports awaiting parse",
+  "dashboard.workQueue.importsParseFailed": "Imports parse failed",
+  "dashboard.workQueue.openLoadJobs": "Open load jobs",
+  "dashboard.workQueue.unloadingCompletionDateMissing":
+    "Completion date missing",
   "Damage, pallet consolidation, short load...":
     "Damage, pallet consolidation, short load...",
   "Damaged label, replacement print packet, printer issue...":
     "Damaged label, replacement print packet, printer issue...",
   "Data source": "Data source",
   Database: "Database",
+  "Database status": "Database status",
   Delete: "Delete",
   "Delete import": "Delete import",
   "Delete line": "Delete line",
@@ -171,6 +280,7 @@ export const enMessages = {
     "Destination type was not recognized; pallet rule needs confirmation.",
   "Destination type": "Destination type",
   Destinations: "Destinations",
+  Degraded: "Degraded",
   "Disable user": "Disable user",
   Disabled: "Disabled",
   "Dock No.": "Dock No.",
@@ -179,9 +289,11 @@ export const enMessages = {
   "Dock No. is required before completing this load job.":
     "Dock No. is required before completing this load job.",
   "Dock door": "Dock door",
+  "Dock lane strip": "Dock lane strip",
   Dock: "Dock",
   "Dock number could not be saved.": "Dock number could not be saved.",
   Download: "Download",
+  Down: "Down",
   "Download current label PDF": "Download current label PDF",
   "Download file": "Download file",
   "Download generated file": "Download generated file",
@@ -310,6 +422,8 @@ export const enMessages = {
   "Loading history unavailable": "Loading history unavailable",
   Login: "Login",
   "Login failed.": "Login failed.",
+  "Login failed. Try again or contact an administrator.":
+    "Login failed. Try again or contact an administrator.",
   "Manage real API users, role assignments, and role permission mappings. Changes are saved through the protected admin API.":
     "Manage real API users, role assignments, and role permission mappings. Changes are saved through the protected admin API.",
   "Manage real account records through the protected API. The API permission guard remains the source of truth for access.":
@@ -325,6 +439,7 @@ export const enMessages = {
   "Manual unloading report": "Manual unloading report",
   "Manual unloading report could not be created.":
     "Manual unloading report could not be created.",
+  "Manifest Control Room": "Manifest Control Room",
   "Mobile Scan": "Mobile Scan",
   "Mobile load jobs are not available": "Mobile load jobs are not available",
   "Mobile load jobs are only loaded after the API confirms the current user. No placeholder load jobs are shown without a valid session.":
@@ -371,6 +486,7 @@ export const enMessages = {
   "No load jobs recorded": "No load jobs recorded",
   "No loaded pallets are currently attached to this load job.":
     "No loaded pallets are currently attached to this load job.",
+  "No active session": "No active session",
   "No note": "No note",
   "No offline scans are stored for this load job.":
     "No offline scans are stored for this load job.",
@@ -419,8 +535,10 @@ export const enMessages = {
   "Opening camera...": "Opening camera...",
   "Operational profile": "Operational profile",
   "Operational settings": "Operational settings",
+  "Operational time": "Operational time",
   "Operational time zone": "Operational time zone",
   Operator: "Operator",
+  OK: "OK",
   "Original customer workbook could not be parsed.":
     "Original customer workbook could not be parsed.",
   "Original uploads": "Original uploads",
@@ -462,6 +580,7 @@ export const enMessages = {
   Parsed: "Parsed",
   "Parsed containers": "Parsed containers",
   Password: "Password",
+  "Email or password is incorrect.": "Email or password is incorrect.",
   "Pending scans remain local until a user with scan permission signs in and syncs them.":
     "Pending scans remain local until a user with scan permission signs in and syncs them.",
   "Pending scans stay local and do not change inventory until the API accepts them.":
@@ -559,6 +678,7 @@ export const enMessages = {
   "Selected files will appear here with upload progress and API results.":
     "Selected files will appear here with upload progress and API results.",
   Settings: "Settings",
+  "Session expired": "Session expired",
   "Showing all non-deleted load jobs.": "Showing all non-deleted load jobs.",
   "Showing latest": "Showing latest",
   "Sign in": "Sign in",
@@ -570,6 +690,7 @@ export const enMessages = {
   "Sign in to scan pallets": "Sign in to scan pallets",
   "Sign in to use mobile loading": "Sign in to use mobile loading",
   "Sign in to view loading history": "Sign in to view loading history",
+  "Sign-in failed": "Sign-in failed",
   "Sign out": "Sign out",
   "Signed in": "Signed in",
   "Signed in as": "Signed in as",
@@ -615,16 +736,22 @@ export const enMessages = {
     "The signed-in user does not have load job read permission.",
   "The signed-in user does not have load job read permission. Ask an administrator to assign a warehouse, office, or admin role with mobile loading access.":
     "The signed-in user does not have load job read permission. Ask an administrator to assign a warehouse, office, or admin role with mobile loading access.",
+  "The signed-in user does not have permission for this page.":
+    "The signed-in user does not have permission for this page.",
   "The signed-in user needs load job read permission before scan actions can be shown.":
     "The signed-in user needs load job read permission before scan actions can be shown.",
   "This account can view loaded pallets but cannot reverse scans.":
     "This account can view loaded pallets but cannot reverse scans.",
   "This account can view the load job but cannot scan pallets.":
     "This account can view the load job but cannot scan pallets.",
+  "This account cannot sign in through the browser.":
+    "This account cannot sign in through the browser.",
   "This account cannot open mobile load jobs":
     "This account cannot open mobile load jobs",
   "This account does not have permission to delete imports.":
     "This account does not have permission to delete imports.",
+  "This account is inactive. Ask an administrator to reactivate it.":
+    "This account is inactive. Ask an administrator to reactivate it.",
   "This browser cannot open or decode camera QR scans. Use a scanner or manual input.":
     "This browser cannot open or decode camera QR scans. Use a scanner or manual input.",
   "This container has no parsed destinations.":
@@ -650,6 +777,7 @@ export const enMessages = {
   Total: "Total",
   "Total pallets": "Total pallets",
   "Truck No.": "Truck No.",
+  Truck: "Truck",
   Type: "Type",
   UNKNOWN: "UNKNOWN",
   Unavailable: "Unavailable",
@@ -660,6 +788,7 @@ export const enMessages = {
   "Unknown operator": "Unknown operator",
   "Unloading report": "Unloading report",
   "Updating progress": "Updating progress",
+  Up: "Up",
   Upload: "Upload",
   "Upload a file": "Upload a file",
   "Upload a real .xlsx unloading list to create the first import record. Once the API stores it, it will appear here after refresh.":
@@ -692,6 +821,8 @@ export const enMessages = {
   Yes: "Yes",
   "You do not have permission to view this page.":
     "You do not have permission to view this page.",
+  "Your session expired. Sign in again to continue.":
+    "Your session expired. Sign in again to continue.",
   "Admin approval required": "Admin approval required",
   "Audit required": "Audit required",
   "Authoritative source for remaining pallet inventory.":
@@ -1270,6 +1401,47 @@ export const enMessages = {
     "latest records from the load job API.",
   "load jobs from offset": "load jobs from offset",
   "more plan lines": "more plan lines",
+  "Adjusted out": "Adjusted out",
+  "A note is required when Other is selected.":
+    "A note is required when Other is selected.",
+  "Close manual inventory depletion": "Close manual inventory depletion",
+  "Confirm manual inventory depletion": "Confirm manual inventory depletion",
+  "Current remaining inventory": "Current remaining inventory",
+  "Depletion count": "Depletion count",
+  "Destination inventory could not be loaded. Refresh and try again.":
+    "Destination inventory could not be loaded. Refresh and try again.",
+  "Enter a whole number from 1 to the current remaining inventory.":
+    "Enter a whole number from 1 to the current remaining inventory.",
+  "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.":
+    "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.",
+  "Inventory adjustment enabled": "Inventory adjustment enabled",
+  "Inventory read-only": "Inventory read-only",
+  "Manual inventory depletion": "Manual inventory depletion",
+  "Manual inventory depletion count": "Manual inventory depletion count",
+  "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
+    "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.",
+  "Manual inventory depletion history": "Manual inventory depletion history",
+  "Manual inventory depletion history could not be loaded.":
+    "Manual inventory depletion history could not be loaded.",
+  "Manual inventory depletion removes pallets from remaining inventory. It is not a loading scan and does not count pallets as loaded.":
+    "Manual inventory depletion removes pallets from remaining inventory. It is not a loading scan and does not count pallets as loaded.",
+  "Manual inventory depletion note": "Manual inventory depletion note",
+  "Manual inventory depletion reason": "Manual inventory depletion reason",
+  "Manual inventory depletion saved. Inventory and adjustment history were refreshed from the API.":
+    "Manual inventory depletion saved. Inventory and adjustment history were refreshed from the API.",
+  "No generated pallets are available for destination inventory review.":
+    "No generated pallets are available for destination inventory review.",
+  "No manual inventory depletion history.":
+    "No manual inventory depletion history.",
+  "No remaining pallets": "No remaining pallets",
+  "Required when Other is selected": "Required when Other is selected",
+  Saving: "Saving",
+  "Saving manual inventory depletion.": "Saving manual inventory depletion.",
+  "Select a reason for manual inventory depletion.":
+    "Select a reason for manual inventory depletion.",
+  "Select reason": "Select reason",
+  "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.":
+    "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.",
   中文: "中文",
 } as const;
 

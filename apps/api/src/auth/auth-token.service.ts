@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from '../config/auth-session.constants';
 
 export interface AuthTokenPayload {
   sub: string;
@@ -20,7 +21,14 @@ export class AuthTokenService {
   constructor(private readonly configService: ConfigService) {}
 
   get expiresInSeconds(): number {
-    return this.configService.get<number>('app.jwtExpiresInSeconds') ?? 28800;
+    const configured = this.configService.get<number>(
+      'app.jwtExpiresInSeconds',
+    );
+    return typeof configured === 'number' &&
+      Number.isFinite(configured) &&
+      configured > 0
+      ? configured
+      : DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS;
   }
 
   sign(

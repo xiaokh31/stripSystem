@@ -12,6 +12,8 @@ export async function createRbacManagementPrismaMock() {
     permission('permission-users-manage', 'users.manage', 'users'),
     permission('permission-roles-manage', 'roles.manage', 'roles'),
     permission('permission-load-jobs-read', 'load_jobs.read', 'load_jobs'),
+    permission('permission-inventory-read', 'inventory.read', 'inventory'),
+    permission('permission-inventory-adjust', 'inventory.adjust', 'inventory'),
     permission('permission-settings-read', 'settings.read', 'settings'),
     permission('permission-containers-read', 'containers.read', 'containers'),
     permission(
@@ -90,9 +92,24 @@ export async function createRbacManagementPrismaMock() {
       'permission-unloading-summary-export',
     ),
     rolePermission(
+      'role-permission-office-inventory-read',
+      'role-office',
+      'permission-inventory-read',
+    ),
+    rolePermission(
+      'role-permission-office-inventory-adjust',
+      'role-office',
+      'permission-inventory-adjust',
+    ),
+    rolePermission(
       'role-permission-warehouse-load-jobs',
       'role-warehouse',
       'permission-load-jobs-read',
+    ),
+    rolePermission(
+      'role-permission-warehouse-inventory-read',
+      'role-warehouse',
+      'permission-inventory-read',
     ),
     rolePermission(
       'role-permission-hr-settings-read',

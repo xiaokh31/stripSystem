@@ -90,11 +90,12 @@ export default async function InventoryReportPage({
       ) : null}
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <Metric label="Containers" value={state.containers.length} />
           <Metric label="Destinations" value={state.destinations.length} />
           <Metric label="Total pallets" value={totals.totalPallets} />
           <Metric label="Loaded pallets" value={totals.loadedPallets} />
+          <Metric label="Adjusted out" value={totals.adjustedOutPallets} />
           <Metric label="Remaining pallets" value={totals.remainingPallets} />
         </div>
       </section>
@@ -243,6 +244,9 @@ function ContainerSummaryTable({
               <th className="px-3 py-3 font-semibold">Status</th>
               <th className="px-3 py-3 text-right font-semibold">Total</th>
               <th className="px-3 py-3 text-right font-semibold">Loaded</th>
+              <th className="px-3 py-3 text-right font-semibold">
+                Adjusted out
+              </th>
               <th className="px-3 py-3 text-right font-semibold">Remaining</th>
             </tr>
           </thead>
@@ -267,6 +271,9 @@ function ContainerSummaryTable({
                   <td className="px-3 py-3 text-right tabular-nums">
                     {formatPalletCount(container.loadedPallets)}
                   </td>
+                  <td className="px-3 py-3 text-right tabular-nums">
+                    {formatPalletCount(container.adjustedOutPallets)}
+                  </td>
                   <td className="px-3 py-3 text-right font-semibold tabular-nums">
                     {formatPalletCount(container.remainingPallets)}
                   </td>
@@ -274,7 +281,7 @@ function ContainerSummaryTable({
               ))
             ) : (
               <tr>
-                <td className="px-3 py-6 text-zinc-600" colSpan={5}>
+                <td className="px-3 py-6 text-zinc-600" colSpan={6}>
                   No container inventory matched the selected filters.
                 </td>
               </tr>
@@ -303,6 +310,9 @@ function DestinationInventoryTable({
               <th className="px-3 py-3 font-semibold">Destination</th>
               <th className="px-3 py-3 text-right font-semibold">Total</th>
               <th className="px-3 py-3 text-right font-semibold">Loaded</th>
+              <th className="px-3 py-3 text-right font-semibold">
+                Adjusted out
+              </th>
               <th className="px-3 py-3 text-right font-semibold">Remaining</th>
             </tr>
           </thead>
@@ -319,6 +329,9 @@ function DestinationInventoryTable({
                   <td className="px-3 py-3 text-right tabular-nums">
                     {formatPalletCount(destination.loadedPallets)}
                   </td>
+                  <td className="px-3 py-3 text-right tabular-nums">
+                    {formatPalletCount(destination.adjustedOutPallets)}
+                  </td>
                   <td className="px-3 py-3 text-right font-semibold tabular-nums">
                     {formatPalletCount(destination.remainingPallets)}
                   </td>
@@ -326,7 +339,7 @@ function DestinationInventoryTable({
               ))
             ) : (
               <tr>
-                <td className="px-3 py-6 text-zinc-600" colSpan={4}>
+                <td className="px-3 py-6 text-zinc-600" colSpan={5}>
                   No destination inventory matched the selected filters.
                 </td>
               </tr>

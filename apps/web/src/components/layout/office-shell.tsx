@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { StatusPill } from "@/components/dashboard";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import type { AuthUserResponse } from "@/lib/api-client";
+import { formatOperationalDateTime, OPERATIONAL_TIME_ZONE_LABEL } from "@/lib/date-time";
+import type { Locale } from "@/lib/i18n/catalog";
+import { healthStatusLabel, roleDisplayLabel } from "@/lib/i18n/status-labels";
 import {
   ATTENDANCE_READ_PERMISSION,
   INVENTORY_READ_PERMISSION,
@@ -15,6 +19,12 @@ import { OfficeNavigation, type OfficeNavItem } from "./office-navigation";
 
 interface PermissionAwareNavItem extends OfficeNavItem {
   requiredPermissions?: string[];
+}
+
+export interface OfficeShellHealth {
+  apiStatus: "degraded" | "down" | "ok";
+  databaseStatus: "down" | "unknown" | "up";
+  version?: string;
 }
 
 const navItems: PermissionAwareNavItem[] = [
@@ -65,52 +75,164 @@ const navItems: PermissionAwareNavItem[] = [
 export function OfficeShell({
   children,
   currentUser,
+  health,
+  locale,
 }: {
   children: ReactNode;
   currentUser: AuthUserResponse | null;
+  health: OfficeShellHealth;
+  locale: Locale;
 }) {
+  const visibleItems = currentUser ? visibleNavItems(currentUser) : [];
+
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-100 text-zinc-950">
-      <header className="border-b border-teal-950 bg-teal-900 text-white shadow-sm">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase text-teal-100">
-                Bestar Service CCA
-              </p>
-              <p className="text-lg font-semibold">Warehouse Office</p>
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      {currentUser ? (
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-black/20 bg-[var(--dock-steel)] text-white lg:flex">
+          <div className="border-b border-white/10 px-4 py-5">
+            <p className="text-xs font-semibold uppercase text-zinc-300">
+              Bestar Service CCA
+            </p>
+            <p className="font-control mt-2 text-xl font-semibold">
+              Manifest Control Room
+            </p>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            <OfficeNavigation items={visibleItems} variant="rail" />
+          </div>
+          <div className="border-t border-white/10 px-4 py-4 text-xs text-zinc-300">
+            <p className="font-semibold uppercase">Operational profile</p>
+            <p className="mt-1 font-data" data-i18n-ignore="true">
+              {OPERATIONAL_TIME_ZONE_LABEL}
+            </p>
+          </div>
+        </aside>
+      ) : null}
+
+      <div className={currentUser ? "min-h-screen lg:pl-64" : "min-h-screen"}>
+        <header className="sticky top-0 z-30 border-b border-[var(--line-soft)] bg-[var(--dock-steel)] text-white shadow-sm">
+          <div className="flex w-full flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase text-zinc-300">
+                  Bestar Service CCA
+                </p>
+                <p className="font-control mt-1 text-lg font-semibold sm:hidden">
+                  Manifest Control Room
+                </p>
+                <p className="font-control mt-1 hidden text-lg font-semibold sm:block lg:hidden">
+                  Warehouse Office
+                </p>
+              </div>
+
+              <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                <OperationalStatus health={health} locale={locale} />
+                <UserCluster currentUser={currentUser} locale={locale} />
+                <LanguageSwitcher />
+                {currentUser ? (
+                  <LogoutButton />
+                ) : (
+                  <a
+                    className="inline-flex min-h-9 items-center border border-white/20 bg-white px-3 text-xs font-semibold uppercase text-[var(--dock-steel)] hover:bg-zinc-100"
+                    href="/login"
+                  >
+                    Sign in
+                  </a>
+                )}
+              </div>
             </div>
             {currentUser ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <LanguageSwitcher />
-                <div className="border border-teal-700 bg-teal-800 px-3 py-2 text-xs text-teal-50">
-                  <p className="font-semibold">
-                    {currentUser.name ?? currentUser.email ?? "Signed in"}
-                  </p>
-                  <p className="mt-1 uppercase">
-                    {currentUser.roles.join(", ")}
-                  </p>
-                </div>
-                <LogoutButton />
+              <div className="border-t border-white/10 px-2 lg:hidden">
+                <OfficeNavigation items={visibleItems} />
               </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <LanguageSwitcher />
-                <a
-                  className="inline-flex min-h-9 items-center border border-teal-700 bg-teal-800 px-3 text-xs font-semibold uppercase text-teal-50 hover:bg-teal-700"
-                  href="/login"
-                >
-                  Sign in
-                </a>
-              </div>
-            )}
+            ) : null}
           </div>
-          {currentUser ? (
-            <OfficeNavigation items={visibleNavItems(currentUser)} />
-          ) : null}
-        </div>
       </header>
       {children}
+      </div>
+    </div>
+  );
+}
+
+function OperationalStatus({
+  health,
+  locale,
+}: {
+  health: OfficeShellHealth;
+  locale: Locale;
+}) {
+  const apiTone = health.apiStatus === "ok" ? "success" : "warning";
+  const databaseTone = health.databaseStatus === "up" ? "success" : "danger";
+
+  return (
+    <div className="hidden flex-wrap items-center gap-2 xl:flex">
+      <div className="border border-white/10 bg-white/5 px-3 py-2 text-xs">
+        <p className="font-semibold uppercase text-zinc-300">
+          Operational time
+        </p>
+        <p className="font-data mt-1" data-i18n-ignore="true">
+          {formatOperationalDateTime(new Date())}
+        </p>
+      </div>
+      <div className="border border-white/10 bg-white/5 px-3 py-2 text-xs">
+        <p className="font-semibold uppercase text-zinc-300">Time zone</p>
+        <p className="font-data mt-1" data-i18n-ignore="true">
+          {OPERATIONAL_TIME_ZONE_LABEL}
+        </p>
+      </div>
+      <StatusPill
+        label={healthStatusLabel(health.apiStatus, locale)}
+        title="API status"
+        tone={apiTone}
+      />
+      <StatusPill
+        label={healthStatusLabel(health.databaseStatus, locale)}
+        title="Database status"
+        tone={databaseTone}
+      />
+    </div>
+  );
+}
+
+function UserCluster({
+  currentUser,
+  locale,
+}: {
+  currentUser: AuthUserResponse | null;
+  locale: Locale;
+}) {
+  if (!currentUser) {
+    return (
+      <div className="hidden border border-white/10 bg-white/5 px-3 py-2 text-xs sm:block">
+        <p className="font-semibold uppercase text-zinc-300">Current user</p>
+        <p className="mt-1">No active session</p>
+      </div>
+    );
+  }
+
+  const userName = currentUser.name ?? currentUser.email ?? currentUser.id;
+
+  return (
+    <div className="min-w-0 border border-white/10 bg-white/5 px-3 py-2 text-xs">
+      <p className="font-semibold uppercase text-zinc-300">Current user</p>
+      <p
+        className="mt-1 max-w-48 truncate font-semibold"
+        data-i18n-ignore="true"
+        title={userName}
+      >
+        {userName}
+      </p>
+      <div className="mt-2 flex max-w-72 flex-wrap gap-1">
+        {currentUser.roles.map((role) => (
+          <span
+            className="border border-white/15 bg-black/10 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-zinc-100"
+            key={role}
+            title={role}
+          >
+            {roleDisplayLabel(role, locale)}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

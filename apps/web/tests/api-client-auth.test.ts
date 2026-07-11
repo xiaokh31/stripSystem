@@ -9,6 +9,8 @@ import {
 import {
   AUTH_TOKEN_COOKIE_NAME,
   clearBrowserAuthToken,
+  getAuthTokenExpiryEpochSeconds,
+  isBrowserAuthTokenExpired,
   safeAuthRedirectTarget,
   setBrowserAuthToken,
 } from "../src/lib/auth-token";
@@ -91,13 +93,15 @@ test("browser auth token cookie is the default API authorization source", async 
       value: fakeDocument,
     });
 
-    setBrowserAuthToken("browser-token", 900);
+    setBrowserAuthToken("browser-token", 34_560_000);
+    assert.match(fakeDocument.cookie, /Max-Age=34560000/);
     await createApiClient({ baseUrl: "/api", fetcher }).get("/imports");
     clearBrowserAuthToken();
     await createApiClient({ baseUrl: "/api", fetcher }).get("/imports");
 
     assert.deepEqual(requestHeaders, ["Bearer browser-token", ""]);
     assert.match(fakeDocument.cookie, new RegExp(`${AUTH_TOKEN_COOKIE_NAME}=`));
+    assert.match(fakeDocument.cookie, /Max-Age=0/);
   } finally {
     if (documentDescriptor) {
       Object.defineProperty(globalThis, "document", documentDescriptor);
@@ -105,6 +109,16 @@ test("browser auth token cookie is the default API authorization source", async 
       delete (globalThis as Record<string, unknown>).document;
     }
   }
+});
+
+test("browser auth token helpers read JWT expiry for middleware redirects", () => {
+  const validToken = unsignedJwt({ exp: 1_800 });
+  const expiredToken = unsignedJwt({ exp: 1_000 });
+
+  assert.equal(getAuthTokenExpiryEpochSeconds(validToken), 1_800);
+  assert.equal(isBrowserAuthTokenExpired(validToken, 1_200), false);
+  assert.equal(isBrowserAuthTokenExpired(expiredToken, 1_200), true);
+  assert.equal(isBrowserAuthTokenExpired("not-a-jwt", 1_200), true);
 });
 
 test("auth redirect targets stay inside the web app", () => {
@@ -127,4 +141,16 @@ function jsonResponse(body: unknown): Response {
     headers: { "content-type": "application/json" },
     status: 200,
   });
+}
+
+function unsignedJwt(payload: Record<string, unknown>): string {
+  return [
+    base64UrlEncode({ alg: "none", typ: "JWT" }),
+    base64UrlEncode(payload),
+    "signature",
+  ].join(".");
+}
+
+function base64UrlEncode(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
 }

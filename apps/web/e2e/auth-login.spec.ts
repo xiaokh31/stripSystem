@@ -12,6 +12,13 @@ test("admin can sign in through the browser login page", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page).toHaveURL("/");
-  await expect(page.getByText("Warehouse Office").first()).toBeVisible();
+  const cookies = await page.context().cookies();
+  const authCookie = cookies.find((cookie) => cookie.name === "bestar_auth_token");
+  expect(authCookie?.expires).toBeGreaterThan(
+    Math.floor(Date.now() / 1000) + 300 * 24 * 60 * 60,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Operations dashboard" }),
+  ).toBeVisible();
   await expect(page.getByText("Dashboard").first()).toBeVisible();
 });

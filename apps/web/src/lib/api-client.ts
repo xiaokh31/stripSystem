@@ -19,6 +19,142 @@ export interface ApiHealthResponse {
   timestamp: string;
 }
 
+export type DashboardRange = "today" | "7d" | "30d";
+
+export type DashboardSeverity = "normal" | "attention" | "blocked";
+
+export interface OperationsDashboardFilters {
+  month?: string;
+  range?: DashboardRange;
+}
+
+export interface HiddenDashboardSectionResponse {
+  code: string;
+  requiredPermissions: string[];
+}
+
+export interface DashboardHealthResponse {
+  apiStatus: "degraded" | "ok";
+  databaseStatus: "down" | "up";
+  version: string;
+}
+
+export interface DashboardWorkQueueItemResponse {
+  code: string;
+  count: number;
+  href: string;
+  labelKey: string;
+  severity: DashboardSeverity;
+}
+
+export interface DashboardWorkQueueResponse {
+  items: DashboardWorkQueueItemResponse[];
+  totalActions: number;
+}
+
+export interface DashboardLifecycleStageResponse {
+  code: string;
+  count: number;
+  href: string;
+  labelKey: string;
+  severity: DashboardSeverity;
+}
+
+export interface DashboardContainerLifecycleResponse {
+  stages: DashboardLifecycleStageResponse[];
+  totalContainers: number;
+}
+
+export interface DashboardInventoryDestinationResponse {
+  destinationCode: string;
+  loadedPallets: number;
+  remainingPallets: number;
+  totalPallets: number;
+}
+
+export interface DashboardInventoryResponse {
+  loadedPallets: number;
+  remainingPallets: number;
+  topDestinations: DashboardInventoryDestinationResponse[];
+  totalPallets: number;
+}
+
+export interface DashboardLoadJobResponse {
+  dockNo: string | null;
+  href: string;
+  id: string;
+  loadNumber: string;
+  loadedPallets: number;
+  remainingPallets: number;
+  scheduledDepartureAt: string | null;
+  status: string;
+  totalPallets: number;
+  truckNo: string | null;
+}
+
+export interface DashboardLoadJobsResponse {
+  activeJobs: DashboardLoadJobResponse[];
+  dueTodayCount: number;
+  inProgressCount: number;
+  openCount: number;
+}
+
+export interface DashboardExceptionItemResponse {
+  code: string;
+  count: number;
+  href: string;
+  labelKey: string;
+  severity: Exclude<DashboardSeverity, "normal">;
+}
+
+export interface DashboardMonthlySummaryResponse {
+  completedContainerCount: number;
+  href: string;
+  month: string;
+  reviewWarningCount: number;
+  rowCount: number;
+}
+
+export interface DashboardWageAndAttendanceResponse {
+  attendanceImportsNeedingParse: number | null;
+  attendanceImportsWithErrors: number | null;
+  hrefs: Record<string, string>;
+  wageSettlementsNeedingReview: number | null;
+}
+
+export type DashboardActivityKind =
+  | "CONTAINER"
+  | "CORRECTION"
+  | "GENERATED_FILE"
+  | "IMPORT"
+  | "LOAD_JOB";
+
+export interface DashboardRecentActivityItemResponse {
+  href: string;
+  id: string;
+  kind: DashboardActivityKind;
+  label: string;
+  occurredAt: string;
+  status: string;
+}
+
+export interface OperationsDashboardResponse {
+  containerLifecycle: DashboardContainerLifecycleResponse;
+  exceptionQueue: DashboardExceptionItemResponse[];
+  generatedAt: string;
+  health: DashboardHealthResponse;
+  hiddenSections: HiddenDashboardSectionResponse[];
+  inventory: DashboardInventoryResponse | null;
+  loadJobs: DashboardLoadJobsResponse | null;
+  month: string;
+  monthlySummary: DashboardMonthlySummaryResponse | null;
+  range: DashboardRange;
+  recentActivity: DashboardRecentActivityItemResponse[];
+  timeZone: string;
+  wageAndAttendance: DashboardWageAndAttendanceResponse | null;
+  workQueue: DashboardWorkQueueResponse;
+}
+
 export type AsyncJobStatus =
   | "queued"
   | "running"
@@ -993,7 +1129,16 @@ export interface ContainerLabelReprintResponse {
 export interface PalletStatsResponse {
   totalPallets: number;
   loadedPallets: number;
+  adjustedOutPallets: number;
+  cancelledPallets: number;
   remainingPallets: number;
+}
+
+export interface ContainerDetailInventoryDestinationResponse
+  extends PalletStatsResponse {
+  containerDestinationId: string;
+  destinationCode: string;
+  destinationType: string | null;
 }
 
 export interface ContainerSummaryItemResponse extends PalletStatsResponse {
@@ -1002,6 +1147,11 @@ export interface ContainerSummaryItemResponse extends PalletStatsResponse {
   payClassification: string | null;
   payTrailerNumber: string | null;
   status: string;
+}
+
+export interface ContainerDetailInventorySummaryResponse
+  extends ContainerSummaryItemResponse {
+  destinations: ContainerDetailInventoryDestinationResponse[];
 }
 
 export interface ContainerSummaryListResponse {
@@ -1020,6 +1170,51 @@ export interface InventoryReportFilters {
   containerNo?: string;
   destinationCode?: string;
   status?: string;
+}
+
+export const INVENTORY_ADJUSTMENT_REASON_CODES = [
+  "DELIVERED_WITHOUT_SCAN",
+  "SCAN_MISSED",
+  "DATA_CLEANUP",
+  "OTHER",
+] as const;
+
+export type InventoryAdjustmentReasonCode =
+  (typeof INVENTORY_ADJUSTMENT_REASON_CODES)[number];
+
+export interface CreateInventoryAdjustmentRequest {
+  count?: number;
+  palletIds?: string[];
+  reasonCode: InventoryAdjustmentReasonCode;
+  note?: string;
+}
+
+export interface InventoryAdjustmentPalletResponse {
+  id: string;
+  palletId: string;
+  palletNo: number;
+  fromStatus: string;
+  toStatus: string;
+  eventId: string | null;
+}
+
+export interface InventoryAdjustmentResponse {
+  id: string;
+  containerId: string;
+  containerDestinationId: string;
+  adjustmentType: string;
+  palletCount: number;
+  reasonCode: InventoryAdjustmentReasonCode;
+  note: string | null;
+  metadata: unknown;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  pallets: InventoryAdjustmentPalletResponse[];
+}
+
+export interface InventoryAdjustmentListResponse {
+  items: InventoryAdjustmentResponse[];
 }
 
 export interface LoadJobContainerResponse {
@@ -1309,6 +1504,15 @@ export async function getApiHealth(): Promise<ApiHealthResponse> {
   return createApiClient().get<ApiHealthResponse>("/health");
 }
 
+export function getOperationsDashboard(
+  filters: OperationsDashboardFilters = {},
+  options: ApiClientOptions = {},
+): Promise<OperationsDashboardResponse> {
+  return createApiClient(options).get<OperationsDashboardResponse>(
+    `/dashboard/operations${toOperationsDashboardQueryString(filters)}`,
+  );
+}
+
 export function getQueueHealth(
   options: ApiClientOptions = {},
 ): Promise<QueueHealthResponse> {
@@ -1582,6 +1786,16 @@ export function getContainerDetail(
 ): Promise<ContainerDetailResponse> {
   return createApiClient(options).get<ContainerDetailResponse>(
     `/containers/${encodeURIComponent(id)}`,
+  );
+}
+
+export function getContainerInventoryDetailSummary(
+  id: string,
+  filters: InventoryReportFilters = {},
+  options: ApiClientOptions = {},
+): Promise<ContainerDetailInventorySummaryResponse> {
+  return createApiClient(options).get<ContainerDetailInventorySummaryResponse>(
+    `/containers/${encodeURIComponent(id)}/summary${toInventoryQueryString(filters)}`,
   );
 }
 
@@ -1901,6 +2115,26 @@ export function getDestinationInventory(
 ): Promise<InventoryListResponse> {
   return createApiClient(options).get<InventoryListResponse>(
     `/reports/inventory${toInventoryQueryString(filters)}`,
+  );
+}
+
+export function createInventoryAdjustment(
+  containerDestinationId: string,
+  body: CreateInventoryAdjustmentRequest,
+  options: ApiClientOptions = {},
+): Promise<InventoryAdjustmentResponse> {
+  return createApiClient(options).post<InventoryAdjustmentResponse>(
+    `/container-destinations/${encodeURIComponent(containerDestinationId)}/inventory-adjustments`,
+    { ...body },
+  );
+}
+
+export function listInventoryAdjustments(
+  containerDestinationId: string,
+  options: ApiClientOptions = {},
+): Promise<InventoryAdjustmentListResponse> {
+  return createApiClient(options).get<InventoryAdjustmentListResponse>(
+    `/container-destinations/${encodeURIComponent(containerDestinationId)}/inventory-adjustments`,
   );
 }
 
@@ -2268,6 +2502,18 @@ function toInventoryQueryString(filters: InventoryReportFilters): string {
   appendQueryParam(params, "containerNo", filters.containerNo);
   appendQueryParam(params, "destinationCode", filters.destinationCode);
   appendQueryParam(params, "status", filters.status);
+
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function toOperationsDashboardQueryString(
+  filters: OperationsDashboardFilters,
+): string {
+  const params = new URLSearchParams();
+
+  appendQueryParam(params, "range", filters.range);
+  appendQueryParam(params, "month", filters.month);
 
   const query = params.toString();
   return query ? `?${query}` : "";

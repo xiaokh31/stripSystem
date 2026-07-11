@@ -230,6 +230,26 @@ curl -sS http://localhost/api/permissions \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## Browser Session Lifetime
+
+Office Web login uses one shared lifetime value:
+
+```dotenv
+JWT_EXPIRES_IN_SECONDS=34560000
+```
+
+The value is in seconds. The default is 400 days so HR managers, warehouse
+managers, warehouse users, and office staff are not forced to log in again
+during normal daily work. The API writes the same value into the JWT `exp`,
+returns it as login `expiresIn`, and the Web app uses it as the
+`bestar_auth_token` cookie `Max-Age`.
+
+Shorten `JWT_EXPIRES_IN_SECONDS` if the site requires stricter workstation
+security. Browsers may also cap persistent cookie lifetimes even when this
+system asks for 400 days. A longer token lifetime does not bypass backend
+checks: every protected API request still reloads the current user, active
+state, roles, and permissions from the database.
+
 ## Disable And Reset Accounts
 
 Disable an inactive or departed employee:

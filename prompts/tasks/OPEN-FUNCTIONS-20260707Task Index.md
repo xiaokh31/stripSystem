@@ -26,7 +26,10 @@
 - 默认纸箱托盘计算修复已完成；包装类型真实样本验收仍需等待业务提供 pilot workbook。
 - UPS/courier destination 托数为 0 的 pilot 阻塞缺陷已在 UNLOAD-PALLET-07 修复。
 - IMPORT-DELETE-01 已完成代码实现：删除导入会清理原始上传清单和关联 generated files，保留 load job / operational pallet / pay container blocker 和 deletion audit。
-- 新增后台整体风格和 dashboard redesign 任务组：WEB-DASHBOARD-00 到 WEB-DASHBOARD-04。WEB-DASHBOARD-00 已完成 Manifest Control Room 设计 brief；后续目标是把当前简单 health dashboard 升级为真实运营中控台，并按 frontend-design skill 固化视觉方向；该任务组必须严格执行 i18n 本地化管理，API 只返回稳定 code/labelKey，Web 统一通过 catalog/status-label helpers 显示中英文。
+- 新增后台整体风格和 dashboard redesign 任务组：WEB-DASHBOARD-00 到 WEB-DASHBOARD-04。WEB-DASHBOARD-00 已完成 Manifest Control Room 设计 brief；WEB-DASHBOARD-01 已新增真实 `/api/dashboard/operations` 汇总 API，按权限裁剪 sections，API 只返回稳定 code/labelKey/enum/raw source data；WEB-DASHBOARD-02 已完成 Manifest Control Room Shell、宽屏 nav rail、operational topbar、视觉 tokens 和基础 dashboard 组件；WEB-DASHBOARD-03 已用真实 API 重做 `/` 运营中控台首页；WEB-DASHBOARD-04 已完成 dashboard QA、i18n hard gate、Docker full-stack healthcheck 和 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER role smoke。
+- AUTH-SESSION-01 已完成：默认浏览器登录会话改为 400 天，JWT `exp`、登录响应 `expiresIn` 和 Web cookie `Max-Age` 保持一致；保留 `JWT_EXPIRES_IN_SECONDS` 覆盖、logout 清 cookie、禁用用户/权限变化后端实时校验、过期 cookie middleware 跳转和 auth/session i18n。
+- 人工消库存任务组已完成：INVENTORY-ADJUST-01 到 03 已交付独立库存调整语义，未将托盘伪装成扫码 `LOADED`；Docker full-stack scan/report/audit/i18n 回归已通过。
+- Product Planning Agent 标准已更新：以后每个新增需求和拆分任务都必须包含严格 i18n 管理要求，API 返回 stable code/enum/labelKey/raw data，Web 通过 locale catalog/status-label helpers 显示单语文案。
 
 已执行但仍有未关闭项：
 1. P6-MOBILE-09Native Camera Module Wiring.md
@@ -57,16 +60,24 @@
    - 已完成。API 返回 available months metadata，0-row export 返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 且不新增 generated_file；Web 默认页回退到最新可用完成月份，显式空月显示可用月份提示并禁用导出；worker 0-row 写出也返回 ERROR 且不生成 xlsx。
 14. WEB-DASHBOARD-00Back Office Visual Direction.md
    - 已完成。新增 Manifest Control Room 设计 brief，固化 PC 后台视觉方向、Dock Lane Strip signature、dashboard 信息架构、API contract governance、i18n hard gate 和 WEB-DASHBOARD-01 至 04 任务拆分；本阶段不改运行时业务代码。
+15. WEB-DASHBOARD-01Operations Dashboard Data API.md
+   - 已完成。新增受登录保护的 `GET /api/dashboard/operations`，从现有 DB 表实时聚合 health、work queue、container lifecycle、inventory、load jobs、exceptions、monthly summary、wage/attendance 和 recent activity；按用户权限裁剪 sections 并返回 `hiddenSections`；API response 不返回本地化 UI 文案。
+16. WEB-DASHBOARD-02Shell Visual System Redesign.md
+   - 已完成。新增 Manifest Control Room 全局 tokens、desktop 左侧 nav rail、mobile 横向导航、operational topbar、当前用户/角色/语言/登录退出/健康状态区域、当前路由 active state，以及 `DashboardPanel`、`MetricTile`、`StatusPill`、`ProgressBar`、`DockLaneStrip`、`PressureBar`、`ExceptionList` 基础组件；新增 Shell/dashboard i18n 和 focused render/helper tests。
+17. WEB-DASHBOARD-03Operations Dashboard UI.md
+   - 已完成。`/` 首页改为调用真实 `GET /api/dashboard/operations` 的运营中控台，覆盖 Ops Header、range/month URL filters、Work Queue、lifecycle Dock Lane Strip、Inventory Pressure、Active Load Jobs、Exceptions、Monthly Summary/Wage queues、Role-aware shortcuts 和 Recent Activity；新增 dashboard labelKey/status/i18n helpers、API client test、flow tests 和 component render tests。
+18. WEB-DASHBOARD-04Dashboard QA I18n Regression.md
+   - 已完成。补 dashboard Playwright smoke，覆盖 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER 权限裁剪、English -> 中文 -> refresh -> English、桌面 1366/1920 和 mobile 390 宽度无页面级横向溢出；更新 core/auth/locale E2E 对新首页的断言；i18n unit gate 新增 API dashboard labelKey catalog 覆盖；Docker full-stack 重建后 `/api/dashboard/operations` 经 nginx 可用。
+19. AUTH-SESSION-01Persistent Browser Login Session.md
+   - 已完成。默认 `JWT_EXPIRES_IN_SECONDS` 改为 `34560000` 秒（400 天），API JWT `exp`、登录响应 `expiresIn` 和 Web `bestar_auth_token` cookie `Max-Age` 同口径；Web middleware 会对过期/畸形 cookie 清理并跳转登录；API guard 继续每次从数据库加载当前用户、active 状态、角色和权限；登录错误和 session 文案已进入 i18n catalog；runbook 已记录默认值、环境变量覆盖、浏览器 cookie 上限和安全取舍。
 
 当前仓库可继续执行的优先项：
-1. WEB-DASHBOARD-01Operations Dashboard Data API.md
-   - 新增真实 dashboard 汇总 API，按角色/权限裁剪 sections；API response 不返回本地化 UI 文案，只返回 stable `code` / `labelKey` / enum / raw source data。
-2. WEB-DASHBOARD-02Shell Visual System Redesign.md
-   - 重塑后台 Shell、导航、视觉 tokens 和 dashboard 基础组件；Shell/nav/topbar 新增文案必须进入 i18n catalog。
-3. WEB-DASHBOARD-03Operations Dashboard UI.md
-   - 用真实 API 重做 `/` dashboard：work queue、Dock Lane Strip、inventory pressure、active load jobs、exceptions、recent activity；所有可见文案、动态模板、aria/title/placeholder 必须本地化。
-4. WEB-DASHBOARD-04Dashboard QA I18n Regression.md
-   - 做最终 API/Web/i18n/Playwright/full-stack 回归；`pnpm --filter web test -- i18n` 和 locale-switch smoke 是关闭门禁。
+1. P6-MOBILE-13Windows MSIX Release Completion.md
+   - 在 Windows 11 构建机生成 RNW project、打包 MSIX 并完成 Windows 设备 smoke，关闭完整三端 release gate。
+2. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
+   - 等待业务提供真实私人/商业地址 Excel 后执行 pilot verification。
+3. P5-PILOT-01Windows Target Deployment Verification.md
+   - 在目标 Windows 11 主机完成 Docker full-stack、真实业务 smoke、备份恢复和告警验收。
 
 Pilot 前必须验收：
 1. P6-MOBILE-13Windows MSIX Release Completion.md
@@ -94,11 +105,13 @@ Deferred，按现场反馈再执行：
 - P1 async queue teardown + Docker concurrency regression：完成。
 - Android/iOS native scan app pilot route：条件通过。
 - P6-MOBILE-13 repo-side Windows MSIX handoff gate：完成；实际 Windows MSIX artifact 和 Windows 设备 smoke 仍是 pilot 前构建机验收项。
-- WEB-DASHBOARD-00 后台视觉方向 brief：完成；真实 dashboard API、Shell redesign、首页 UI 和 dashboard QA 尚未执行。
+- WEB-DASHBOARD-00 后台视觉方向 brief：完成；WEB-DASHBOARD-01 真实 dashboard API：完成；WEB-DASHBOARD-02 Shell visual system：完成；WEB-DASHBOARD-03 首页运营中控台 UI：完成；WEB-DASHBOARD-04 dashboard QA/i18n/full-stack role smoke：完成。
+- 持久化登录：完成；AUTH-SESSION-01 已关闭，默认 400 天长会话并保留后端实时账号/权限校验。
+- 柜子库存人工消库存：完成；INVENTORY-ADJUST-01 至 03 已覆盖 API/RBAC/audit/统计、Web/i18n 与 Docker full-stack regression。
 
 给业务开发 agent 的建议执行顺序：
-1. 若当前目标是后台体验升级，继续按 WEB-DASHBOARD-01 -> 02 -> 03 -> 04 执行；每个任务必须先读 WEB-DASHBOARD-00 brief。
-2. 若当前目标是 pilot release gate，安排 Windows 11 构建机执行 P6-MOBILE-13 checklist，关闭完整三端 native app release gate。
-3. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
-4. 准备上线时执行 P5-PILOT-01。
+1. 若当前目标是 pilot release gate，安排 Windows 11 构建机执行 P6-MOBILE-13 checklist，关闭完整三端 native app release gate。
+2. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
+3. 准备上线时执行 P5-PILOT-01。
+4. 持久化登录、Dashboard redesign 和人工消库存均已关闭；后续只按现场反馈新增具体 bugfix。
 5. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。

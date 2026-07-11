@@ -56,7 +56,7 @@ services:
       WORKER_PYTHON_DIR: /workspace/apps/worker-python
       REPORT_TEMPLATE_PATH: /workspace/samples/templates/卸柜报告-En.xlsx
       JWT_SECRET: ${JWT_SECRET:-replace-with-long-random-secret}
-      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-28800}
+      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-34560000}
     volumes:
       - ../../:/workspace
       - ../../storage:/workspace/storage

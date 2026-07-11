@@ -297,10 +297,22 @@
           本地化缺口：known pallet rule、package type、rounding mode 和 parser /
           calculator warning code 会先规范成 canonical copy，再由 i18n exact/dynamic
           catalog 翻译，保留柜号、目的仓、承运商等 source data。
-          WEB-DASHBOARD-00 已完成 Manifest Control Room 后台视觉方向 brief，
-          明确后续 dashboard 任务必须先做真实汇总 API，再做 Shell 和 `/` 首页
-          重构；API 只返回 stable code、labelKey、enum 和 raw source data，
-          Web 统一通过 catalog/status-label helpers 本地化。
+          WEB-DASHBOARD-00 已完成 Manifest Control Room 后台视觉方向 brief；
+          WEB-DASHBOARD-01 已新增真实 `/api/dashboard/operations` 汇总 API，
+          从现有 DB 状态聚合后台中控台数据，并按权限裁剪 sections。
+          WEB-DASHBOARD-02 已完成 Manifest Control Room Shell、PC 宽屏
+          nav rail、operational topbar、视觉 tokens 和基础 dashboard 组件。
+          WEB-DASHBOARD-03 已将 `/` 从 health 静态页改成真实 operations
+          dashboard，接入 work queue、lifecycle strip、inventory pressure、
+          active load jobs、exceptions、monthly summary / wage queues 和 recent
+          activity。WEB-DASHBOARD-04 已完成 API/Web/i18n/Playwright/full-stack
+          QA 回归，覆盖 role smoke、locale switch 和 mobile/desktop 宽度。
+          API 只返回 stable code、labelKey、enum 和 raw source data，Web 统一通过
+          catalog/status-label helpers 本地化。AUTH-SESSION-01 已完成持久化浏览器
+          登录：默认 `JWT_EXPIRES_IN_SECONDS=34560000` 秒，API JWT `exp`、
+          登录响应 `expiresIn` 和 Web `bestar_auth_token` cookie `Max-Age`
+          保持一致；过期/畸形 cookie 会被 middleware 清理并跳转登录；API
+          仍在每次受保护请求中重新加载当前用户、active 状态、角色和权限。
           UNLOAD-PALLET-01 至 UNLOAD-PALLET-03 已完成详细托盘计算规则升级：
           worker 计算从通用体积/高度估算改为目的仓和地址包装类型规则，覆盖
           `YYC4` / `YYC6` / `YEG2` 按 1.7 CBM、`YVR2` / `YVR3` / `YVR4`
@@ -959,10 +971,12 @@
         <h2>后台 Dashboard 改造进度</h2>
         <p class="note">
           WEB-DASHBOARD 任务组目标是把当前 `/` 的简单 health dashboard 升级为
-          真实运营中控台。WEB-DASHBOARD-00 只关闭视觉方向和治理 brief，不代表
-          dashboard API、Shell 改造或首页 UI 已完成。后续实现必须严格遵守 i18n
-          catalog/status-label 管理：API 只返回 stable code、labelKey、enum 和
-          raw source data，Web 按当前 locale 渲染可见文案。
+          真实运营中控台。WEB-DASHBOARD-00 关闭视觉方向和治理 brief；
+          WEB-DASHBOARD-01 已完成真实 dashboard 汇总 API；WEB-DASHBOARD-02
+          已完成 Shell visual system；WEB-DASHBOARD-03 已完成首页运营中控台 UI。
+          WEB-DASHBOARD-04 已完成最终 QA/i18n/full-stack 回归。
+          后续实现必须严格遵守 i18n catalog/status-label
+          管理：API 只返回 stable code、labelKey、enum 和 raw source data，Web 按当前 locale 渲染可见文案。
         </p>
         <table>
           <thead>
@@ -980,35 +994,106 @@
               <td><span class="badge done">Done</span></td>
               <td>Brief Complete</td>
               <td>新增 `prompts/tasks/WEB-DASHBOARD-00Back Office Visual Direction.md`，固化 Manifest Control Room 方向、Dock Lane Strip signature、PC 宽屏后台布局、视觉 tokens、信息架构、API contract governance、i18n hard gate 和 01-04 任务拆分。</td>
-              <td>按 WEB-DASHBOARD-01 新增真实 dashboard 汇总 API；不得在 UI 中使用 mock business data。</td>
+              <td>已由 WEB-DASHBOARD-01 接上真实汇总 API，并由 WEB-DASHBOARD-02 完成 Shell visual foundation。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-01 Operations Dashboard Data API</td>
-              <td><span class="badge partial">Pending</span></td>
-              <td>0%</td>
-              <td>尚未实现。</td>
-              <td>新增真实 `/api/dashboard/operations` 汇总 API，按权限裁剪 sections；API response 不返回本地化 UI 文案。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>API Complete</td>
+              <td>新增 `apps/api/src/dashboard/` module 和 `GET /api/dashboard/operations`：实时聚合 health、work queue、container lifecycle、inventory、load jobs、exceptions、monthly summary、wage/attendance、recent activity；按权限返回 `hiddenSections`，无权限 section 为 `null` 或空集合；response 只含 stable code、labelKey、enum/raw source data。</td>
+              <td>已由 WEB-DASHBOARD-02/03/04 完成 Shell、首页 UI 和 QA 回归。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-02 Shell Visual System Redesign</td>
-              <td><span class="badge partial">Pending</span></td>
-              <td>0%</td>
-              <td>尚未实现。</td>
-              <td>重塑后台 Shell、导航、topbar、layout tokens 和 dashboard 基础组件；新增文案进入 i18n catalog。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Shell Complete</td>
+              <td>新增 Manifest Control Room tokens、desktop 左侧 nav rail、mobile 横向导航、operational topbar、当前路由 active state、用户/角色/语言/登录退出/健康状态区，以及 `DashboardPanel`、`MetricTile`、`StatusPill`、`ProgressBar`、`DockLaneStrip`、`PressureBar`、`ExceptionList` 基础组件；新增 i18n catalog 和 focused render/helper tests。</td>
+              <td>已由 WEB-DASHBOARD-03 接入真实首页，并由 WEB-DASHBOARD-04 完成回归。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-03 Operations Dashboard UI</td>
-              <td><span class="badge partial">Pending</span></td>
-              <td>0%</td>
-              <td>尚未实现。</td>
-              <td>用真实 API 重做 `/` dashboard：work queue、Dock Lane Strip、inventory pressure、active load jobs、exceptions、recent activity。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>UI Complete</td>
+              <td>`/` 首页已调用真实 `GET /api/dashboard/operations`，实现 Ops Header、range/month URL filters、Work Queue、lifecycle Dock Lane Strip、Inventory Pressure、Active Load Jobs、Exceptions、Monthly Summary/Wage queues、Role-aware shortcuts 和 Recent Activity；新增 dashboard API client、labelKey/status/i18n helper、flow tests、component tests 和 API client tests。</td>
+              <td>已由 WEB-DASHBOARD-04 完成 Playwright / locale-switch / full-stack QA 回归。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-04 Dashboard QA I18n Regression</td>
-              <td><span class="badge partial">Pending</span></td>
-              <td>0%</td>
-              <td>尚未实现。</td>
-              <td>跑 API/Web/i18n/Playwright/full-stack 回归，覆盖 locale switch 和 unmanaged UI strings gate。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>QA Complete</td>
+              <td>已补 `apps/web/e2e/dashboard.spec.ts`，覆盖 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER dashboard role smoke、English -> 中文 -> refresh -> English、1366/1920/mobile 宽度无页面级横向溢出；更新 core/auth/locale-switch E2E；i18n unit gate 新增 API dashboard labelKey catalog 检查；Docker full-stack 重建后 `/api/dashboard/operations` 经 nginx 返回受保护 route。</td>
+              <td>Dashboard redesign 任务组完成；后续现场反馈另开具体 bugfix。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>持久化登录会话进度</h2>
+        <p class="note">
+          AUTH-SESSION-01 已关闭。默认浏览器登录会话为 400 天，现场仍可用
+          `JWT_EXPIRES_IN_SECONDS` 缩短或延长。该值同时驱动 API JWT `exp`、
+          登录响应 `expiresIn` 和 Web cookie `Max-Age`，避免 cookie 比 JWT
+          更长造成假登录。浏览器可能裁剪超长 persistent cookie；后端权限校验仍以数据库当前状态为准。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AUTH-SESSION-01 Persistent Browser Login Session</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Session Complete</td>
+              <td>API 默认 `JWT_EXPIRES_IN_SECONDS` 改为 `34560000` 秒；`AuthTokenService` 使用同一默认值；Web 登录继续用 API `expiresIn` 写入 `bestar_auth_token` 持久 cookie；middleware 会清理过期/畸形 cookie 并跳转 `/login`；登录错误、会话过期、账号禁用和权限不足文案已进入 i18n catalog；runbook / `.env.example` / Docker compose 已更新。</td>
+              <td>持续使用真实账号 smoke；如现场需要更严格安全策略，只改 `JWT_EXPIRES_IN_SECONDS` 并重启 API/Web。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>人工库存消减进度</h2>
+        <p class="note">
+          INVENTORY-ADJUST-01 至 03 已完成 API/RBAC/审计/统计、受权限控制的 Web 表单和 Docker full-stack regression。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>INVENTORY-ADJUST-01 Manual Inventory Depletion API</td>
+              <td><span class="badge done">Done</span></td>
+              <td>API/RBAC/Audit Complete</td>
+              <td>新增 `ADJUSTED_OUT` pallet status、`MANUAL_INVENTORY_DEPLETION` pallet event、`inventory_adjustments` 审计表和 `inventory.adjust` 权限；`POST/GET /api/container-destinations/:id/inventory-adjustments` 支持 count 或 palletIds、reasonCode/note 校验、事务锁定托盘、按托盘写事件并把托盘置为 `ADJUSTED_OUT`，不会伪造 scan、不会设为 `LOADED`、不会增加 loaded count。库存 summary 增加 adjustedOut/cancelled 字段，remaining 排除 LOADED/CANCELLED/ADJUSTED_OUT；scan 会拒绝 adjusted-out pallet 并写 INVALID_SCAN。</td>
+              <td>已由 INVENTORY-ADJUST-02 接入 Web，并由 INVENTORY-ADJUST-03 完成回归验收。</td>
+            </tr>
+            <tr>
+              <td>INVENTORY-ADJUST-02 Manual Inventory Depletion UI</td>
+              <td><span class="badge done">Done</span></td>
+              <td>UI/I18n Complete</td>
+              <td>柜子详情在拥有 `inventory.read` 时调用 `/containers/:id/summary` 和目的仓调整历史 API，按后端返回显示 total、loaded、adjusted out、remaining；拥有 `inventory.adjust` 的 ADMIN/OFFICE 才显示人工消库存入口。表单校验数量、reason 和 OTHER note，明确提示该操作不是装车扫码且不会计入 loaded；提交后 `router.refresh()` 重新读取后端统计和历史。库存报告增加 adjusted out 汇总和 `ADJUSTED_OUT` 筛选；新增所有按钮、字段、错误、历史和 aria 文案均有中英文 catalog 映射。</td>
+              <td>已由 INVENTORY-ADJUST-03 完成 Docker full-stack role/统计/历史/i18n 回归。</td>
+            </tr>
+            <tr>
+              <td>INVENTORY-ADJUST-03 Manual Inventory Depletion Regression + Full-Stack Smoke</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Regression Complete</td>
+              <td>Docker API fixture `E2E-INVADJ-56872391` 验证三托盘柜人工消减一托后 remaining `3→2`、loaded 不变；有效扫码后为 remaining `1` / loaded `1` / adjusted out `1`。重复扫码不二次扣减，已消减托盘返回 `PALLET_ADJUSTED_OUT`；调整记录包含操作人、原因、备注和托盘标识。container detail、container summary、inventory report 与 dashboard 一致。API unit 42 项和 E2E 30 项通过；Playwright 验证 English → 中文 → refresh → English，无 raw `ADJUSTED_OUT` 和页面错误。</td>
+              <td>人工消库存闭环已关闭；后续仅按现场反馈处理具体 bugfix。</td>
             </tr>
           </tbody>
         </table>
@@ -1077,8 +1162,8 @@
             <tr>
               <td>库存报表</td>
               <td><span class="badge done">Done</span></td>
-              <td>95%</td>
-              <td>按容器、目的仓、状态查询；剩余库存来自后端数据库。</td>
+              <td>97%</td>
+              <td>按容器、目的仓、状态查询；剩余库存来自后端数据库，并已区分 loaded、adjusted-out、cancelled 和 remaining。</td>
             </tr>
             <tr>
               <td>Load Job 计划和状态</td>
@@ -1122,9 +1207,15 @@
           <tbody>
             <tr>
               <td>Operations dashboard redesign</td>
-              <td><span class="badge partial">Brief Complete</span></td>
-              <td>WEB-DASHBOARD-00 已完成后台视觉方向和 i18n/API governance brief；当前 `/` 仍是简单 health dashboard。</td>
-              <td>继续执行 WEB-DASHBOARD-01 到 04：先做真实 dashboard API，再做 Shell visual system、首页 UI 和 dashboard QA/i18n 回归。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WEB-DASHBOARD-00 已完成后台视觉方向和 i18n/API governance brief；WEB-DASHBOARD-01 已完成真实 dashboard 汇总 API；WEB-DASHBOARD-02 已完成后台 Shell visual system；WEB-DASHBOARD-03 已完成 `/` 运营中控台首页 UI；WEB-DASHBOARD-04 已完成 dashboard QA/i18n/Playwright/full-stack role smoke。</td>
+              <td>Dashboard redesign 与人工库存消减回归均已关闭；后续仅按现场反馈新增具体 bugfix。</td>
+            </tr>
+            <tr>
+              <td>Persistent browser login session</td>
+              <td><span class="badge done">Done</span></td>
+              <td>AUTH-SESSION-01 已完成默认 400 天长会话、JWT/cookie 同口径、logout 清 cookie、过期 cookie 跳转、禁用用户和权限变化后端实时校验、auth/session i18n 和部署文档更新。</td>
+              <td>后续只按现场安全策略调整 `JWT_EXPIRES_IN_SECONDS`；无需新增工资或库存业务功能。</td>
             </tr>
             <tr>
               <td>Windows native scan app MSIX</td>
@@ -1299,7 +1390,8 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
-          <li>后台体验升级继续按 WEB-DASHBOARD-01 -> 02 -> 03 -> 04 执行；WEB-DASHBOARD-00 只是设计 brief，不能把当前 health dashboard 标记为运营中控台完成。</li>
+          <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
+          <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
           <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；仍需在 Windows 11 构建机按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
           <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>

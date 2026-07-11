@@ -99,6 +99,50 @@ describe('Users management API (e2e)', () => {
       });
   });
 
+  it('accepts six-character lowercase passwords and rejects passwords shorter than six characters', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', adminAuthHeader())
+      .send({
+        email: 'simple-password@example.com',
+        password: 'simple',
+        roleCodes: ['OFFICE'],
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'simple-password@example.com', password: 'simple' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/users/${created.body.user.id}/reset-password`)
+      .set('Authorization', adminAuthHeader())
+      .send({ password: 'lowercase' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'simple-password@example.com', password: 'lowercase' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/api/users')
+      .set('Authorization', adminAuthHeader())
+      .send({
+        email: 'short-password@example.com',
+        password: 'short',
+        roleCodes: ['OFFICE'],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/api/users/${created.body.user.id}/reset-password`)
+      .set('Authorization', adminAuthHeader())
+      .send({ password: 'short' })
+      .expect(400);
+  });
+
   it('stores wage manager assignments in user_roles while keeping the legacy role enum compatible', async () => {
     await request(app.getHttpServer())
       .post('/api/users')

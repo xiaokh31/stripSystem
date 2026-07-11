@@ -41,6 +41,7 @@ export const ROUTE_PERMISSIONS = {
   },
   inventory: {
     read: [PERMISSIONS.inventory.read],
+    adjust: [PERMISSIONS.inventory.adjust],
   },
   loadJobs: {
     create: [PERMISSIONS.loadJobs.create],

@@ -845,7 +845,10 @@ export class CorrectionsService {
     );
     const cartons = Number(dto.cartons);
     const pallets = Number(dto.pallets);
-    this.assertPositiveManualPallets(pallets, `destinations[${sequence}].pallets`);
+    this.assertPositiveManualPallets(
+      pallets,
+      `destinations[${sequence}].pallets`,
+    );
     const volume =
       dto.volume === undefined || dto.volume === null
         ? '0.000'

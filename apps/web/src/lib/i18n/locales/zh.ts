@@ -3,6 +3,7 @@ import { enMessages, type MessageKey } from "./en";
 export const zhMessages = {
   ...enMessages,
   "API connection": "API 连接",
+  "API status": "API 状态",
   "API version": "API 版本",
   "Account administration": "账号管理",
   "Account settings": "账号设置",
@@ -33,6 +34,9 @@ export const zhMessages = {
   "Audit events:": "审计事件：",
   "Audit note": "审计备注",
   Authentication: "认证",
+  "Authentication service is not configured. Contact an administrator.":
+    "认证服务尚未配置。请联系管理员。",
+  "Authentication service unavailable": "认证服务不可用",
   Available: "可用",
   "Back to import": "返回导入",
   "Back to imports": "返回导入列表",
@@ -132,12 +136,115 @@ export const zhMessages = {
   "Current status:": "当前状态：",
   "Current user": "当前用户",
   Dashboard: "仪表盘",
+  "30 days": "30 天",
+  "7 days": "7 天",
+  "Action queue": "行动队列",
+  "Active load jobs": "进行中的装车任务",
+  "Attendance imports needing parse": "待解析考勤导入",
+  "Attendance imports with errors": "有错误的考勤导入",
+  "Available shortcuts": "可用入口",
+  Blocked: "阻塞",
+  "Container lifecycle": "柜子流转",
+  Correction: "修正",
+  "Correction recorded": "已记录修正",
+  "Dashboard error": "仪表盘错误",
   "Dashboard data could not be loaded.": "无法加载仪表盘数据。",
+  "Due today": "今日到期",
+  "Generated at": "生成时间",
+  "Generated file": "生成文件",
+  "Inventory pressure": "库存压力",
+  "Inventory pressure is unavailable for this account.":
+    "此账号不可查看库存压力。",
+  "Latest operational records": "最新运营记录",
+  "Live control surface for imports, containers, inventory, loading, exceptions, wage queues, and recent audit activity.":
+    "用于查看导入、柜子、库存、装车、异常、工资队列和最近审计活动的实时运营台。",
+  "Load job progress is unavailable for this account.":
+    "此账号不可查看装车任务进度。",
+  "Loading progress": "装车进度",
+  "Monthly settlement": "月度结算",
+  "Monthly unloading summary": "月度拆柜汇总",
+  "Monthly unloading summary is unavailable for this account.":
+    "此账号不可查看月度拆柜汇总。",
+  "Needs attention": "需要处理",
+  "No action needed": "暂无需要处理的事项",
+  "No attendance imports need parsing": "没有待解析考勤导入",
+  "No completion dates need review": "没有需复核的完成日期",
+  "No containers need labels": "没有待生成面单的柜子",
+  "No containers need reports": "没有待生成报告的柜子",
+  "No dashboard actions are visible for this account.":
+    "此账号暂无可见的仪表盘行动项。",
+  "No dashboard exceptions": "没有仪表盘异常",
+  "No destination inventory pressure": "没有目的仓库存压力",
+  "No failed imports": "没有失败导入",
+  "No imports need parsing": "没有待解析导入",
+  "No recent activity in this range": "当前范围内没有最近活动",
+  "No workflow shortcuts are available for this account.":
+    "此账号暂无可用工作流入口。",
+  Normal: "正常",
+  "Open admin users": "打开用户管理",
+  "Open containers": "打开柜子",
+  "Open dashboard target": "打开对应页面",
+  "Open imports": "打开导入列表",
+  "Open inventory": "打开库存",
+  "Open reports": "打开报表",
+  "Open settings": "打开设置",
+  "Open unloading summary": "打开拆柜汇总",
+  "Open unloading wage": "打开拆柜工资",
+  "Open work hours": "打开工时",
+  "Operations dashboard": "运营中控台",
+  "Pallet pressure": "托盘压力",
+  Range: "范围",
+  "Recent activity": "最近活动",
+  "Refresh dashboard": "刷新仪表盘",
+  "Review queue": "复核队列",
+  "Role-aware actions": "按角色可用操作",
+  Shortcuts: "快捷入口",
+  "Some dashboard sections are hidden by permissions.":
+    "部分仪表盘区域因权限被隐藏。",
+  "Summary and wage queues": "汇总和工资队列",
+  "Summary rows": "汇总行数",
+  "The dashboard API request could not be sent.":
+    "无法发送仪表盘 API 请求。",
+  Today: "今天",
+  "Top destinations by remaining pallets": "按剩余托盘排序的目的仓",
+  "Unavailable sections": "不可用区域",
+  "Unknown dashboard item": "未知仪表盘项目",
+  "Unloading wage settlement": "拆柜工资结算",
+  "Use these routes while the dashboard API is unavailable.":
+    "仪表盘 API 不可用时，可先使用这些入口。",
+  "Wage record": "工资记录",
+  "Wage settlements needing review": "待复核工资结算",
+  "Work hours and unloading wage queues are unavailable for this account.":
+    "此账号不可查看工时和拆柜工资队列。",
+  "Work queue": "作业队列",
+  "Workflow shortcuts": "工作流入口",
+  "dashboard.exceptions.destinationCartonVolumeMissing":
+    "目的仓、箱数或体积缺失",
+  "dashboard.exceptions.failedAsyncJobs": "失败异步任务",
+  "dashboard.exceptions.failedGeneratedFiles": "失败生成文件",
+  "dashboard.exceptions.parserErrors": "解析错误",
+  "dashboard.exceptions.scanExceptions": "扫码异常",
+  "dashboard.exceptions.zeroVolumeWithCartons": "有箱数但体积为 0",
+  "dashboard.lifecycle.deliveredToDestination": "已送库",
+  "dashboard.lifecycle.labelsGenerated": "已生成面单",
+  "dashboard.lifecycle.loadingInProgress": "装车中",
+  "dashboard.lifecycle.parsed": "已解析",
+  "dashboard.lifecycle.reportGenerated": "已生成报告",
+  "dashboard.lifecycle.unloaded": "已拆完",
+  "dashboard.lifecycle.uploaded": "已上传",
+  "dashboard.workQueue.attendanceImportsNeedParse": "待解析考勤导入",
+  "dashboard.workQueue.containersMissingLabels": "缺少面单的柜子",
+  "dashboard.workQueue.containersMissingReport": "缺少报告的柜子",
+  "dashboard.workQueue.importsAwaitingParse": "待解析导入",
+  "dashboard.workQueue.importsParseFailed": "解析失败导入",
+  "dashboard.workQueue.openLoadJobs": "打开的装车任务",
+  "dashboard.workQueue.unloadingCompletionDateMissing": "缺少完成日期",
   "Damage, pallet consolidation, short load...": "破损、合板、少装...",
   "Damaged label, replacement print packet, printer issue...":
     "面单破损、补打整包、打印机问题...",
   "Data source": "数据来源",
   Database: "数据库",
+  "Database status": "数据库状态",
   Delete: "删除",
   "Delete import": "删除导入",
   "Delete line": "删除行",
@@ -165,6 +272,7 @@ export const zhMessages = {
     "目的仓类型无法识别，托盘规则需要复核。",
   "Destination type": "目的仓类型",
   Destinations: "目的仓",
+  Degraded: "降级",
   "Disable user": "停用用户",
   Disabled: "停用",
   "Dock No.": "月台号",
@@ -173,9 +281,11 @@ export const zhMessages = {
   "Dock No. is required before completing this load job.":
     "完成此装车任务前必须填写月台号。",
   "Dock door": "月台门",
+  "Dock lane strip": "月台作业条",
   Dock: "月台",
   "Dock number could not be saved.": "无法保存月台号。",
   Download: "下载",
+  Down: "离线",
   "Download current label PDF": "下载当前面单 PDF",
   "Download file": "下载文件",
   "Download generated file": "下载生成文件",
@@ -299,6 +409,8 @@ export const zhMessages = {
   "Loading history unavailable": "装车历史不可用",
   Login: "登录",
   "Login failed.": "登录失败。",
+  "Login failed. Try again or contact an administrator.":
+    "登录失败。请重试或联系管理员。",
   "Manage real API users, role assignments, and role permission mappings. Changes are saved through the protected admin API.":
     "管理真实 API 用户、角色分配和权限映射；修改会通过受保护的管理 API 保存。",
   "Manage real account records through the protected API. The API permission guard remains the source of truth for access.":
@@ -313,6 +425,7 @@ export const zhMessages = {
     "手工托数为负数，已改用系统计算托数。",
   "Manual unloading report": "手工拆柜报告",
   "Manual unloading report could not be created.": "无法创建手工拆柜报告。",
+  "Manifest Control Room": "清单作业控制室",
   "Mobile Scan": "移动扫码",
   "Mobile load jobs are not available": "移动装车任务不可用",
   "Mobile load jobs are only loaded after the API confirms the current user. No placeholder load jobs are shown without a valid session.":
@@ -359,6 +472,7 @@ export const zhMessages = {
   "No load jobs recorded": "没有装车任务记录",
   "No loaded pallets are currently attached to this load job.":
     "当前装车任务没有已绑定的已装托盘。",
+  "No active session": "未登录",
   "No note": "无备注",
   "No offline scans are stored for this load job.":
     "此装车任务没有保存离线扫码。",
@@ -405,8 +519,10 @@ export const zhMessages = {
   "Opening camera...": "正在打开摄像头...",
   "Operational profile": "运营配置",
   "Operational settings": "运营设置",
+  "Operational time": "运营时间",
   "Operational time zone": "运营时区",
   Operator: "操作人",
+  OK: "正常",
   "Original customer workbook could not be parsed.": "原始客户清单无法解析。",
   "Original uploads": "原始上传",
   "Page error": "页面错误",
@@ -443,6 +559,7 @@ export const zhMessages = {
   Parsed: "已解析",
   "Parsed containers": "已解析柜子",
   Password: "密码",
+  "Email or password is incorrect.": "邮箱或密码不正确。",
   "Pending scans remain local until a user with scan permission signs in and syncs them.":
     "待同步扫码会保留在本地，直到有扫码权限的用户登录并同步。",
   "Pending scans stay local and do not change inventory until the API accepts them.":
@@ -537,6 +654,7 @@ export const zhMessages = {
   "Selected files will appear here with upload progress and API results.":
     "选中的文件会在这里显示上传进度和 API 结果。",
   Settings: "设置",
+  "Session expired": "会话已过期",
   "Showing all non-deleted load jobs.": "显示所有未删除的装车任务。",
   "Showing latest": "显示最新",
   "Sign in": "登录",
@@ -547,6 +665,7 @@ export const zhMessages = {
   "Sign in to scan pallets": "登录后扫码托盘",
   "Sign in to use mobile loading": "登录后使用移动装车",
   "Sign in to view loading history": "登录后查看装车历史",
+  "Sign-in failed": "登录失败",
   "Sign out": "退出登录",
   "Signed in": "已登录",
   "Signed in as": "当前登录",
@@ -588,15 +707,21 @@ export const zhMessages = {
     "当前登录用户没有装车任务读取权限。",
   "The signed-in user does not have load job read permission. Ask an administrator to assign a warehouse, office, or admin role with mobile loading access.":
     "当前登录用户没有装车任务读取权限。请管理员分配带移动装车访问权限的仓库、办公室或管理员角色。",
+  "The signed-in user does not have permission for this page.":
+    "当前登录用户没有此页面权限。",
   "The signed-in user needs load job read permission before scan actions can be shown.":
     "显示扫码操作前，当前登录用户需要装车任务读取权限。",
   "This account can view loaded pallets but cannot reverse scans.":
     "此账号可以查看已装托盘，但不能反向扫码。",
   "This account can view the load job but cannot scan pallets.":
     "此账号可以查看装车任务，但不能扫码托盘。",
+  "This account cannot sign in through the browser.":
+    "此账号不能通过浏览器登录。",
   "This account cannot open mobile load jobs": "此账号无法打开移动装车任务",
   "This account does not have permission to delete imports.":
     "此账号没有删除导入的权限。",
+  "This account is inactive. Ask an administrator to reactivate it.":
+    "此账号已停用。请联系管理员重新启用。",
   "This browser cannot open or decode camera QR scans. Use a scanner or manual input.":
     "此浏览器无法打开或解码摄像头 QR 扫码。请使用扫码枪或手工输入。",
   "This container has no parsed destinations.": "此柜子没有已解析目的仓。",
@@ -621,6 +746,7 @@ export const zhMessages = {
   Total: "总计",
   "Total pallets": "总托盘",
   "Truck No.": "车牌/拖车号",
+  Truck: "车辆",
   Type: "类型",
   UNKNOWN: "未知",
   Unavailable: "不可用",
@@ -631,6 +757,7 @@ export const zhMessages = {
   "Unknown operator": "未知操作人",
   "Unloading report": "拆柜报告",
   "Updating progress": "正在更新进度",
+  Up: "在线",
   Upload: "上传",
   "Upload a file": "上传文件",
   "Upload a real .xlsx unloading list to create the first import record. Once the API stores it, it will appear here after refresh.":
@@ -662,6 +789,8 @@ export const zhMessages = {
   "Wrong load job": "装车任务不匹配",
   Yes: "是",
   "You do not have permission to view this page.": "你没有权限查看此页面。",
+  "Your session expired. Sign in again to continue.":
+    "会话已过期。请重新登录后继续。",
   "Admin approval required": "需要管理员审批",
   "Audit required": "必须审计",
   "Authoritative source for remaining pallet inventory.":
@@ -1182,4 +1311,42 @@ export const zhMessages = {
   "latest records from the load job API.": "条来自装车任务 API 的最新记录。",
   "load jobs from offset": "条装车任务，偏移量",
   "more plan lines": "条更多计划行",
+  "Adjusted out": "已人工消库存",
+  "A note is required when Other is selected.": "选择其他时必须填写备注。",
+  "Close manual inventory depletion": "关闭人工消库存",
+  "Confirm manual inventory depletion": "确认人工消库存",
+  "Current remaining inventory": "当前剩余库存",
+  "Depletion count": "消库存数量",
+  "Destination inventory could not be loaded. Refresh and try again.":
+    "无法加载目的仓库存，请刷新后重试。",
+  "Enter a whole number from 1 to the current remaining inventory.":
+    "请输入 1 到当前剩余库存之间的整数。",
+  "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.":
+    "我确认这些托盘应从剩余库存中移除，且不得计入已装车。",
+  "Inventory adjustment enabled": "可人工消库存",
+  "Inventory read-only": "库存只读",
+  "Manual inventory depletion": "人工消库存",
+  "Manual inventory depletion count": "人工消库存数量",
+  "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
+    "无法保存人工消库存，请刷新目的仓库存后重试。",
+  "Manual inventory depletion history": "人工消库存历史",
+  "Manual inventory depletion history could not be loaded.":
+    "无法加载人工消库存历史。",
+  "Manual inventory depletion removes pallets from remaining inventory. It is not a loading scan and does not count pallets as loaded.":
+    "人工消库存会从剩余库存中移除托盘。这不是装车扫码，不会将托盘计入已装车。",
+  "Manual inventory depletion note": "人工消库存备注",
+  "Manual inventory depletion reason": "人工消库存原因",
+  "Manual inventory depletion saved. Inventory and adjustment history were refreshed from the API.":
+    "人工消库存已保存，库存和调整历史已从 API 刷新。",
+  "No generated pallets are available for destination inventory review.":
+    "没有可用于目的仓库存复核的已生成托盘。",
+  "No manual inventory depletion history.": "暂无人工消库存历史。",
+  "No remaining pallets": "没有剩余托盘",
+  "Required when Other is selected": "选择其他时必填",
+  Saving: "正在保存",
+  "Saving manual inventory depletion.": "正在保存人工消库存。",
+  "Select a reason for manual inventory depletion.": "请选择人工消库存原因。",
+  "Select reason": "选择原因",
+  "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.":
+    "此操作会从剩余库存中移除托盘。它不会创建装车扫码，也不会将托盘计入已装车。",
 } satisfies Record<MessageKey, string>;

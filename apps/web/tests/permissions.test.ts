@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { AuthUserResponse } from "../src/lib/api-client";
 import {
+  canAdjustInventory,
   canManageAccounts,
   canClassifyUnloadingWage,
   canDeleteImports,
@@ -88,8 +89,38 @@ test("mobile warehouse permissions allow scanning without account management", (
   assert.equal(canScanMobilePallets(warehouseUser), true);
   assert.equal(canSupervisorOverrideScans(warehouseUser), false);
   assert.equal(canReverseMobileScans(warehouseUser), true);
+  assert.equal(canAdjustInventory(warehouseUser), false);
   assert.equal(canManageOfficeLoadJobs(warehouseUser), false);
   assert.equal(canManageAccounts(warehouseUser), false);
+});
+
+test("manual inventory adjustment UI follows inventory.adjust permission", () => {
+  const officeUserWithAdjustment: AuthUserResponse = {
+    id: "office-inventory-adjust-1",
+    email: "office-adjust@example.com",
+    name: "Office Inventory Adjuster",
+    roles: ["OFFICE"],
+    permissions: ["inventory.read", "inventory.adjust"],
+  };
+  const readOnlyWarehouseUser: AuthUserResponse = {
+    id: "warehouse-inventory-read-1",
+    email: "warehouse-read@example.com",
+    name: "Warehouse Inventory Reader",
+    roles: ["WAREHOUSE"],
+    permissions: ["inventory.read"],
+  };
+  const adminUser: AuthUserResponse = {
+    id: "admin-inventory-adjust-1",
+    email: "admin-adjust@example.com",
+    name: "Admin Inventory Adjuster",
+    roles: ["ADMIN"],
+    permissions: [],
+  };
+
+  assert.equal(canAdjustInventory(officeUserWithAdjustment), true);
+  assert.equal(canAdjustInventory(readOnlyWarehouseUser), false);
+  assert.equal(canAdjustInventory(adminUser), true);
+  assert.equal(canAdjustInventory(null), false);
 });
 
 test("mobile scan permissions are based on granted permissions", () => {

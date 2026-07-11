@@ -2,11 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildApiUrl,
+  createInventoryAdjustment,
   getApiBaseUrl,
+  getContainerInventoryDetailSummary,
   getGeneratedFileDownloadUrl,
   getPublicApiBaseUrl,
   getContainerInventorySummary,
   getDestinationInventory,
+  listInventoryAdjustments,
 } from "../src/lib/api-client";
 
 test("inventory API client sends filters to report endpoints", async () => {
@@ -36,6 +39,62 @@ test("inventory API client sends filters to report endpoints", async () => {
   assert.deepEqual(requests, [
     "http://api.local/api/reports/container-summary?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
     "http://api.local/api/reports/inventory?status=LOADED",
+  ]);
+});
+
+test("inventory adjustment API client uses destination-scoped API routes", async () => {
+  const requests: Array<{ body: string | null; method: string; url: string }> =
+    [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      body: typeof init?.body === "string" ? init.body : null,
+      method: init?.method ?? "GET",
+      url: input instanceof Request ? input.url : String(input),
+    });
+
+    return new Response(JSON.stringify({ items: [] }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+  const options = { baseUrl: "http://api.local/api", fetcher };
+
+  await getContainerInventoryDetailSummary(
+    "container /1",
+    { status: "ADJUSTED_OUT" },
+    options,
+  );
+  await createInventoryAdjustment(
+    "destination /1",
+    {
+      count: 2,
+      note: "Delivered without scan",
+      reasonCode: "DELIVERED_WITHOUT_SCAN",
+    },
+    options,
+  );
+  await listInventoryAdjustments("destination /1", options);
+
+  assert.deepEqual(requests, [
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/containers/container%20%2F1/summary?status=ADJUSTED_OUT",
+    },
+    {
+      body: JSON.stringify({
+        count: 2,
+        note: "Delivered without scan",
+        reasonCode: "DELIVERED_WITHOUT_SCAN",
+      }),
+      method: "POST",
+      url: "http://api.local/api/container-destinations/destination%20%2F1/inventory-adjustments",
+    },
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/container-destinations/destination%20%2F1/inventory-adjustments",
+    },
   ]);
 });
 

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   login,
@@ -11,14 +12,17 @@ import {
   safeAuthRedirectTarget,
   setBrowserAuthToken,
 } from "@/lib/auth-token";
+import { translateMessage } from "@/lib/i18n/translator";
 import { useClientHydrated } from "@/lib/use-client-hydrated";
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
+  const { locale } = useI18n();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<LoginError | null>(null);
   const isHydrated = useClientHydrated();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const localizedError = error ? localizeLoginError(error, locale) : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,16 +70,20 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
         />
       </label>
 
-      {error ? (
+      {error && localizedError ? (
         <div
           className="border border-red-200 bg-red-50 p-3 text-sm text-red-950"
           role="alert"
         >
-          <p className="font-semibold">
-            {error.code}
-            {error.status ? ` (${error.status})` : ""}
+          <p className="font-semibold">{localizedError.title}</p>
+          <p className="mt-1">{localizedError.message}</p>
+          <p className="mt-2 text-xs text-red-800">
+            <span>Code</span>:{" "}
+            <span data-i18n-ignore="true">
+              {error.code}
+              {error.status ? ` (${error.status})` : ""}
+            </span>
           </p>
-          <p className="mt-1">{error.message}</p>
         </div>
       ) : null}
 
@@ -92,7 +100,6 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
 
 interface LoginError {
   code: string;
-  message: string;
   status: number;
 }
 
@@ -100,14 +107,61 @@ function toLoginError(error: unknown): LoginError {
   if (error instanceof ApiClientError) {
     return {
       code: error.code,
-      message: error.message,
       status: error.status,
     };
   }
 
   return {
     code: "LOGIN_FAILED",
-    message: error instanceof Error ? error.message : "Login failed.",
     status: 0,
+  };
+}
+
+interface LocalizedLoginError {
+  title: string;
+  message: string;
+}
+
+const LOGIN_ERROR_MESSAGES: Record<string, LocalizedLoginError> = {
+  FORBIDDEN: {
+    title: "Sign-in failed",
+    message: "The signed-in user does not have permission for this page.",
+  },
+  INVALID_CREDENTIALS: {
+    title: "Sign-in failed",
+    message: "Email or password is incorrect.",
+  },
+  JWT_SECRET_REQUIRED: {
+    title: "Authentication service unavailable",
+    message: "Authentication service is not configured. Contact an administrator.",
+  },
+  LOGIN_FAILED: {
+    title: "Sign-in failed",
+    message: "Login failed. Try again or contact an administrator.",
+  },
+  SYSTEM_USER_LOGIN_NOT_ALLOWED: {
+    title: "Sign-in failed",
+    message: "This account cannot sign in through the browser.",
+  },
+  UNAUTHENTICATED: {
+    title: "Session expired",
+    message: "Your session expired. Sign in again to continue.",
+  },
+  USER_INACTIVE: {
+    title: "Sign-in failed",
+    message: "This account is inactive. Ask an administrator to reactivate it.",
+  },
+};
+
+function localizeLoginError(
+  error: LoginError,
+  locale: Parameters<typeof translateMessage>[1],
+): LocalizedLoginError {
+  const message =
+    LOGIN_ERROR_MESSAGES[error.code] ?? LOGIN_ERROR_MESSAGES.LOGIN_FAILED;
+
+  return {
+    title: translateMessage(message.title, locale) ?? message.title,
+    message: translateMessage(message.message, locale) ?? message.message,
   };
 }

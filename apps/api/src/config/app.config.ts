@@ -1,4 +1,5 @@
 import { resolve, sep } from 'node:path';
+import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from './auth-session.constants';
 
 export const DEFAULT_DATABASE_URL =
   'postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public';
@@ -39,12 +40,20 @@ export const appConfig = (): { app: AppConfiguration } => ({
     queueName: process.env.QUEUE_NAME ?? 'bestar-async-jobs',
     queueConcurrency: Number.parseInt(process.env.QUEUE_CONCURRENCY ?? '2', 10),
     jwtSecret: process.env.JWT_SECRET,
-    jwtExpiresInSeconds: Number.parseInt(
-      process.env.JWT_EXPIRES_IN_SECONDS ?? '28800',
-      10,
+    jwtExpiresInSeconds: parsePositiveInteger(
+      process.env.JWT_EXPIRES_IN_SECONDS,
+      DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
     ),
   },
 });
+
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function queueEnabled(): boolean {
   if (process.env.QUEUE_ENABLED !== undefined) {

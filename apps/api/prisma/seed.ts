@@ -8,6 +8,7 @@ import {
   DEFAULT_ROLES,
 } from '../src/auth/default-rbac';
 import { PasswordService } from '../src/auth/password.service';
+import { PASSWORD_MIN_LENGTH } from '../src/auth/password-policy';
 import { ROLE_CODES } from '../src/auth/permissions';
 
 const pool = new Pool({
@@ -147,7 +148,7 @@ async function seedInitialAdmin(client: PoolClient): Promise<void> {
       'Both SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are required to create the initial administrator.',
     );
   }
-  assertStrongSeedPassword(password);
+  assertSeedPassword(password);
 
   const adminRole = await findIdByCode(client, 'roles', ROLE_CODES.admin);
   if (!adminRole) {
@@ -190,7 +191,7 @@ async function seedInitialAdmin(client: PoolClient): Promise<void> {
   );
 }
 
-function assertStrongSeedPassword(password: string): void {
+function assertSeedPassword(password: string): void {
   const weakPasswordNames = new Set([
     'admin',
     'password',
@@ -200,21 +201,12 @@ function assertStrongSeedPassword(password: string): void {
     'default',
   ]);
   const normalized = password.trim().toLowerCase();
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasLowercase = /[a-z]/.test(password);
-  const hasDigit = /\d/.test(password);
-  const hasSymbol = /[^A-Za-z0-9]/.test(password);
-
   if (
-    password.length < 12 ||
-    !hasUppercase ||
-    !hasLowercase ||
-    !hasDigit ||
-    !hasSymbol ||
+    password.length < PASSWORD_MIN_LENGTH ||
     weakPasswordNames.has(normalized)
   ) {
     throw new Error(
-      'SEED_ADMIN_PASSWORD must be at least 12 characters and include uppercase, lowercase, number, and symbol characters.',
+      `SEED_ADMIN_PASSWORD must be at least ${PASSWORD_MIN_LENGTH} characters and must not use a common default password.`,
     );
   }
 }

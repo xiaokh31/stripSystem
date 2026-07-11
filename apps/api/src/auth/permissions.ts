@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   },
   inventory: {
     read: 'inventory.read',
+    adjust: 'inventory.adjust',
   },
   loadJobs: {
     read: 'load_jobs.read',

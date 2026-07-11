@@ -17,6 +17,7 @@ export const PALLET_STATUS_OPTIONS = [
   { label: "Label printed", value: "LABEL_PRINTED" },
   { label: "Loading", value: "LOADING" },
   { label: "Loaded", value: "LOADED" },
+  { label: "Adjusted out", value: "ADJUSTED_OUT" },
   { label: "Cancelled", value: "CANCELLED" },
   { label: "Exception", value: "EXCEPTION" },
 ] as const;
@@ -36,6 +37,10 @@ export function palletStatusOptions(locale?: Locale) {
     },
     { label: palletStatusLabel("LOADING", locale), value: "LOADING" },
     { label: palletStatusLabel("LOADED", locale), value: "LOADED" },
+    {
+      label: palletStatusLabel("ADJUSTED_OUT", locale),
+      value: "ADJUSTED_OUT",
+    },
     { label: palletStatusLabel("CANCELLED", locale), value: "CANCELLED" },
     { label: palletStatusLabel("EXCEPTION", locale), value: "EXCEPTION" },
   ] as const;
@@ -85,11 +90,20 @@ export function sumPalletStats<TItem extends PalletStatsResponse>(
 ): PalletStatsResponse {
   return items.reduce(
     (total, item) => ({
+      adjustedOutPallets:
+        total.adjustedOutPallets + item.adjustedOutPallets,
+      cancelledPallets: total.cancelledPallets + item.cancelledPallets,
       loadedPallets: total.loadedPallets + item.loadedPallets,
       remainingPallets: total.remainingPallets + item.remainingPallets,
       totalPallets: total.totalPallets + item.totalPallets,
     }),
-    { loadedPallets: 0, remainingPallets: 0, totalPallets: 0 },
+    {
+      adjustedOutPallets: 0,
+      cancelledPallets: 0,
+      loadedPallets: 0,
+      remainingPallets: 0,
+      totalPallets: 0,
+    },
   );
 }
 

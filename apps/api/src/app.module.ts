@@ -7,8 +7,10 @@ import { AuthModule } from './auth/auth.module';
 import { AsyncJobsModule } from './async-jobs/async-jobs.module';
 import { appConfig } from './config/app.config';
 import { CorrectionsModule } from './corrections/corrections.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
+import { InventoryAdjustmentsModule } from './inventory-adjustments/inventory-adjustments.module';
 import { LabelsModule } from './labels/labels.module';
 import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -31,7 +33,9 @@ import { UsersModule } from './users/users.module';
     AttendanceModule,
     PrismaModule,
     HealthModule,
+    DashboardModule,
     ImportsModule,
+    InventoryAdjustmentsModule,
     CorrectionsModule,
     ReportsModule,
     LabelsModule,

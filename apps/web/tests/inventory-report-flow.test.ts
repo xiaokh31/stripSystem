@@ -41,6 +41,7 @@ test("inventory pallet status options keep loaded filter available", () => {
   );
 
   assert.equal(optionValues.includes("LOADED"), true);
+  assert.equal(optionValues.includes("ADJUSTED_OUT"), true);
   assert.equal(optionValues.includes("UNLOADED"), false);
   assert.equal(
     inventoryReportHref({ status: "LOADED" }),
@@ -62,13 +63,27 @@ test("active filter count ignores blank optional filters", () => {
 test("pallet summary totals use API supplied remaining counts", () => {
   assert.deepEqual(
     sumPalletStats([
-      { loadedPallets: 1, remainingPallets: 4, totalPallets: 5 },
-      { loadedPallets: 2, remainingPallets: 0, totalPallets: 2 },
+      {
+        adjustedOutPallets: 1,
+        cancelledPallets: 0,
+        loadedPallets: 1,
+        remainingPallets: 4,
+        totalPallets: 6,
+      },
+      {
+        adjustedOutPallets: 0,
+        cancelledPallets: 1,
+        loadedPallets: 2,
+        remainingPallets: 0,
+        totalPallets: 3,
+      },
     ]),
     {
+      adjustedOutPallets: 1,
+      cancelledPallets: 1,
       loadedPallets: 3,
       remainingPallets: 4,
-      totalPallets: 7,
+      totalPallets: 9,
     },
   );
 });

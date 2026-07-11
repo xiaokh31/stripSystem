@@ -18,6 +18,8 @@ import {
 } from "@/lib/admin-role-options";
 import { formatOperationalDateTime } from "@/lib/date-time";
 
+const PASSWORD_MIN_LENGTH = 6;
+
 interface UserManagementPanelProps {
   roles: RoleResponse[];
   users: UserResponse[];
@@ -217,7 +219,7 @@ export function UserManagementPanel({
             Initial password
             <input
               className="min-h-10 border border-zinc-300 px-3 text-sm text-zinc-950"
-              minLength={8}
+              minLength={PASSWORD_MIN_LENGTH}
               onChange={(event) =>
                 setCreateDraft((current) => ({
                   ...current,
@@ -400,7 +402,7 @@ export function UserManagementPanel({
                       <div className="grid gap-2">
                         <input
                           className="min-h-9 border border-zinc-300 px-3 text-sm text-zinc-950"
-                          minLength={8}
+                          minLength={PASSWORD_MIN_LENGTH}
                           onChange={(event) =>
                             updateUserDraft(
                               user.id,
@@ -415,7 +417,8 @@ export function UserManagementPanel({
                         <button
                           className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={
-                            pendingAction !== null || draft.password.length < 8
+                            pendingAction !== null ||
+                            draft.password.length < PASSWORD_MIN_LENGTH
                           }
                           onClick={() =>
                             runAction("Reset password", () =>

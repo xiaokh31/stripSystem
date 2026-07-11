@@ -912,6 +912,27 @@ export class LoadJobsService {
         );
       }
 
+      if (pallet.status === PalletStatus.ADJUSTED_OUT) {
+        await this.createInvalidScanEvent(tx, {
+          loadJobId: id,
+          palletId: pallet.id,
+          fromStatus: pallet.status,
+          toStatus: pallet.status,
+          scanPayload: parsed.payload,
+          deviceId,
+          operatorId,
+          exceptionReason: 'PALLET_ADJUSTED_OUT',
+          metadata: this.scanMetadata(parsed),
+        });
+        return this.scanError(
+          new ConflictException({
+            code: 'PALLET_ADJUSTED_OUT',
+            message: `Pallet ${pallet.palletId} was manually depleted from inventory and cannot be loaded.`,
+            details: { palletId: pallet.palletId, status: pallet.status },
+          }),
+        );
+      }
+
       if (pallet.status === PalletStatus.LOADED) {
         if (pallet.loadJobId === id) {
           return await this.recordDuplicateScan(tx, {
@@ -1569,7 +1590,9 @@ export class LoadJobsService {
       destinationCode: destinationRegion,
       pallets: {
         some: {
-          status: { not: PalletStatus.CANCELLED },
+          status: {
+            notIn: [PalletStatus.CANCELLED, PalletStatus.ADJUSTED_OUT],
+          },
         },
       },
     };
@@ -1597,7 +1620,9 @@ export class LoadJobsService {
         },
         pallets: {
           where: {
-            status: { not: PalletStatus.CANCELLED },
+            status: {
+              notIn: [PalletStatus.CANCELLED, PalletStatus.ADJUSTED_OUT],
+            },
           },
           select: {
             status: true,
@@ -1979,7 +2004,9 @@ export class LoadJobsService {
 
     const activePalletCount = await tx.pallet.count({
       where: {
-        status: { not: PalletStatus.CANCELLED },
+        status: {
+          notIn: [PalletStatus.CANCELLED, PalletStatus.ADJUSTED_OUT],
+        },
         containerDestination: {
           containerId,
         },

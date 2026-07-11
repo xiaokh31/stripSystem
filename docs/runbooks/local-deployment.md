@@ -63,7 +63,7 @@ NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 JWT_SECRET=replace-with-long-random-secret
-JWT_EXPIRES_IN_SECONDS=28800
+JWT_EXPIRES_IN_SECONDS=34560000
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
 
@@ -71,6 +71,13 @@ For pilot or production, replace default passwords and `JWT_SECRET` with unique
 strong values before starting services. The compose file builds the API
 `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
 Do not use the example values as production credentials.
+
+`JWT_EXPIRES_IN_SECONDS` controls both the API JWT `exp` and the Web
+`bestar_auth_token` cookie `Max-Age`. The default is `34560000` seconds
+(400 days) so office browsers stay signed in unless the user logs out, clears
+cookies, the account is disabled, or the configured token lifetime is reached.
+Browsers may cap very long persistent cookies, and shorter values can be set
+for stricter workstation security.
 
 `TZ`, `OPERATIONAL_TIME_ZONE`, and `NEXT_PUBLIC_OPERATIONAL_TIME_ZONE` must use
 an IANA timezone name. `America/Edmonton` is the Calgary/Edmonton warehouse

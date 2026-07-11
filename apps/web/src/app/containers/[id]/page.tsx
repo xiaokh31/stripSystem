@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ContainerDestinationCorrections } from "@/components/containers/container-destination-corrections";
 import { ContainerGeneratedFiles } from "@/components/containers/container-generated-files";
+import { ContainerInventoryAdjustmentPanel } from "@/components/containers/container-inventory-adjustment-panel";
 import { ContainerStatusControl } from "@/components/containers/container-status-control";
 import { ContainerUnloadingWagePanel } from "@/components/containers/container-unloading-wage-panel";
 import {
@@ -14,16 +15,23 @@ import {
   ApiClientError,
   getContainerDetail,
   getContainerGeneratedFiles,
+  getContainerInventoryDetailSummary,
+  listInventoryAdjustments,
+  type ContainerDetailInventorySummaryResponse,
   listUnloadingWageWorkers,
   type ContainerDetailResponse,
   type GeneratedFileResponse,
+  type InventoryAdjustmentResponse,
   type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import {
+  canAdjustInventory,
   canManageContainerUnloadingWage,
   canReprintLabels,
+  hasPermission,
+  INVENTORY_READ_PERMISSION,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
@@ -41,6 +49,13 @@ type ContainerDetailState =
       ok: false;
     };
 
+interface ContainerInventoryAdjustmentState {
+  historyByDestinationId: Record<string, InventoryAdjustmentResponse[]>;
+  historyErrorByDestinationId: Record<string, boolean>;
+  inventoryError: boolean;
+  inventorySummary: ContainerDetailInventorySummaryResponse | null;
+}
+
 export default async function ContainerDetailPage({
   params,
 }: {
@@ -55,6 +70,16 @@ export default async function ContainerDetailPage({
   }
 
   const currentUser = await getServerCurrentUser();
+  const canReadInventory = hasPermission(
+    currentUser,
+    INVENTORY_READ_PERMISSION,
+  );
+  const inventoryAdjustmentState = canReadInventory
+    ? await loadContainerInventoryAdjustmentState(
+        state.container.id,
+        state.container.destinations.map((destination) => destination.id),
+      )
+    : null;
   const canEditUnloadingWage = canManageContainerUnloadingWage(currentUser);
   const workerDirectory = canEditUnloadingWage
     ? await loadUnloadingWageWorkers()
@@ -200,6 +225,21 @@ export default async function ContainerDetailPage({
         currentStatus={state.container.status}
       />
 
+      {inventoryAdjustmentState ? (
+        <ContainerInventoryAdjustmentPanel
+          canAdjust={canAdjustInventory(currentUser)}
+          currentUser={currentUser}
+          historyByDestinationId={
+            inventoryAdjustmentState.historyByDestinationId
+          }
+          historyErrorByDestinationId={
+            inventoryAdjustmentState.historyErrorByDestinationId
+          }
+          inventoryError={inventoryAdjustmentState.inventoryError}
+          inventorySummary={inventoryAdjustmentState.inventorySummary}
+        />
+      ) : null}
+
       {state.filesError ? (
         <ApiErrorPanel
           error={state.filesError}
@@ -254,6 +294,39 @@ async function loadUnloadingWageWorkers(): Promise<{
   } catch (error) {
     return { error: toApiClientError(error), items: [] };
   }
+}
+
+async function loadContainerInventoryAdjustmentState(
+  containerId: string,
+  destinationIds: string[],
+): Promise<ContainerInventoryAdjustmentState> {
+  const apiOptions = await getServerApiOptions();
+  const [summaryResult, ...historyResults] = await Promise.allSettled([
+    getContainerInventoryDetailSummary(containerId, {}, apiOptions),
+    ...destinationIds.map((destinationId) =>
+      listInventoryAdjustments(destinationId, apiOptions),
+    ),
+  ]);
+  const historyByDestinationId: Record<string, InventoryAdjustmentResponse[]> = {};
+  const historyErrorByDestinationId: Record<string, boolean> = {};
+
+  destinationIds.forEach((destinationId, index) => {
+    const result = historyResults[index];
+    if (!result || result.status === "rejected") {
+      historyErrorByDestinationId[destinationId] = true;
+      return;
+    }
+
+    historyByDestinationId[destinationId] = result.value.items;
+  });
+
+  return {
+    historyByDestinationId,
+    historyErrorByDestinationId,
+    inventoryError: summaryResult.status === "rejected",
+    inventorySummary:
+      summaryResult.status === "fulfilled" ? summaryResult.value : null,
+  };
 }
 
 function DetailRow({
