@@ -297,6 +297,10 @@
           本地化缺口：known pallet rule、package type、rounding mode 和 parser /
           calculator warning code 会先规范成 canonical copy，再由 i18n exact/dynamic
           catalog 翻译，保留柜号、目的仓、承运商等 source data。
+          WEB-DASHBOARD-00 已完成 Manifest Control Room 后台视觉方向 brief，
+          明确后续 dashboard 任务必须先做真实汇总 API，再做 Shell 和 `/` 首页
+          重构；API 只返回 stable code、labelKey、enum 和 raw source data，
+          Web 统一通过 catalog/status-label helpers 本地化。
           UNLOAD-PALLET-01 至 UNLOAD-PALLET-03 已完成详细托盘计算规则升级：
           worker 计算从通用体积/高度估算改为目的仓和地址包装类型规则，覆盖
           `YYC4` / `YYC6` / `YEG2` 按 1.7 CBM、`YVR2` / `YVR3` / `YVR4`
@@ -952,6 +956,65 @@
       </section>
 
       <section>
+        <h2>后台 Dashboard 改造进度</h2>
+        <p class="note">
+          WEB-DASHBOARD 任务组目标是把当前 `/` 的简单 health dashboard 升级为
+          真实运营中控台。WEB-DASHBOARD-00 只关闭视觉方向和治理 brief，不代表
+          dashboard API、Shell 改造或首页 UI 已完成。后续实现必须严格遵守 i18n
+          catalog/status-label 管理：API 只返回 stable code、labelKey、enum 和
+          raw source data，Web 按当前 locale 渲染可见文案。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>WEB-DASHBOARD-00 Back Office Visual Direction</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Brief Complete</td>
+              <td>新增 `prompts/tasks/WEB-DASHBOARD-00Back Office Visual Direction.md`，固化 Manifest Control Room 方向、Dock Lane Strip signature、PC 宽屏后台布局、视觉 tokens、信息架构、API contract governance、i18n hard gate 和 01-04 任务拆分。</td>
+              <td>按 WEB-DASHBOARD-01 新增真实 dashboard 汇总 API；不得在 UI 中使用 mock business data。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-01 Operations Dashboard Data API</td>
+              <td><span class="badge partial">Pending</span></td>
+              <td>0%</td>
+              <td>尚未实现。</td>
+              <td>新增真实 `/api/dashboard/operations` 汇总 API，按权限裁剪 sections；API response 不返回本地化 UI 文案。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-02 Shell Visual System Redesign</td>
+              <td><span class="badge partial">Pending</span></td>
+              <td>0%</td>
+              <td>尚未实现。</td>
+              <td>重塑后台 Shell、导航、topbar、layout tokens 和 dashboard 基础组件；新增文案进入 i18n catalog。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-03 Operations Dashboard UI</td>
+              <td><span class="badge partial">Pending</span></td>
+              <td>0%</td>
+              <td>尚未实现。</td>
+              <td>用真实 API 重做 `/` dashboard：work queue、Dock Lane Strip、inventory pressure、active load jobs、exceptions、recent activity。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-04 Dashboard QA I18n Regression</td>
+              <td><span class="badge partial">Pending</span></td>
+              <td>0%</td>
+              <td>尚未实现。</td>
+              <td>跑 API/Web/i18n/Playwright/full-stack 回归，覆盖 locale switch 和 unmanaged UI strings gate。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>核心业务功能清单</h2>
         <table>
           <thead>
@@ -1057,6 +1120,12 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td>Operations dashboard redesign</td>
+              <td><span class="badge partial">Brief Complete</span></td>
+              <td>WEB-DASHBOARD-00 已完成后台视觉方向和 i18n/API governance brief；当前 `/` 仍是简单 health dashboard。</td>
+              <td>继续执行 WEB-DASHBOARD-01 到 04：先做真实 dashboard API，再做 Shell visual system、首页 UI 和 dashboard QA/i18n 回归。</td>
+            </tr>
             <tr>
               <td>Windows native scan app MSIX</td>
               <td><span class="badge partial">Partial</span></td>
@@ -1230,6 +1299,7 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
+          <li>后台体验升级继续按 WEB-DASHBOARD-01 -> 02 -> 03 -> 04 执行；WEB-DASHBOARD-00 只是设计 brief，不能把当前 health dashboard 标记为运营中控台完成。</li>
           <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；仍需在 Windows 11 构建机按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
           <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>

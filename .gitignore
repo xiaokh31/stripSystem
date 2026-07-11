@@ -109,6 +109,7 @@ prompts/tasks/*
 !prompts/tasks/WAGE-QA*.md
 !prompts/tasks/UNLOAD-WAGE*.md
 !prompts/tasks/UNLOAD-PALLET*.md
+!prompts/tasks/WEB-DASHBOARD*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

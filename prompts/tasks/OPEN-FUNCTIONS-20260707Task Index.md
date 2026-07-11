@@ -26,6 +26,7 @@
 - 默认纸箱托盘计算修复已完成；包装类型真实样本验收仍需等待业务提供 pilot workbook。
 - UPS/courier destination 托数为 0 的 pilot 阻塞缺陷已在 UNLOAD-PALLET-07 修复。
 - IMPORT-DELETE-01 已完成代码实现：删除导入会清理原始上传清单和关联 generated files，保留 load job / operational pallet / pay container blocker 和 deletion audit。
+- 新增后台整体风格和 dashboard redesign 任务组：WEB-DASHBOARD-00 到 WEB-DASHBOARD-04。WEB-DASHBOARD-00 已完成 Manifest Control Room 设计 brief；后续目标是把当前简单 health dashboard 升级为真实运营中控台，并按 frontend-design skill 固化视觉方向；该任务组必须严格执行 i18n 本地化管理，API 只返回稳定 code/labelKey，Web 统一通过 catalog/status-label helpers 显示中英文。
 
 已执行但仍有未关闭项：
 1. P6-MOBILE-09Native Camera Module Wiring.md
@@ -54,9 +55,18 @@
    - 已完成。柜子详情页 rule summary、container warnings、destination warnings/errors 已按 locale 管理，覆盖 `SMCU1225466` 暴露出的 `Rule/Basis/Rounding` 和 warning code 文案。
 13. UNLOAD-WAGE-12Monthly Unloading Summary Blank Export Regression.md
    - 已完成。API 返回 available months metadata，0-row export 返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 且不新增 generated_file；Web 默认页回退到最新可用完成月份，显式空月显示可用月份提示并禁用导出；worker 0-row 写出也返回 ERROR 且不生成 xlsx。
+14. WEB-DASHBOARD-00Back Office Visual Direction.md
+   - 已完成。新增 Manifest Control Room 设计 brief，固化 PC 后台视觉方向、Dock Lane Strip signature、dashboard 信息架构、API contract governance、i18n hard gate 和 WEB-DASHBOARD-01 至 04 任务拆分；本阶段不改运行时业务代码。
 
 当前仓库可继续执行的优先项：
-1. 暂无必须立即补的本机代码任务。
+1. WEB-DASHBOARD-01Operations Dashboard Data API.md
+   - 新增真实 dashboard 汇总 API，按角色/权限裁剪 sections；API response 不返回本地化 UI 文案，只返回 stable `code` / `labelKey` / enum / raw source data。
+2. WEB-DASHBOARD-02Shell Visual System Redesign.md
+   - 重塑后台 Shell、导航、视觉 tokens 和 dashboard 基础组件；Shell/nav/topbar 新增文案必须进入 i18n catalog。
+3. WEB-DASHBOARD-03Operations Dashboard UI.md
+   - 用真实 API 重做 `/` dashboard：work queue、Dock Lane Strip、inventory pressure、active load jobs、exceptions、recent activity；所有可见文案、动态模板、aria/title/placeholder 必须本地化。
+4. WEB-DASHBOARD-04Dashboard QA I18n Regression.md
+   - 做最终 API/Web/i18n/Playwright/full-stack 回归；`pnpm --filter web test -- i18n` 和 locale-switch smoke 是关闭门禁。
 
 Pilot 前必须验收：
 1. P6-MOBILE-13Windows MSIX Release Completion.md
@@ -84,9 +94,11 @@ Deferred，按现场反馈再执行：
 - P1 async queue teardown + Docker concurrency regression：完成。
 - Android/iOS native scan app pilot route：条件通过。
 - P6-MOBILE-13 repo-side Windows MSIX handoff gate：完成；实际 Windows MSIX artifact 和 Windows 设备 smoke 仍是 pilot 前构建机验收项。
+- WEB-DASHBOARD-00 后台视觉方向 brief：完成；真实 dashboard API、Shell redesign、首页 UI 和 dashboard QA 尚未执行。
 
 给业务开发 agent 的建议执行顺序：
-1. 先安排 Windows 11 构建机执行 P6-MOBILE-13 checklist，关闭完整三端 native app release gate。
-2. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
-3. 准备上线时执行 P5-PILOT-01。
-4. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。
+1. 若当前目标是后台体验升级，继续按 WEB-DASHBOARD-01 -> 02 -> 03 -> 04 执行；每个任务必须先读 WEB-DASHBOARD-00 brief。
+2. 若当前目标是 pilot release gate，安排 Windows 11 构建机执行 P6-MOBILE-13 checklist，关闭完整三端 native app release gate。
+3. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
+4. 准备上线时执行 P5-PILOT-01。
+5. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。
