@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-10
+- 2026-07-11
 
 依据：
 - docs/reports/project-completion-status.html
@@ -19,7 +19,7 @@
 - Detailed pallet rules 基础实现已完成；UNLOAD-PALLET-05 已修复包装类型默认值/选择器口径错误，UNLOAD-PALLET-06 已修复 destination correction 保存误判无变更；UNLOAD-PALLET-07 已修复 UPS 57 箱有体积却算 0 托的现场回归。
 - Monthly unloading summary 已修复 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，其 recorded completion month 为 `2026-06`；页面无显式月份时会打开最新可用月份，显式空月会提示可用月份并阻止 0-row export。
 - P6 standalone native scan app 已按 Android+iOS pilot route 条件通过，但不是完整三端 release ready。
-- Windows MSIX 仍未完成：缺 Windows generated RNW project、camera decoder dependency、MSIX 打包和 Windows 设备 smoke。
+- P6-MOBILE-13 已执行到当前仓库可验证范围：新增 Windows MSIX readiness gate、构建机 checklist 和 handoff docs；Windows MSIX 仍未完成，因为缺 Windows generated RNW project、camera decoder dependency、MSIX 打包和 Windows 设备 smoke。
 - P1 async queue 已完成 API/DB/Web 垂直线；P1-QUEUE-02 已修复 BullMQ/ioredis teardown，并补 Docker concurrency regression。
 - P4 print agent 仍是 Deferred / Not Activated，不是当前 pilot 必做。
 - Windows 目标机部署验证和包装类型真实样本验证属于上线前验收任务。
@@ -36,31 +36,34 @@
    - iOS generated project/Pods/workspace 已完成；Windows generated project 仍未完成。
 4. P6-MOBILE-12Cross Platform Device Smoke Exit Gate.md
    - Android/iOS pilot smoke 条件通过；完整 Windows MSIX release gate 未通过。
-5. P1-QUEUE-01BullMQ Async Import Generation Jobs.md
+5. P6-MOBILE-13Windows MSIX Release Completion.md
+   - 已执行到当前 macOS 仓库可验证范围：补 `windows:check`、MSIX 构建机 checklist、release/testing runbook handoff 和完成度报告；仍需 Windows 11 构建机生成 RNW project、打包 MSIX 并做 Windows device smoke 才能关闭完整三端 release gate。
+6. P1-QUEUE-01BullMQ Async Import Generation Jobs.md
    - API/DB/Web 垂直线已实现；P1-QUEUE-02 已补齐 E2E teardown 和 Docker 并发回归。
-6. UNLOAD-PALLET-05Default Carton Package Type + Hide Package Selector.md
+7. UNLOAD-PALLET-05Default Carton Package Type + Hide Package Selector.md
    - 已完成。默认纸箱、不显示 package selector、missing/unknown package 不再触发人工确认 warning。
-7. UNLOAD-PALLET-06Destination Correction Save Regression.md
+8. UNLOAD-PALLET-06Destination Correction Save Regression.md
    - 已完成。note-only、actual cartons-only、actual CBM-only、manual pallets 清空恢复 calculated final pallets 均有 Web/API 回归测试。
-8. UNLOAD-PALLET-07UPS Courier Destination Pallet Count Regression.md
+9. UNLOAD-PALLET-07UPS Courier Destination Pallet Count Regression.md
    - 已完成。修复 UPS/PUROLATOR/PURO/P/A 等 courier/private address 导入后有箱数和体积却 calculated/final pallets 为 0 的现场回归；根因为 API summary/plan packageType key mismatch。
-9. WEB-I18N-01Full Localization Gap Audit + Runtime Coverage.md
+10. WEB-I18N-01Full Localization Gap Audit + Runtime Coverage.md
    - 已完成。重新审计 Web 全模块 i18n，补齐漏翻译、动态文案、属性文案和语言切换 E2E。
-10. IMPORT-DELETE-01Cascade Storage File Cleanup.md
+11. IMPORT-DELETE-01Cascade Storage File Cleanup.md
    - 已完成。API delete 会逐个校验 storage root containment 后删除原始文件和 generated file storage 文件，generated_files 不再作为 blocker；仅 load job、operational pallet/scan history、pay container usage 阻止删除；correction feedback 记录删除人、时间、原因、清理数量、路径和 missing-file warning。Web 确认/成功/错误文案已更新。
-11. WEB-I18N-02Container Detail Rule Warning Localization.md
+12. WEB-I18N-02Container Detail Rule Warning Localization.md
    - 已完成。柜子详情页 rule summary、container warnings、destination warnings/errors 已按 locale 管理，覆盖 `SMCU1225466` 暴露出的 `Rule/Basis/Rounding` 和 warning code 文案。
-12. UNLOAD-WAGE-12Monthly Unloading Summary Blank Export Regression.md
+13. UNLOAD-WAGE-12Monthly Unloading Summary Blank Export Regression.md
    - 已完成。API 返回 available months metadata，0-row export 返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 且不新增 generated_file；Web 默认页回退到最新可用完成月份，显式空月显示可用月份提示并禁用导出；worker 0-row 写出也返回 ERROR 且不生成 xlsx。
 
-必须优先执行：
-1. P6-MOBILE-13Windows MSIX Release Completion.md
-   - 补齐 Windows generated RNW project、camera/secure-token modules、MSIX 打包和 Windows device smoke。
+当前仓库可继续执行的优先项：
+1. 暂无必须立即补的本机代码任务。
 
 Pilot 前必须验收：
-1. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
+1. P6-MOBILE-13Windows MSIX Release Completion.md
+   - 只能在 Windows 11 + Visual Studio 2022 + Windows SDK + MSIX packaging tools 构建机关闭：生成 Windows RNW project、验收 camera/secure-token modules、打包 MSIX 并完成 Windows device smoke。
+2. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
    - 用真实私人/商业地址 Excel 验证默认纸箱和明确木箱识别。
-2. P5-PILOT-01Windows Target Deployment Verification.md
+3. P5-PILOT-01Windows Target Deployment Verification.md
    - 在目标 Windows 11 主机完成 Docker full-stack、secrets、账号、真实业务 smoke、备份恢复和告警验收。
 
 Deferred，按现场反馈再执行：
@@ -80,9 +83,10 @@ Deferred，按现场反馈再执行：
 - Monitoring / SIEM export / backup-disk alerts：完成到本地生产可落地范围。
 - P1 async queue teardown + Docker concurrency regression：完成。
 - Android/iOS native scan app pilot route：条件通过。
+- P6-MOBILE-13 repo-side Windows MSIX handoff gate：完成；实际 Windows MSIX artifact 和 Windows 设备 smoke 仍是 pilot 前构建机验收项。
 
 给业务开发 agent 的建议执行顺序：
-1. 先做 P6-MOBILE-13，补齐完整三端 native app release。
+1. 先安排 Windows 11 构建机执行 P6-MOBILE-13 checklist，关闭完整三端 native app release gate。
 2. 并行安排真实私人/商业地址样本，完成 UNLOAD-PALLET-04 的 pilot verification。
 3. 准备上线时执行 P5-PILOT-01。
 4. P4-PRINT-03 暂不执行，除非现场打印失败数据触发。

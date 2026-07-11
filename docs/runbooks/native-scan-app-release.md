@@ -141,6 +141,23 @@ Run this after generation:
 ```powershell
 pnpm --filter mobile-scan-app package:check
 pnpm --filter mobile-scan-app package:check -- --strict
+pnpm --filter mobile-scan-app windows:check
+```
+
+P6-MOBILE-13 adds a Windows-specific handoff checklist and readiness command:
+
+```text
+apps\mobile-scan-app\windows\P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md
+```
+
+Fill the checklist on the Windows 11 build machine with the generated project
+paths, MSIX artifact path, artifact SHA-256, device smoke result, and blocker
+decision. Do not record passwords, JWTs, private certificate keys, `.pfx`
+passwords, provisioning files, or the MSIX binary itself in git. The local
+command below must pass before calling the Windows release complete:
+
+```powershell
+pnpm --filter mobile-scan-app windows:check
 ```
 
 Common blockers:
@@ -155,6 +172,9 @@ Common blockers:
 - `.sln` or `.vcxproj` missing: RNW project generation has not completed.
 - `Package.appxmanifest` missing: MSIX packaging metadata has not been generated
   or restored.
+- `windows:check` fails: run it on Windows 11 after generated project markers
+  exist, and confirm the checklist is present and module source files are added
+  to the generated project.
 - Native modules unavailable at runtime: include the two C# module files in the
   generated project and verify `BestarQrScanner` and `BestarSecureTokenStore`
   are registered.
@@ -629,3 +649,18 @@ If a release fails:
   Windows generated project markers exist.
 - P6 mobile exit gate is passed for the Android+iOS pilot route. Do not present
   Windows MSIX as ready until the Windows follow-up above is complete.
+
+## Current Status At P6-MOBILE-13
+
+- This macOS checkout cannot complete the Windows MSIX release because the task
+  requires Windows 11, Visual Studio 2022, Windows SDK/MSIX packaging tools, and
+  a trusted signing certificate.
+- The repository now includes the P6-MOBILE-13 Windows release checklist and
+  `pnpm --filter mobile-scan-app windows:check` command for the Windows build
+  machine.
+- `package:check` still reports Android and iOS ready and Windows blocked until
+  generated Windows `.sln`, `.vcxproj`, and `Package.appxmanifest` markers
+  exist.
+- `package:check -- --strict` and `windows:check` must continue to fail until
+  the Windows generated project, MSIX artifact, and device smoke evidence exist.
+  Do not present Windows MSIX as complete before those checks pass on Windows.

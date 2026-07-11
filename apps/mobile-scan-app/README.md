@@ -30,6 +30,8 @@ as Android APK, iOS IPA, and Windows MSIX.
 - Platform secure token store through `NativeModules.BestarSecureTokenStore`.
 - iOS/Windows native module source boundaries awaiting generated platform
   project integration and build-machine smoke results.
+- P6-MOBILE-13 Windows MSIX readiness checklist and `windows:check` handoff
+  command for the Windows 11 build machine.
 
 ## Token Storage
 
@@ -90,10 +92,14 @@ pnpm --filter mobile-scan-app test
 pnpm --filter mobile-scan-app build
 pnpm --filter mobile-scan-app package:check
 pnpm --filter mobile-scan-app package:check -- --strict
+pnpm --filter mobile-scan-app windows:check
 ```
 
 `package:check` reports all three platform states. Strict mode is the release
 gate and fails while iOS or Windows generated project markers are missing.
+`windows:check` is stricter for the Windows MSIX follow-up: it fails until it is
+run on Windows with generated `.sln`, `.vcxproj`, and `Package.appxmanifest`
+markers present.
 
 Task-by-task manual testing is documented in:
 

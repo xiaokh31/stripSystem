@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-10</p>
+        <p class="small">Generated: 2026-07-11</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -221,9 +221,11 @@
           runbook、packaging readiness check、Android debug APK 构建、
           P6-MOBILE-09 Android native camera module source wiring、
           P6-MOBILE-10 secure token storage、P6-MOBILE-11 Windows/iOS
-          platform readiness hardening 和 iOS generated project / Pods
-          smoke build 已完成；P6-MOBILE-12 按 Android+iOS pilot route
-          条件通过，但完整 cross-platform release 仍缺 Windows MSIX gate。
+          platform readiness hardening、iOS generated project / Pods
+          smoke build、P6-MOBILE-13 Windows MSIX readiness script / build-machine
+          checklist / handoff docs 已完成到当前仓库可验证范围；P6-MOBILE-12
+          按 Android+iOS pilot route 条件通过，但完整 cross-platform release
+          仍缺 Windows MSIX gate。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -234,9 +236,10 @@
           并在 Apple signing 配置后完成真机安装调试 smoke；该 iOS 设备结果为
           现场确认，本轮未复跑。Windows 仍需在
           Windows 11 构建机生成 RNW 工程并验收 MSIX；`package:check`
-          已能明确区分 source boundary 与 generated platform project，
-          normal check 显示 Android/iOS ready、Windows blocked，strict
-          all-platform release gate 当前会因 Windows marker 缺失失败。
+          和 `windows:check` 已能明确区分 source boundary、generated
+          platform project 与 MSIX handoff evidence，normal check 显示
+          Android/iOS ready、Windows blocked，strict all-platform release
+          gate 当前会因 Windows marker 缺失失败。
           新增
           Work Hours / Unloading Wage P0/P1/P2 扩展已完成到 API/DB/Web review
           workflow 范围：attendance upload/parse/generate、unloading pay
@@ -439,10 +442,11 @@
           Pods/workspace、camera module 和 secure-token module target wiring；2026-07-09
           在 Apple signing 配置后，iOS 真机安装调试 smoke 已由现场确认全部通过，
           但本轮没有在本机复跑 iOS 设备验收。
-          Windows native platform project 仍需在 Windows 11 构建机生成并验收 MSIX，
-          Windows camera 与 secure-token module 仍需平台工程验收；该项作为 Windows
-          MSIX release follow-up 保留，不阻塞 Android+iOS pilot gate，但阻塞完整
-          三端 native release。
+          P6-MOBILE-13 已补 `windows:check`、MSIX 构建机 checklist 和 runbook
+          handoff，能在非 Windows 主机明确失败并列出缺失 marker。Windows native
+          platform project 仍需在 Windows 11 构建机生成并验收 MSIX，Windows camera
+          与 secure-token module 仍需平台工程验收；该项作为 Windows MSIX release
+          follow-up 保留，不阻塞 Android+iOS pilot gate，但阻塞完整三端 native release。
         </p>
         <table>
           <thead>
@@ -466,22 +470,22 @@
             <tr>
               <td>Packaging docs</td>
               <td><span class="badge done">Pass</span></td>
-              <td>`docs/runbooks/native-scan-app-release.md` 覆盖 Windows MSIX、Android APK、iOS IPA、LAN URL、HTTP/HTTPS、证书、相机权限和 release checklist。</td>
+              <td>`docs/runbooks/native-scan-app-release.md` 覆盖 Windows MSIX、Android APK、iOS IPA、LAN URL、HTTP/HTTPS、证书、相机权限和 release checklist；P6-MOBILE-13 另补 `windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md`。</td>
             </tr>
             <tr>
               <td>Platform device readiness</td>
               <td><span class="badge partial">Conditional Pass</span></td>
-              <td>Android platform project 已生成并加入 `BestarQrScanner` CameraX/ML Kit 原生模块与 `BestarSecureTokenStore` Android Keystore 模块；`./gradlew assembleDebug` 已通过，debug APK 已改为内置 JS bundle，真实 Android 设备已验证 LAN API URL、login 和 native camera scan pallet QR。iOS 已生成 `Podfile`、`.xcodeproj`、`.xcworkspace`、app target 和 Pods，`xcodebuild -list` 可识别 workspace，camera 与 secure-token native module 已接入 target；2026-07-09 现场完成 iOS 真机安装调试 smoke 并确认全部通过。Windows 已有 native module source boundary 和 `PLATFORM-STATUS.md`，但仍缺 `.sln`/`.vcxproj`/`Package.appxmanifest`，保持 Windows MSIX follow-up。</td>
+              <td>Android platform project 已生成并加入 `BestarQrScanner` CameraX/ML Kit 原生模块与 `BestarSecureTokenStore` Android Keystore 模块；`./gradlew assembleDebug` 已通过，debug APK 已改为内置 JS bundle，真实 Android 设备已验证 LAN API URL、login 和 native camera scan pallet QR。iOS 已生成 `Podfile`、`.xcodeproj`、`.xcworkspace`、app target 和 Pods，`xcodebuild -list` 可识别 workspace，camera 与 secure-token native module 已接入 target；2026-07-09 现场完成 iOS 真机安装调试 smoke 并确认全部通过。Windows 已有 native module source boundary、`PLATFORM-STATUS.md`、`windows:check` 和 MSIX handoff checklist，但仍缺 `.sln`/`.vcxproj`/`Package.appxmanifest`，保持 Windows MSIX follow-up。</td>
             </tr>
             <tr>
               <td>Automated checks</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>2026-07-09 P1-QUEUE-02 复查通过 `CI=true pnpm --filter api lint`、`CI=true pnpm --filter api typecheck`、`CI=true pnpm --filter api test`（20 suites / 134 passed）、`CI=true pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand`（13 suites / 72 passed）和 `CI=true pnpm --filter api test:e2e`（13 suites / 72 passed）。E2E 输出已不再出现 BullMQ/ioredis teardown 的 `Connection is closed`、`write EPIPE` 或 `Cannot log after tests are done`。本行仍为 Partial 仅因 Windows MSIX follow-up 尚未完成。</td>
+              <td>2026-07-11 P6-MOBILE-13 通过 `git diff --check`、`env CI=true pnpm --filter mobile-scan-app lint`、`env CI=true pnpm --filter mobile-scan-app typecheck`、`env CI=true pnpm --filter mobile-scan-app test`（35 passed）和 `env CI=true pnpm --filter mobile-scan-app package:check`。`env CI=true pnpm --filter mobile-scan-app package:check -- --strict` 与 `env CI=true pnpm --filter mobile-scan-app windows:check` 在 macOS 上按预期失败，阻塞项为 Windows host、`windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。本行仍为 Partial 仅因 Windows MSIX follow-up 尚未完成。</td>
             </tr>
             <tr>
               <td>Windows MSIX follow-up</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>`pnpm --filter mobile-scan-app package:check` 明确显示 Windows source boundary present，但 generated markers 缺少 `windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。需要 Windows 11 + Visual Studio 2022 构建机生成 RNW 工程、接入 C# modules、打包 MSIX 并做设备 smoke。</td>
+              <td>`pnpm --filter mobile-scan-app package:check` 明确显示 Windows source boundary present，但 generated markers 缺少 `windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。`pnpm --filter mobile-scan-app windows:check` 已作为 P6-MOBILE-13 严格 gate，当前在 macOS 上按预期 blocked。需要 Windows 11 + Visual Studio 2022 构建机生成 RNW 工程、接入 C# modules、打包 MSIX 并做设备 smoke。</td>
             </tr>
           </tbody>
         </table>
@@ -940,8 +944,8 @@
               <td>Standalone native scan app：只包含登录和 mobile scan，面向 Windows MSIX、Android APK、iOS IPA 三端。</td>
               <td><span class="badge partial">Conditional Pass</span></td>
               <td>95%</td>
-              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Android `BestarQrScanner` CameraX/ML Kit source wiring、Android `BestarSecureTokenStore` Keystore storage、iOS generated Xcode project/Pods/workspace、iOS camera 与 secure-token native module target wiring、P6-MOBILE-11 platform readiness hardening、P6-MOBILE-12 Android+iOS device smoke exit gate、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
-              <td>Android+iOS pilot route 条件通过；完整 PRD 要求的 Windows MSIX 尚未完成。需执行 P6-MOBILE-13，在 Windows 11 构建机生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并做 Windows device smoke。</td>
+              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Android `BestarQrScanner` CameraX/ML Kit source wiring、Android `BestarSecureTokenStore` Keystore storage、iOS generated Xcode project/Pods/workspace、iOS camera 与 secure-token native module target wiring、P6-MOBILE-11 platform readiness hardening、P6-MOBILE-12 Android+iOS device smoke exit gate、P6-MOBILE-13 Windows MSIX readiness script/build-machine checklist/handoff docs、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
+              <td>Android+iOS pilot route 条件通过；P6-MOBILE-13 已执行到当前仓库可验证范围。完整 PRD 要求的 Windows MSIX 尚未完成，仍需在 Windows 11 构建机生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并做 Windows device smoke。</td>
             </tr>
           </tbody>
         </table>
@@ -1056,8 +1060,8 @@
             <tr>
               <td>Windows native scan app MSIX</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>P6 mobile exit gate 已按 Android+iOS pilot route 通过；Windows 仍只有 native module source boundary，没有 generated RNW project marker。</td>
-              <td>在 Windows 11 build machine 生成并验收 Windows native project，完成 Windows camera decoder 集成、MSIX 打包以及 Windows 设备 smoke test；完成前不要把 Windows MSIX 标记为 ready。</td>
+              <td>P6 mobile exit gate 已按 Android+iOS pilot route 通过；P6-MOBILE-13 已补 Windows MSIX handoff gate，但当前仓库仍没有 generated RNW project marker。</td>
+              <td>在 Windows 11 build machine 按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 生成并验收 Windows native project，完成 Windows camera decoder 集成、MSIX 打包以及 Windows 设备 smoke test；完成前不要把 Windows MSIX 标记为 ready。</td>
             </tr>
             <tr>
               <td>外部身份集成 / SSO</td>
@@ -1226,7 +1230,7 @@
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
-          <li>执行 `prompts/tasks/P6-MOBILE-13Windows MSIX Release Completion.md`，补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
+          <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；仍需在 Windows 11 构建机按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
           <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>

@@ -8,7 +8,14 @@ const packageJsonPath = join(appRoot, "package.json");
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 const strict = process.argv.includes("--strict");
 
-const requiredScripts = ["android", "ios", "windows", "build", "test"];
+const requiredScripts = [
+  "android",
+  "ios",
+  "windows",
+  "windows:check",
+  "build",
+  "test",
+];
 const missingScripts = requiredScripts.filter(
   (script) => !packageJson.scripts?.[script],
 );

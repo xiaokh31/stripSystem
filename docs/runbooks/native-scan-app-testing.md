@@ -596,3 +596,64 @@ Native device packaging checks now follow P6-MOBILE-08 through P6-MOBILE-12:
 Android can be built from `apps/mobile-scan-app/android`; iOS has a generated
 Xcode workspace and device smoke evidence; Windows still requires its generated
 React Native Windows project before MSIX device acceptance.
+
+## P6-MOBILE-13 Windows MSIX Release Completion
+
+Purpose:
+- Complete or explicitly block the Windows MSIX release gate.
+- Use a Windows 11 build machine with Visual Studio 2022, Windows SDK, MSIX
+  packaging tools, and a trusted signing certificate.
+- Keep Android/iOS pilot readiness unchanged while Windows remains blocked.
+
+Automated checks from any host:
+
+```bash
+pnpm --filter mobile-scan-app lint
+pnpm --filter mobile-scan-app typecheck
+pnpm --filter mobile-scan-app test
+pnpm --filter mobile-scan-app package:check
+pnpm --filter mobile-scan-app package:check -- --strict
+pnpm --filter mobile-scan-app windows:check
+git diff --check
+```
+
+Expected result on this macOS checkout until Windows artifacts are generated:
+
+- `package:check` exits successfully and reports Windows blocked.
+- `package:check -- --strict` exits non-zero because Windows generated markers
+  are missing.
+- `windows:check` exits non-zero because it is not running on Windows and
+  `.sln` / `.vcxproj` / `Package.appxmanifest` are missing.
+
+Windows 11 build-machine acceptance:
+
+1. Generate or restore React Native Windows with the pinned dependencies.
+2. Confirm `windows/*.sln`, `windows/**/*.vcxproj`, and
+   `windows/**/Package.appxmanifest` exist.
+3. Add `windows/BestarQrScanner/*.cs` to the generated project.
+4. Run `pnpm --filter mobile-scan-app package:check -- --strict`.
+5. Run `pnpm --filter mobile-scan-app windows:check`.
+6. Run `pnpm --filter mobile-scan-app windows`.
+7. Run `pnpm --filter mobile-scan-app windows -- --release --arch x64`.
+8. Package and sign MSIX through Visual Studio Publish or company CI.
+9. Record the artifact path and SHA-256 in
+   `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md`.
+
+Windows device smoke:
+
+1. Install the signed or test-signed MSIX on a Windows warehouse device.
+2. Configure the LAN API URL.
+3. Login with a real WAREHOUSE account.
+4. Open a real planned or in-progress load job.
+5. Submit one scanner-gun/manual pallet QR through the real scan API.
+6. Verify duplicate scan behavior comes from the backend.
+7. Verify app restart restores the token from Windows Credential Locker.
+8. Logout, restart, and verify the token is cleared.
+9. If Windows camera is required, scan a real QR through the Windows camera
+   module; otherwise record scanner-gun/manual input as the approved Windows
+   pilot mode.
+
+Known limitation:
+- P6-MOBILE-13 cannot be completed honestly on macOS. Completion requires the
+  Windows build-machine and device-smoke evidence above. Until then the correct
+  release decision is `windows msix release blocked`.

@@ -12,7 +12,8 @@
     "start": "react-native start",
     "test": "tsc -p tsconfig.test.json && node --test .test-output/__tests__/*.test.js",
     "typecheck": "tsc --noEmit --pretty false",
-    "windows": "react-native run-windows"
+    "windows": "react-native run-windows",
+    "windows:check": "node scripts/windows-msix-readiness.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
