@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText
 
 from worker_python.imports import ImportRegistry
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
@@ -66,6 +67,38 @@ def test_excel_report_writer_does_not_modify_template_file(tmp_path: Path) -> No
     )
 
     assert _sha256(DEFAULT_TEMPLATE_PATH) == before
+
+
+def test_excel_report_writer_preserves_palletizing_standards_rich_text(
+    tmp_path: Path,
+) -> None:
+    parsed, pallet_result = _parsed_and_pallets(STANDARD_FIXTURE, tmp_path)
+    result = write_excel_report(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, rich_text=True)
+    generated = load_workbook(result.outputPath, rich_text=True)
+    try:
+        template_sheet = template["Sheet1"]
+        generated_sheet = generated["Sheet1"]
+        template_value = template_sheet["C21"].value
+        generated_value = generated_sheet["C21"].value
+        assert isinstance(template_value, CellRichText)
+        assert isinstance(generated_value, CellRichText)
+        assert str(generated_value) == str(template_value)
+        assert str(generated_value).endswith("when stored.")
+        assert len(generated_value) == len(template_value)
+        assert "C21:I25" in {str(item) for item in generated_sheet.merged_cells.ranges}
+        assert generated_sheet.page_setup.paperSize == template_sheet.page_setup.paperSize
+        assert generated_sheet.page_setup.orientation == template_sheet.page_setup.orientation
+        assert generated_sheet.page_setup.scale == template_sheet.page_setup.scale
+    finally:
+        template.close()
+        generated.close()
 
 
 def test_excel_report_writer_records_generated_report(tmp_path: Path) -> None:

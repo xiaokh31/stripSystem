@@ -1225,6 +1225,13 @@
               <td>生产试点使用真实拆柜记录执行一次受控的多目的仓、人工消库存和扫码装车业务 smoke；本次未写入或伪造业务库存数据。</td>
             </tr>
             <tr>
+              <td>UNLOAD-REPORT-01 Palletizing Standards Rich Text Print Clipping Regression</td>
+              <td><span class="badge risk">Open</span></td>
+              <td>Field Report / Print Regression</td>
+              <td>已确认模板 `C21:I25` 使用 11pt 标题和 10pt Arial/宋体正文 rich text runs；当前 openpyxl 默认 load/save 将其扁平化为单一 11pt 字体，导致生成报告在 Excel 和打印中显示不全。merge、row/column dimensions、A4 landscape、78% scale 和 margins 并未丢失，因此不得用盲目改打印比例代替 rich-text 保真修复。</td>
+              <td>业务 Agent 必须保留模板 rich runs，完成 package-level、真实 Worker/API 下载、Docker LibreOffice PDF/PNG 逐图视觉检查及 Microsoft Excel Print Preview/Print to PDF。缺任一打印证据不得标记 Done。</td>
+            </tr>
+            <tr>
               <td>UNLOAD-WAGE-13 Auto Collapse Completed Container Wage Section</td>
               <td><span class="badge done">Done</span></td>
               <td>Container Detail UX / i18n / Regression Complete</td>

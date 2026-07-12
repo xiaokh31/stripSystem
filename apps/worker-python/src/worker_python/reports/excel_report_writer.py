@@ -104,7 +104,8 @@ def write_excel_report(
     output_path = output_dir / f"{_safe_filename(container_no)}卸柜报告-En.xlsx"
     manifest_path = output_dir / REPORT_MANIFEST_FILENAME
 
-    workbook = load_workbook(template_path)
+    # Preserve every untouched rich-text template cell when saving the report.
+    workbook = load_workbook(template_path, rich_text=True)
     try:
         worksheet = workbook[SHEET_NAME]
         _write_header(
