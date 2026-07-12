@@ -62,11 +62,13 @@
 
 在本仓库执行已指定 Task 时，使用 `scripts/run-business-agent.sh` 启动 Codex；首次使用先执行
 `scripts/install-business-agent-profile.sh`。launcher 固定选择 `business-agent` profile、当前仓库 root、
-继承 `:workspace` 的 sandbox、`never` approval 和 `/private/tmp` 测试目录，且拒绝调用方覆盖这些边界。
+`danger-full-access` sandbox 和 `never` approval，且拒绝调用方覆盖这些设置。profile 更新后必须退出旧会话，
+运行 `scripts/install-business-agent-profile.sh --replace`，再通过 launcher 新建会话；恢复旧会话不会重新加载权限。
 
-该 profile 仅在显式选择时生效，不修改默认 Agent 或其他仓库的配置。它不使用
-`danger-full-access`，也不能绕过宿主或企业管理的 sandbox、网络、凭据和强制 approval。项目
-`.codex/execpolicy.rules` 会拒绝破坏性 Git、递归删除、发布、远程基础设施、高风险 Docker 命令以及直接在宿主机运行的开发工具命令。
+该 profile 仅在显式选择时生效，不修改默认 Agent 或其他仓库的配置。`danger-full-access` 会取消 Codex
+操作系统级工作区隔离，因此只能在本项目专用的可信本地开发环境使用；工作范围仍严格限定当前 Task 和仓库。
+项目 `.codex/execpolicy.rules` 会拒绝破坏性 Git、递归删除、发布、远程基础设施、高风险 Docker 命令以及
+直接在宿主机运行的开发工具命令。宿主或企业强制的凭据、外部动作和管理策略仍可能构成不可绕过的边界。
 
 ## 当前执行顺序
 

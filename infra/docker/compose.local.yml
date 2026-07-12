@@ -177,6 +177,24 @@ services:
       retries: 10
       start_period: 30s
 
+  e2e-web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web-e2e.Dockerfile
+    image: bestar_web_e2e_local:latest
+    working_dir: /workspace
+    depends_on:
+      nginx:
+        condition: service_healthy
+    environment:
+      CI: "true"
+      E2E_BASE_URL: http://nginx
+      E2E_ADMIN_EMAIL: ${E2E_ADMIN_EMAIL:-}
+      E2E_ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-}
+    volumes:
+      - ../../test-results:/workspace/apps/web/test-results
+    profiles: ["e2e"]
+
 volumes:
   bestar_postgres_data:
   bestar_pnpm_store:

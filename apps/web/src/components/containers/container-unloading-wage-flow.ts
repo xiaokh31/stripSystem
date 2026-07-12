@@ -62,6 +62,13 @@ export interface InventorySyncResult {
   }>;
 }
 
+/** Completed unloading stays collapsed even when later loading changes container status. */
+export function isUnloadingWageSectionInitiallyExpanded(
+  completedAt: string | null | undefined,
+): boolean {
+  return !completedAt;
+}
+
 /** Uses the completion API summary only; it never derives inventory remaining. */
 export function summarizeInventorySync(
   inventorySync: ContainerPalletInventorySyncSummaryResponse[] | null | undefined,

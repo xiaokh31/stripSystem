@@ -124,6 +124,54 @@ test("operations dashboard stays within the page viewport on desktop and mobile"
   }
 });
 
+test("lifecycle dock strip keeps English and Chinese lanes aligned", async ({
+  page,
+  request,
+}) => {
+  await loginThroughApi(page, request);
+  for (const [locale, heading] of [
+    ["en", "Operations dashboard"],
+    ["zh-CN", "运营中控台"],
+  ] as const) {
+    for (const viewport of [
+      { height: 844, width: 390 },
+      { height: 1024, width: 768 },
+      { height: 768, width: 1366 },
+      { height: 1080, width: 1920 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/");
+      if (locale === "zh-CN") await switchToChinese(page);
+      await expectDashboardChrome(page, heading);
+      const strip = page.locator(".lifecycle-dock-strip");
+      await expect(strip).toBeVisible();
+      await assertLifecycleLaneGeometry(page);
+      await strip.screenshot({
+        path: `test-results/dashboard-lifecycle-${locale}-${viewport.width}x${viewport.height}.png`,
+      });
+    }
+  }
+
+  await page.setViewportSize({ height: 768, width: 1366 });
+  await page.goto("/");
+  for (const theme of ["Light theme", "Dark theme"] as const) {
+    await page.getByRole("button", { name: theme }).click();
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      theme === "Light theme" ? "light" : "dark",
+    );
+    for (const scale of [1.25, 2]) {
+      const session = await page.context().newCDPSession(page);
+      await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: scale });
+      await assertLifecycleLaneGeometry(page);
+      await page.locator(".lifecycle-dock-strip").screenshot({
+        path: `test-results/dashboard-lifecycle-en-${theme.startsWith("Light") ? "light" : "dark"}-1366x768-${scale}x.png`,
+      });
+      await session.detach();
+    }
+  }
+});
+
 async function assertAdminDashboard(page: Page): Promise<void> {
   await page.goto("/");
   await expectDashboardChrome(page, "Operations dashboard");
@@ -276,4 +324,33 @@ async function hasPageLevelHorizontalOverflow(page: Page): Promise<boolean> {
     const root = document.documentElement;
     return root.scrollWidth > root.clientWidth + 4;
   });
+}
+
+async function assertLifecycleLaneGeometry(page: Page): Promise<void> {
+  const result = await page.locator(".lifecycle-dock-strip > div").evaluate((strip) => {
+    const lanes = [...strip.children].map((lane) => {
+      const rect = lane.getBoundingClientRect();
+      const label = lane.querySelector("p:nth-of-type(2)") as HTMLElement | null;
+      const bar = lane.querySelector("div.h-3") as HTMLElement | null;
+      const ratio = lane.querySelector("p:last-child") as HTMLElement | null;
+      return {
+        bottom: rect.bottom,
+        label: label?.getBoundingClientRect(),
+        ratio: ratio?.getBoundingClientRect(),
+        top: rect.top,
+        bar: bar?.getBoundingClientRect(),
+      };
+    });
+    return { lanes, scrollWidth: strip.scrollWidth, width: strip.clientWidth };
+  });
+  expect(result.lanes).toHaveLength(7);
+  const first = result.lanes[0]!;
+  for (const lane of result.lanes) {
+    expect(Math.abs(lane.top - first.top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(lane.bottom - first.bottom)).toBeLessThanOrEqual(1);
+    expect(lane.label!.right).toBeLessThanOrEqual(lane.bar!.right + 1);
+    expect(lane.bar!.top).toBeCloseTo(first.bar!.top, 0);
+    expect(lane.ratio!.top).toBeCloseTo(first.ratio!.top, 0);
+  }
+  expect(result.scrollWidth).toBeGreaterThan(0);
 }

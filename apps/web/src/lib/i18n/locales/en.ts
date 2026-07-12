@@ -1832,6 +1832,8 @@ export const enMessages = {
   "i18n.inventorySync.actualPallets": "Actual pallets",
   "i18n.inventorySync.createdPallets": "New pallets",
   "i18n.inventorySync.reusedPallets": "Existing labels",
+  "Collapse unloading wage section": "Collapse unloading wage section",
+  "Expand unloading wage section": "Expand unloading wage section",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

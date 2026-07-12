@@ -24,9 +24,9 @@ export function DashboardPanel({
   return (
     <section className="dashboard-panel min-w-0 border border-[var(--line-soft)] bg-[var(--panel-surface)] shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--line-soft)] px-4 py-3">
-        <div>
+        <div className="min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-semibold uppercase text-[var(--seal-teal)]">
+            <p className="text-xs font-semibold text-[var(--seal-teal)]">
               {eyebrow}
             </p>
           ) : null}
@@ -34,7 +34,7 @@ export function DashboardPanel({
             {title}
           </h2>
         </div>
-        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+        {actions ? <div className="flex min-w-0 flex-wrap gap-2">{actions}</div> : null}
       </div>
       <div className="p-4">{children}</div>
     </section>
@@ -56,15 +56,15 @@ export function MetricTile({
 }) {
   const content = (
     <>
-      <p className="text-xs font-semibold uppercase text-zinc-500">{label}</p>
-      <p className="font-control mt-2 text-3xl font-semibold leading-none text-[var(--ink)]">
+      <p className="text-xs font-semibold text-zinc-500">{label}</p>
+      <p className="font-control mt-2 text-3xl font-semibold leading-tight text-[var(--ink)]">
         {value}
       </p>
       {detail ? <p className="mt-2 text-sm text-zinc-600">{detail}</p> : null}
     </>
   );
   const className = [
-    "metric-tile block min-h-28 border-l-4 bg-[var(--panel-muted)] p-4 transition-colors",
+    "metric-tile block min-h-28 min-w-0 border-l-4 bg-[var(--panel-muted)] p-4 transition-colors",
     toneBorderClass(tone),
     href ? "hover:bg-white" : "",
   ].join(" ");
@@ -96,7 +96,7 @@ export function StatusPill({
   return (
     <span
       className={[
-        "status-pill inline-flex min-h-7 items-center gap-1 border px-2.5 text-xs font-semibold uppercase",
+        "status-pill inline-flex min-h-7 max-w-full items-center gap-1 border px-2.5 text-xs font-semibold leading-5 whitespace-normal",
         tonePillClass(tone),
       ].join(" ")}
       data-tone={tone}
@@ -125,8 +125,8 @@ export function ProgressBar({
 
   return (
     <div className="progress-bar">
-      <div className="mb-1 flex items-center justify-between gap-3 text-xs font-medium text-zinc-600">
-        <span>{label}</span>
+      <div className="mb-1 flex items-start justify-between gap-3 text-xs font-medium text-zinc-600">
+        <span className="min-w-0">{label}</span>
         <span className="font-data" data-i18n-ignore="true">
           {safeValue}/{safeMax}
         </span>
@@ -181,8 +181,8 @@ export function DockLaneStrip({
           const laneContent = (
             <div className="flex h-full min-h-32 flex-col gap-3 border-r border-[var(--line-soft)] p-3 last:border-r-0">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-zinc-500">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-zinc-500">
                     {t("Dock")}
                   </p>
                   <p
@@ -199,13 +199,13 @@ export function DockLaneStrip({
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600">
                 <div>
-                  <p className="font-semibold uppercase text-zinc-500">{t("Truck")}</p>
+                  <p className="font-semibold text-zinc-500">{t("Truck")}</p>
                   <p className="font-data mt-1" data-i18n-ignore="true">
                     {lane.truckNo}
                   </p>
                 </div>
                 <div>
-                  <p className="font-semibold uppercase text-zinc-500">
+                  <p className="font-semibold text-zinc-500">
                     {t("Remaining")}
                   </p>
                   <p className="font-data mt-1" data-i18n-ignore="true">
@@ -266,22 +266,22 @@ export function LifecycleDockStrip({
       aria-label={ariaLabel ?? t("Dock lane strip")}
       className="lifecycle-dock-strip overflow-x-auto border border-[var(--line-soft)] bg-[var(--panel-surface)]"
     >
-      <div className="grid min-w-[860px] grid-flow-col auto-cols-fr">
+      <div className="grid min-w-[980px] grid-flow-col auto-cols-fr">
         {lanes.map((lane, index) => {
           const percent = safeTotal > 0 ? (lane.count / safeTotal) * 100 : 0;
 
           return (
             <Link
-              className="group relative block min-h-36 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)]"
+              className="group relative grid min-h-40 h-full grid-rows-[minmax(4.5rem,1fr)_0.75rem_1rem] gap-3 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)]"
               href={lane.href}
               key={lane.code}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
                   <p className="font-data text-xs font-semibold text-zinc-500">
                     {String(index + 1).padStart(2, "0")}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-[var(--ink)]">
+                  <p className="mt-2 text-sm font-semibold leading-5 text-[var(--ink)]">
                     {lane.label}
                   </p>
                 </div>
@@ -290,7 +290,7 @@ export function LifecycleDockStrip({
                   tone={lane.tone ?? "neutral"}
                 />
               </div>
-              <div className="mt-6 h-3 border border-[var(--line-soft)] bg-white">
+              <div className="h-3 self-end border border-[var(--line-soft)] bg-white">
                 <div
                   className={[
                     "h-full transition-[width] group-hover:brightness-95",
@@ -299,7 +299,7 @@ export function LifecycleDockStrip({
                   style={{ width: `${percent}%` }}
                 />
               </div>
-              <p className="font-data mt-3 text-xs text-zinc-500">
+              <p className="font-data text-xs leading-4 text-zinc-500">
                 {lane.count}/{safeTotal}
               </p>
             </Link>

@@ -4,6 +4,7 @@ import {
   buildContainerUnloadersRequest,
   buildContainerUnloadingCompletionRequest,
   buildContainerUnloadingWageSaveRequest,
+  isUnloadingWageSectionInitiallyExpanded,
   parseAssociatedContainerNos,
   summarizeInventorySync,
   unloaderDraftsFromContainer,
@@ -293,6 +294,18 @@ test("inventory completion summary uses API active totals and never derives rema
     },
   );
   assert.equal(summarizeInventorySync(undefined), null);
+});
+
+test("completed unloading wage sections default closed from completedAt, not container lifecycle", () => {
+  assert.equal(isUnloadingWageSectionInitiallyExpanded(null), true);
+  assert.equal(
+    isUnloadingWageSectionInitiallyExpanded("2026-07-12T18:30:00.000Z"),
+    false,
+  );
+  assert.equal(
+    isUnloadingWageSectionInitiallyExpanded("2026-07-12T18:30:00.000Z"),
+    false,
+  );
 });
 
 function containerRecord(

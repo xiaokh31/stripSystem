@@ -1714,4 +1714,6 @@ export const zhMessages = {
   "i18n.inventorySync.actualPallets": "实际托盘",
   "i18n.inventorySync.createdPallets": "新建托盘",
   "i18n.inventorySync.reusedPallets": "沿用标签",
+  "Collapse unloading wage section": "收起拆柜工资信息",
+  "Expand unloading wage section": "展开拆柜工资信息",
 } satisfies Record<MessageKey, string>;

@@ -93,7 +93,7 @@
    - 已完成。移除 source-string 反向翻译和 DOM 后处理路径；AST 门禁直接拒绝原始 `<th>File</th>`、`placeholder="Select reason"`、`setError("Save failed")`，只接受显式 `t(...)`，并对具名 `MessageKey` 组件边界及 `data-i18n-ignore` 技术诊断做窄范围豁免。删除全局 loading boundary，使 no-JS SSR 直接输出完整内容而非用 opacity/body hidden 回避首帧。Docker full-stack Playwright 在 desktop/mobile 覆盖登录和 17 条主业务路由的 en/zh-CN no-JS SSR、中文首帧/hydration、Light/Dark 持久化与 client navigation；无 hydration mismatch、console warning 或 MutationObserver 循环。真实本地 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER role smoke 通过，未创建/重置账号。Web lint/typecheck、186 项 unit tests、`git diff --check`、Docker production build/health 通过；宿主机直接 build 仍仅受缺失 `lightningcss.darwin-x64.node` 可选依赖阻断。
 
 29. AGENT-AUTONOMY-01Business Agent Non Interactive Execution.md
-   - 已完成。实际 Codex CLI `0.144.1` 已安装 `~/.codex/business-agent.config.toml`，其命名 permission profile 继承 `:workspace`、使用 `approval_policy = "never"` 并按宿主能力启用依赖网络。`scripts/run-business-agent.sh` 固定该 profile 和当前仓库 root，拒绝调用方覆盖 profile/sandbox/approval/rules；`.codex/execpolicy.rules` 拒绝破坏性 Git、递归删除、发布、远程基础设施和高风险 Docker 命令。安装器以 `600` 权限写入 profile，且拒绝覆盖不同的本地配置。host-level capability smoke 已通过：读文件、`/private/tmp` 写删、ESLint help、`docker compose ps`、危险命令拒绝均无业务副作用。当前受管 Seatbelt 内不能嵌套 `sandbox-exec`，但在普通宿主层运行同一 smoke 已通过；这是平台嵌套限制，不是 profile 失效。
+   - 已完成并于 2026-07-12 修正。旧版 `approval_policy = "never"` + `:workspace` 只禁止提问但没有授予 Docker socket 等能力。canonical/installed profile 与 `scripts/run-business-agent.sh` 现固定 `sandbox_mode = "danger-full-access"`、`--sandbox danger-full-access`、`--ask-for-approval never` 和当前仓库 root；launcher 会拒绝 stale profile 及调用方覆盖。`.codex/execpolicy.rules` 继续拒绝破坏性 Git、递归删除、发布、远程基础设施、高风险 Docker 和宿主开发工具命令。修正后的 host-level capability smoke 已覆盖 `/private/tmp` 写删、Docker Compose、ESLint help、stale/override 拒绝和 execpolicy allow/deny，并全部通过。更新后必须安装 profile 并新建会话，恢复旧会话不会加载新权限。
 30. UNLOAD-INVENTORY-01Unloaded Container Pallet Inventory Synchronization.md
    - 已完成。新增共享 `ContainerPalletInventorySyncService`、container/destination/pallet row lock 与统一 pallet ID/QR builder；办公室 `UNLOADED` 状态更新、container detail 拆柜工资完成和 pay container 完成均在同一事务先按每个目的仓 `finalPallets` 对账 Pallet rows，再写完成状态/审计。安全 PLANNED/LABEL_PRINTED 托盘保留 identity/history，缺少记录补建并写 CREATED event，安全 surplus 写 CANCELLED event；loading/loaded/adjusted/exception surplus 以稳定冲突码整体拒绝。库存保留历史 `totalPallets`，新增 `activeTotalPallets`，Web Dashboard/containers/inventory report 改用 active total。2026-07-12 API typecheck、25 unit suites / 174 tests、15 E2E suites / 92 tests、scoped API ESLint、Web typecheck/186 unit tests、Docker Web lint/production build 和 authenticated nginx API smoke 均通过；Docker smoke 仅读取现有记录，未修改业务数据。
 
@@ -101,27 +101,29 @@
    - 已完成。新增固定 allowlist 的 `scripts/cleanup-host-dev-dependencies.sh`，在 dry-run 中记录 path/realpath/type/size/mtime，`--apply` 只删除 root、API、Web 三个仓库内 host `node_modules`，不会触及 `storage/`、`.git`、样例、数据库备份或 Docker volumes。宿主三路径现均为 absent，`.env`、业务 Agent 文件和 shell startup 中没有持久 `NODE_ENV`、`QUEUE_ENABLED`、`JEST_*` 覆盖，原有 Jest/ts-jest、lockfile 和 E2E setup 保留。为避免 Docker Desktop 重叠 bind mount 把依赖重新写回 host，API/Web/worker 改为在 build 时复制源码，运行时仅 bind-mount真实 `storage/`；Node、pnpm、worker venv、Web `.next` 继续为 named volumes，新增 worker image 的 WeasyPrint 系统库和根 `.dockerignore` 排除移动端本机缓存。2026-07-12 Docker full stack/health、API Jest target unit（4）、Web lint/typecheck/186 unit、worker 112 pytest（232.13s）、Prisma migrate status、execpolicy allow/deny smoke 与 `git diff --check` 均通过。
 
 当前仓库可继续执行的优先项：
-1. UNLOAD-INVENTORY-02Unloaded Inventory Web Refresh and Regression.md
+1. WEB-DASHBOARD-06Dock Lane Strip English Layout Visual E2E Regression.md
+   - 新增现场 P0 回归。English `Dock lane strip` 的 lifecycle lane 仍错位；必须修复 `LifecycleDockStrip`，并在 Docker Chromium 中完成 en/zh、light/dark、390/768/1366/1920、125%/200% zoom 的截图、bounding-box、overflow 和人工逐图浏览门禁。未提供真实 E2E 视觉证据不得关闭。
+2. UNLOAD-INVENTORY-02Unloaded Inventory Web Refresh and Regression.md
    - 完成拆柜后刷新柜子详情、目的仓库存、Dashboard 和库存报告，验证 active total、loaded、adjusted、remaining 一致以及 scan、duplicate、manual depletion 回归。
-2. UNLOAD-WAGE-13Auto Collapse Completed Container Wage Section.md
+3. UNLOAD-WAGE-13Auto Collapse Completed Container Wage Section.md
    - 未完成默认展开；成功标记已拆完后自动收起，后续 loading/loaded 仍按 completedAt 默认收起，可手动展开并显示紧凑完成或复核摘要。
-3. WEB-DASHBOARD-05Bilingual Typography and Layout Regression.md
+4. WEB-DASHBOARD-05Bilingual Typography and Layout Regression.md
    - 移除 Dashboard 对 condensed font 的隐式依赖，修复中英文字体拉伸和 English 长文案错位，覆盖 light/dark、四类视口、200% zoom 与 bounding-box/截图回归。
-4. NATIVE-AUTH-01Revocable Persistent Native Session.md
+5. NATIVE-AUTH-01Revocable Persistent Native Session.md
    - Native secure store 当前能跨重启保存 JWT，但仍会在默认约 400 天后过期；新增可轮换、可撤销的长期 Native refresh session，实现不主动退出时静默续期，同时保留账号禁用、权限更新和设备撤销能力。
-5. NATIVE-UX-06Android App Header Title Clipping Regression.md
+6. NATIVE-UX-06Android App Header Title Clipping Regression.md
    - 部分完成。共享 native header 已让品牌区占用可收缩剩余宽度并最多两行显示，Settings 保持 44px 触控区。2026-07-11 MI 8 SE Release 真机浅色 English 已验证 `BESTAR SCAN` 完整显示，UI hierarchy 标题 bounds 为 `[55,181][871,231]`，Settings accessibility control bounds 为 `[904,146][1025,267]`，无裁剪或重叠。mobile lint/typecheck 与 46 项 unit tests 通过。中文、font scale 1.3/2.0、dark、iOS/Windows 对照尚未采集，故不得标记全矩阵完成。
-6. CROSS-UX-QA-01Persistent Session Theme Locale Regression.md
+7. CROSS-UX-QA-01Persistent Session Theme Locale Regression.md
    - 部分完成。2026-07-11 API lint/typecheck/unit 与非沙箱 E2E（15 suites / 91 tests）、Web lint/typecheck/unit/build、native lint/typecheck/unit 已通过。WEB-I18N-04/05/06 已完成共享首屏、业务模块显式翻译和完整 Web locale x theme/role 无闪烁 gate；NATIVE-AUTH-01 可撤销 refresh session，以及 Android/iOS/Windows 实机矩阵仍待完成。
-7. NATIVE-UX-05System Adaptive Color Theme.md
+8. NATIVE-UX-05System Adaptive Color Theme.md
    - 在 Android 系统设置采集 light 与运行中切换证据；再在 iOS/Windows 完成系统主题切换、native scanner/chrome、locale x theme 证据。
-8. NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md
+9. NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md
    - 在同一 Android/iOS release 实机各记录五次冷启动中位数和 Login/Bay Board/Scan/Offline/Settings 双语证据；在 Windows 11 完成 RNW/MSIX/设备 smoke 后关闭跨平台 gate。
-9. P6-MOBILE-13Windows MSIX Release Completion.md
+10. P6-MOBILE-13Windows MSIX Release Completion.md
    - 在 Windows 11 构建机生成 RNW project、打包 MSIX 并完成 Windows 设备 smoke，关闭完整三端 release gate。
-10. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
+11. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
    - 等待业务提供真实私人/商业地址 Excel 后执行 pilot verification。
-11. P5-PILOT-01Windows Target Deployment Verification.md
+12. P5-PILOT-01Windows Target Deployment Verification.md
    - 在目标 Windows 11 主机完成 Docker full-stack、真实业务 smoke、备份恢复和告警验收。
 
 Pilot 前必须验收：
@@ -155,9 +157,10 @@ Deferred，按现场反馈再执行：
 - 柜子库存人工消库存：完成；INVENTORY-ADJUST-01 至 03 已覆盖 API/RBAC/audit/统计、Web/i18n 与 Docker full-stack regression。
 
 给业务开发 agent 的建议执行顺序：
-1. 后续 Task 都从 `scripts/run-business-agent.sh` 启动，且安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. 库存线继续执行 UNLOAD-INVENTORY-02；其后可并行 UNLOAD-WAGE-13。
-3. 再执行 WEB-DASHBOARD-05，基于已验证的双语输出做布局验收。
-4. API/Auth 可并行 NATIVE-AUTH-01；Native UI 继续补 NATIVE-UX-05/06 实机证据。
-5. 将 NATIVE-UX-04、05、06 和 P6-MOBILE-13 的 Windows 实机证据合并验证。
-6. 并行准备真实私人/商业地址样本完成 UNLOAD-PALLET-04；上线前执行 P5-PILOT-01。
+1. 后续 Task 都先安装最新 business-agent profile，再从 `scripts/run-business-agent.sh` 新建会话；不要恢复旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
+2. 立即执行 WEB-DASHBOARD-06；只有 Docker Playwright 全矩阵、截图逐张浏览和几何断言全部通过后，才能关闭该任务。
+3. 用 WEB-DASHBOARD-06 的证据完成 WEB-DASHBOARD-05 剩余的双语布局验收。
+4. 库存线继续执行 UNLOAD-INVENTORY-02；其后可并行 UNLOAD-WAGE-13。
+5. API/Auth 可并行 NATIVE-AUTH-01；Native UI 继续补 NATIVE-UX-05/06 实机证据。
+6. 将 NATIVE-UX-04、05、06 和 P6-MOBILE-13 的 Windows 实机证据合并验证。
+7. 并行准备真实私人/商业地址样本完成 UNLOAD-PALLET-04；上线前执行 P5-PILOT-01。

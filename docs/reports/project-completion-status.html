@@ -1224,6 +1224,34 @@
               <td>container detail 的工资完成和办公室 UNLOADED 状态更新均消费 P1 API sync summary；成功后显示目的仓数量和实际 active pallet 总数，目的仓明细按需展开，remaining 不在前端推导。完成动作刷新当前详情页并通过浏览器事件、localStorage fallback 和 BroadcastChannel 刷新已打开的 Dashboard inventory pressure 与库存报表；冲突继续按稳定 API code 映射到中英文可行动提示，raw code 仅保留诊断展示。2026-07-12 Docker Web lint、typecheck、187 Web unit tests、Docker nginx /api/health 和 /login smoke、git diff --check 通过。</td>
               <td>生产试点使用真实拆柜记录执行一次受控的多目的仓、人工消库存和扫码装车业务 smoke；本次未写入或伪造业务库存数据。</td>
             </tr>
+            <tr>
+              <td>UNLOAD-WAGE-13 Auto Collapse Completed Container Wage Section</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Container Detail UX / i18n / Regression Complete</td>
+              <td>柜子详情的拆柜工资 section 以持久的 pay-container `completedAt` 判断默认状态：未完成时展开，已完成、后续装车中或已送库时收起；NEEDS_REVIEW 状态仍在紧凑 header 明确显示。成功标记已拆完后立即自动收起，失败或权限阻塞保持/恢复展开并聚焦提示；手动 chevron 操作不调用 API、不会丢失未保存 draft。header 保留分类、柜号或 Trailer、拆柜人数、完成时间和状态；中英文 aria-label/tooltip 已补齐。2026-07-12 Docker Web lint、typecheck、188 Web unit tests、git diff --check 通过。</td>
+              <td>使用真实 OFFICE 或 WAREHOUSE_MANAGER 账号进行一次完成柜子详情的键盘和窄屏视觉 smoke；本次未写入业务工资或库存数据。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-05 Bilingual Typography and Layout Regression</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>System Font and Responsive Component Pass Complete</td>
+              <td>Dashboard/Shell 普通控制字体已从 condensed fallback 改为 system UI sans stack，`.font-data` 保留 monospace/tabular numbers；普通 Dashboard 标签和状态 pill 不再强制 uppercase，panel、metric、status、progress 与 Shell header 增加可收缩和自然换行约束。2026-07-12 Docker Web lint、typecheck、API health 和 git diff --check 通过。</td>
+              <td>现场确认 English `Dock lane strip` 仍错位。立即执行 WEB-DASHBOARD-06；修复实际 `LifecycleDockStrip`，并补 Docker Playwright 390/768/1366/1920、en/zh light/dark、125%/200% zoom、截图逐张浏览和 bounding-box/computed-style 回归后关闭。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-06 Dock Lane Strip English Layout Visual E2E Regression</td>
+              <td><span class="badge risk">Open</span></td>
+              <td>Field Regression / Visual Browser Gate Required</td>
+              <td>English 下 lifecycle Dock Lane Strip 的长标签导致 lane 标题、数量、进度条或比例文本错位。任务要求修复首页实际使用的 `LifecycleDockStrip`，不得通过缩短翻译、raw code、隐藏 overflow 或缩小字体规避。</td>
+              <td>业务 Agent 必须在 Docker Chromium 中完成 en/zh、light/dark、四类 viewport、125%/200% zoom 的几何断言、截图和逐张人工视觉浏览；没有真实浏览器证据不得标记 Done。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>API and Native Source Implementation Present; Device Gate Pending</td>
+              <td>仓库已有 native auth session migration、仅存 SHA-256 refresh hash 的 session model、native login/refresh/logout/revoke-user API、rotation 和旧 refresh token replay 撤销；refresh 时重新读取 active 用户、角色和权限。Native secure store 已原子保存 access/refresh/session id，restore 在 access 失效后尝试 silent refresh，网络失败不会清空凭据，logout 先尽力撤销后本地清除。2026-07-12 Docker API typecheck 和 auth Jest 4 suites / 14 tests 通过。</td>
+              <td>补 API replay/revoke E2E、Native 单飞 refresh/请求重试回归，以及 Android/iOS/Windows secure-store 与 access-expiry 真机恢复矩阵后关闭。</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -1538,7 +1566,7 @@
             <tr>
               <td>AGENT-AUTONOMY-01 Business Agent Non-Interactive Execution</td>
               <td><span class="badge done">Done</span></td>
-              <td>实际 Codex CLI `0.144.1` 已安装 `~/.codex/business-agent.config.toml`；命名 `business-agent` permission profile 继承 `:workspace`、使用 `approval_policy = never` 并按宿主能力允许依赖网络。`scripts/run-business-agent.sh` 固定 profile 与本仓库 root，拒绝 sandbox/approval/profile/rules 覆盖；`.codex/execpolicy.rules` 拒绝破坏性 Git、递归删除、发布、远程基础设施和高风险 Docker 命令。安装器以 mode `600` 写入 profile 且拒绝覆盖不同本地配置。2026-07-11 host-level capability smoke 已通过：读文件、`/private/tmp` 写删、ESLint help、`docker compose ps` 与危险命令拒绝均无业务副作用。当前受管 Seatbelt 内不能嵌套 `sandbox-exec`，但普通宿主层同一 smoke 已通过；这是平台嵌套限制，不是 profile 失效。</td>
+              <td>2026-07-12 已修正旧版 `approval_policy = never` + `:workspace` 仍缺少 Docker socket 等能力的问题。canonical/installed `business-agent` profile 与 `scripts/run-business-agent.sh` 现固定 `danger-full-access`、`never` approval 和本仓库 root；launcher 拒绝 stale profile 以及 sandbox/approval/profile/rules 覆盖。`.codex/execpolicy.rules` 继续拒绝破坏性 Git、递归删除、发布、远程基础设施、高风险 Docker 和宿主开发工具命令。修正后的 host-level capability smoke 已覆盖 `/private/tmp` 写删、Docker Compose、ESLint help、stale/override 拒绝和 execpolicy allow/deny，并全部通过。更新后必须安装 profile 并新建会话，恢复旧会话不会加载新权限；宿主强制的凭据、外部动作和企业策略仍是不可绕过边界。</td>
             </tr>
             <tr>
               <td>WEB-THEME-01 Office Web Light / Dark / System Theme</td>
@@ -1555,7 +1583,7 @@
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>DOCKER-DEV-01 已完成：不要运行宿主 `pnpm`、Jest、Prisma 或 `uv` 开发命令；源码变更后用 Docker Compose rebuild，保持 host root/API/Web `node_modules` 为空。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
-          <li>AGENT-AUTONOMY-01 已完成；后续已指定业务 Task 从 `scripts/run-business-agent.sh` 启动，宿主强制 sandbox、凭据、外部发布和生产部署边界仍必须保留。</li>
+          <li>AGENT-AUTONOMY-01 已修正；先安装最新 profile，再从 `scripts/run-business-agent.sh` 新建业务 Agent 会话，不要恢复旧权限会话。项目 execpolicy 及宿主强制的凭据、外部发布和生产部署边界仍必须保留。</li>
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>

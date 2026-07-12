@@ -23,6 +23,12 @@ if [[ ! -f "${source_profile}" ]]; then
   exit 1
 fi
 
+if ! grep -Fqx 'approval_policy = "never"' "${source_profile}" || \
+   ! grep -Fqx 'sandbox_mode = "danger-full-access"' "${source_profile}"; then
+  printf 'Canonical business-agent profile must use approval_policy=never and sandbox_mode=danger-full-access.\n' >&2
+  exit 1
+fi
+
 mkdir -p "${codex_home}"
 
 if [[ -e "${target_profile}" ]] && ! cmp -s "${source_profile}" "${target_profile}"; then
@@ -33,6 +39,10 @@ if [[ -e "${target_profile}" ]] && ! cmp -s "${source_profile}" "${target_profil
 fi
 
 install -m 600 "${source_profile}" "${target_profile}"
-codex --strict-config --profile business-agent --version >/dev/null
+codex --strict-config \
+  --profile business-agent \
+  --sandbox danger-full-access \
+  --ask-for-approval never \
+  --version >/dev/null
 
 printf 'Installed and validated Codex business-agent profile at %s\n' "${target_profile}"

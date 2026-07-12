@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ContainerInventorySyncResult } from "@/components/containers/container-inventory-sync-result";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { publishInventorySyncRefresh } from "@/components/inventory/inventory-sync-refresh";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
 import { createTranslator } from "@/lib/i18n/translator";
+import { formatOperationalDateTime } from "@/lib/date-time";
 import {
   buildContainerUnloadersRequest,
   buildContainerUnloadingCompletionRequest,
@@ -27,6 +28,7 @@ import {
   completionDraftFromContainer,
   completionStatusLabel,
   emptyContainerUnloaderDraft,
+  isUnloadingWageSectionInitiallyExpanded,
   rateRuleLabel,
   unloaderDraftsFromContainer,
   wageDraftFromContainer,
@@ -100,6 +102,10 @@ export function ContainerUnloadingWagePanel({
     ContainerPalletInventorySyncSummaryResponse[] | null
   >(null);
   const wage = container.unloadingWage;
+  const [isExpanded, setIsExpanded] = useState(() =>
+    isUnloadingWageSectionInitiallyExpanded(wage?.completedAt),
+  );
+  const completionMessageRef = useRef<HTMLDivElement>(null);
   const isTransfer = wageDraft.classification === "US_TO_CANADA_TRANSFER";
 
   useEffect(() => {
@@ -178,6 +184,12 @@ export function ContainerUnloadingWagePanel({
     value: ContainerUnloadingCompletionDraft[K],
   ) {
     setCompletionDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function revealCompletionError(state: ActionState) {
+    setCompletionState(state);
+    setIsExpanded(true);
+    window.setTimeout(() => completionMessageRef.current?.focus(), 0);
   }
 
   async function saveWage() {
@@ -345,7 +357,7 @@ export function ContainerUnloadingWagePanel({
       locale,
     );
     if (!request.ok) {
-      setCompletionState({
+      revealCompletionError({
         code: null,
         message: request.error,
         status: "error",
@@ -376,10 +388,11 @@ export function ContainerUnloadingWagePanel({
         message: t("Saved. Refreshing from API."),
         status: "success",
       });
+      setIsExpanded(false);
       publishInventorySyncRefresh();
       router.refresh();
     } catch (error) {
-      setCompletionState(toActionError(error, locale));
+      revealCompletionError(toActionError(error, locale));
     }
   }
 
@@ -394,16 +407,42 @@ export function ContainerUnloadingWagePanel({
             {wage?.payContainerNo ?? t("Unsaved pay unit")}
           </p>
         </div>
-        <span
-          className={`inline-flex min-h-8 items-center border px-3 text-sm font-semibold ${completionBadgeStyles(
-            wage?.status ?? null,
-          )}`}
-        >
-          {completionStatusLabel(wage?.status ?? null, locale)}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex min-h-8 items-center border px-3 text-sm font-semibold ${completionBadgeStyles(
+              wage?.status ?? null,
+            )}`}
+          >
+            {completionStatusLabel(wage?.status ?? null, locale)}
+          </span>
+          <button
+            aria-controls={`container-unloading-wage-${container.id}`}
+            aria-expanded={isExpanded}
+            aria-label={
+              isExpanded
+                ? t("Collapse unloading wage section")
+                : t("Expand unloading wage section")
+            }
+            className="inline-flex size-11 items-center justify-center border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-teal-700"
+            onClick={() => setIsExpanded((expanded) => !expanded)}
+            title={
+              isExpanded
+                ? t("Collapse unloading wage section")
+                : t("Expand unloading wage section")
+            }
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2.5 w-2.5 rotate-45 border-b-2 border-r-2 border-current transition-transform ${
+                isExpanded ? "-translate-y-0.5 rotate-[225deg]" : "translate-y-0.5"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
-      <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
+      <dl className="mt-5 grid gap-3 text-sm md:grid-cols-3 xl:grid-cols-5">
         <SummaryItem
           label={t("Wage tag")}
           value={classificationLabel(wage?.classification ?? null, locale)}
@@ -420,8 +459,14 @@ export function ContainerUnloadingWagePanel({
           label={t("Unloaders")}
           value={wage ? String(wage.unloaders.length) : "-"}
         />
+        <SummaryItem
+          label={t("Completed at")}
+          value={wage?.completedAt ? formatOperationalDateTime(wage.completedAt) : "-"}
+        />
       </dl>
 
+      {isExpanded ? (
+        <div id={`container-unloading-wage-${container.id}`}>
       {wage?.associatedContainers.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase text-zinc-500">
@@ -818,7 +863,9 @@ export function ContainerUnloadingWagePanel({
                 {t("Mark unloaded")}
               </button>
             </div>
-            <ActionMessage state={completionState} />
+            <div ref={completionMessageRef} tabIndex={-1}>
+              <ActionMessage state={completionState} />
+            </div>
             {completionState.status === "success" ? (
               <ContainerInventorySyncResult
                 inventorySync={completionInventorySync}
@@ -829,6 +876,8 @@ export function ContainerUnloadingWagePanel({
       ) : (
         <PermissionRequiredPanel />
       )}
+        </div>
+      ) : null}
     </section>
   );
 }

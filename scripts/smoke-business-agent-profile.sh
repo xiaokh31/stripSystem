@@ -6,6 +6,7 @@ project_root="$(cd -- "${script_dir}/.." && pwd)"
 launcher="${project_root}/scripts/run-business-agent.sh"
 rules="${project_root}/.codex/execpolicy.rules"
 inner_smoke="${project_root}/scripts/business-agent-capability-smoke-inner.sh"
+canonical_profile="${project_root}/.codex/business-agent.config.toml"
 
 if [[ $# -gt 1 || ( $# -eq 1 && "${1}" != '--policy-only' ) ]]; then
   printf 'Usage: %s [--policy-only]\n' "$0" >&2
@@ -13,9 +14,26 @@ if [[ $# -gt 1 || ( $# -eq 1 && "${1}" != '--policy-only' ) ]]; then
 fi
 
 if [[ "${1:-}" != '--policy-only' ]]; then
+  if ! grep -Fqx 'approval_policy = "never"' "${canonical_profile}" || \
+     ! grep -Fqx 'sandbox_mode = "danger-full-access"' "${canonical_profile}"; then
+    printf 'Business-agent profile is not configured for non-interactive full access.\n' >&2
+    exit 1
+  fi
+
+  if grep -Fq 'extends = ":workspace"' "${canonical_profile}"; then
+    printf 'Business-agent profile still inherits the workspace-only sandbox.\n' >&2
+    exit 1
+  fi
+
+  if ! grep -Fqx '  --sandbox danger-full-access \' "${launcher}" || \
+     ! grep -Fqx '  --ask-for-approval never \' "${launcher}"; then
+    printf 'Business-agent launcher does not fix full-access/non-interactive flags.\n' >&2
+    exit 1
+  fi
+
   "${launcher}" --version >/dev/null
 
-  if "${launcher}" --sandbox danger-full-access --version >/dev/null 2>&1; then
+  if "${launcher}" --sandbox read-only --version >/dev/null 2>&1; then
     printf 'Business-agent launcher accepted a sandbox override.\n' >&2
     exit 1
   fi
@@ -25,11 +43,24 @@ if [[ "${1:-}" != '--policy-only' ]]; then
     exit 1
   fi
 
-  codex sandbox \
-    --permission-profile business-agent \
-    --profile business-agent \
-    --cd "${project_root}" \
-    "${inner_smoke}" "${project_root}"
+  stale_home="$(mktemp -d "${TMPDIR:-/private/tmp}/bestar-business-agent-stale-profile.XXXXXX")"
+  stale_profile="${stale_home}/business-agent.config.toml"
+  cleanup_stale_profile() {
+    rm -f "${stale_profile}"
+    rmdir "${stale_home}"
+  }
+  trap cleanup_stale_profile EXIT
+  printf '# intentionally stale profile for launcher smoke\napproval_policy = "never"\n' >"${stale_profile}"
+
+  if CODEX_HOME="${stale_home}" "${launcher}" --version >/dev/null 2>&1; then
+    printf 'Business-agent launcher accepted a stale installed profile.\n' >&2
+    exit 1
+  fi
+
+  cleanup_stale_profile
+  trap - EXIT
+
+  "${inner_smoke}" "${project_root}"
 fi
 
 assert_forbidden() {

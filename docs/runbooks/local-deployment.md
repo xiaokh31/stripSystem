@@ -390,13 +390,17 @@ Codex subcommand after it:
 scripts/run-business-agent.sh exec "Run the requested project task."
 ```
 
-The launcher always applies `business-agent`, the profile's `:workspace`
-sandbox, `--ask-for-approval never`, the repository root, and the
-workspace profile's `/private/tmp` test directory. Its profile enables
-dependency network access only to the degree permitted by the host/managed
-Codex policy. It does not use `danger-full-access`, does not expose
-credentials, and must not be replaced by a direct `codex` invocation when this
-profile is required.
+The launcher always applies `business-agent`, `--sandbox danger-full-access`,
+`--ask-for-approval never`, and the repository root. This is required because
+the Docker-only workflow must reach the host Docker socket; `approval=never`
+on a `:workspace` sandbox only turns a denied operation into an immediate
+failure and does not grant the missing capability. Do not replace the launcher
+with a direct `codex` invocation when this profile is required.
+
+After this profile changes, exit the existing agent session, run
+`scripts/install-business-agent-profile.sh --replace`, and start a new session
+through the launcher. Resuming a session created under another sandbox or
+approval policy keeps that session's original runtime policy.
 
 The canonical profile is `.codex/business-agent.config.toml`; the installed
 copy is `$CODEX_HOME/business-agent.config.toml`. The installer refuses to
@@ -407,6 +411,13 @@ remote infrastructure tools, high-risk Docker operations, and direct host
 package/test/build commands. Docker Compose builds, tests, Prisma
 generate/migrations, and local services remain normal in-scope work, subject
 to platform-managed restrictions.
+
+`danger-full-access` removes Codex's operating-system workspace boundary and
+must only be used on a trusted local development host for this repository. The
+fixed cwd, agent instructions, and execpolicy keep task scope and destructive
+actions constrained, but they are not a filesystem sandbox. Managed host
+requirements, credentials, and external/production controls can still impose
+non-bypassable restrictions.
 
 Run the no-business-side-effect capability smoke after installation or Codex
 CLI updates:
@@ -419,7 +430,7 @@ The smoke only reads `AGENTS.md`, writes and deletes a file in `/private/tmp`,
 prints ESLint help from the web container, performs `docker compose ps`, and
 verifies policy blocks. Use `scripts/smoke-business-agent-profile.sh
 --policy-only` when validating only the allow/deny policy without launching a
-nested Codex sandbox.
+Docker capability checks.
 It does not create business records, change database/storage data, or call an
 external release endpoint. A managed sandbox, OS permission, credential
 request, production deployment, or action forbidden by the policy remains a
