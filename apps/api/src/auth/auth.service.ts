@@ -3,8 +3,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
 import { LoginDto } from './dto/login.dto';
-import { AuthUserResponseDto, LoginResponseDto } from './dto/auth-response.dto';
+import {
+  AuthUserResponseDto,
+  LoginResponseDto,
+  NativeSessionResponseDto,
+} from './dto/auth-response.dto';
+import { NativeLoginDto } from './dto/native-session.dto';
 import { AuthTokenService } from './auth-token.service';
 import { AuthenticatedUser } from './auth-user';
 import { PasswordService } from './password.service';
@@ -91,6 +97,103 @@ export class AuthService {
     return this.authenticateBearer(authorization);
   }
 
+  async nativeLogin(dto: NativeLoginDto): Promise<NativeSessionResponseDto> {
+    await this.login(dto);
+    const user = await this.findUserByEmail(this.normalizeEmail(dto.email));
+    if (!user) throw this.invalidCredentials();
+    const profile = this.toUserProfile(user);
+    const refreshToken = this.newRefreshToken();
+    const refreshExpiresIn = 60 * 60 * 24 * 400;
+    const session = await this.prisma.nativeAuthSession.create({
+      data: {
+        userId: user.id,
+        deviceId: dto.deviceId.trim(),
+        platform: dto.platform?.trim() || null,
+        appVersion: dto.appVersion?.trim() || null,
+        refreshTokenHash: this.hashRefreshToken(refreshToken),
+        expiresAt: new Date(Date.now() + refreshExpiresIn * 1000),
+      },
+    });
+    return this.nativeSessionResponse(
+      profile,
+      refreshToken,
+      refreshExpiresIn,
+      session.id,
+    );
+  }
+
+  async refreshNativeSession(
+    refreshToken: string,
+  ): Promise<NativeSessionResponseDto> {
+    const hash = this.hashRefreshToken(refreshToken);
+    const session = await this.prisma.nativeAuthSession.findFirst({
+      where: {
+        OR: [{ refreshTokenHash: hash }, { previousRefreshTokenHash: hash }],
+      },
+      include: { user: { include: AUTH_USER_INCLUDE } },
+    });
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+      throw this.nativeRefreshFailure('AUTH_REFRESH_EXPIRED');
+    }
+    if (session.previousRefreshTokenHash === hash) {
+      await this.prisma.nativeAuthSession.update({
+        where: { id: session.id },
+        data: { revokedAt: new Date() },
+      });
+      throw this.nativeRefreshFailure('AUTH_REFRESH_REPLAYED');
+    }
+    if (!session.user.isActive) {
+      throw new ForbiddenException({
+        code: 'USER_INACTIVE',
+        message: 'This user is inactive.',
+        details: {},
+      });
+    }
+    const profile = this.toUserProfile(session.user);
+    if (this.isSystemUser(session.user, profile.roles))
+      throw this.nativeRefreshFailure('AUTH_SESSION_REVOKED');
+    const nextRefreshToken = this.newRefreshToken();
+    await this.prisma.nativeAuthSession.update({
+      where: { id: session.id },
+      data: {
+        previousRefreshTokenHash: hash,
+        refreshTokenHash: this.hashRefreshToken(nextRefreshToken),
+        lastUsedAt: new Date(),
+        rotatedAt: new Date(),
+      },
+    });
+    return this.nativeSessionResponse(
+      profile,
+      nextRefreshToken,
+      Math.floor((session.expiresAt.getTime() - Date.now()) / 1000),
+      session.id,
+    );
+  }
+
+  async revokeNativeSession(
+    refreshToken: string,
+  ): Promise<{ revoked: boolean }> {
+    const hash = this.hashRefreshToken(refreshToken);
+    await this.prisma.nativeAuthSession.updateMany({
+      where: {
+        OR: [{ refreshTokenHash: hash }, { previousRefreshTokenHash: hash }],
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: true };
+  }
+
+  async revokeAllNativeSessionsForUser(
+    userId: string,
+  ): Promise<{ revokedCount: number }> {
+    const result = await this.prisma.nativeAuthSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revokedCount: result.count };
+  }
+
   async authenticateBearer(
     authorization: string | undefined,
   ): Promise<AuthenticatedUser> {
@@ -166,6 +269,46 @@ export class AuthService {
     return new UnauthorizedException({
       code: 'UNAUTHENTICATED',
       message,
+      details: {},
+    });
+  }
+
+  private nativeSessionResponse(
+    profile: AuthUserResponseDto,
+    refreshToken: string,
+    refreshExpiresIn: number,
+    sessionId: string,
+  ): NativeSessionResponseDto {
+    const token = this.tokenService.sign(
+      { sub: profile.id, email: profile.email, roles: profile.roles },
+      60 * 15,
+    );
+    return {
+      accessToken: token.accessToken,
+      expiresIn: token.expiresIn,
+      refreshExpiresIn,
+      refreshToken,
+      sessionId,
+      tokenType: 'Bearer',
+      user: profile,
+    };
+  }
+
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+  private newRefreshToken(): string {
+    return randomBytes(48).toString('base64url');
+  }
+  private nativeRefreshFailure(
+    code:
+      | 'AUTH_REFRESH_EXPIRED'
+      | 'AUTH_REFRESH_REPLAYED'
+      | 'AUTH_SESSION_REVOKED',
+  ): UnauthorizedException {
+    return new UnauthorizedException({
+      code,
+      message: 'Native session refresh was rejected.',
       details: {},
     });
   }

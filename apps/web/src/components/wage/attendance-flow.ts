@@ -2,8 +2,12 @@ import type {
   AttendanceImportResponse,
   WageGeneratedFileResponse,
 } from "@/lib/api-client";
-import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
-import { translateMessage } from "../../lib/i18n/translator";
+import {
+  DEFAULT_LOCALE,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export interface FileLike {
   name: string;
@@ -14,13 +18,18 @@ export function isAllowedLegacyXlsFile(file: FileLike): boolean {
   return file.name.trim().toLowerCase().endsWith(".xls");
 }
 
-export function attendanceUploadError(file: FileLike | null): string | null {
+export function attendanceUploadError(
+  file: FileLike | null,
+  locale: Locale = DEFAULT_LOCALE,
+): string | null {
+  const { t } = createTranslator(locale);
+
   if (!file) {
-    return "Select one legacy .xls attendance workbook.";
+    return t("Select one legacy .xls attendance workbook.");
   }
 
   if (!isAllowedLegacyXlsFile(file)) {
-    return "Attendance imports must use the legacy .xls time-clock workbook.";
+    return t("Attendance imports must use the legacy .xls time-clock workbook.");
   }
 
   return null;
@@ -57,17 +66,20 @@ export function wageGenerationBlockReason(
     AttendanceImportResponse,
     "errorCount" | "parseStatus"
   >,
+  locale: Locale = DEFAULT_LOCALE,
 ): string | null {
+  const { t } = createTranslator(locale);
+
   if (canGenerateWageRecord(attendanceImport)) {
     return null;
   }
 
   const parseStatus = attendanceImport.parseStatus.toUpperCase();
   if (parseStatus === "NOT_PARSED" || parseStatus === "PARSING") {
-    return "Parse this attendance import before generating a wage record.";
+    return t("Parse this attendance import before generating a wage record.");
   }
 
-  return "Parser errors must be resolved before generating a wage record.";
+  return t("Parser errors must be resolved before generating a wage record.");
 }
 
 export function formatFileSize(value: string | null): string {
@@ -97,39 +109,48 @@ export function generatedFileAuditText(
   >,
   locale: Locale = DEFAULT_LOCALE,
 ): string {
-  const sizeLabel = translateMessage("Size", locale) ?? "Size";
-  return [
-    `SHA-256 ${file.fileSha256 ?? "-"}`,
-    `${sizeLabel} ${formatFileSize(file.fileSizeBytes)}`,
-    `MIME ${file.mimeType ?? "-"}`,
-  ].join(" | ");
+  return createTranslator(locale).format("i18n.workHours.generatedFileAudit", {
+    mimeType: file.mimeType ?? "-",
+    sha256: file.fileSha256 ?? "-",
+    size: formatFileSize(file.fileSizeBytes),
+  });
 }
 
-export function attendanceApiErrorMessage(error: unknown): string {
-  if (!isApiErrorLike(error)) {
-    return error instanceof Error ? error.message : "The request failed.";
-  }
+export function attendanceApiErrorMessage(
+  error: unknown,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+  const messages: Record<string, MessageKey> = {
+    ATTENDANCE_FILE_EMPTY: "Attendance workbook is empty.",
+    ATTENDANCE_FILE_REQUIRED: "Select one legacy .xls attendance workbook.",
+    ATTENDANCE_FILE_TYPE_UNSUPPORTED:
+      "Attendance imports must use the legacy .xls time-clock workbook.",
+    ATTENDANCE_IMPORT_HAS_PARSE_ERRORS:
+      "Attendance import has parser errors and cannot generate a wage record.",
+    ATTENDANCE_IMPORT_NOT_FOUND: "Attendance import could not be found.",
+    ATTENDANCE_IMPORT_NOT_PARSED:
+      "Attendance import must be parsed before generating a wage record.",
+    ATTENDANCE_ORIGINAL_FILE_MISSING:
+      "Original attendance workbook is unavailable.",
+    ATTENDANCE_PARSE_FAILED:
+      "Attendance parse failed. Review parser errors before generating a wage record.",
+    ATTENDANCE_WORKER_INVOCATION_FAILED:
+      "Attendance parse failed. Review parser errors before generating a wage record.",
+    DUPLICATE_ATTENDANCE_IMPORT:
+      "Duplicate attendance upload: this workbook already exists by SHA-256.",
+    FORBIDDEN: "Attendance action permission denied.",
+    WAGE_RECORD_GENERATION_FAILED:
+      "Wage record generation failed. Review generated file history for the failed record.",
+    WAGE_RECORD_WORKER_INVOCATION_FAILED:
+      "Wage record generation failed. Review generated file history for the failed record.",
+  };
 
-  switch (error.code) {
-    case "DUPLICATE_ATTENDANCE_IMPORT":
-      return "Duplicate attendance upload: this workbook already exists by SHA-256.";
-    case "ATTENDANCE_PARSE_FAILED":
-    case "ATTENDANCE_WORKER_INVOCATION_FAILED":
-      return "Attendance parse failed. Review parser errors before generating a wage record.";
-    case "ATTENDANCE_IMPORT_NOT_PARSED":
-      return "Attendance import must be parsed before generating a wage record.";
-    case "ATTENDANCE_IMPORT_HAS_PARSE_ERRORS":
-      return "Attendance import has parser errors and cannot generate a wage record.";
-    case "WAGE_RECORD_GENERATION_FAILED":
-    case "WAGE_RECORD_WORKER_INVOCATION_FAILED":
-      return "Wage record generation failed. Review generated file history for the failed record.";
-    case "FORBIDDEN":
-      return "Attendance action permission denied.";
-    default:
-      return `${error.code}${error.status ? ` (${error.status})` : ""}: ${
-        error.message
-      }`;
-  }
+  return t(
+    isApiErrorLike(error)
+      ? (messages[error.code] ?? "The request failed.")
+      : "The request failed.",
+  );
 }
 
 function isApiErrorLike(

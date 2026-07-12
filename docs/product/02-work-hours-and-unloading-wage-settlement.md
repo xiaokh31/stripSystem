@@ -295,10 +295,20 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   display-name requirement.
 - When an authorized office user, warehouse manager, or admin clicks
   `标记已拆完`, the system must:
+  - reconcile every destination's `finalPallets` snapshot to persisted pallet
+    records before changing the container status
+  - preserve reusable `PLANNED` / `LABEL_PRINTED` pallet identity and history,
+    create missing pallets with immutable audit events, and only cancel safe
+    unused surplus pallets
+  - reject the whole completion when surplus has loading, loaded, adjusted, or
+    exception history; it must not delete or overwrite historical pallets
   - save unloading completion data
   - set the visible container status to `UNLOADED` if the container has not
     already advanced to loading
   - create an audit/correction record for the status change
+- The pallet reconciliation, `UNLOADED` transition, unloading completion, and
+  related audit records are one transaction. A retry is idempotent and returns
+  a structured per-destination synchronization summary.
 - If the container is already `LOADING_IN_PROGRESS` or `LOADED`, marking or
   re-saving unloading completion must not downgrade the container status to
   `UNLOADED`.

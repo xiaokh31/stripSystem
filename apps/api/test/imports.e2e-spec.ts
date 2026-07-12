@@ -253,6 +253,7 @@ interface ContainerDetailSummaryBody {
   destinations: Array<{
     destinationCode: string;
     totalPallets: number;
+    activeTotalPallets: number;
     loadedPallets: number;
     remainingPallets: number;
   }>;
@@ -263,6 +264,8 @@ interface InventoryBody {
     destinationCode: string;
     totalPallets: number;
     loadedPallets: number;
+    adjustedOutPallets: number;
+    cancelledPallets: number;
     remainingPallets: number;
   }>;
 }
@@ -974,7 +977,10 @@ describe('ImportsController (e2e)', () => {
       {
         destinationCode: containerDetailBody.destinations[0].destinationCode,
         totalPallets: 1,
+        activeTotalPallets: 1,
         loadedPallets: 1,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
         remainingPallets: 0,
       },
     ]);
@@ -1899,6 +1905,7 @@ describe('ImportsController (e2e)', () => {
       },
     };
 
+    prisma.$queryRaw = jest.fn().mockResolvedValue([]);
     prisma.$transaction = jest.fn((callback) => callback(prisma));
 
     return prisma;

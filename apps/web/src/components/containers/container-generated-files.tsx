@@ -75,7 +75,7 @@ export function ContainerGeneratedFiles({
   containerStatus: string;
   initialFiles: GeneratedFileResponse[];
 }) {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [generation, setGeneration] = useState<GenerationState>(idleState);
   const [reprint, setReprint] = useState<ReprintState>(idleReprintState);
@@ -84,7 +84,7 @@ export function ContainerGeneratedFiles({
   const runningAction =
     generation.status === "running" ? generation.action : null;
   const locked = isContainerOperationLocked(containerStatus);
-  const lockedMessage = containerOperationLockMessage(containerStatus);
+  const lockedMessage = containerOperationLockMessage(containerStatus, locale);
   const latestLabelFile =
     files.find(
       (file) =>
@@ -94,6 +94,7 @@ export function ContainerGeneratedFiles({
   const reprintUnavailableMessage = labelReprintUnavailableMessage(
     canReprintLabels,
     files,
+    locale,
   );
 
   async function generate(action: GenerationAction) {
@@ -105,7 +106,9 @@ export function ContainerGeneratedFiles({
       action,
       code: null,
       file: null,
-      message: `${generationActionLabel(action)} is running.`,
+      message: format("i18n.containers.generationRunning", {
+        action: generationActionLabel(action, locale),
+      }),
       status: "running",
     });
 
@@ -118,7 +121,9 @@ export function ContainerGeneratedFiles({
         action,
         code: null,
         file: null,
-        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        message: format("i18n.containers.generationSubmitted", {
+          id: submitted.id,
+        }),
         status: "running",
       });
       const job = await waitForAsyncJob(submitted.id);
@@ -144,7 +149,7 @@ export function ContainerGeneratedFiles({
       });
       router.refresh();
     } catch (error) {
-      setGeneration(toGenerationError(action, error));
+      setGeneration(toGenerationError(action, error, locale));
     }
   }
 
@@ -156,7 +161,7 @@ export function ContainerGeneratedFiles({
 
     setReprint({
       code: null,
-      message: "Recording label reprint audit.",
+      message: t("Recording label reprint audit."),
       response: null,
       status: "running",
     });
@@ -165,14 +170,16 @@ export function ContainerGeneratedFiles({
       const response = await reprintContainerLabels(containerId, { reason });
       setReprint({
         code: null,
-        message: `Reprint audit recorded for ${response.eventCount} pallet label${response.eventCount === 1 ? "" : "s"}.`,
+        message: format("i18n.containers.reprintRecorded", {
+          count: response.eventCount,
+        }),
         response,
         status: "success",
       });
       setReprintReason("");
       router.refresh();
     } catch (error) {
-      setReprint(toReprintError(error));
+      setReprint(toReprintError(error, t));
     }
   }
 
@@ -181,14 +188,14 @@ export function ContainerGeneratedFiles({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Reports and labels
+            {t("Reports and labels")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Generate downloadable files from the current container data.
+            {t("Generate downloadable files from the current container data.")}
           </p>
           <ul className="mt-2 space-y-1 text-xs leading-5 text-zinc-500">
-            <li>{generationActionNotice("report")}</li>
-            <li>{generationActionNotice("labels")}</li>
+            <li>{generationActionNotice("report", locale)}</li>
+            <li>{generationActionNotice("labels", locale)}</li>
           </ul>
           {lockedMessage ? (
             <p className="mt-3 border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">
@@ -204,8 +211,8 @@ export function ContainerGeneratedFiles({
             type="button"
           >
             {runningAction === "report"
-              ? "Generating"
-              : "Generate Excel Report"}
+              ? t("Generating")
+              : t("Generate Excel Report")}
           </button>
           <button
             className="min-h-11 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -213,7 +220,9 @@ export function ContainerGeneratedFiles({
             onClick={() => void generate("labels")}
             type="button"
           >
-            {runningAction === "labels" ? "Generating" : "Generate Label PDF"}
+            {runningAction === "labels"
+              ? t("Generating")
+              : t("Generate Label PDF")}
           </button>
         </div>
       </div>
@@ -232,22 +241,24 @@ export function ContainerGeneratedFiles({
         >
           <div>
             <h3 className="text-sm font-semibold text-zinc-950">
-              Reprint label PDF
+              {t("Reprint label PDF")}
             </h3>
             <p className="mt-1 text-sm leading-6 text-zinc-600">
-              Records an audit event for every pallet label in this container.
-              Inventory status, QR payloads, and label dimensions are not
-              changed.
+              {t(
+                "Records an audit event for every pallet label in this container. Inventory status, QR payloads, and label dimensions are not changed.",
+              )}
             </p>
           </div>
           <label className="grid gap-1 text-sm font-medium text-zinc-700">
-            <span>Reason</span>
+            <span>{t("Reason")}</span>
             <textarea
               className="min-h-20 w-full border border-zinc-300 bg-white p-3 text-sm text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100"
               disabled={reprint.status === "running"}
               maxLength={500}
               onChange={(event) => setReprintReason(event.target.value)}
-              placeholder="Damaged label, replacement print packet, printer issue..."
+              placeholder={t(
+                "Damaged label, replacement print packet, printer issue...",
+              )}
               required
               value={reprintReason}
             />
@@ -259,8 +270,8 @@ export function ContainerGeneratedFiles({
               type="submit"
             >
               {reprint.status === "running"
-                ? "Recording reprint"
-                : "Record reprint audit"}
+                ? t("Recording reprint")
+                : t("Record reprint audit")}
             </button>
             {latestLabelFile && isDownloadableGeneratedFile(latestLabelFile) ? (
               <a
@@ -270,7 +281,7 @@ export function ContainerGeneratedFiles({
                   latestLabelFile.id,
                 )}
               >
-                Download current label PDF
+                {t("Download current label PDF")}
               </a>
             ) : null}
           </div>
@@ -307,10 +318,12 @@ function GeneratedFilesTable({
   files: GeneratedFileResponse[];
   locale: Locale;
 }) {
+  const { t } = useI18n();
+
   if (files.length === 0) {
     return (
       <p className="mt-5 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
-        No generated files are recorded for this container yet.
+        {t("No generated files are recorded for this container yet.")}
       </p>
     );
   }
@@ -320,12 +333,12 @@ function GeneratedFilesTable({
       <table className="min-w-[900px] w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-            <th className="px-3 py-3 font-semibold">File</th>
-            <th className="px-3 py-3 font-semibold">Type</th>
-            <th className="px-3 py-3 font-semibold">Status</th>
-            <th className="px-3 py-3 text-right font-semibold">Size</th>
-            <th className="px-3 py-3 font-semibold">Created</th>
-            <th className="px-3 py-3 font-semibold">Download</th>
+            <th className="px-3 py-3 font-semibold">{t("File")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Type")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Status")}</th>
+            <th className="px-3 py-3 text-right font-semibold">{t("Size")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Created")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Download")}</th>
           </tr>
         </thead>
         <tbody>
@@ -337,12 +350,12 @@ function GeneratedFilesTable({
                 </p>
                 {file.errorMessage ? (
                   <p className="mt-1 text-xs text-red-700">
-                    {file.errorMessage}
+                    {t("Generation failed.")}
                   </p>
                 ) : null}
               </td>
               <td className="px-3 py-4 align-top">
-                {generatedFileTypeLabel(file.fileType)}
+                {generatedFileTypeLabel(file.fileType, locale)}
               </td>
               <td className="px-3 py-4 align-top">
                 <StatusBadge locale={locale} status={file.status} />
@@ -359,10 +372,12 @@ function GeneratedFilesTable({
                     className="inline-flex min-h-10 items-center border border-teal-200 bg-teal-50 px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100"
                     href={getGeneratedFileDownloadUrl(containerId, file.id)}
                   >
-                    Download
+                    {t("Download")}
                   </a>
                 ) : (
-                  <span className="text-sm text-zinc-500">Unavailable</span>
+                  <span className="text-sm text-zinc-500">
+                    {t("Unavailable")}
+                  </span>
                 )}
               </td>
             </tr>
@@ -380,6 +395,7 @@ function GenerationStatus({
   containerId: string;
   generation: GenerationState;
 }) {
+  const { t } = useI18n();
   const isError = generation.status === "error";
 
   return (
@@ -393,7 +409,7 @@ function GenerationStatus({
     >
       <p className="font-semibold">{generation.message}</p>
       {generation.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase">
+        <p className="mt-1 text-xs font-semibold uppercase" data-i18n-ignore>
           {generation.code}
         </p>
       ) : null}
@@ -402,7 +418,7 @@ function GenerationStatus({
           className="mt-2 inline-flex min-h-10 items-center border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
           href={getGeneratedFileDownloadUrl(containerId, generation.file.id)}
         >
-          Download generated file
+          {t("Download generated file")}
         </a>
       ) : null}
     </div>
@@ -418,6 +434,7 @@ function ReprintStatus({
   latestLabelFile: GeneratedFileResponse | null;
   reprint: ReprintState;
 }) {
+  const { format, t } = useI18n();
   const isError = reprint.status === "error";
 
   return (
@@ -431,12 +448,15 @@ function ReprintStatus({
     >
       <p className="font-semibold">{reprint.message}</p>
       {reprint.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase">{reprint.code}</p>
+        <p className="mt-1 text-xs font-semibold uppercase" data-i18n-ignore>
+          {reprint.code}
+        </p>
       ) : null}
       {reprint.response ? (
         <p className="mt-1">
-          Audit events: {reprint.response.eventCount}. Operator IDs are recorded
-          by the API from the current signed-in user.
+          {format("i18n.containers.reprintAuditEvents", {
+            count: reprint.response.eventCount,
+          })}
         </p>
       ) : null}
       {latestLabelFile && isDownloadableGeneratedFile(latestLabelFile) ? (
@@ -444,7 +464,7 @@ function ReprintStatus({
           className="mt-2 inline-flex min-h-10 items-center border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"
           href={getGeneratedFileDownloadUrl(containerId, latestLabelFile.id)}
         >
-          Download current label PDF
+          {t("Download current label PDF")}
         </a>
       ) : null}
     </div>
@@ -462,7 +482,7 @@ function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={generatedOrImportStatusLabel(status, locale)}
     >
       {generatedOrImportStatusLabel(status, locale)}
     </span>
@@ -472,13 +492,14 @@ function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
 function toGenerationError(
   action: GenerationAction,
   error: unknown,
+  locale: Locale,
 ): GenerationState {
   if (error instanceof ApiClientError) {
     return {
       action,
       code: error.code,
       file: generatedFileFromError(error.details),
-      message: generationFailureMessage(action, error.code, error.message),
+      message: generationFailureMessage(action, error.code, error.message, locale),
       status: "error",
     };
   }
@@ -487,7 +508,7 @@ function toGenerationError(
     action,
     code: "GENERATION_FAILED",
     file: null,
-    message: error instanceof Error ? error.message : "Generation failed.",
+    message: generationFailureMessage(action, null, "", locale),
     status: "error",
   };
 }
@@ -507,11 +528,14 @@ function generatedFileFromError(
   return generatedFile as GeneratedFileResponse;
 }
 
-function toReprintError(error: unknown): ReprintState {
+function toReprintError(
+  error: unknown,
+  t: (key: "Label reprint audit could not be recorded.") => string,
+): ReprintState {
   if (error instanceof ApiClientError) {
     return {
       code: error.code,
-      message: error.message,
+      message: t("Label reprint audit could not be recorded."),
       response: null,
       status: "error",
     };
@@ -519,10 +543,7 @@ function toReprintError(error: unknown): ReprintState {
 
   return {
     code: "REPRINT_FAILED",
-    message:
-      error instanceof Error
-        ? error.message
-        : "Label reprint audit could not be recorded.",
+    message: t("Label reprint audit could not be recorded."),
     response: null,
     status: "error",
   };

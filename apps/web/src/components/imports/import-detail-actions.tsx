@@ -21,6 +21,7 @@ import {
   toParseResultSummary,
   type ParseResultSummaryData,
 } from "./import-detail-flow";
+import type { MessageKey } from "@/lib/i18n/catalog";
 
 interface ParseFailure {
   code: string;
@@ -38,6 +39,7 @@ export function ImportDetailActions({
   manualReportHref: string;
 }) {
   const router = useRouter();
+  const { format, t } = useI18n();
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<ParseFailure | null>(null);
   const [parseJobId, setParseJobId] = useState<string | null>(null);
@@ -90,10 +92,13 @@ export function ImportDetailActions({
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-zinc-950">Parse action</h2>
+      <h2 className="text-base font-semibold text-zinc-950">
+        {t("Parse action")}
+      </h2>
       <p className="mt-2 text-sm leading-6 text-zinc-600">
-        Parse reads the preserved original Excel file through the API and saves
-        the detected container data.
+        {t(
+          "Parse reads the preserved original Excel file through the API and saves the detected container data.",
+        )}
       </p>
       <button
         className="mt-4 min-h-11 w-full border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -101,18 +106,18 @@ export function ImportDetailActions({
         onClick={handleParse}
         type="button"
       >
-        {parsing ? "Parsing" : "Parse file"}
+        {parsing ? t("Parsing") : t("Parse file")}
       </button>
 
       {importFile.parseStatus === "PARSING" ? (
         <p className="mt-3 text-sm text-amber-800">
-          The API currently reports this import as parsing.
+          {t("The API currently reports this import as parsing.")}
         </p>
       ) : null}
 
       {parsing && parseJobId ? (
         <p className="mt-3 break-all text-xs font-medium text-zinc-500">
-          {`Job ${parseJobId} submitted. Waiting for worker result.`}
+          {format("i18n.imports.parse.jobSubmitted", { id: parseJobId })}
         </p>
       ) : null}
 
@@ -121,11 +126,11 @@ export function ImportDetailActions({
           className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-900"
           role="alert"
         >
-          <p className="font-semibold">
+          <p className="font-semibold" data-i18n-ignore>
             {parseError.code}
             {parseError.status ? ` (${parseError.status})` : ""}
           </p>
-          <p className="mt-1">{parseError.message}</p>
+          <p className="mt-1">{parseFailureMessage(parseError, t)}</p>
         </div>
       ) : null}
 
@@ -145,19 +150,19 @@ export function ParseResultSummary({
   compact?: boolean;
   parseResult: ParseResultSummaryData | null;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   if (!parseResult) {
     return compact ? (
       <p className="mt-4 text-sm text-zinc-600">
-        No parsed container is available yet.
+        {t("No parsed container is available yet.")}
       </p>
     ) : (
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-zinc-950">
-          Parsed containers
+          {t("Parsed containers")}
         </h2>
         <p className="mt-3 text-sm text-zinc-600">
-          No parsed container is available yet.
+          {t("No parsed container is available yet.")}
         </p>
       </section>
     );
@@ -181,14 +186,16 @@ export function ParseResultSummary({
       </ul>
     ) : (
       <p className="mt-3 text-sm text-zinc-600">
-        Parse result is available, but it contains no container records.
+        {t("Parse result is available, but it contains no container records.")}
       </p>
     );
 
   if (compact) {
     return (
       <div className="mt-5 border-t border-zinc-100 pt-4">
-        <p className="text-sm font-semibold text-zinc-950">Parsed containers</p>
+        <p className="text-sm font-semibold text-zinc-950">
+          {t("Parsed containers")}
+        </p>
         {content}
       </div>
     );
@@ -197,7 +204,7 @@ export function ParseResultSummary({
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Parsed containers
+        {t("Parsed containers")}
       </h2>
       {content}
     </section>
@@ -211,6 +218,8 @@ export function ManualReportEntryPanel({
   compact?: boolean;
   href: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       className={
@@ -224,20 +233,35 @@ export function ManualReportEntryPanel({
           compact ? "text-sm font-semibold" : "text-base font-semibold"
         }
       >
-        Manual unloading report
+        {t("Manual unloading report")}
       </h2>
       <p className="mt-2 text-sm leading-6">
-        Create a manual unloading report when the customer workbook cannot be
-        parsed into container records.
+        {t(
+          "Create a manual unloading report when the customer workbook cannot be parsed into container records.",
+        )}
       </p>
       <Link
         className="mt-3 inline-flex min-h-10 items-center border border-amber-700 bg-white px-3 text-sm font-semibold text-amber-950 hover:bg-amber-100"
         href={href}
       >
-        Create manual unloading report
+        {t("Create manual unloading report")}
       </Link>
     </section>
   );
+}
+
+const parseFailureMessageKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "Parse failed.",
+  ASYNC_JOB_CANCELLED: "Parse failed.",
+  ASYNC_JOB_FAILED: "Parse failed.",
+  PARSE_FAILED: "Parse failed.",
+};
+
+function parseFailureMessage(
+  failure: ParseFailure,
+  t: (key: MessageKey) => string,
+): string {
+  return t(parseFailureMessageKeys[failure.code] ?? "Parse failed.");
 }
 
 function toParseFailure(error: unknown): ParseFailure {

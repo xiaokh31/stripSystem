@@ -8,6 +8,8 @@ import {
   updateLoadJob,
 } from "../src/load-jobs/load-jobs-client";
 import {
+  bayBoardJobs,
+  compareBayBoardJobs,
   formatNullable,
   loadJobDisplayName,
   loadJobLineSummary,
@@ -206,6 +208,49 @@ test("load job view model displays backend progress fields without local invento
   });
   assert.equal(formatNullable(null), "Not set");
   assert.equal(loadJobLineSummary(plannedJob), "CSNU8877228-5P");
+});
+
+test("Bay Board prioritizes in-progress, scannable, and scheduled load jobs using real fields", () => {
+  const blockedInProgress = { ...inProgressJob, canScan: false, id: "blocked" };
+  const laterPlanned = {
+    ...plannedJob,
+    id: "later",
+    scheduledDepartureAt: "2026-07-03T20:00:00.000Z",
+  };
+  const earlierPlanned = {
+    ...plannedJob,
+    id: "earlier",
+    scheduledDepartureAt: "2026-07-02T18:00:00.000Z",
+  };
+
+  assert.deepEqual(
+    bayBoardJobs([laterPlanned, blockedInProgress, earlierPlanned, inProgressJob], "").map((job) => job.id),
+    ["load-job-in-progress", "blocked", "earlier", "later"],
+  );
+  assert.ok(compareBayBoardJobs(inProgressJob, earlierPlanned) < 0);
+});
+
+test("Bay Board search only filters recognized operational fields", () => {
+  assert.deepEqual(bayBoardJobs([plannedJob, inProgressJob], "truck-9").map((job) => job.id), ["load-job-in-progress", "load-job-planned"]);
+  assert.deepEqual(bayBoardJobs([plannedJob, inProgressJob], "yeg1").map((job) => job.id), ["load-job-in-progress", "load-job-planned"]);
+  assert.deepEqual(bayBoardJobs([plannedJob, inProgressJob], "missing").map((job) => job.id), []);
+});
+
+test("Bay Board keeps a stable order for 100 API load-job records", () => {
+  const jobs = Array.from({ length: 100 }, (_, index) => ({
+    ...plannedJob,
+    createdAt: `2026-07-02T${String(index % 24).padStart(2, "0")}:00:00.000Z`,
+    id: `load-job-${String(index).padStart(3, "0")}`,
+    loadNo: `LOAD-2026-${String(index).padStart(3, "0")}`,
+    scheduledDepartureAt: `2026-07-${String((index % 27) + 1).padStart(2, "0")}T20:00:00.000Z`,
+    status: index % 3 === 0 ? "IN_PROGRESS" : "PLANNED",
+  }));
+
+  const first = bayBoardJobs(jobs, "").map((job) => job.id);
+  const second = bayBoardJobs(jobs, "").map((job) => job.id);
+  assert.equal(first.length, 100);
+  assert.deepEqual(first, second);
+  assert.ok(first.slice(0, 34).every((id) => Number(id.slice(-3)) % 3 === 0));
 });
 
 test("load job client preserves API permission errors", async () => {

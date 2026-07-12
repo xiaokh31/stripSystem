@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   businessStatusLabel,
   containerLifecycleStatusLabel,
+  destinationTypeLabel,
+  generatedFileTypeLabel,
   generatedOrImportStatusLabel,
   healthStatusLabel,
   inventoryAdjustmentErrorLabel,
@@ -114,6 +116,20 @@ test("wage, classification, generated, upload, and queue statuses are mapped", (
   assert.equal(offlineQueueStatusLabel("pending", "zh-CN"), "待同步");
   assert.equal(offlineQueueStatusLabel("synced", "en"), "Synced");
   assert.equal(scanResultLabel("DUPLICATE", "zh-CN"), "重复");
+  assert.equal(
+    generatedFileTypeLabel("ATTENDANCE_PARSED_JSON", "zh-CN"),
+    "已解析考勤数据",
+  );
+  assert.equal(
+    generatedFileTypeLabel("MONTHLY_UNLOADING_SUMMARY_XLSX", "en"),
+    "Monthly unloading summary",
+  );
+  assert.equal(destinationTypeLabel("AMAZON_FBA", "zh-CN"), "亚马逊 FBA");
+  assert.equal(destinationTypeLabel("TRANSFER", "zh-CN"), "转运");
+  assert.equal(
+    destinationTypeLabel("legacy_type", "zh-CN"),
+    "其他目的仓类型：legacy_type",
+  );
 });
 
 test("generic business status label prefers container lifecycle for container statuses", () => {

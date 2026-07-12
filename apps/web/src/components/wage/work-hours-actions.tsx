@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   type AttendanceImportResponse,
   getAttendanceParseResult,
@@ -9,10 +10,7 @@ import {
   submitAttendanceWageRecordJob,
   uploadAttendanceImportFile,
 } from "@/lib/api-client";
-import {
-  asyncJobFailureMessage,
-  waitForAsyncJob,
-} from "@/lib/async-job-polling";
+import { waitForAsyncJob } from "@/lib/async-job-polling";
 import {
   attendanceApiErrorMessage,
   attendanceUploadError,
@@ -28,27 +26,30 @@ interface ActionState {
 const idleState: ActionState = { message: "", status: "idle" };
 
 export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<ActionState>(idleState);
 
   async function upload() {
-    const validationError = attendanceUploadError(file);
+    const validationError = attendanceUploadError(file, locale);
     if (validationError || !file) {
       setState({
         message:
-          validationError ?? "Select one legacy .xls attendance workbook.",
+          validationError ?? t("Select one legacy .xls attendance workbook."),
         status: "error",
       });
       return;
     }
 
-    setState({ message: "Uploading attendance workbook.", status: "running" });
+    setState({ message: t("Uploading attendance workbook."), status: "running" });
     try {
       const result = await uploadAttendanceImportFile(file);
       setState({
-        message: `Uploaded ${result.originalFilename}.`,
+        message: format("i18n.workHours.uploadedFilename", {
+          filename: result.originalFilename,
+        }),
         status: "success",
       });
       if (inputRef.current) {
@@ -60,7 +61,10 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
       );
       router.refresh();
     } catch (error) {
-      setState({ message: attendanceApiErrorMessage(error), status: "error" });
+      setState({
+        message: attendanceApiErrorMessage(error, locale),
+        status: "error",
+      });
     }
   }
 
@@ -69,17 +73,18 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Upload attendance workbook
+            {t("Upload attendance workbook")}
           </h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Use the monthly time-clock .xls export. The API stores the original
-            file and rejects duplicate SHA-256 content.
+            {t(
+              "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.",
+            )}
           </p>
         </div>
         <div className="grid gap-3">
           {!canUpload ? (
             <p className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-              Attendance upload permission required.
+              {t("Attendance upload permission required.")}
             </p>
           ) : null}
           {canUpload ? (
@@ -91,7 +96,10 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
                 onChange={(event) => {
                   const selectedFile = event.target.files?.[0] ?? null;
                   setFile(selectedFile);
-                  const validationError = attendanceUploadError(selectedFile);
+                  const validationError = attendanceUploadError(
+                    selectedFile,
+                    locale,
+                  );
                   setState(
                     validationError
                       ? { message: validationError, status: "error" }
@@ -108,7 +116,7 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
                   onClick={() => void upload()}
                   type="button"
                 >
-                  {state.status === "running" ? "Uploading" : "Upload .xls"}
+                  {state.status === "running" ? t("Uploading") : t("Upload .xls")}
                 </button>
                 <button
                   className="min-h-10 border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
@@ -122,7 +130,7 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
                   }}
                   type="button"
                 >
-                  Clear
+                  {t("Clear")}
                 </button>
               </div>
             </>
@@ -143,48 +151,59 @@ export function AttendanceImportActions({
   canGenerate: boolean;
   canParse: boolean;
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<ActionState>(idleState);
   const isReadyToGenerate = canGenerateWageRecord(attendanceImport);
-  const generateBlockReason = wageGenerationBlockReason(attendanceImport);
+  const generateBlockReason = wageGenerationBlockReason(attendanceImport, locale);
 
   async function runParse() {
     if (!canParse) {
       setState({
-        message: "Attendance parse permission required.",
+        message: t("Attendance parse permission required."),
         status: "error",
       });
       return;
     }
 
-    setState({ message: "Parsing attendance workbook.", status: "running" });
+    setState({ message: t("Parsing attendance workbook."), status: "running" });
     try {
       const submitted = await submitAttendanceParseJob(attendanceImport.id);
       setState({
-        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        message: format("i18n.workHours.jobSubmitted", { id: submitted.id }),
         status: "running",
       });
       const job = await waitForAsyncJob(submitted.id);
       if (job.status !== "succeeded") {
-        setState({ message: asyncJobFailureMessage(job), status: "error" });
+        setState({
+          message: t(
+            "Attendance background job failed. Review parser and generated file history.",
+          ),
+          status: "error",
+        });
         return;
       }
 
       const result = await getAttendanceParseResult(attendanceImport.id);
       setState({
-        message: `Parsed ${result.rows.length} employee-day row(s).`,
+        message: format("i18n.workHours.parsedRows", {
+          count: result.rows.length,
+        }),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setState({ message: attendanceApiErrorMessage(error), status: "error" });
+      setState({
+        message: attendanceApiErrorMessage(error, locale),
+        status: "error",
+      });
     }
   }
 
   async function generate() {
     if (!canGenerate) {
       setState({
-        message: "Attendance wage record generation permission required.",
+        message: t("Attendance wage record generation permission required."),
         status: "error",
       });
       return;
@@ -194,14 +213,14 @@ export function AttendanceImportActions({
       setState({
         message:
           generateBlockReason ??
-          "This attendance import cannot generate a wage record yet.",
+          t("This attendance import cannot generate a wage record yet."),
         status: "error",
       });
       return;
     }
 
     setState({
-      message: "Generating wage record workbook.",
+      message: t("Generating wage record workbook."),
       status: "running",
     });
     try {
@@ -209,21 +228,29 @@ export function AttendanceImportActions({
         attendanceImport.id,
       );
       setState({
-        message: `Job ${submitted.id} submitted. Waiting for worker result.`,
+        message: format("i18n.workHours.jobSubmitted", { id: submitted.id }),
         status: "running",
       });
       const job = await waitForAsyncJob(submitted.id);
       if (job.status !== "succeeded") {
-        setState({ message: asyncJobFailureMessage(job), status: "error" });
+        setState({
+          message: t(
+            "Attendance background job failed. Review parser and generated file history.",
+          ),
+          status: "error",
+        });
         return;
       }
       setState({
-        message: "Wage record generated. File history refreshed.",
+        message: t("Wage record generated. File history refreshed."),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setState({ message: attendanceApiErrorMessage(error), status: "error" });
+      setState({
+        message: attendanceApiErrorMessage(error, locale),
+        status: "error",
+      });
     }
   }
 
@@ -237,7 +264,7 @@ export function AttendanceImportActions({
             onClick={() => void runParse()}
             type="button"
           >
-            Parse
+            {t("Parse")}
           </button>
         ) : null}
         {canGenerate ? (
@@ -246,15 +273,15 @@ export function AttendanceImportActions({
             disabled={state.status === "running" || !isReadyToGenerate}
             onClick={() => void generate()}
             type="button"
-            title={generateBlockReason ?? "Generate wage record workbook"}
+            title={generateBlockReason ?? t("Generate wage record workbook")}
           >
-            Generate wage record
+            {t("Generate wage record")}
           </button>
         ) : null}
       </div>
       {!canParse && !canGenerate ? (
         <p className="text-xs font-medium text-amber-800">
-          Attendance parse or wage generation permission required.
+          {t("Attendance parse or wage generation permission required.")}
         </p>
       ) : null}
       {canGenerate && generateBlockReason ? (

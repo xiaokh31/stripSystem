@@ -46,6 +46,7 @@ test("status pill and progress bar expose accessible status text", () => {
       "div",
       null,
       createElement(StatusPill, { label: "OK", tone: "success" }),
+      createElement(StatusPill, { label: "Info", tone: "info" }),
       createElement(ProgressBar, {
         label: "Loaded",
         max: 10,
@@ -57,6 +58,7 @@ test("status pill and progress bar expose accessible status text", () => {
 
   assert.match(html, /status-pill/);
   assert.match(html, /data-tone="success"/);
+  assert.match(html, /--info-surface/);
   assert.match(html, /role="progressbar"/);
   assert.match(html, /aria-valuenow="7"/);
   assert.match(html, /aria-valuemax="10"/);
@@ -129,4 +131,47 @@ test("lifecycle dock strip renders status lanes with counts and links", () => {
   assert.match(html, /href="\/unloading-summary"/);
   assert.match(html, /Delivered to destination/);
   assert.match(html, />1\/3</);
+});
+
+test("dashboard shared components render Chinese defaults without document rewriting", () => {
+  const html = renderToStaticMarkup(
+    createElement(
+      "div",
+      null,
+      createElement(DockLaneStrip, {
+        lanes: [
+          {
+            code: "D1",
+            dockNo: "D1",
+            loadedPallets: 2,
+            remainingPallets: 1,
+            statusLabel: "进行中",
+            totalPallets: 3,
+            truckNo: "TRK-1",
+          },
+        ],
+        locale: "zh-CN",
+      }),
+      createElement(LifecycleDockStrip, {
+        lanes: [
+          {
+            code: "UNLOADED",
+            count: 1,
+            href: "/unloading-summary",
+            label: "已拆完",
+          },
+        ],
+        locale: "zh-CN",
+        total: 1,
+      }),
+      createElement(ExceptionList, { items: [], locale: "zh-CN" }),
+    ),
+  );
+
+  assert.match(html, /aria-label="月台作业条"/);
+  assert.match(html, />月台</);
+  assert.match(html, />车辆</);
+  assert.match(html, />剩余</);
+  assert.match(html, />已装车</);
+  assert.match(html, />无问题</);
 });

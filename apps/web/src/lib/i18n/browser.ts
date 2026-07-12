@@ -8,11 +8,6 @@ export function readBrowserLocale(): Locale | null {
     return null;
   }
 
-  const stored = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (stored) {
-    return normalizeLocale(stored);
-  }
-
   const cookieLocale = readLocaleCookie(document.cookie);
   if (cookieLocale) {
     return cookieLocale;

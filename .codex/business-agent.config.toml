@@ -1,0 +1,14 @@
+# Bestar business-agent profile managed by this repository.
+# Installed by scripts/install-business-agent-profile.sh as
+# $CODEX_HOME/business-agent.config.toml. It has no effect unless the
+# business-agent profile is selected.
+approval_policy = "never"
+default_permissions = "business-agent"
+
+[permissions.business-agent]
+description = "Project-scoped Bestar business logic development"
+extends = ":workspace"
+
+[permissions.business-agent.network]
+# Dependency access remains subject to host-managed network requirements.
+enabled = true

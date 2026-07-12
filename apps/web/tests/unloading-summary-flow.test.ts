@@ -143,7 +143,20 @@ test("unloading summary review and file text is readable", () => {
       message: "Container is completed but missing completion date.",
       status: "UNLOADED",
     }),
-    "Container is completed but missing completion date. (Container ZCSU9025988B | Status UNLOADED | Field completedAt)",
+    "Container ZCSU9025988B: Completed unloading has no completion date and is not assigned to the selected month.",
+  );
+  assert.equal(
+    unloadingSummaryReviewText(
+      {
+        code: "MISSING_COMPLETED_AT",
+        containerNo: "ZCSU9025988B",
+        field: "completedAt",
+        message: "Container is completed but missing completion date.",
+        status: "UNLOADED",
+      },
+      "zh-CN",
+    ),
+    "柜号 ZCSU9025988B：已完成卸柜但没有完成日期，未归入所选月份。",
   );
   assert.equal(
     unloadingSummaryGeneratedFileAuditText(fileFixture()),

@@ -12,6 +12,9 @@ import {
   type LoadJobResponse,
 } from "@/lib/api-client";
 import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   canCompleteMobileLoadJob,
   canReverseMobileScans,
@@ -40,21 +43,23 @@ export default async function MobileLoadJobScanPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
   const nextPath = mobileScanPath(id);
 
   if (!currentUser) {
-    return <MobileLoginRequired nextPath={nextPath} />;
+    return <MobileLoginRequired locale={locale} nextPath={nextPath} />;
   }
 
   if (!canViewMobileLoadJobs(currentUser)) {
-    return <MobilePermissionDenied currentUser={currentUser} />;
+    return <MobilePermissionDenied currentUser={currentUser} locale={locale} />;
   }
 
   const state = await loadScanPage(id);
 
   if (!state.ok) {
-    return <ScanPageError error={state.error} id={id} />;
+    return <ScanPageError error={state.error} id={id} locale={locale} />;
   }
 
   return (
@@ -63,25 +68,25 @@ export default async function MobileLoadJobScanPage({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Mobile loading scan
+              {t("Mobile loading scan")}
             </p>
             <h1 className="mt-2 break-all text-2xl font-semibold text-zinc-950">
               {loadJobDisplayName(state.loadJob)}
             </h1>
             <p className="mt-2 text-base font-medium text-zinc-600">
-              {loadJobPlanContext(state.loadJob)}
+              {loadJobPlanContext(state.loadJob, locale)}
             </p>
           </div>
           <Link
             className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
             href="/mobile/load-jobs"
           >
-            Change load job
+            {t("Change load job")}
           </Link>
         </div>
       </section>
 
-      <LoadJobPlanPanel loadJob={state.loadJob} />
+      <LoadJobPlanPanel loadJob={state.loadJob} locale={locale} />
       <MobileScanPanel
         currentUser={currentUser}
         initialLoadJob={state.loadJob}
@@ -97,26 +102,35 @@ export default async function MobileLoadJobScanPage({
   );
 }
 
-function MobileLoginRequired({ nextPath }: { nextPath: string }) {
+function MobileLoginRequired({
+  locale,
+  nextPath,
+}: {
+  locale: Locale;
+  nextPath: string;
+}) {
+  const { t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
       <section
         className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Authentication</p>
+        <p className="text-sm font-semibold uppercase">{t("Authentication")}</p>
         <h1 className="mt-2 text-2xl font-semibold">
-          Sign in to scan pallets
+          {t("Sign in to scan pallets")}
         </h1>
         <p className="mt-2 leading-7">
-          The scan page needs a valid API session before showing load job data or
-          accepting queued scans.
+          {t(
+            "The scan page needs a valid API session before showing load job data or accepting queued scans.",
+          )}
         </p>
         <Link
           className="mt-4 inline-flex min-h-12 items-center border border-amber-700 bg-white px-4 text-base font-semibold text-amber-950 hover:bg-amber-100"
           href={loginHref(nextPath)}
         >
-          Sign in
+          {t("Sign in")}
         </Link>
       </section>
     </main>
@@ -125,25 +139,34 @@ function MobileLoginRequired({ nextPath }: { nextPath: string }) {
 
 function MobilePermissionDenied({
   currentUser,
+  locale,
 }: {
   currentUser: AuthUserResponse;
+  locale: Locale;
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
       <section
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Permission denied</p>
+        <p className="text-sm font-semibold uppercase">
+          {t("Permission denied")}
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">
-          This account cannot open mobile load jobs
+          {t("This account cannot open mobile load jobs")}
         </h1>
         <p className="mt-2 leading-7">
-          The signed-in user needs load job read permission before scan actions
-          can be shown.
+          {t(
+            "The signed-in user needs load job read permission before scan actions can be shown.",
+          )}
         </p>
         <p className="mt-3 break-all text-sm font-medium">
-          Signed in as {currentUser.email ?? currentUser.name ?? currentUser.id}
+          {format("i18n.loadJobs.signedInAs", {
+            user: currentUser.email ?? currentUser.name ?? currentUser.id,
+          })}
         </p>
       </section>
     </main>
@@ -164,22 +187,30 @@ async function loadScanPage(id: string): Promise<MobileScanPageState> {
   }
 }
 
-function LoadJobPlanPanel({ loadJob }: { loadJob: LoadJobResponse }) {
+function LoadJobPlanPanel({
+  loadJob,
+  locale,
+}: {
+  loadJob: LoadJobResponse;
+  locale: Locale;
+}) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
       <dl className="grid grid-cols-3 gap-2 text-center">
-        <Metric label="Internal" value={loadJob.plannedPalletCount} />
-        <Metric label="External" value={loadJob.externalPalletCount} />
-        <Metric label="Loaded" value={loadJob.palletCount} />
+        <Metric label={t("Internal")} value={loadJob.plannedPalletCount} />
+        <Metric label={t("External")} value={loadJob.externalPalletCount} />
+        <Metric label={t("Loaded")} value={loadJob.palletCount} />
       </dl>
 
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
-              <th className="px-3 py-3 font-semibold">Plan line</th>
-              <th className="px-3 py-3 font-semibold">Type</th>
-              <th className="px-3 py-3 text-right font-semibold">Pallets</th>
+              <th className="px-3 py-3 font-semibold">{t("Plan line")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Type")}</th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Pallets")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -187,17 +218,19 @@ function LoadJobPlanPanel({ loadJob }: { loadJob: LoadJobResponse }) {
               <tr key={line.id}>
                 <td className="px-3 py-3">
                   <span className="break-all font-semibold text-zinc-950">
-                    {loadJobLineLabel(line)}
+                    {loadJobLineLabel(line, locale)}
                   </span>
                   {line.destinationCode ? (
                     <span className="mt-1 block text-xs text-zinc-500">
-                      Destination {line.destinationCode}
+                      {format("i18n.mobile.destinationValue", {
+                        destination: line.destinationCode,
+                      })}
                     </span>
                   ) : null}
                 </td>
                 <td className="px-3 py-3">
                   <span className="inline-flex min-h-7 items-center border border-zinc-200 bg-zinc-50 px-2 text-xs font-semibold uppercase text-zinc-700">
-                    {line.externalTransfer ? "External" : "System"}
+                    {line.externalTransfer ? t("External") : t("System")}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-right font-semibold tabular-nums">
@@ -225,17 +258,31 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ScanPageError({ error, id }: { error: ApiClientError; id: string }) {
+function ScanPageError({
+  error,
+  id,
+  locale,
+}: {
+  error: ApiClientError;
+  id: string;
+  locale: Locale;
+}) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
       <section
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"
       >
-        <h1 className="text-xl font-semibold">Load job could not be opened</h1>
-        <p className="mt-2 break-all text-sm">Requested load job: {id}</p>
-        <p className="mt-3">{error.message}</p>
-        <p className="mt-2 text-xs font-semibold uppercase">
+        <h1 className="text-xl font-semibold">
+          {t("Load job could not be opened")}
+        </h1>
+        <p className="mt-2 break-all text-sm">
+          {format("i18n.mobile.requestedLoadJob", { id })}
+        </p>
+        <p className="mt-3">{mobileScanLoadErrorMessage(error, locale)}</p>
+        <p className="mt-2 text-xs font-semibold uppercase" data-i18n-ignore>
           {error.code}
           {error.status ? ` (${error.status})` : ""}
         </p>
@@ -243,11 +290,22 @@ function ScanPageError({ error, id }: { error: ApiClientError; id: string }) {
           className="mt-4 inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
           href="/mobile/load-jobs"
         >
-          Back to load jobs
+          {t("Back to load jobs")}
         </Link>
       </section>
     </main>
   );
+}
+
+const mobileScanLoadErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "Load job could not be loaded.",
+  WEB_API_ERROR: "Load job could not be loaded.",
+};
+
+function mobileScanLoadErrorMessage(error: ApiClientError, locale: Locale): string {
+  const { t } = createTranslator(locale);
+  const knownKey = mobileScanLoadErrorKeys[error.code];
+  return t(knownKey ?? "Load job could not be loaded.");
 }
 
 function toApiClientError(error: unknown, fallback: string): ApiClientError {

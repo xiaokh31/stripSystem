@@ -6,15 +6,25 @@ import {
   type OfficeShellHealth,
 } from "@/components/layout/office-shell";
 import { getApiHealth } from "@/lib/api-client";
-import { LOCALE_COOKIE_NAME } from "@/lib/i18n/catalog";
-import { normalizeLocale } from "@/lib/i18n/translator";
+import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import { getServerCurrentUser } from "@/lib/server-auth";
+import {
+  normalizeThemePreference,
+  themeColorScheme,
+  THEME_COOKIE_NAME,
+} from "@/lib/theme";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Bestar Warehouse Office",
-  description: "Office console for Bestar warehouse unloading operations",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
+
+  return {
+    title: t("Bestar Warehouse Office"),
+    description: t("Office console for Bestar warehouse unloading operations"),
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -22,20 +32,28 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE_NAME)?.value);
+  const locale = await getServerLocale();
+  const theme = normalizeThemePreference(cookieStore.get(THEME_COOKIE_NAME)?.value);
   const [currentUser, shellHealth] = await Promise.all([
     getServerCurrentUser(),
     getShellHealth(),
   ]);
 
   return (
-    <html lang={locale} className="h-full antialiased" suppressHydrationWarning>
+    <html
+      className="h-full antialiased"
+      data-theme={theme}
+      lang={locale}
+      style={{ colorScheme: themeColorScheme(theme) }}
+      suppressHydrationWarning
+    >
       <body className="min-h-full">
         <I18nProvider initialLocale={locale}>
           <OfficeShell
             currentUser={currentUser}
             health={shellHealth}
             locale={locale}
+            theme={theme}
           >
             {children}
           </OfficeShell>

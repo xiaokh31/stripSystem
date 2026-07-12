@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   createContainerDestination,
@@ -10,6 +11,7 @@ import {
   updateContainerDestination,
   type ContainerDetailDestinationResponse,
 } from "@/lib/api-client";
+import type { MessageKey } from "@/lib/i18n/catalog";
 import {
   buildCreateDestinationRequest,
   buildDestinationCorrectionRequest,
@@ -53,9 +55,10 @@ export function ContainerDestinationCorrections({
   containerStatus: string;
   destinations: ContainerDetailDestinationResponse[];
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const locked = isContainerOperationLocked(containerStatus);
-  const lockedMessage = containerOperationLockMessage(containerStatus);
+  const lockedMessage = containerOperationLockMessage(containerStatus, locale);
   const initialDrafts = useMemo(() => {
     return Object.fromEntries(
       destinations.map((destination) => [
@@ -121,14 +124,14 @@ export function ContainerDestinationCorrections({
 
     if (!request.ok) {
       setSaveState(destination.id, {
-        message: request.error,
+        message: correctionValidationMessage(request.error, t),
         status: "error",
       });
       return;
     }
 
     setSaveState(destination.id, {
-      message: "Saving correction.",
+      message: t("Saving correction."),
       status: "saving",
     });
 
@@ -146,14 +149,21 @@ export function ContainerDestinationCorrections({
         labelAction: labelPrompt ? "idle" : undefined,
         labelPrompt,
         message: labelPrompt
-          ? `Saved ${result.corrections.length} correction record(s). Actual pallets increased from ${labelPrompt.fromPallets} to ${labelPrompt.toPallets}; ${labelPrompt.addedPallets} supplemental label(s) are needed. Regenerate labels now?`
-          : `Saved ${result.corrections.length} correction record(s).`,
+          ? format("i18n.destinations.savedSupplemental", {
+              added: labelPrompt.addedPallets,
+              count: result.corrections.length,
+              from: labelPrompt.fromPallets,
+              to: labelPrompt.toPallets,
+            })
+          : format("i18n.destinations.saved", {
+              count: result.corrections.length,
+            }),
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setSaveState(destination.id, {
-        message: correctionErrorMessage(error),
+        message: correctionErrorMessage(error, t),
         status: "error",
       });
     }
@@ -172,7 +182,7 @@ export function ContainerDestinationCorrections({
     setSaveState(destinationId, {
       ...current,
       labelAction: "generating",
-      message: "Regenerating label PDF from latest destination data.",
+      message: t("Regenerating label PDF from latest destination data."),
       status: "saved",
     });
 
@@ -181,7 +191,10 @@ export function ContainerDestinationCorrections({
       setSaveState(destinationId, {
         ...current,
         labelAction: "generated",
-        message: `Label PDF regenerated. Print supplemental label(s) ${supplementalLabelRange(current.labelPrompt)} for ${current.labelPrompt.destinationCode}.`,
+        message: format("i18n.destinations.regenerated", {
+          destination: current.labelPrompt.destinationCode,
+          range: supplementalLabelRange(current.labelPrompt),
+        }),
         status: "saved",
       });
       router.refresh();
@@ -189,7 +202,7 @@ export function ContainerDestinationCorrections({
       setSaveState(destinationId, {
         ...current,
         labelAction: "idle",
-        message: correctionErrorMessage(error),
+        message: correctionErrorMessage(error, t),
         status: "error",
       });
     }
@@ -203,27 +216,31 @@ export function ContainerDestinationCorrections({
     }
 
     const confirmed = window.confirm(
-      `Delete destination ${destination.destinationCode}? This removes the destination from the actual unloading data and records an audit entry.`,
+      format("i18n.destinations.deleteConfirm", {
+        destination: destination.destinationCode,
+      }),
     );
     if (!confirmed) {
       return;
     }
 
     setSaveState(destination.id, {
-      message: "Deleting destination.",
+      message: t("Deleting destination."),
       status: "saving",
     });
 
     try {
       const result = await deleteContainerDestination(destination.id);
       setSaveState(destination.id, {
-        message: `Deleted ${result.containerDestination.destinationCode}.`,
+        message: format("i18n.destinations.deleted", {
+          destination: result.containerDestination.destinationCode,
+        }),
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setSaveState(destination.id, {
-        message: correctionErrorMessage(error),
+        message: correctionErrorMessage(error, t),
         status: "error",
       });
     }
@@ -237,14 +254,14 @@ export function ContainerDestinationCorrections({
     const request = buildCreateDestinationRequest(newDraft);
     if (!request.ok) {
       setCreateState({
-        message: request.error,
+        message: correctionValidationMessage(request.error, t),
         status: "error",
       });
       return;
     }
 
     setCreateState({
-      message: "Saving destination.",
+      message: t("Saving destination."),
       status: "saving",
     });
 
@@ -254,7 +271,9 @@ export function ContainerDestinationCorrections({
         request.payload,
       );
       setCreateState({
-        message: `Created ${result.containerDestination.destinationCode}.`,
+        message: format("i18n.destinations.created", {
+          destination: result.containerDestination.destinationCode,
+        }),
         status: "saved",
       });
       setNewDraft(emptyDestinationDraft());
@@ -262,7 +281,7 @@ export function ContainerDestinationCorrections({
       router.refresh();
     } catch (error) {
       setCreateState({
-        message: correctionErrorMessage(error),
+        message: correctionErrorMessage(error, t),
         status: "error",
       });
     }
@@ -273,16 +292,17 @@ export function ContainerDestinationCorrections({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Destinations
+            {t("Destinations")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Save actual unloading data after the paper unloading report has
-            been returned to the office.
+            {t(
+              "Save actual unloading data after the paper unloading report has been returned to the office.",
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-zinc-600">
-            {destinations.length} destination(s)
+            {format("i18n.destinations.count", { count: destinations.length })}
           </span>
           <button
             className="min-h-10 border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-50"
@@ -290,7 +310,7 @@ export function ContainerDestinationCorrections({
             onClick={() => setAdding((current) => !current)}
             type="button"
           >
-            {adding ? "Cancel" : "Add destination"}
+            {adding ? t("Cancel") : t("Add destination")}
           </button>
         </div>
       </div>
@@ -303,7 +323,7 @@ export function ContainerDestinationCorrections({
 
       {destinations.length === 0 ? (
         <p className="mt-4 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
-          This container has no parsed destinations.
+          {t("This container has no parsed destinations.")}
         </p>
       ) : (
         <fieldset className="contents" disabled={locked}>
@@ -354,31 +374,35 @@ function DestinationTable({
   onSave: (destination: ContainerDetailDestinationResponse) => Promise<void>;
   saveStates: Record<string, DestinationSaveState>;
 }) {
+  const { format, locale, t } = useI18n();
+
   return (
     <div className="mt-5 overflow-x-auto">
       <table className="min-w-[1380px] w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-            <th className="px-3 py-3 font-semibold">Destination</th>
-            <th className="px-3 py-3 font-semibold">Type</th>
-            <th className="px-3 py-3 font-semibold">Rule</th>
+            <th className="px-3 py-3 font-semibold">{t("Destination")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Type")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Rule")}</th>
             <th className="px-3 py-3 text-right font-semibold">
-              Actual cartons
-            </th>
-            <th className="px-3 py-3 text-right font-semibold">Actual CBM</th>
-            <th className="px-3 py-3 text-right font-semibold">
-              Expected pallets
+              {t("Actual cartons")}
             </th>
             <th className="px-3 py-3 text-right font-semibold">
-              Actual pallets
+              {t("Actual CBM")}
             </th>
             <th className="px-3 py-3 text-right font-semibold">
-              System pallets
+              {t("Expected pallets")}
             </th>
-            <th className="px-3 py-3 font-semibold">Warnings</th>
-            <th className="px-3 py-3 font-semibold">Actual note</th>
-            <th className="px-3 py-3 font-semibold">Audit note</th>
-            <th className="px-3 py-3 font-semibold">Save</th>
+            <th className="px-3 py-3 text-right font-semibold">
+              {t("Actual pallets")}
+            </th>
+            <th className="px-3 py-3 text-right font-semibold">
+              {t("System pallets")}
+            </th>
+            <th className="px-3 py-3 font-semibold">{t("Warnings")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Actual note")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Audit note")}</th>
+            <th className="px-3 py-3 font-semibold">{t("Save")}</th>
           </tr>
         </thead>
         <tbody>
@@ -387,8 +411,8 @@ function DestinationTable({
               drafts[destination.id] ?? draftFromDestination(destination);
             const saveState = saveStates[destination.id] ?? idleSaveState;
             const warnings = [
-              ...summarizeIssues(destination.warnings),
-              ...summarizeIssues(destination.errors),
+              ...summarizeIssues(destination.warnings, locale),
+              ...summarizeIssues(destination.errors, locale),
             ];
 
             return (
@@ -396,7 +420,9 @@ function DestinationTable({
                 <td className="px-3 py-4 align-top">
                   <div className="flex items-start gap-2">
                     <input
-                      aria-label={`Destination code for ${destination.destinationCode}`}
+                      aria-label={format("i18n.destinations.destinationCodeFor", {
+                        destination: destination.destinationCode,
+                      })}
                       className={inputClass("w-40 font-semibold")}
                       onChange={(event) =>
                         onChange(
@@ -408,7 +434,9 @@ function DestinationTable({
                       value={draft.destinationCode}
                     />
                     <button
-                      aria-label={`Delete destination ${destination.destinationCode}`}
+                      aria-label={format("i18n.destinations.deleteFor", {
+                        destination: destination.destinationCode,
+                      })}
                       className="min-h-10 border border-red-700 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-500"
                       disabled={
                         saveState.status === "saving" ||
@@ -417,13 +445,15 @@ function DestinationTable({
                       onClick={() => void onDelete(destination)}
                       type="button"
                     >
-                      Delete
+                      {t("Delete")}
                     </button>
                   </div>
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
-                    aria-label={`Destination type for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.destinationTypeFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={inputClass("w-40")}
                     onChange={(event) =>
                       onChange(
@@ -432,16 +462,18 @@ function DestinationTable({
                         event.target.value,
                       )
                     }
-                    placeholder="No type"
+                    placeholder={t("No type")}
                     value={draft.destinationType}
                   />
                 </td>
                 <td className="max-w-56 px-3 py-4 align-top text-xs text-zinc-600">
-                  {ruleSummary(destination)}
+                  {ruleSummary(destination, locale)}
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
-                    aria-label={`Actual cartons for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.actualCartonsFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={inputClass("w-28 text-right font-semibold")}
                     inputMode="numeric"
                     min={0}
@@ -454,7 +486,9 @@ function DestinationTable({
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
-                    aria-label={`Actual CBM for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.actualCbmFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={inputClass("w-28 text-right font-semibold")}
                     inputMode="decimal"
                     min={0}
@@ -471,7 +505,9 @@ function DestinationTable({
                 </td>
                 <td className="px-3 py-4 align-top">
                   <input
-                    aria-label={`Actual pallets for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.actualPalletsFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={inputClass("w-28 text-right font-semibold")}
                     inputMode="numeric"
                     min={0}
@@ -482,7 +518,7 @@ function DestinationTable({
                         event.target.value,
                       )
                     }
-                    placeholder="Auto"
+                    placeholder={t("Auto")}
                     type="number"
                     value={draft.manualPallets}
                   />
@@ -495,7 +531,7 @@ function DestinationTable({
                     <ul className="space-y-1">
                       {warnings.map((warning, index) => (
                         <li key={`${warning.message}-${warning.count}-${index}`}>
-                          {formatIssueSummary(warning)}
+                          {formatIssueSummary(warning, locale)}
                         </li>
                       ))}
                     </ul>
@@ -505,18 +541,22 @@ function DestinationTable({
                 </td>
                 <td className="px-3 py-4 align-top">
                   <textarea
-                    aria-label={`Actual note for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.actualNoteFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={textareaClass("w-52")}
                     onChange={(event) =>
                       onChange(destination.id, "note", event.target.value)
                     }
-                    placeholder="Paper report note"
+                    placeholder={t("Paper report note")}
                     value={draft.note}
                   />
                 </td>
                 <td className="px-3 py-4 align-top">
                   <textarea
-                    aria-label={`Audit note for ${destination.destinationCode}`}
+                    aria-label={format("i18n.destinations.auditNoteFor", {
+                      destination: destination.destinationCode,
+                    })}
                     className={textareaClass("w-52")}
                     onChange={(event) =>
                       onChange(
@@ -525,7 +565,7 @@ function DestinationTable({
                         event.target.value,
                       )
                     }
-                    placeholder="Audit note"
+                    placeholder={t("Audit note")}
                     value={draft.correctionNote}
                   />
                 </td>
@@ -539,7 +579,9 @@ function DestinationTable({
                     onClick={() => void onSave(destination)}
                     type="button"
                   >
-                    {saveState.status === "saving" ? "Saving" : "Save actual"}
+                    {saveState.status === "saving"
+                      ? t("Saving")
+                      : t("Save actual")}
                   </button>
                   <SaveMessage
                     onGenerateLabels={() => void onGenerateLabels(destination.id)}
@@ -567,25 +609,27 @@ function NewDestinationForm({
   onSave: () => Promise<void>;
   saveState: DestinationSaveState;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="mt-5 border-t border-zinc-100 pt-5">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Field label="Destination">
+        <Field label={t("Destination")}>
           <input
             className={inputClass("w-full font-semibold")}
             onChange={(event) => onChange("destinationCode", event.target.value)}
             value={draft.destinationCode}
           />
         </Field>
-        <Field label="Type">
+        <Field label={t("Type")}>
           <input
             className={inputClass("w-full")}
             onChange={(event) => onChange("destinationType", event.target.value)}
-            placeholder="No type"
+            placeholder={t("No type")}
             value={draft.destinationType}
           />
         </Field>
-        <Field label="Actual cartons">
+        <Field label={t("Actual cartons")}>
           <input
             className={inputClass("w-full text-right font-semibold")}
             inputMode="numeric"
@@ -595,7 +639,7 @@ function NewDestinationForm({
             value={draft.cartons}
           />
         </Field>
-        <Field label="Actual CBM">
+        <Field label={t("Actual CBM")}>
           <input
             className={inputClass("w-full text-right font-semibold")}
             inputMode="decimal"
@@ -606,7 +650,7 @@ function NewDestinationForm({
             value={draft.volume}
           />
         </Field>
-        <Field label="Actual pallets">
+        <Field label={t("Actual pallets")}>
           <input
             className={inputClass("w-full text-right font-semibold")}
             inputMode="numeric"
@@ -617,19 +661,19 @@ function NewDestinationForm({
             value={draft.manualPallets}
           />
         </Field>
-        <Field label="Actual note">
+        <Field label={t("Actual note")}>
           <input
             className={inputClass("w-full")}
             onChange={(event) => onChange("note", event.target.value)}
-            placeholder="Paper report note"
+            placeholder={t("Paper report note")}
             value={draft.note}
           />
         </Field>
-        <Field label="Audit note">
+        <Field label={t("Audit note")}>
           <input
             className={inputClass("w-full")}
             onChange={(event) => onChange("correctionNote", event.target.value)}
-            placeholder="Audit note"
+            placeholder={t("Audit note")}
             value={draft.correctionNote}
           />
         </Field>
@@ -640,7 +684,9 @@ function NewDestinationForm({
             onClick={() => void onSave()}
             type="button"
           >
-            {saveState.status === "saving" ? "Saving" : "Create destination"}
+            {saveState.status === "saving"
+              ? t("Saving")
+              : t("Create destination")}
           </button>
         </div>
       </div>
@@ -673,6 +719,8 @@ function SaveMessage({
   state: DestinationSaveState;
   widthClass?: string;
 }) {
+  const { t } = useI18n();
+
   if (!state.message) {
     return null;
   }
@@ -696,8 +744,8 @@ function SaveMessage({
           type="button"
         >
           {state.labelAction === "generating"
-            ? "Generating labels"
-            : "Regenerate labels"}
+            ? t("Generating labels")
+            : t("Regenerate labels")}
         </button>
       ) : null}
     </div>
@@ -754,10 +802,28 @@ function textareaClass(extra: string): string {
   return `min-h-20 resize-y border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none ${extra}`;
 }
 
-function correctionErrorMessage(error: unknown): string {
+function correctionValidationMessage(
+  error: string,
+  t: (key: MessageKey) => string,
+): string {
+  const knownMessages: Record<string, MessageKey> = {
+    "Destination code is required.": "Destination code is required.",
+    "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.":
+      "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.",
+  };
+
+  return t(
+    knownMessages[error] ?? "Destination correction could not be saved.",
+  );
+}
+
+function correctionErrorMessage(
+  error: unknown,
+  t: (key: MessageKey) => string,
+): string {
   if (error instanceof ApiClientError) {
-    return error.message;
+    return t("Destination correction could not be saved.");
   }
 
-  return error instanceof Error ? error.message : "Correction failed.";
+  return t("Destination correction could not be saved.");
 }

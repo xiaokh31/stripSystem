@@ -90,11 +90,11 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
       "PALLETS_ALREADY_IN_USE",
       "Existing pallets cannot be replaced.",
     ),
-    "Existing pallets cannot be replaced. Existing pallets have already been assigned, loaded, marked unloaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.",
+    "The label PDF and pallet records cannot be rebuilt because existing pallets have already been assigned, loaded, marked unloaded, or entered loading.",
   );
   assert.equal(
     generationFailureMessage("report", "REPORT_FAILED", "Report failed."),
-    "Report failed.",
+    "Generation failed.",
   );
   assert.match(
     generationFailureMessage(

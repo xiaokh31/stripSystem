@@ -89,10 +89,21 @@ After implementation:
 
 ## Commands
 
-Install:
-```bash
-pnpm install
-```
+## Docker-only Local Development
+
+All local Web, API, worker, dependency, Prisma, lint, typecheck, test, and build
+commands must run in Docker. Do not run host `pnpm install`, `npm install`,
+`npx`, `jest`, `next`, `prisma`, `uv sync`, or `uv run pytest` for this project.
+Do not create or repair host `node_modules` as part of normal development.
+
+The Compose services use named volumes for Node dependencies and the Python
+virtual environment. Test-only variables such as `NODE_ENV=test`,
+`QUEUE_ENABLED=false`, and `JEST_WORKER_ID` must be scoped to the test process
+or test container; do not persist them in the local `.env` or shell profile.
+
+Host commands are limited to Docker Compose orchestration, Git/file inspection,
+and platform-native mobile packaging when a native task explicitly requires
+Android, iOS, or Windows host toolchains.
 
 Run dev infra:
 ```bash
@@ -112,15 +123,17 @@ testing matches Windows/Linux Docker production routing.
 
 Run all checks:
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api lint
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api typecheck
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test -- --runInBand
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web lint
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web typecheck
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web test
 ```
 
 Worker tests:
 ```bash
-cd apps/worker-python
-uv run pytest
+docker compose -f infra/docker/compose.local.yml exec -T worker-python uv run pytest
 ```
 
 

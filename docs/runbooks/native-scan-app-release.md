@@ -595,6 +595,23 @@ The `.ipa` output path is selected during Xcode export. Keep the exported IPA,
 release notes, and provisioning metadata in the internal release folder. Do not
 commit provisioning profiles or certificates.
 
+## Startup Performance Evidence
+
+Before release approval, run five cold launches of the signed release artifact
+on the same physical device and use the median. Record device model, OS,
+artifact version and SHA-256, network condition, and the three app-relative
+marks `first-shell`, `session-resolved`, and `load-jobs-ready`. The targets are
+1.5s, 2.5s, and 4s respectively. The metrics implementation records elapsed
+time only; never include credentials, tokens, QR payloads, request bodies, or
+customer data in a trace or release note.
+
+The 2026-07-11 repository check produced a clean Android release build after
+adding an explicit AsyncStorage Codegen dependency before native CMake
+configuration. It did not produce device timing samples. Android/iOS release
+measurements and screenshots remain required, and Windows continues to require
+a Windows 11 MSIX build and device smoke before this cross-platform gate can
+close.
+
 ## Release Checklist
 
 Before distributing any MSIX/APK/IPA:

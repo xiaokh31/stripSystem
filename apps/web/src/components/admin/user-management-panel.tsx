@@ -12,11 +12,15 @@ import {
   type RoleResponse,
   type UserResponse,
 } from "@/lib/api-client";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   userAssignableRoleOptions,
   userCreateRoleOptions,
 } from "@/lib/admin-role-options";
 import { formatOperationalDateTime } from "@/lib/date-time";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
+import { roleDisplayLabel } from "@/lib/i18n/status-labels";
+import { createTranslator } from "@/lib/i18n/translator";
 
 const PASSWORD_MIN_LENGTH = 6;
 
@@ -47,6 +51,7 @@ export function UserManagementPanel({
   users,
 }: UserManagementPanelProps) {
   const router = useRouter();
+  const { format, locale, t } = useI18n();
   const createRoles = useMemo(
     () => userCreateRoleOptions(roles),
     [roles],
@@ -78,17 +83,17 @@ export function UserManagementPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function runAction(label: string, action: () => Promise<unknown>) {
+  async function runAction(label: MessageKey, action: () => Promise<unknown>) {
     setPendingAction(label);
     setNotice(null);
     setError(null);
 
     try {
       await action();
-      setNotice(`${label} saved. Data was refreshed from the API.`);
+      setNotice(format("i18n.admin.actionSaved", { action: t(label) }));
       router.refresh();
     } catch (caught) {
-      setError(toErrorMessage(caught));
+      setError(toErrorMessage(caught, locale));
     } finally {
       setPendingAction(null);
     }
@@ -170,13 +175,11 @@ export function UserManagementPanel({
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-semibold text-zinc-950">
-              Create user
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              New office, warehouse, HR manager, and warehouse manager accounts
-              are created through the protected user API. SYSTEM and temporary
-              unloader records are not browser login accounts.
+          <h2 className="text-base font-semibold text-zinc-950">
+              {t("Create user")}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+              {t("i18n.admin.userManagementDescription")}
             </p>
           </div>
           <StatusNotice error={error} notice={notice} />
@@ -187,7 +190,7 @@ export function UserManagementPanel({
           onSubmit={handleCreateUser}
         >
           <label className="grid gap-1 text-sm font-medium text-zinc-700">
-            Email
+            {t("Email")}
             <input
               className="min-h-10 border border-zinc-300 px-3 text-sm text-zinc-950"
               onChange={(event) =>
@@ -202,7 +205,7 @@ export function UserManagementPanel({
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-zinc-700">
-            Name
+            {t("Name")}
             <input
               className="min-h-10 border border-zinc-300 px-3 text-sm text-zinc-950"
               onChange={(event) =>
@@ -216,7 +219,7 @@ export function UserManagementPanel({
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-zinc-700">
-            Initial password
+            {t("Initial password")}
             <input
               className="min-h-10 border border-zinc-300 px-3 text-sm text-zinc-950"
               minLength={PASSWORD_MIN_LENGTH}
@@ -232,7 +235,7 @@ export function UserManagementPanel({
             />
           </label>
           <fieldset className="grid gap-2 text-sm font-medium text-zinc-700">
-            <legend>Roles</legend>
+            <legend>{t("Roles")}</legend>
             <div className="flex min-h-10 flex-wrap items-center gap-3">
               {createRoles.map((role) => (
                 <label
@@ -246,7 +249,7 @@ export function UserManagementPanel({
                     }
                     type="checkbox"
                   />
-                  {role.code}
+                  {roleDisplayLabel(role.code, locale)}
                 </label>
               ))}
             </div>
@@ -258,7 +261,7 @@ export function UserManagementPanel({
             }
             type="submit"
           >
-            Create
+            {t("Create")}
           </button>
         </form>
       </section>
@@ -267,13 +270,13 @@ export function UserManagementPanel({
         <table className="min-w-[1100px] w-full border-collapse text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
-              <th className="border-b border-zinc-200 px-4 py-3">User</th>
-              <th className="border-b border-zinc-200 px-4 py-3">Status</th>
-              <th className="border-b border-zinc-200 px-4 py-3">Roles</th>
+              <th className="border-b border-zinc-200 px-4 py-3">{t("User")}</th>
+              <th className="border-b border-zinc-200 px-4 py-3">{t("Status")}</th>
+              <th className="border-b border-zinc-200 px-4 py-3">{t("Roles")}</th>
               <th className="border-b border-zinc-200 px-4 py-3">
-                Last login
+                {t("Last login")}
               </th>
-              <th className="border-b border-zinc-200 px-4 py-3">Actions</th>
+              <th className="border-b border-zinc-200 px-4 py-3">{t("Actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -302,7 +305,7 @@ export function UserManagementPanel({
                         onChange={(event) =>
                           updateUserDraft(user.id, "name", event.target.value)
                         }
-                        placeholder="Name"
+                        placeholder={t("Name")}
                         type="text"
                         value={draft.name}
                       />
@@ -316,7 +319,7 @@ export function UserManagementPanel({
                           : "bg-zinc-200 text-zinc-700"
                       }`}
                     >
-                      {user.isActive ? "Active" : "Inactive"}
+                      {user.isActive ? t("Active") : t("Inactive")}
                     </span>
                   </td>
                   <td className="border-b border-zinc-100 px-4 py-4">
@@ -338,9 +341,14 @@ export function UserManagementPanel({
                             type="checkbox"
                           />
                           <span>
-                            <span className="font-semibold">{role.code}</span>
-                            <span className="ml-2 text-xs text-zinc-500">
-                              {role.displayName}
+                            <span className="font-semibold">
+                              {roleDisplayLabel(role.code, locale)}
+                            </span>
+                            <span
+                              className="ml-2 text-xs text-zinc-500"
+                              data-i18n-ignore="true"
+                            >
+                              {role.code}
                             </span>
                           </span>
                         </label>
@@ -348,7 +356,7 @@ export function UserManagementPanel({
                     </div>
                   </td>
                   <td className="border-b border-zinc-100 px-4 py-4 text-zinc-600">
-                    {formatDateTime(user.lastLoginAt)}
+                    {formatDateTime(user.lastLoginAt, locale)}
                   </td>
                   <td className="border-b border-zinc-100 px-4 py-4">
                     <div className="grid gap-2">
@@ -356,7 +364,7 @@ export function UserManagementPanel({
                         className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={pendingAction !== null}
                         onClick={() =>
-                          runAction("Update user", () =>
+                          runAction("i18n.admin.action.updateUser", () =>
                             updateUser(user.id, {
                               email: draft.email,
                               name: draft.name.trim() || null,
@@ -365,7 +373,7 @@ export function UserManagementPanel({
                         }
                         type="button"
                       >
-                        Save profile
+                        {t("Save profile")}
                       </button>
                       <button
                         className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -373,7 +381,7 @@ export function UserManagementPanel({
                           pendingAction !== null || draft.roleCodes.length === 0
                         }
                         onClick={() =>
-                          runAction("Update roles", () =>
+                          runAction("i18n.admin.action.updateRoles", () =>
                             updateUserRoles(user.id, {
                               roleCodes: draft.roleCodes,
                             }),
@@ -381,14 +389,16 @@ export function UserManagementPanel({
                         }
                         type="button"
                       >
-                        Save roles
+                        {t("Save roles")}
                       </button>
                       <button
                         className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={pendingAction !== null}
                         onClick={() =>
                           runAction(
-                            user.isActive ? "Disable user" : "Enable user",
+                            user.isActive
+                              ? "i18n.admin.action.disableUser"
+                              : "i18n.admin.action.enableUser",
                             () =>
                               updateUserStatus(user.id, {
                                 isActive: !user.isActive,
@@ -397,7 +407,7 @@ export function UserManagementPanel({
                         }
                         type="button"
                       >
-                        {user.isActive ? "Disable" : "Enable"}
+                        {user.isActive ? t("Disable") : t("Enable")}
                       </button>
                       <div className="grid gap-2">
                         <input
@@ -410,7 +420,7 @@ export function UserManagementPanel({
                               event.target.value,
                             )
                           }
-                          placeholder="New password"
+                          placeholder={t("New password")}
                           type="password"
                           value={draft.password}
                         />
@@ -421,7 +431,7 @@ export function UserManagementPanel({
                             draft.password.length < PASSWORD_MIN_LENGTH
                           }
                           onClick={() =>
-                            runAction("Reset password", () =>
+                            runAction("i18n.admin.action.resetPassword", () =>
                               resetUserPassword(user.id, {
                                 password: draft.password,
                               }),
@@ -429,7 +439,7 @@ export function UserManagementPanel({
                           }
                           type="button"
                         >
-                          Reset password
+                        {t("Reset password")}
                         </button>
                       </div>
                     </div>
@@ -476,18 +486,19 @@ function toggleValue(values: string[], value: string, checked: boolean) {
   return values.filter((item) => item !== value);
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null, locale: Locale): string {
   if (!value) {
-    return "Never";
+    return createTranslator(locale).t("Never");
   }
 
   return formatOperationalDateTime(value);
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    return `${error.status} ${error.code}: ${error.message}`;
-  }
-
-  return error instanceof Error ? error.message : "The request failed.";
+function toErrorMessage(error: unknown, locale: Locale): string {
+  const { t } = createTranslator(locale);
+  return t(
+    error instanceof ApiClientError && error.code === "FORBIDDEN"
+      ? "Permission denied"
+      : "User management request failed.",
+  );
 }

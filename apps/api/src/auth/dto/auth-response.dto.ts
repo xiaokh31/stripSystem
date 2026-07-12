@@ -12,3 +12,9 @@ export interface LoginResponseDto {
   expiresIn: number;
   user: AuthUserResponseDto;
 }
+
+export interface NativeSessionResponseDto extends LoginResponseDto {
+  refreshExpiresIn: number;
+  refreshToken: string;
+  sessionId: string;
+}

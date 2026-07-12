@@ -19,8 +19,9 @@ import {
   type DestinationInventoryItemResponse,
   type InventoryReportFilters,
 } from "@/lib/api-client";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export default async function InventoryReportPage({
   searchParams: Promise<InventorySearchParams>;
 }) {
   const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const filters = normalizeInventoryFilters(await searchParams);
   const state = await loadInventoryReport(filters);
   const totals = sumPalletStats(state.containers);
@@ -50,17 +52,17 @@ export default async function InventoryReportPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Inventory report
+              {t("Inventory report")}
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              Pallet inventory by container and destination
+              {t("Pallet inventory by container and destination")}
             </h1>
           </div>
           <Link
             className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
             href="/reports"
           >
-            Reports
+            {t("Reports")}
           </Link>
         </div>
       </section>
@@ -79,30 +81,37 @@ export default async function InventoryReportPage({
       {state.containerError ? (
         <ApiErrorPanel
           error={state.containerError}
-          title="Container summary could not be loaded"
+          fallback="Container summary could not be loaded"
+          locale={locale}
+          title={t("Container summary could not be loaded")}
         />
       ) : null}
       {state.destinationError ? (
         <ApiErrorPanel
           error={state.destinationError}
-          title="Destination inventory could not be loaded"
+          fallback="Destination inventory could not be loaded"
+          locale={locale}
+          title={t("Destination inventory could not be loaded")}
         />
       ) : null}
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          <Metric label="Containers" value={state.containers.length} />
-          <Metric label="Destinations" value={state.destinations.length} />
-          <Metric label="Total pallets" value={totals.totalPallets} />
-          <Metric label="Loaded pallets" value={totals.loadedPallets} />
-          <Metric label="Adjusted out" value={totals.adjustedOutPallets} />
-          <Metric label="Remaining pallets" value={totals.remainingPallets} />
+          <Metric label={t("Containers")} value={state.containers.length} />
+          <Metric label={t("Destinations")} value={state.destinations.length} />
+          <Metric label={t("Active pallets")} value={totals.activeTotalPallets} />
+          <Metric label={t("Loaded pallets")} value={totals.loadedPallets} />
+          <Metric label={t("Adjusted out")} value={totals.adjustedOutPallets} />
+          <Metric
+            label={t("Remaining pallets")}
+            value={totals.remainingPallets}
+          />
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <ContainerSummaryTable containers={state.containers} locale={locale} />
-        <DestinationInventoryTable destinations={state.destinations} />
+        <DestinationInventoryTable destinations={state.destinations} locale={locale} />
       </section>
     </main>
   );
@@ -144,18 +153,19 @@ function InventoryFilterForm({
   filters: InventoryReportFilters;
   locale: Locale;
 }) {
+  const { format, t } = createTranslator(locale);
   const clearHref = inventoryReportHref({});
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-zinc-950">Filters</h2>
+        <h2 className="text-base font-semibold text-zinc-950">{t("Filters")}</h2>
         {activeFilters ? (
           <span className="text-sm font-semibold text-teal-700">
-            {activeFilters} active
+            {format("i18n.inventory.activeFilters", { count: activeFilters })}
           </span>
         ) : (
-          <span className="text-sm text-zinc-500">No filters active</span>
+          <span className="text-sm text-zinc-500">{t("No filters active")}</span>
         )}
       </div>
       <form
@@ -163,7 +173,7 @@ function InventoryFilterForm({
         className="mt-4 grid gap-4 lg:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_220px_auto_auto]"
       >
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
-          Container No.
+          {t("Container No.")}
           <input
             className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700"
             defaultValue={filters.containerNo ?? ""}
@@ -173,7 +183,7 @@ function InventoryFilterForm({
           />
         </label>
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
-          Destination
+          {t("Destination")}
           <input
             className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700"
             defaultValue={filters.destinationCode ?? ""}
@@ -183,7 +193,7 @@ function InventoryFilterForm({
           />
         </label>
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
-          Pallet status
+          {t("Pallet status")}
           <select
             className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700"
             defaultValue={filters.status ?? ""}
@@ -200,13 +210,13 @@ function InventoryFilterForm({
           className="inline-flex min-h-11 items-center justify-center border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900 lg:self-end"
           type="submit"
         >
-          Apply filters
+          {t("Apply filters")}
         </button>
         <Link
           className="inline-flex min-h-11 items-center justify-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 lg:self-end"
           href={clearHref}
         >
-          Clear
+          {t("Clear")}
         </Link>
       </form>
     </section>
@@ -231,23 +241,27 @@ function ContainerSummaryTable({
   containers: ContainerSummaryItemResponse[];
   locale: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Container summary
+        {t("Container summary")}
       </h2>
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
-              <th className="px-3 py-3 font-semibold">Container No.</th>
-              <th className="px-3 py-3 font-semibold">Status</th>
-              <th className="px-3 py-3 text-right font-semibold">Total</th>
-              <th className="px-3 py-3 text-right font-semibold">Loaded</th>
+              <th className="px-3 py-3 font-semibold">{t("Container No.")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Status")}</th>
               <th className="px-3 py-3 text-right font-semibold">
-                Adjusted out
+                {t("Active pallets")}
               </th>
-              <th className="px-3 py-3 text-right font-semibold">Remaining</th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Loaded")}</th>
+              <th className="px-3 py-3 text-right font-semibold">
+                {t("Adjusted out")}
+              </th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Remaining")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -266,7 +280,7 @@ function ContainerSummaryTable({
                     <StatusBadge locale={locale} status={container.status} />
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
-                    {formatPalletCount(container.totalPallets)}
+                    {formatPalletCount(container.activeTotalPallets)}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
                     {formatPalletCount(container.loadedPallets)}
@@ -282,7 +296,7 @@ function ContainerSummaryTable({
             ) : (
               <tr>
                 <td className="px-3 py-6 text-zinc-600" colSpan={6}>
-                  No container inventory matched the selected filters.
+                  {t("No container inventory matched the selected filters.")}
                 </td>
               </tr>
             )}
@@ -295,25 +309,31 @@ function ContainerSummaryTable({
 
 function DestinationInventoryTable({
   destinations,
+  locale,
 }: {
   destinations: DestinationInventoryItemResponse[];
+  locale: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Destination summary
+        {t("Destination summary")}
       </h2>
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
-              <th className="px-3 py-3 font-semibold">Destination</th>
-              <th className="px-3 py-3 text-right font-semibold">Total</th>
-              <th className="px-3 py-3 text-right font-semibold">Loaded</th>
+              <th className="px-3 py-3 font-semibold">{t("Destination")}</th>
               <th className="px-3 py-3 text-right font-semibold">
-                Adjusted out
+                {t("Active pallets")}
               </th>
-              <th className="px-3 py-3 text-right font-semibold">Remaining</th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Loaded")}</th>
+              <th className="px-3 py-3 text-right font-semibold">
+                {t("Adjusted out")}
+              </th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Remaining")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -324,7 +344,7 @@ function DestinationInventoryTable({
                     {destination.destinationCode}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
-                    {formatPalletCount(destination.totalPallets)}
+                    {formatPalletCount(destination.activeTotalPallets)}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums">
                     {formatPalletCount(destination.loadedPallets)}
@@ -340,7 +360,7 @@ function DestinationInventoryTable({
             ) : (
               <tr>
                 <td className="px-3 py-6 text-zinc-600" colSpan={5}>
-                  No destination inventory matched the selected filters.
+                  {t("No destination inventory matched the selected filters.")}
                 </td>
               </tr>
             )}
@@ -363,7 +383,7 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={containerStatusLabel(status, locale)}
     >
       {containerStatusLabel(status, locale)}
     </span>
@@ -392,9 +412,13 @@ function statusBadgeStyles(status: string): string {
 
 function ApiErrorPanel({
   error,
+  fallback,
+  locale,
   title,
 }: {
   error: ApiClientError;
+  fallback: MessageKey;
+  locale: Locale;
   title: string;
 }) {
   return (
@@ -402,14 +426,30 @@ function ApiErrorPanel({
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <p className="text-sm font-semibold uppercase">{error.code}</p>
+      <p className="text-sm font-semibold uppercase" data-i18n-ignore>
+        {error.code}
+      </p>
       <h2 className="mt-2 text-lg font-semibold">{title}</h2>
       <p className="mt-3 text-sm">
-        {error.status ? `${error.status}: ` : ""}
-        {error.message}
+        {inventoryApiErrorMessage(error, locale, fallback)}
       </p>
     </section>
   );
+}
+
+const inventoryApiErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "The API request could not be sent.",
+  WEB_INVENTORY_REPORT_ERROR: "The API request could not be sent.",
+};
+
+function inventoryApiErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+  fallback: MessageKey,
+): string {
+  const { t } = createTranslator(locale);
+  const knownKey = inventoryApiErrorKeys[error.code];
+  return t(knownKey ?? fallback);
 }
 
 function toApiClientError(error: unknown, message: string): ApiClientError {

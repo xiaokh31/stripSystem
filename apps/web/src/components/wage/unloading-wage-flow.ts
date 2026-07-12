@@ -5,6 +5,8 @@ import type {
   PayAllocationMethod,
   UnloadingWageSettlementResponse,
 } from "@/lib/api-client";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export interface CreatePayContainerDraft {
   classification: ContainerPayClassification;
@@ -74,7 +76,9 @@ export function settlementsForMonth(
 export function settlementReviewAlerts(
   settlements: UnloadingWageSettlementResponse[],
   settlementMonth: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): string[] {
+  const { format } = createTranslator(locale);
   const monthSettlements = settlementsForMonth(settlements, settlementMonth);
   const needsReviewCount = monthSettlements.filter((settlement) =>
     isSettlementStatus(settlement, "NEEDS_REVIEW"),
@@ -86,12 +90,18 @@ export function settlementReviewAlerts(
 
   if (needsReviewCount > 0) {
     alerts.push(
-      `${needsReviewCount} settlement version(s) for ${settlementMonth} need review because source unloading wage data changed after generation.`,
+      format("i18n.unloadingWage.needsReviewVersions", {
+        count: needsReviewCount,
+        month: settlementMonth,
+      }),
     );
   }
   if (supersededCount > 0) {
     alerts.push(
-      `${supersededCount} older settlement version(s) for ${settlementMonth} were superseded by regeneration.`,
+      format("i18n.unloadingWage.supersededVersions", {
+        count: supersededCount,
+        month: settlementMonth,
+      }),
     );
   }
 
@@ -127,15 +137,17 @@ export function parseContainerIds(value: string): string[] {
 
 export function buildCreatePayContainerRequest(
   draft: CreatePayContainerDraft,
+  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<CreatePayContainerRequest> {
+  const { t } = createTranslator(locale);
   const containerIds = parseContainerIds(draft.containerIdsText);
   if (containerIds.length === 0) {
-    return { error: "Enter at least one container id.", ok: false };
+    return { error: t("Enter at least one container id."), ok: false };
   }
 
   if (draft.classification === "OCEAN_CONTAINER" && containerIds.length !== 1) {
     return {
-      error: "Ocean container pay units require exactly one container id.",
+      error: t("Ocean container pay units require exactly one container id."),
       ok: false,
     };
   }
@@ -143,12 +155,12 @@ export function buildCreatePayContainerRequest(
   const trailerNumber = nullableString(draft.trailerNumber);
   if (draft.classification === "US_TO_CANADA_TRANSFER" && !trailerNumber) {
     return {
-      error: "US-to-Canada transfer pay units require a trailer number.",
+      error: t("US-to-Canada transfer pay units require a trailer number."),
       ok: false,
     };
   }
 
-  const rateAmount = nullableNumber(draft.rateAmount, "Rate amount");
+  const rateAmount = nullableNumber(draft.rateAmount, locale);
   if (!rateAmount.ok) {
     return rateAmount;
   }
@@ -168,15 +180,17 @@ export function buildCreatePayContainerRequest(
 
 export function buildCompletePayContainerRequest(
   draft: CompletePayContainerDraft,
+  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<CompleteUnloadingRequest> {
+  const { t } = createTranslator(locale);
   const completedAt = draft.completedAt.trim();
   if (!completedAt) {
-    return { error: "Completed date and time are required.", ok: false };
+    return { error: t("Completed date and time are required."), ok: false };
   }
 
   const completedDate = new Date(completedAt);
   if (Number.isNaN(completedDate.getTime())) {
-    return { error: "Completed date and time must be valid.", ok: false };
+    return { error: t("Completed date and time must be valid."), ok: false };
   }
 
   const unloaders = draft.unloaders
@@ -190,13 +204,13 @@ export function buildCompletePayContainerRequest(
     .filter((unloader) => unloader.workerCode || unloader.workerName);
 
   if (unloaders.length === 0) {
-    return { error: "Add at least one unloader.", ok: false };
+    return { error: t("Add at least one unloader."), ok: false };
   }
 
   for (const unloader of unloaders) {
     if (!unloader.workerCode || !unloader.workerName) {
       return {
-        error: "Each unloader requires both worker code and worker name.",
+        error: t("Each unloader requires both worker code and worker name."),
         ok: false,
       };
     }
@@ -209,7 +223,7 @@ export function buildCompletePayContainerRequest(
           unloader.allocationPercent < 0))
     ) {
       return {
-        error: "Allocation amount and percent must be 0 or greater.",
+        error: t("Allocation amount and percent must be 0 or greater."),
         ok: false,
       };
     }
@@ -222,8 +236,8 @@ export function buildCompletePayContainerRequest(
       return {
         error:
           draft.allocationMethod === "MANUAL_AMOUNT"
-            ? "Manual amount allocation requires every amount."
-            : "Manual percent allocation requires every percent.",
+            ? t("Manual amount allocation requires every amount.")
+            : t("Manual percent allocation requires every percent."),
         ok: false,
       };
     }
@@ -263,7 +277,7 @@ function nullableString(value: string): string | null {
 
 function nullableNumber(
   value: string,
-  label: string,
+  locale: Locale,
 ): { ok: true; value: number | null } | { error: string; ok: false } {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -272,7 +286,10 @@ function nullableNumber(
 
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return { error: `${label} must be greater than 0.`, ok: false };
+    return {
+      error: createTranslator(locale).t("Rate amount must be greater than 0."),
+      ok: false,
+    };
   }
 
   return { ok: true, value: parsed };

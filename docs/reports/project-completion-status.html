@@ -508,6 +508,69 @@
       </section>
 
       <section>
+        <h2>Native Warehouse Console UX 方向</h2>
+        <p class="note">
+          NATIVE-UX-00 已完成产品与视觉方向固化，不改变当前 native scan transaction、
+          offline queue、RBAC 或库存规则。后续 NATIVE-UX-01 至 04 必须以此 brief 为准。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>NATIVE-UX-00 Native Warehouse Console Visual Direction</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Brief Complete</td>
+              <td>`prompts/tasks/NATIVE-UX-00Native Warehouse Console Visual Direction.md` 已固化 Loading Bay Dispatch Console：面向 PDA、平板和 Windows 扫码站的 task-first、glove-friendly 方向；Bay Board 任务行必须稳定显示目的仓、装车单、月台/车辆、进度和可扫码状态。定义 loading paper、bay charcoal、safety amber、signal teal、alert red token；技术配置、device ID、permission code 和 API 说明仅可出现在 Settings/Diagnostics。明确 native en/zh-CN 单语 catalog、stable-code mapping、locale persistence 和 release-device 冷启动测量预算。</td>
+              <td>执行 NATIVE-UX-01：拆分 App shell，并建立 native i18n 与 Login/Load Jobs/Scan/Settings 层级。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-01 App Shell Navigation and Native I18n Foundation</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Shell/I18n Complete</td>
+              <td>新增 native `en`/`zh-CN` catalog、stable API code 映射、locale AsyncStorage 持久化和 parity/navigation tests。App 以 session 驱动 Login、Load Jobs、Scan、Settings 四个状态；有效会话恢复后进入 Load Jobs，未登录保持紧凑 Login。服务器地址、连接测试、语言和 device ID 已移入 Settings；日常任务/扫码页不显示 API URL、permission/role code、QR payload 或 native implementation 说明。真实 auth、scan、offline queue、supervisor override、dock update 和 complete loading 调用保持原 contract。</td>
+              <td>执行 NATIVE-UX-02：以真实 load jobs 重做 Bay Board，并引入虚拟化列表与完整任务状态。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-02 Load Job Bay Board Redesign</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Bay Board Complete</td>
+              <td>Load Jobs 首屏改为 Loading Bay Dispatch Console Bay Board。真实 API 返回的任务按 `IN_PROGRESS`、`canScan`、scheduled departure、createdAt/id 稳定排序；支持目的仓、装车单、月台、车辆紧凑搜索。每个稳定触控任务行显示目的仓、装车单、月台/车辆、已装/计划、剩余和明确文字状态，使用 `FlatList` 进行 windowed rendering。刷新保留最后成功任务，失败显示 stale 提示；不前端推算库存、不改变 loadJobId 或 scan contract。</td>
+              <td>执行 NATIVE-UX-03：简化已选任务的扫描工作台与次级操作层级。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-03 Scan Workspace Visual Simplification</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Scan Workspace Complete</td>
+              <td>已选任务页把任务身份、后端进度、托盘标签输入、扫码枪 Enter 和原生相机作为首屏主操作；固定高度反馈槽避免连续扫描时主控件跳动。最近扫描只显示柜号、目的仓、托盘号和后端进度。月台保存、完成装车、主管覆盖均改为按需展开的次级操作；离线队列默认仅显示待同步数量，按需展开后才可手动同步。未改变真实 scan transaction、offline queue、duplicate/invalid/closed/override 或 loadJobId 隔离规则。</td>
+              <td>执行 NATIVE-UX-04：在 release 实机上记录启动基线、优化关键路径并完成三端 UX/i18n 回归。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-04 Startup Performance and Cross Platform UX Exit Gate</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>Build/Instrumentation Complete; Device Gate Blocked</td>
+              <td>新增仅保留 elapsed duration 的 `process-start`、`first-shell`、`session-resolved`、`load-jobs-ready` 启动标记，不记录 token、密码、QR payload 或请求内容。设置、device ID、locale 并行读取；session 决定 shell 后才读取离线队列，因此队列不阻塞首屏且不改变 scan/queue 幂等和后端确认规则。Android release clean build 已通过；`android/app/build.gradle` 已使每个 CMake 配置任务显式依赖 AsyncStorage Codegen，修复干净构建时 JNI Codegen 目录缺失。2026-07-11 Release-mode APK 已在 MI 8 SE 安装、启动并保持前台运行，最近日志无 crash；iPhone 15 Pro 上的 signed iOS Release 也已构建、安装和启动。未伪造五次冷启动中位数、双语截图或扫码回归。Windows 仍无 RNW project/MSIX/设备 smoke。</td>
+              <td>连接同一 Android/iOS release 实机，各采集五次冷启动的中位数与中英 Login、Bay Board、Scan、Offline/Error、Settings 证据；在 Windows 11 完成 RNW/MSIX 和设备 smoke 后才可标记完成。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-05 System Adaptive Color Theme</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>Android Dark Device Verified; Cross-platform Evidence Pending</td>
+              <td>Native React UI 已由固定颜色改为 light/dark 语义 tokens 和缓存样式工厂；系统 `useColorScheme` 变化只刷新样式与 StatusBar，不触发 session restore、load-jobs refresh 或 offline sync。Android 配置已改为 DayNight，并为启动、状态栏、导航栏和 scanner chrome 集中配置主题色与 Force Dark 防护。2026-07-11 `lint`、45 个 mobile unit tests 和 Android Release build 通过；MI 8 SE Release 真机已验证深色 Login 页面完整绘制。该机型出现按钮多词文本视觉裁剪，已改为占满父按钮宽度的居中文本并在同机验证 `Sign in`、`Open settings` 完整显示。MIUI 拒绝 shell 切换浅色模式，iOS/Windows 的系统主题切换尚未验证。</td>
+              <td>在 Android 系统设置中采集浅色与运行中切换证据；在 iOS/Windows 验证运行中主题切换、scanner/native chrome、locale x theme 和高对比场景后才可标记完成。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>工资 P0/P1/P2 扩展进度</h2>
         <p class="note">
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
@@ -1059,6 +1122,35 @@
       </section>
 
       <section>
+        <h2>Docker-Only 开发环境</h2>
+        <p class="note">
+          DOCKER-DEV-01 已完成。本地 API、Web、worker、Prisma、测试与构建不再依赖宿主
+          Node/Python 环境；服务源码在 Docker build 时复制进 image，运行时仅保留真实
+          `storage/` bind mount，依赖和构建输出留在 named volumes。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>DOCKER-DEV-01 Cleanup Host Jest Install and Enforce Docker Only Workflow</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Docker-Only Full Stack Verified</td>
+              <td>新增固定 allowlist 的 host 依赖清理脚本，dry-run 输出 path/realpath/type/size/mtime，`--apply` 只处理 root、API、Web 三处 `node_modules`。三处现均为 absent，`.env`/shell startup 没有持久 `NODE_ENV`、`QUEUE_ENABLED` 或 `JEST_*`。API/Web/worker 改为 image-copied source，Docker named volumes 已实测挂载到 Node、pnpm、worker venv 和 Web `.next`，不再被宿主 bind mount 覆盖；worker image 补齐 WeasyPrint GObject/Pango/Cairo 运行库，根 `.dockerignore` 排除移动端本机缓存。Docker full stack/health、API Jest target unit 4 项、Web lint/typecheck/186 unit、worker 112 pytest、Prisma migrate status、execpolicy allow/deny smoke 与 `git diff --check` 全部通过。</td>
+              <td>源码变更后使用 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建受影响服务；不要恢复宿主 `node_modules`。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>人工库存消减进度</h2>
         <p class="note">
           INVENTORY-ADJUST-01 至 03 已完成 API/RBAC/审计/统计、受权限控制的 Web 表单和 Docker full-stack regression。
@@ -1094,6 +1186,43 @@
               <td>Regression Complete</td>
               <td>Docker API fixture `E2E-INVADJ-56872391` 验证三托盘柜人工消减一托后 remaining `3→2`、loaded 不变；有效扫码后为 remaining `1` / loaded `1` / adjusted out `1`。重复扫码不二次扣减，已消减托盘返回 `PALLET_ADJUSTED_OUT`；调整记录包含操作人、原因、备注和托盘标识。container detail、container summary、inventory report 与 dashboard 一致。API unit 42 项和 E2E 30 项通过；Playwright 验证 English → 中文 → refresh → English，无 raw `ADJUSTED_OUT` 和页面错误。</td>
               <td>人工消库存闭环已关闭；后续仅按现场反馈处理具体 bugfix。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>已拆完目的仓库存同步进度</h2>
+        <p class="note">
+          UNLOAD-INVENTORY-01/02 已完成。`UNLOADED` 不再只修改柜子状态；系统会先按每个
+          目的仓 `finalPallets` 对账真实 Pallet rows，再在同一事务提交完成状态和工资完成
+          审计。库存仍以后端 Pallet 状态为权威来源，Web 当前库存统一使用 active total，
+          不会由前端临时拼接 `finalPallets`。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>完成度</th>
+              <th>已完成证据</th>
+              <th>下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>UNLOAD-INVENTORY-01 Unloaded Container Pallet Inventory Synchronization</td>
+              <td><span class="badge done">Done</span></td>
+              <td>API / Web Contract / Regression Complete</td>
+              <td>新增共享 `ContainerPalletInventorySyncService`、container/destination/pallet row lock 和统一 pallet ID/QR builder。办公室 `UNLOADED` 状态更新、container detail 拆柜工资完成和 pay container 完成均在同一事务先同步各目的仓：保留 PLANNED/LABEL_PRINTED identity/history、补齐缺失 PALLET/CREATED event、只取消安全 surplus 并写 CANCELLED event；loading/loaded/adjusted/exception surplus 返回稳定冲突码且不产生半完成状态。库存响应保留历史 `totalPallets`，新增 `activeTotalPallets`，remaining 排除 LOADED/CANCELLED/ADJUSTED_OUT；Dashboard、柜子列表和库存报告主口径已切到 active total。2026-07-12 API typecheck、25 unit suites / 174 tests、15 E2E suites / 92 tests、scoped API ESLint、Web typecheck、186 Web unit tests、Docker Web lint/production build 通过。Docker nginx authenticated smoke 读取到 inventory、UNLOADED container summary 和 dashboard 的 active total；未改动现场业务记录。</td>
+              <td>执行 UNLOAD-INVENTORY-02，补完成后柜子详情、库存报告和 Dashboard 的刷新/浏览器回归矩阵。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-INVENTORY-02 Unloaded Inventory Web Refresh and Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Web Refresh / i18n / Regression Complete</td>
+              <td>container detail 的工资完成和办公室 UNLOADED 状态更新均消费 P1 API sync summary；成功后显示目的仓数量和实际 active pallet 总数，目的仓明细按需展开，remaining 不在前端推导。完成动作刷新当前详情页并通过浏览器事件、localStorage fallback 和 BroadcastChannel 刷新已打开的 Dashboard inventory pressure 与库存报表；冲突继续按稳定 API code 映射到中英文可行动提示，raw code 仅保留诊断展示。2026-07-12 Docker Web lint、typecheck、187 Web unit tests、Docker nginx /api/health 和 /login smoke、git diff --check 通过。</td>
+              <td>生产试点使用真实拆柜记录执行一次受控的多目的仓、人工消库存和扫码装车业务 smoke；本次未写入或伪造业务库存数据。</td>
             </tr>
           </tbody>
         </table>
@@ -1162,8 +1291,8 @@
             <tr>
               <td>库存报表</td>
               <td><span class="badge done">Done</span></td>
-              <td>97%</td>
-              <td>按容器、目的仓、状态查询；剩余库存来自后端数据库，并已区分 loaded、adjusted-out、cancelled 和 remaining。</td>
+              <td>100%</td>
+              <td>按容器、目的仓、状态查询；剩余库存来自后端数据库，并已区分历史 total、active total、loaded、adjusted-out、cancelled 和 remaining。</td>
             </tr>
             <tr>
               <td>Load Job 计划和状态</td>
@@ -1381,6 +1510,41 @@
               <td><span class="badge done">Ready</span></td>
               <td>新增 `docs/runbooks/pilot-account-assignment.md`：按真实个人账号分配 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER，禁止共享账号和 E2E/smoke/test 账号参与 pilot，并覆盖 worker directory 的 active WAREHOUSE 用户要求。</td>
             </tr>
+            <tr>
+              <td>CROSS-UX-QA-01 Persistent Session Theme Locale Regression</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>API lint/typecheck/unit、非沙箱 API E2E（15 suites / 91 tests）、Web lint/typecheck/unit/build、native lint/typecheck/unit 已通过。WEB-I18N-04/05/06 已完成共享首屏、业务模块显式翻译与完整 Web locale x theme/role 无闪烁门禁。NATIVE-AUTH-01 可撤销 refresh session，以及 Android/iOS/Windows locale x theme/persistent-session 实机矩阵仍待完成。native package 未定义 android/ios check script，Windows readiness 仍是 blocker。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-06 Android Header Title Clipping</td>
+              <td><span class="badge partial">Partial</span></td>
+              <td>共享 header 让品牌区占剩余可收缩宽度且最多两行，Settings 保持 44px 触控语义。2026-07-11 MI 8 SE Release 浅色 English 真机确认 `BESTAR SCAN` 完整显示；UI hierarchy 标题 bounds `[55,181][871,231]`，Settings control bounds `[904,146][1025,267]`，无裁剪或重叠。mobile lint/typecheck 与 46 项 unit tests 通过；中文、font scale 1.3/2.0、dark、iOS/Windows 对照尚待验证。</td>
+            </tr>
+            <tr>
+              <td>WEB-I18N-04 Explicit Localization Runtime Contract</td>
+              <td><span class="badge done">Done</span></td>
+              <td>建立唯一的强类型 `createTranslator(locale).t(key)` 契约，Client `useI18n()` 暴露同一 `t`；缺失中文在开发/测试抛错，生产显示 catalog 中的本地化通用回退并记录诊断。root metadata、404/error、OfficeShell/nav/language/theme、登录、管理权限错误、Dashboard 与共享 dashboard 组件已迁移为显式翻译；删除遗留 document walker，未恢复 `MutationObserver`。2026-07-11 Web lint/typecheck、186 项 unit tests、Docker production build 与 nginx `bestar_locale=zh-CN` SSR smoke 已通过：首个 HTML 为 `lang=zh-CN`、中文 metadata 与中文登录/共享 shell 文案。业务模块和完整 SSR/hydration/role/theme gate 已分别由 WEB-I18N-05/06 完成。</td>
+            </tr>
+            <tr>
+              <td>WEB-I18N-05 Migrate All Web Modules to Explicit Localization</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Import、Container、Inventory/Reports、Load Jobs、Web mobile scan、Work Hours、Unloading Wage/Summary、Admin/Settings 与全局补漏均已迁移为显式 Server/Client translator。状态、生成文件类型、目的仓类型、权限说明和运营设置均由 stable code/key 映射；未知 API 错误显示本地化通用提示，不再把自由文本作为主 UI。管理员 users/roles 页面强制动态 SSR，避免缓存未经授权或旧 locale 页面。`i18n.test.ts` 现检查全部 app/components 的 explicit translator、禁止 legacy helper、catalog parity 和中文硬编码泄漏；唯一豁免是只执行 redirect 的 `/admin` 入口。已通过 Web lint、typecheck、186 项 unit tests、`git diff --check`、Docker production build/health，以及真实 ADMIN 中文 SSR 的 roles/settings smoke。WEB-I18N-06 已补完整 no-JS/首帧 hydration/route/role/theme matrix。宿主机 build 仅受缺失 `lightningcss.darwin-x64.node` 可选原生依赖阻断，Docker Linux build 已成功。</td>
+            </tr>
+            <tr>
+              <td>WEB-I18N-06 Full Localization No-Flash Regression Gate</td>
+              <td><span class="badge done">Done</span></td>
+              <td>移除 source-string 反向翻译与 DOM 后处理路径；AST 门禁会拒绝原始 JSX 表头、placeholder 和 `setError` 可见英文，并仅允许具名 `MessageKey` 组件边界及 `data-i18n-ignore` 技术诊断。删除全局 loading boundary，使禁用 JavaScript 的 SSR 直接返回完整路由内容，不以 body hidden/opacity 规避首帧。2026-07-11 Docker full-stack Playwright 在 desktop 与 mobile 覆盖登录及 17 条主业务路由的 English/zh-CN no-JS SSR、中文首帧/hydration、Light/Dark 持久化与 client navigation；无 hydration mismatch、console warning 或 MutationObserver 循环。真实本地 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER 账号 role smoke 均通过，未创建或重置账号。Web lint/typecheck、186 项 unit tests、`git diff --check`、Docker production build/health 通过；宿主机直接 build 仍仅受缺失 `lightningcss.darwin-x64.node` 可选依赖阻断。</td>
+            </tr>
+            <tr>
+              <td>AGENT-AUTONOMY-01 Business Agent Non-Interactive Execution</td>
+              <td><span class="badge done">Done</span></td>
+              <td>实际 Codex CLI `0.144.1` 已安装 `~/.codex/business-agent.config.toml`；命名 `business-agent` permission profile 继承 `:workspace`、使用 `approval_policy = never` 并按宿主能力允许依赖网络。`scripts/run-business-agent.sh` 固定 profile 与本仓库 root，拒绝 sandbox/approval/profile/rules 覆盖；`.codex/execpolicy.rules` 拒绝破坏性 Git、递归删除、发布、远程基础设施和高风险 Docker 命令。安装器以 mode `600` 写入 profile 且拒绝覆盖不同本地配置。2026-07-11 host-level capability smoke 已通过：读文件、`/private/tmp` 写删、ESLint help、`docker compose ps` 与危险命令拒绝均无业务副作用。当前受管 Seatbelt 内不能嵌套 `sandbox-exec`，但普通宿主层同一 smoke 已通过；这是平台嵌套限制，不是 profile 失效。</td>
+            </tr>
+            <tr>
+              <td>WEB-THEME-01 Office Web Light / Dark / System Theme</td>
+              <td><span class="badge done">Done</span></td>
+              <td>新增语义 theme tokens，覆盖 canvas/surface/text/border/focus/action/disabled/status/table/input/overlay/chart；办公室 shell 提供三态主题控件及 en/zh aria/title tooltip。`bestar_theme` cookie 在 SSR 首个 HTML 写入 `data-theme` 与 `color-scheme`。2026-07-11 Web lint/typecheck、181 项 unit tests 和 Docker production build 已通过；非持久 Playwright smoke 验证三态 SSR、刷新持久化、运行中 system change、theme/locale 独立、键盘操作、零 API refetch，并用真实 ADMIN 覆盖 dashboard、imports、containers、load jobs、inventory、work hours、unloading wage/summary、settings、users/roles 的 dark route smoke。宿主机直接 build 仍受损坏的 `lightningcss.darwin-x64` 可选 node_modules 二进制阻断；Docker build 不受影响。</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -1389,7 +1553,10 @@
         <h2>当前验收建议</h2>
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
+          <li>DOCKER-DEV-01 已完成：不要运行宿主 `pnpm`、Jest、Prisma 或 `uv` 开发命令；源码变更后用 Docker Compose rebuild，保持 host root/API/Web `node_modules` 为空。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
+          <li>AGENT-AUTONOMY-01 已完成；后续已指定业务 Task 从 `scripts/run-business-agent.sh` 启动，宿主强制 sandbox、凭据、外部发布和生产部署边界仍必须保留。</li>
+          <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
           <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；仍需在 Windows 11 构建机按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>

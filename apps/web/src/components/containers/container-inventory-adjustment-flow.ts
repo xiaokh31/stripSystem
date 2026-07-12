@@ -8,7 +8,7 @@ import {
   inventoryAdjustmentErrorLabel,
   inventoryAdjustmentReasonLabel,
 } from "../../lib/i18n/status-labels";
-import { translateMessage } from "../../lib/i18n/translator";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export type InventoryAdjustmentReasonDraft =
   | InventoryAdjustmentReasonCode
@@ -101,7 +101,7 @@ export function manualInventoryAdjustmentErrorMessage(
     return inventoryAdjustmentErrorLabel(errorCode, locale);
   }
 
-  const source =
-    "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.";
-  return translateMessage(source, locale) ?? source;
+  return createTranslator(locale).t(
+    "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.",
+  );
 }

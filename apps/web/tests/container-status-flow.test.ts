@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CONTAINER_STATUS_UPDATE_VALUES,
-  LOADED_SCAN_ONLY_NOTICE,
   containerStatusSelectLabel,
   isContainerStatusOptionDisabled,
   isContainerStatusScanOnly,
+  loadedScanOnlyNotice,
 } from "../src/components/containers/container-status-flow";
 
 test("container status update options keep loaded visible but scan-only", () => {
@@ -32,5 +32,6 @@ test("container status update options keep loaded visible but scan-only", () => 
   assert.equal(isContainerStatusScanOnly("UNLOADED"), false);
   assert.equal(isContainerStatusOptionDisabled("LOADED", "UNLOADED"), true);
   assert.equal(isContainerStatusOptionDisabled("LOADED", "LOADED"), false);
-  assert.match(LOADED_SCAN_ONLY_NOTICE, /loading scans/);
+  assert.match(loadedScanOnlyNotice(), /loading scans/);
+  assert.match(loadedScanOnlyNotice("zh-CN"), /装车扫码/);
 });

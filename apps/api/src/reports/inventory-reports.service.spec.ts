@@ -90,6 +90,7 @@ describe('InventoryReportsService', () => {
         payTrailerNumber: null,
         status: 'LOADING_IN_PROGRESS',
         totalPallets: 5,
+        activeTotalPallets: 3,
         loadedPallets: 1,
         adjustedOutPallets: 1,
         cancelledPallets: 1,
@@ -100,6 +101,7 @@ describe('InventoryReportsService', () => {
       {
         destinationCode: 'YVR',
         totalPallets: 2,
+        activeTotalPallets: 1,
         loadedPallets: 0,
         adjustedOutPallets: 0,
         cancelledPallets: 1,
@@ -108,6 +110,7 @@ describe('InventoryReportsService', () => {
       {
         destinationCode: 'YYZ',
         totalPallets: 3,
+        activeTotalPallets: 2,
         loadedPallets: 1,
         adjustedOutPallets: 1,
         cancelledPallets: 0,
@@ -122,6 +125,7 @@ describe('InventoryReportsService', () => {
     const summary = await service.containerDetailSummary('container-1', {});
 
     expect(summary.totalPallets).toBe(5);
+    expect(summary.activeTotalPallets).toBe(3);
     expect(summary.loadedPallets).toBe(2);
     expect(summary.adjustedOutPallets).toBe(1);
     expect(summary.cancelledPallets).toBe(1);
@@ -133,6 +137,7 @@ describe('InventoryReportsService', () => {
         destinationCode: 'YYZ',
         destinationType: 'AMAZON_FBA',
         totalPallets: 3,
+        activeTotalPallets: 2,
         loadedPallets: 1,
         adjustedOutPallets: 1,
         cancelledPallets: 0,
@@ -143,6 +148,7 @@ describe('InventoryReportsService', () => {
         destinationCode: 'YVR',
         destinationType: 'AMAZON_FBA',
         totalPallets: 2,
+        activeTotalPallets: 1,
         loadedPallets: 1,
         adjustedOutPallets: 0,
         cancelledPallets: 1,
@@ -165,6 +171,7 @@ describe('InventoryReportsService', () => {
         payTrailerNumber: null,
         status: 'LOADING_IN_PROGRESS',
         totalPallets: 1,
+        activeTotalPallets: 1,
         loadedPallets: 1,
         adjustedOutPallets: 0,
         cancelledPallets: 0,
@@ -192,6 +199,7 @@ describe('InventoryReportsService', () => {
         payTrailerNumber: null,
         status: 'LOADED',
         totalPallets: 5,
+        activeTotalPallets: 5,
         loadedPallets: 5,
         adjustedOutPallets: 0,
         cancelledPallets: 0,
@@ -202,6 +210,7 @@ describe('InventoryReportsService', () => {
       {
         destinationCode: 'YVR',
         totalPallets: 2,
+        activeTotalPallets: 2,
         loadedPallets: 2,
         adjustedOutPallets: 0,
         cancelledPallets: 0,
@@ -210,6 +219,7 @@ describe('InventoryReportsService', () => {
       {
         destinationCode: 'YYZ',
         totalPallets: 3,
+        activeTotalPallets: 3,
         loadedPallets: 3,
         adjustedOutPallets: 0,
         cancelledPallets: 0,

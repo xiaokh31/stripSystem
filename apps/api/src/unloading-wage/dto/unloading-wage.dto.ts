@@ -348,6 +348,7 @@ export interface PayContainerResponseDto {
   }>;
   createdAt: string;
   updatedAt: string;
+  inventorySync?: ContainerPalletInventorySyncSummaryDto[];
 }
 
 export interface ContainerUnloadingWageResponseDto {
@@ -375,6 +376,26 @@ export interface ContainerUnloadingWageResponseDto {
     workerCode: string;
     workerName: string;
     note: string | null;
+  }>;
+  inventorySync?: ContainerPalletInventorySyncSummaryDto[];
+}
+
+export interface ContainerPalletInventorySyncSummaryDto {
+  containerId: string;
+  containerNo: string;
+  destinations: Array<{
+    containerDestinationId: string;
+    destinationCode: string;
+    expectedPallets: number;
+    reusedPallets: number;
+    createdPallets: number;
+    cancelledPallets: number;
+    activeTotalPallets: number;
+    warnings: Array<{
+      code: 'HISTORICAL_PALLETS_EXCLUDED';
+      adjustedOutPallets: number;
+      cancelledPallets: number;
+    }>;
   }>;
 }
 

@@ -24,8 +24,9 @@ import {
   type InventoryAdjustmentResponse,
   type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   canAdjustInventory,
   canManageContainerUnloadingWage,
@@ -63,10 +64,11 @@ export default async function ContainerDetailPage({
 }) {
   const { id } = await params;
   const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const state = await loadContainerDetail(id);
 
   if (!state.ok) {
-    return <ContainerDetailError error={state.error} id={id} />;
+    return <ContainerDetailError error={state.error} id={id} locale={locale} />;
   }
 
   const currentUser = await getServerCurrentUser();
@@ -85,8 +87,8 @@ export default async function ContainerDetailPage({
     ? await loadUnloadingWageWorkers()
     : { error: null, items: [] };
   const containerIssues = [
-    ...summarizeIssues(state.container.warnings),
-    ...summarizeIssues(state.container.errors),
+    ...summarizeIssues(state.container.warnings, locale),
+    ...summarizeIssues(state.container.errors, locale),
   ];
 
   return (
@@ -95,7 +97,7 @@ export default async function ContainerDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Container detail
+              {t("Container detail")}
             </p>
             <h1 className="mt-2 break-all text-2xl font-semibold text-zinc-950">
               {state.container.containerNo}
@@ -107,14 +109,14 @@ export default async function ContainerDetailPage({
                 className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
                 href={`/imports/${state.container.importFileId}`}
               >
-                Import detail
+                {t("Import detail")}
               </Link>
             ) : null}
             <Link
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/containers"
             >
-              Containers
+              {t("Containers")}
             </Link>
           </div>
         </div>
@@ -123,31 +125,34 @@ export default async function ContainerDetailPage({
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-zinc-950">
-            Container status
+            {t("Container status")}
           </h2>
           <dl className="mt-4 grid gap-3 text-sm">
-            <DetailRow label="Container No." value={state.container.containerNo} />
             <DetailRow
-              label="Company"
+              label={t("Container No.")}
+              value={state.container.containerNo}
+            />
+            <DetailRow
+              label={t("Company")}
               value={formatNullable(state.container.company)}
             />
             <DetailRow
-              label="Status"
+              label={t("Status")}
               value={
                 <StatusBadge locale={locale} status={state.container.status} />
               }
             />
             <DetailRow
-              label="Total cartons"
+              label={t("Total cartons")}
               value={state.container.totalCartons}
             />
             <DetailRow
-              label="Total volume"
+              label={t("Total volume")}
               value={`${state.container.totalVolumeCbm} CBM`}
             />
-            <DetailRow label="Format" value={state.container.sourceFormat} />
+            <DetailRow label={t("Format")} value={state.container.sourceFormat} />
             <DetailRow
-              label="Parser"
+              label={t("Parser")}
               value={formatNullable(state.container.parserVersion)}
             />
           </dl>
@@ -156,29 +161,29 @@ export default async function ContainerDetailPage({
         <section className="border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-zinc-950">
-              Destination summary
+              {t("Destination summary")}
             </h2>
             <Link
               className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href={`/containers/${state.container.id}/corrections`}
             >
-              View modification history
+              {t("View modification history")}
             </Link>
           </div>
           <dl className="mt-4 grid gap-3 text-sm">
             <DetailRow
-              label="Destinations"
+              label={t("Destinations")}
               value={state.container.destinations.length}
             />
             <DetailRow
-              label="Final pallets"
+              label={t("Final pallets")}
               value={state.container.destinations.reduce(
                 (total, destination) => total + destination.finalPallets,
                 0,
               )}
             />
             <DetailRow
-              label="Manual overrides"
+              label={t("Manual overrides")}
               value={
                 state.container.destinations.filter(
                   (destination) => destination.manualPallets !== null,
@@ -186,12 +191,12 @@ export default async function ContainerDetailPage({
               }
             />
             <DetailRow
-              label="Warnings"
+              label={t("Warnings")}
               value={state.container.destinations.reduce(
                 (total, destination) =>
                   total +
-                  issueList(destination.warnings).length +
-                  issueList(destination.errors).length,
+                  issueList(destination.warnings, locale).length +
+                  issueList(destination.errors, locale).length,
                 0,
               )}
             />
@@ -201,11 +206,11 @@ export default async function ContainerDetailPage({
 
       {containerIssues.length > 0 ? (
         <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
-          <h2 className="text-base font-semibold">Container warnings</h2>
+          <h2 className="text-base font-semibold">{t("Container warnings")}</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {containerIssues.map((issue, index) => (
               <li key={`${issue.message}-${issue.count}-${index}`}>
-                {formatIssueSummary(issue)}
+                {formatIssueSummary(issue, locale)}
               </li>
             ))}
           </ul>
@@ -243,7 +248,8 @@ export default async function ContainerDetailPage({
       {state.filesError ? (
         <ApiErrorPanel
           error={state.filesError}
-          title="Generated files could not be loaded"
+          locale={locale}
+          title={t("Generated files could not be loaded")}
         />
       ) : (
         <ContainerGeneratedFiles
@@ -356,7 +362,7 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold ${styles}`}
-      title={status}
+      title={containerStatusLabel(status, locale)}
     >
       {containerStatusLabel(status, locale)}
     </span>
@@ -421,30 +427,37 @@ function unloadingWageVersion(container: ContainerDetailResponse): string {
 function ContainerDetailError({
   error,
   id,
+  locale,
 }: {
   error: ApiClientError;
   id: string;
+  locale: Locale;
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Container load failed</p>
-        <h1 className="mt-2 text-xl font-semibold">
-          Container {id} could not be loaded
-        </h1>
-        <p className="mt-3 text-sm">
-          {error.code}
-          {error.status ? ` (${error.status})` : ""}: {error.message}
+        <p className="text-sm font-semibold uppercase">
+          {t("Container load failed")}
         </p>
+        <h1 className="mt-2 text-xl font-semibold">
+          {format("i18n.containers.detailLoadError", { id })}
+        </h1>
+        <p className="mt-3 text-sm" data-i18n-ignore>
+          {error.code}
+          {error.status ? ` (${error.status})` : ""}
+        </p>
+        <p className="mt-2 text-sm">{containerDetailErrorMessage(error, locale)}</p>
       </section>
       <Link
         className="inline-flex min-h-10 w-fit items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
         href="/containers"
       >
-        Containers
+        {t("Containers")}
       </Link>
     </main>
   );
@@ -452,9 +465,11 @@ function ContainerDetailError({
 
 function ApiErrorPanel({
   error,
+  locale,
   title,
 }: {
   error: ApiClientError;
+  locale: Locale;
   title: string;
 }) {
   return (
@@ -463,12 +478,27 @@ function ApiErrorPanel({
       role="alert"
     >
       <h2 className="text-base font-semibold">{title}</h2>
-      <p className="mt-2 text-sm">
+      <p className="mt-2 text-sm" data-i18n-ignore>
         {error.code}
-        {error.status ? ` (${error.status})` : ""}: {error.message}
+        {error.status ? ` (${error.status})` : ""}
       </p>
+      <p className="mt-2 text-sm">{containerDetailErrorMessage(error, locale)}</p>
     </section>
   );
+}
+
+const containerDetailErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "The container detail could not be loaded.",
+  CONTAINER_DETAIL_LOAD_FAILED: "The container detail could not be loaded.",
+};
+
+function containerDetailErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+): string {
+  const { t } = createTranslator(locale);
+  const knownKey = containerDetailErrorKeys[error.code];
+  return t(knownKey ?? "The container detail could not be loaded.");
 }
 
 function toApiClientError(error: unknown): ApiClientError {

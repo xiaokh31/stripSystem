@@ -33,6 +33,24 @@ export interface ContainerCorrectionResponseDto {
     updatedAt: string;
   };
   corrections: CorrectionFeedbackResponseDto[];
+  inventorySync: {
+    containerId: string;
+    containerNo: string;
+    destinations: Array<{
+      containerDestinationId: string;
+      destinationCode: string;
+      expectedPallets: number;
+      reusedPallets: number;
+      createdPallets: number;
+      cancelledPallets: number;
+      activeTotalPallets: number;
+      warnings: Array<{
+        code: 'HISTORICAL_PALLETS_EXCLUDED';
+        adjustedOutPallets: number;
+        cancelledPallets: number;
+      }>;
+    }>;
+  } | null;
 }
 
 export interface ContainerDestinationCorrectionResponseDto {

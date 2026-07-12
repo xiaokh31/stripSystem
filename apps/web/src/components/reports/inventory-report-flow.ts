@@ -5,7 +5,7 @@ import type {
 import { formatOperationalDateTime } from "../../lib/date-time";
 import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { palletStatusLabel } from "../../lib/i18n/status-labels";
-import { translateMessage } from "../../lib/i18n/translator";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
 export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
@@ -23,11 +23,11 @@ export const PALLET_STATUS_OPTIONS = [
 ] as const;
 
 export function palletStatusOptions(locale?: Locale) {
+  const { t } = createTranslator(locale ?? DEFAULT_LOCALE);
+
   return [
     {
-      label:
-        translateMessage("All statuses", locale ?? DEFAULT_LOCALE) ??
-        "All statuses",
+      label: t("All statuses"),
       value: "",
     },
     { label: palletStatusLabel("PLANNED", locale), value: "PLANNED" },
@@ -92,6 +92,8 @@ export function sumPalletStats<TItem extends PalletStatsResponse>(
     (total, item) => ({
       adjustedOutPallets:
         total.adjustedOutPallets + item.adjustedOutPallets,
+      activeTotalPallets:
+        total.activeTotalPallets + item.activeTotalPallets,
       cancelledPallets: total.cancelledPallets + item.cancelledPallets,
       loadedPallets: total.loadedPallets + item.loadedPallets,
       remainingPallets: total.remainingPallets + item.remainingPallets,
@@ -99,6 +101,7 @@ export function sumPalletStats<TItem extends PalletStatsResponse>(
     }),
     {
       adjustedOutPallets: 0,
+      activeTotalPallets: 0,
       cancelledPallets: 0,
       loadedPallets: 0,
       remainingPallets: 0,

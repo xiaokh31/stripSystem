@@ -1,6 +1,6 @@
 import { containerStatusLabel } from "./container-files-flow";
 import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
-import { translateMessage } from "../../lib/i18n/translator";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export const CONTAINER_STATUS_UPDATE_VALUES = [
   "IMPORTED",
@@ -15,7 +15,7 @@ export const CONTAINER_STATUS_UPDATE_VALUES = [
 ] as const;
 
 export const LOADED_SCAN_ONLY_NOTICE =
-  "'Delivered to destination' is scan-only. It can only be produced by loading scans, not office status updates.";
+  "i18n.containers.loadedScanOnlyNotice";
 
 export type ContainerStatusUpdateValue =
   (typeof CONTAINER_STATUS_UPDATE_VALUES)[number];
@@ -28,10 +28,7 @@ export function containerStatusSelectLabel(
 }
 
 export function loadedScanOnlyNotice(locale?: Locale): string {
-  return (
-    translateMessage(LOADED_SCAN_ONLY_NOTICE, locale ?? DEFAULT_LOCALE) ??
-    LOADED_SCAN_ONLY_NOTICE
-  );
+  return createTranslator(locale ?? DEFAULT_LOCALE).t(LOADED_SCAN_ONLY_NOTICE);
 }
 
 export function isContainerStatusScanOnly(status: string): boolean {

@@ -1,7 +1,16 @@
-import { expect, test, type APIRequestContext, type APIResponse, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type APIResponse,
+  type Browser,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  E2E_BASE_URL,
   authHeaders,
   expectNoPageError,
   loginThroughApi,
@@ -13,6 +22,12 @@ const attendanceFixturePath = path.join(
   "samples",
   "wage",
   "workAttendanceRecordForm_June.xls",
+);
+const unloadingFixturePath = path.join(
+  repoRoot,
+  "samples",
+  "unloading-plans",
+  "Unloading Plan CSNU8877228.xlsx",
 );
 const settlementMonth = "2026-06";
 const completedAt = "2026-06-18T20:30:00.000Z";
@@ -85,10 +100,11 @@ const forbiddenChineseUiTextPatterns = [
 ] as const;
 
 test("core pages switch locale, persist refresh, and keep status labels single-language", async ({
+  browser,
   page,
   request,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   const adminToken = await loginThroughApi(page, request);
   const fixture = await prepareLocaleFixture(request, adminToken, testInfo);
   const pages: LocalePageCheck[] = [
@@ -104,6 +120,13 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
       zhText: "运营中控台",
     },
     { enText: "Imports", path: "/imports", zhText: "导入" },
+    {
+      enText: "Import detail",
+      path: `/imports/${fixture.importId}`,
+      requiredEnglish: ["File status"],
+      requiredChinese: ["文件状态"],
+      zhText: "导入详情",
+    },
     {
       enText: fixture.loadedContainerNo,
       path: "/containers",
@@ -124,6 +147,13 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
       requiredEnglish: ["Delivered to destination"],
       requiredChinese: ["已送库"],
       zhText: "库存报告",
+    },
+    {
+      enText: "Warehouse reports",
+      path: "/reports",
+      requiredEnglish: ["Inventory report"],
+      requiredChinese: ["库存报告"],
+      zhText: "仓库报告",
     },
     {
       enText: "Work Hours Settlement",
@@ -190,6 +220,14 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
   for (const item of pages) {
     await expectLocaleSwitch(page, item);
   }
+
+  await expectNoJavaScriptSsr(browser, adminToken, pages);
+  await expectChineseFirstFramesWithoutHydrationWarnings(
+    browser,
+    adminToken,
+    pages,
+  );
+  await expectLocaleThemeAndClientNavigation(page);
 });
 
 interface LocalePageCheck {
@@ -202,6 +240,7 @@ interface LocalePageCheck {
 
 interface LocaleFixture {
   attendanceImportId: string;
+  importId: string;
   loadedContainerId: string;
   loadedContainerNo: string;
   mobileLoadJobId: string;
@@ -213,7 +252,7 @@ async function expectLocaleSwitch(
 ): Promise<void> {
   await page.goto(check.path);
   await switchToEnglish(page);
-  await expect(page.getByText(check.enText).first()).toBeVisible();
+  await expect(await visibleTextLocator(page, check.enText)).toBeVisible();
   for (const text of check.requiredEnglish ?? []) {
     await expect(page.locator("body")).toContainText(text);
   }
@@ -225,7 +264,7 @@ async function expectLocaleSwitch(
   await expectNoPageError(page);
 
   await switchToChinese(page);
-  await expect(page.getByText(check.zhText).first()).toBeVisible();
+  await expect(await visibleTextLocator(page, check.zhText)).toBeVisible();
   for (const text of check.requiredChinese ?? []) {
     await expect(page.locator("body")).toContainText(text);
   }
@@ -242,7 +281,7 @@ async function expectLocaleSwitch(
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-  await expect(page.getByText(check.zhText).first()).toBeVisible();
+  await expect(await visibleTextLocator(page, check.zhText)).toBeVisible();
   await expectNoForbiddenVisibleText(
     page,
     [
@@ -254,12 +293,285 @@ async function expectLocaleSwitch(
   );
 
   await switchToEnglish(page);
-  await expect(page.getByText(check.enText).first()).toBeVisible();
+  await expect(await visibleTextLocator(page, check.enText)).toBeVisible();
   await expectNoForbiddenVisibleText(
     page,
     [...forbiddenBilingualStatusPatterns, ...forbiddenEnglishChineseStatusPatterns],
     `English restore ${check.path}`,
   );
+}
+
+async function expectNoJavaScriptSsr(
+  browser: Browser,
+  token: string,
+  checks: LocalePageCheck[],
+): Promise<void> {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  try {
+    await context.addCookies([
+      browserCookie("bestar_auth_token", token),
+      browserCookie("bestar_theme", "dark"),
+    ]);
+
+    for (const locale of ["en", "zh-CN"] as const) {
+      await context.addCookies([browserCookie("bestar_locale", locale)]);
+
+      for (const check of checks) {
+        await page.goto(absoluteUrl(check.path), { waitUntil: "domcontentloaded" });
+        await expect(page.locator("html")).toHaveAttribute("lang", locale);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+        const body = await page.locator("body").innerText();
+        const expected = locale === "zh-CN" ? check.zhText : check.enText;
+        const unexpected = locale === "zh-CN" ? check.enText : check.zhText;
+        const expectedShell =
+          locale === "zh-CN" ? "清单作业控制室" : "Manifest Control Room";
+        const required =
+          locale === "zh-CN"
+            ? check.requiredChinese ?? []
+            : check.requiredEnglish ?? [];
+
+        expectBodyToContain(
+          body,
+          expectedShell,
+          `${locale} SSR ${check.path} should render its shell`,
+        );
+        expectBodyToContain(
+          body,
+          expected,
+          `${locale} SSR ${check.path} should render its route copy`,
+        );
+        if (expected !== unexpected) {
+          expectBodyNotToContain(
+            body,
+            unexpected,
+            `${locale} SSR ${check.path} should not expose the other locale`,
+          );
+        }
+        for (const text of required) {
+          expectBodyToContain(
+            body,
+            text,
+            `${locale} SSR ${check.path} should render ${text}`,
+          );
+        }
+        await expectNoForbiddenVisibleText(
+          page,
+          locale === "zh-CN"
+            ? [
+                ...forbiddenBilingualStatusPatterns,
+                ...forbiddenChineseEnglishStatusPatterns,
+                ...forbiddenChineseUiTextPatterns,
+              ]
+            : [
+                ...forbiddenBilingualStatusPatterns,
+                ...forbiddenEnglishChineseStatusPatterns,
+              ],
+          `${locale} SSR ${check.path}`,
+        );
+      }
+    }
+
+    const loginContext = await browser.newContext({ javaScriptEnabled: false });
+    const loginPage = await loginContext.newPage();
+    try {
+      for (const locale of ["en", "zh-CN"] as const) {
+        await loginContext.addCookies([browserCookie("bestar_locale", locale)]);
+        await loginPage.goto(absoluteUrl("/login"), { waitUntil: "domcontentloaded" });
+        await expect(loginPage.locator("html")).toHaveAttribute("lang", locale);
+        const body = await loginPage.locator("body").innerText();
+        const expected = locale === "zh-CN" ? "认证" : "Authentication";
+        const unexpected = locale === "zh-CN" ? "Authentication" : "认证";
+        expectBodyToContain(
+          body,
+          expected,
+          `${locale} login SSR should render authentication copy`,
+        );
+        expectBodyNotToContain(
+          body,
+          unexpected,
+          `${locale} login SSR should not expose the other locale`,
+        );
+      }
+    } finally {
+      await loginContext.close();
+    }
+  } finally {
+    await context.close();
+  }
+}
+
+async function expectChineseFirstFramesWithoutHydrationWarnings(
+  browser: Browser,
+  token: string,
+  checks: LocalePageCheck[],
+): Promise<void> {
+  const context = await browser.newContext();
+  await context.addCookies([
+    browserCookie("bestar_auth_token", token),
+    browserCookie("bestar_locale", "zh-CN"),
+    browserCookie("bestar_theme", "dark"),
+  ]);
+  const page = await context.newPage();
+  const consoleMessages: string[] = [];
+  const onConsole = (message: { text: () => string; type: () => string }) => {
+    if (message.type() === "error" || message.type() === "warning") {
+      consoleMessages.push(message.text());
+    }
+  };
+  page.on("console", onConsole);
+
+  try {
+    for (const check of checks) {
+      await page.goto(absoluteUrl(check.path), { waitUntil: "domcontentloaded" });
+      await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+      const firstFrame = await page.locator("body").innerText();
+      expect(firstFrame, `Chinese first frame ${check.path}`).toContain(check.zhText);
+      for (const text of check.requiredChinese ?? []) {
+        expect(firstFrame, `Chinese first frame ${check.path}`).toContain(text);
+      }
+      await expectNoForbiddenVisibleText(
+        page,
+        [
+          ...forbiddenBilingualStatusPatterns,
+          ...forbiddenChineseEnglishStatusPatterns,
+          ...forbiddenChineseUiTextPatterns,
+        ],
+        `Chinese first frame ${check.path}`,
+      );
+      const bodyStyle = await page.locator("body").evaluate((element) => {
+        const style = window.getComputedStyle(element);
+        return {
+          display: style.display,
+          opacity: style.opacity,
+          visibility: style.visibility,
+        };
+      });
+      expect(bodyStyle.display).not.toBe("none");
+      expect(bodyStyle.opacity).not.toBe("0");
+      expect(bodyStyle.visibility).not.toBe("hidden");
+
+      await page.waitForLoadState("networkidle");
+      const hydrated = await page.locator("body").innerText();
+      expect(hydrated, `Chinese hydrated frame ${check.path}`).toContain(
+        check.zhText,
+      );
+      for (const text of check.requiredChinese ?? []) {
+        expect(hydrated, `Chinese hydrated frame ${check.path}`).toContain(text);
+      }
+      await expectNoForbiddenVisibleText(
+        page,
+        [
+          ...forbiddenBilingualStatusPatterns,
+          ...forbiddenChineseEnglishStatusPatterns,
+          ...forbiddenChineseUiTextPatterns,
+        ],
+        `Chinese hydrated frame ${check.path}`,
+      );
+    }
+
+    const hydrationMessages = consoleMessages.filter((message) =>
+      /hydration|mismatch|expected server html|mutationobserver/i.test(message),
+    );
+    expect(hydrationMessages).toEqual([]);
+  } finally {
+    page.off("console", onConsole);
+    await context.close();
+  }
+}
+
+async function expectLocaleThemeAndClientNavigation(page: Page): Promise<void> {
+  await page.context().addCookies([
+    browserCookie("bestar_locale", "zh-CN"),
+    browserCookie("bestar_theme", "dark"),
+  ]);
+  await page.goto("/", { waitUntil: "networkidle" });
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const inventoryLink = page.locator('a[href="/reports/inventory"]:visible').first();
+  await expect(inventoryLink).toBeVisible();
+  await inventoryLink.click();
+  await expect(page).toHaveURL(/\/reports\/inventory/);
+  await expect(await visibleTextLocator(page, "库存报告")).toBeVisible();
+
+  await page.getByRole("button", { name: "浅色主题" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(await visibleTextLocator(page, "库存报告")).toBeVisible();
+
+  await switchToEnglish(page);
+  await expect(await visibleTextLocator(page, "Inventory report")).toBeVisible();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+}
+
+function browserCookie(name: string, value: string) {
+  return {
+    httpOnly: false,
+    name,
+    sameSite: "Lax" as const,
+    secure: false,
+    url: E2E_BASE_URL,
+    value,
+  };
+}
+
+function absoluteUrl(pathname: string): string {
+  return new URL(pathname, E2E_BASE_URL).toString();
+}
+
+function expectBodyToContain(body: string, text: string, message: string): void {
+  expect(normalizeVisibleText(body), message).toContain(normalizeVisibleText(text));
+}
+
+function expectBodyNotToContain(
+  body: string,
+  text: string,
+  message: string,
+): void {
+  expect(normalizeVisibleText(body), message).not.toContain(
+    normalizeVisibleText(text),
+  );
+}
+
+function normalizeVisibleText(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+}
+
+async function visibleTextLocator(page: Page, text: string): Promise<Locator> {
+  const candidates = page.getByText(text, { exact: true });
+  await expect
+    .poll(
+      () => visibleCandidateIndex(candidates),
+      { message: `Expected visible text ${JSON.stringify(text)}` },
+    )
+    .toBeGreaterThanOrEqual(0);
+  const index = await visibleCandidateIndex(candidates);
+
+  if (index >= 0) {
+    return candidates.nth(index);
+  }
+
+  throw new Error(`Expected visible text ${JSON.stringify(text)} after polling.`);
+}
+
+async function visibleCandidateIndex(candidates: Locator): Promise<number> {
+  const count = await candidates.count();
+
+  for (let index = 0; index < count; index += 1) {
+    if (await candidates.nth(index).isVisible()) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 async function switchToChinese(page: Page): Promise<void> {
@@ -322,9 +634,11 @@ async function prepareLocaleFixture(
     request,
     adminToken,
   );
+  const importId = await ensureImportedUnloadingPlan(request, adminToken);
 
   return {
     attendanceImportId,
+    importId,
     loadedContainerId: loaded.containerId,
     loadedContainerNo: loaded.containerNo,
     mobileLoadJobId: inProgress.loadJobId,
@@ -585,6 +899,32 @@ async function ensureGeneratedAttendanceImport(
     201,
   );
 
+  return id!;
+}
+
+async function ensureImportedUnloadingPlan(
+  request: APIRequestContext,
+  token: string,
+): Promise<string> {
+  const fileBuffer = await readFile(unloadingFixturePath);
+  const uploadResponse = await request.post("/api/imports", {
+    headers: authHeaders(token),
+    multipart: {
+      file: {
+        buffer: fileBuffer,
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        name: "Unloading Plan CSNU8877228.xlsx",
+      },
+    },
+  });
+  expect([201, 409]).toContain(uploadResponse.status());
+  const body = (await uploadResponse.json()) as {
+    details?: { existingImport?: { id?: string } };
+    id?: string;
+  };
+  const id = body.id ?? body.details?.existingImport?.id;
+  expect(id).toBeTruthy();
   return id!;
 }
 

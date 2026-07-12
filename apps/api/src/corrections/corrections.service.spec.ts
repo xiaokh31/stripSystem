@@ -11,11 +11,25 @@ describe('CorrectionsService', () => {
     permissions: ['containers.update', 'corrections.create'],
   };
   let prisma: any;
+  let palletInventorySync: any;
   let service: CorrectionsService;
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    service = new CorrectionsService(prisma as PrismaService);
+    palletInventorySync = {
+      concurrentException: jest.fn(() => null),
+      synchronizeForUnloading: jest.fn((_tx: unknown, { containerId }: any) =>
+        Promise.resolve({
+          containerId,
+          containerNo: 'CSNU8877228',
+          destinations: [],
+        }),
+      ),
+    };
+    service = new CorrectionsService(
+      prisma as PrismaService,
+      palletInventorySync,
+    );
   });
 
   it('updates manualPallets, recalculates finalPallets, and writes audit rows', async () => {
@@ -97,6 +111,33 @@ describe('CorrectionsService', () => {
     });
     expect(prisma.containerDestination.update).not.toHaveBeenCalled();
     expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the lifecycle under the container lock before changing a destination', async () => {
+    const container = containersFixture(prisma)[0];
+    prisma.container.findUnique
+      .mockResolvedValueOnce({
+        ...container,
+        status: 'CORRECTED',
+      })
+      .mockResolvedValue({
+        ...container,
+        status: 'UNLOADED',
+      });
+
+    await expect(
+      service.updateContainerDestination(
+        'destination-1',
+        { manualPallets: 7, reason: 'Concurrent completion check' },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'CONTAINER_NOT_EDITABLE',
+      }),
+    });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.containerDestination.update).not.toHaveBeenCalled();
   });
 
   it('updates actual note only and writes destination audit feedback', async () => {
@@ -682,6 +723,17 @@ describe('CorrectionsService', () => {
       oldValue: 'PARSED',
       newValue: 'UNLOADED',
     });
+    expect(result.inventorySync).toMatchObject({
+      containerId: 'container-1',
+      destinations: [],
+    });
+    expect(palletInventorySync.synchronizeForUnloading).toHaveBeenCalledWith(
+      prisma,
+      {
+        actorId: 'auth-office',
+        containerId: 'container-1',
+      },
+    );
   });
 
   it('rejects manual LOADED status when pallets remain unloaded', async () => {
@@ -949,6 +1001,7 @@ describe('CorrectionsService', () => {
 
     const mock: any = {
       __containers: containers,
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn((callback) => callback(mock)),
       container: {
         create: jest.fn(({ data }) => {

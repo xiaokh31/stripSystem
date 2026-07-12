@@ -12,10 +12,10 @@ import {
 } from "@/components/imports/import-detail-flow";
 import { containerStatusLabel } from "@/components/containers/container-files-flow";
 import { ImportDeleteButton } from "@/components/imports/import-delete-button";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
-import { translateMessage } from "@/lib/i18n/translator";
+import { createTranslator } from "@/lib/i18n/translator";
 import { canDeleteImports } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
@@ -35,6 +35,7 @@ type ImportsPageState =
 
 export default async function ImportsPage() {
   const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
   const state = await loadImports();
   const canDelete = canDeleteImports(currentUser);
@@ -45,14 +46,15 @@ export default async function ImportsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Office
+              {t("Office")}
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              Imports
+              {t("Imports")}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-              Uploaded unloading lists are loaded from the API so the history
-              remains visible after navigation or refresh.
+              {t(
+                "Uploaded unloading lists are loaded from the API so the history remains visible after navigation or refresh.",
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -60,13 +62,13 @@ export default async function ImportsPage() {
               className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/imports"
             >
-              Refresh
+              {t("Refresh")}
             </Link>
             <Link
               className="inline-flex min-h-11 items-center border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
               href="/imports/new"
             >
-              New import
+              {t("New import")}
             </Link>
           </div>
         </div>
@@ -79,7 +81,7 @@ export default async function ImportsPage() {
           locale={locale}
         />
       ) : (
-        <ApiErrorPanel error={state.error} />
+        <ApiErrorPanel error={state.error} locale={locale} />
       )}
     </main>
   );
@@ -107,30 +109,31 @@ function ImportHistory({
   imports: ImportFileListResponse;
   locale: Locale;
 }) {
-  const showingText =
-    translateMessage(
-      `Showing ${imports.items.length} latest records from the import API.`,
-      locale,
-    ) ?? `Showing ${imports.items.length} latest records from the import API.`;
-  const limitText =
-    translateMessage(`Limit ${imports.limit}, offset ${imports.offset}`, locale) ??
-    `Limit ${imports.limit}, offset ${imports.offset}`;
+  const { format, t } = createTranslator(locale);
+  const showingText = format("i18n.imports.history.summary", {
+    count: imports.items.length,
+  });
+  const limitText = format("i18n.imports.history.pagination", {
+    limit: imports.limit,
+    offset: imports.offset,
+  });
 
   if (imports.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
         <h2 className="text-base font-semibold text-zinc-950">
-          No imports recorded
+          {t("No imports recorded")}
         </h2>
         <p className="mt-2 max-w-2xl leading-6">
-          Upload a real .xlsx unloading list to create the first import record.
-          Once the API stores it, it will appear here after refresh.
+          {t(
+            "Upload a real .xlsx unloading list to create the first import record. Once the API stores it, it will appear here after refresh.",
+          )}
         </p>
         <Link
           className="mt-4 inline-flex min-h-10 items-center border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
           href="/imports/new"
         >
-          New import
+          {t("New import")}
         </Link>
       </section>
     );
@@ -141,7 +144,7 @@ function ImportHistory({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Recent imports
+            {t("Recent imports")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">{showingText}</p>
         </div>
@@ -152,15 +155,15 @@ function ImportHistory({
         <table className="min-w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
-              <th className="w-[24%] py-2 pr-4 font-semibold">File</th>
-              <th className="w-[15%] py-2 pr-4 font-semibold">Status</th>
-              <th className="w-[14%] py-2 pr-4 font-semibold">Containers</th>
-              <th className="w-[11%] py-2 pr-4 font-semibold">Format</th>
+              <th className="w-[24%] py-2 pr-4 font-semibold">{t("File")}</th>
+              <th className="w-[15%] py-2 pr-4 font-semibold">{t("Status")}</th>
+              <th className="w-[14%] py-2 pr-4 font-semibold">{t("Containers")}</th>
+              <th className="w-[11%] py-2 pr-4 font-semibold">{t("Format")}</th>
               <th className="w-[12%] py-2 pr-4 font-semibold">
-                Warnings / errors
+                {t("Warnings / errors")}
               </th>
-              <th className="w-[16%] py-2 pr-4 font-semibold">Uploaded</th>
-              <th className="w-[10%] py-2 font-semibold">Action</th>
+              <th className="w-[16%] py-2 pr-4 font-semibold">{t("Uploaded")}</th>
+              <th className="w-[10%] py-2 font-semibold">{t("Action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -188,6 +191,8 @@ function ImportRow({
   importFile: ImportFileResponse;
   locale: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
       <td className="py-3 pr-4">
@@ -246,7 +251,7 @@ function ImportRow({
             className="inline-flex min-h-9 w-full items-center justify-center border border-teal-700 bg-white px-3 text-xs font-semibold uppercase text-teal-800 hover:bg-teal-50"
             href={`/imports/${importFile.id}`}
           >
-            Open
+            {t("Open")}
           </Link>
           {canDelete ? <ImportDeleteButton importFile={importFile} /> : null}
         </div>
@@ -274,26 +279,48 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={generatedOrImportStatusLabel(status, locale)}
     >
       {generatedOrImportStatusLabel(status, locale)}
     </span>
   );
 }
 
-function ApiErrorPanel({ error }: { error: ApiClientError }) {
+function ApiErrorPanel({
+  error,
+  locale,
+}: {
+  error: ApiClientError;
+  locale: Locale;
+}) {
+  const { t } = createTranslator(locale);
+
   return (
     <section
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-base font-semibold">Imports could not be loaded</h2>
-      <p className="mt-2 text-sm">{error.message}</p>
-      <p className="mt-2 text-xs font-medium">
+      <h2 className="text-base font-semibold">{t("Imports could not be loaded")}</h2>
+      <p className="mt-2 text-sm">
+        {importListErrorMessage(error, locale)}
+      </p>
+      <p className="mt-2 text-xs font-medium" data-i18n-ignore>
         {error.code} {error.status ? `(${error.status})` : ""}
       </p>
     </section>
   );
+}
+
+const importListErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "The import list could not be loaded.",
+  IMPORT_LIST_LOAD_FAILED: "The import list could not be loaded.",
+};
+
+function importListErrorMessage(error: ApiClientError, locale: Locale): string {
+  const { t } = createTranslator(locale);
+  const knownKey = importListErrorKeys[error.code];
+
+  return t(knownKey ?? "The import list could not be loaded.");
 }
 
 function toApiClientError(error: unknown): ApiClientError {

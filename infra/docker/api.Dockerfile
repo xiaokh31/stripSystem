@@ -29,3 +29,5 @@ RUN ln -sf /usr/local/bin/python3.12 /usr/local/bin/python
 RUN corepack enable
 
 WORKDIR /workspace
+
+COPY . .

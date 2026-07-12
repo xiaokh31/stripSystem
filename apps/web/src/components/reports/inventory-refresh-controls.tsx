@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { translateMessage } from "@/lib/i18n/translator";
+import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
 import {
   formatInventoryRefreshTime,
   normalizeInventoryPollingIntervalMs,
@@ -16,20 +16,16 @@ export function InventoryRefreshControls({
   lastUpdatedAt: string;
   pollingIntervalMs: number;
 }) {
-  const { locale } = useI18n();
+  const { format, t } = useI18n();
   const router = useRouter();
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [isPending, startTransition] = useTransition();
   const intervalMs = normalizeInventoryPollingIntervalMs(pollingIntervalMs);
   const intervalSeconds = Math.round(intervalMs / 1000);
   const refreshTime = formatInventoryRefreshTime(lastUpdatedAt);
-  const lastUpdatedSource = `Last updated ${refreshTime}. Inventory remaining is global warehouse inventory from the API, not load job planned remaining.`;
-  const lastUpdatedText =
-    translateMessage(lastUpdatedSource, locale) ?? lastUpdatedSource;
-  const pollingSource = `Polling ${intervalSeconds}s`;
   const pollingText = pollingEnabled
-    ? translateMessage(pollingSource, locale) ?? pollingSource
-    : "Polling paused";
+    ? format("i18n.inventory.polling", { seconds: intervalSeconds })
+    : t("Polling paused");
 
   const refreshInventory = useCallback(() => {
     startTransition(() => {
@@ -48,12 +44,15 @@ export function InventoryRefreshControls({
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <InventorySyncRefreshListener />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Inventory refresh
+            {t("Inventory refresh")}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">{lastUpdatedText}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            {format("i18n.inventory.lastUpdated", { time: refreshTime })}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -62,7 +61,7 @@ export function InventoryRefreshControls({
             onClick={refreshInventory}
             type="button"
           >
-            {isPending ? "Refreshing" : "Refresh now"}
+            {isPending ? t("Refreshing") : t("Refresh now")}
           </button>
           <button
             className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"

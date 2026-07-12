@@ -2,14 +2,24 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { createElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
-import { LOCALE_MESSAGES } from "../src/lib/i18n/catalog";
+import {
+  I18nProvider,
+  useI18n,
+} from "../src/components/i18n/i18n-provider";
+import {
+  LOCALE_MESSAGES,
+  SAME_TEXT_MESSAGE_KEYS,
+  type MessageKey,
+} from "../src/lib/i18n/catalog";
 import { enMessages } from "../src/lib/i18n/locales/en";
 import { zhMessages } from "../src/lib/i18n/locales/zh";
 import {
+  createTranslator,
+  MissingTranslationError,
   normalizeLocale,
-  translateMessage,
-  translateTextContent,
 } from "../src/lib/i18n/translator";
 
 test("normalizes supported and browser zh locales", () => {
@@ -53,200 +63,666 @@ test("dashboard API label keys are present in every locale catalog", () => {
 });
 
 test("Chinese locale does not silently fall back to English for translatable copy", () => {
-  const allowedSameText = new Set([
-    "0 B",
-    "Bestar Service CCA",
-    "English",
-    "P5 Pilot Ready",
-    "UTC",
-    "中文",
-  ]);
+  const allowedSameText = new Set<string>(SAME_TEXT_MESSAGE_KEYS);
   const untranslated = Object.keys(enMessages).filter(
     (key) =>
       enMessages[key as keyof typeof enMessages] ===
-        zhMessages[key as keyof typeof zhMessages] && !allowedSameText.has(key),
+        zhMessages[key as keyof typeof zhMessages] &&
+      !allowedSameText.has(key),
   );
 
   assert.deepEqual(untranslated, []);
 });
 
-test("translates exact UI strings between locale resources", () => {
-  assert.equal(translateTextContent("Dashboard", "zh-CN"), "仪表盘");
+test("explicit server and client translators render the same locale output", () => {
+  assert.equal(createTranslator("zh-CN").t("Dashboard"), "仪表盘");
   assert.equal(
-    translateTextContent("Generate Label PDF", "zh-CN"),
-    "生成托盘面单 PDF",
+    createTranslator("zh-CN").format("i18n.imports.history.summary", {
+      count: 2,
+    }),
+    "显示导入 API 的最新 2 条记录。",
   );
-  assert.equal(translateTextContent("Mobile Scan", "zh-CN"), "移动扫码");
-  assert.equal(translateTextContent("移动扫码", "en"), "Mobile Scan");
+  const Provider = I18nProvider as (props: {
+    children?: ReactNode;
+    initialLocale: "en" | "zh-CN";
+  }) => ReactElement;
+
+  const html = renderToStaticMarkup(
+    createElement(
+      Provider,
+      { initialLocale: "zh-CN" },
+      createElement(TranslationProbe),
+    ),
+  );
+
+  assert.match(html, /data-locale="zh-CN"/);
+  assert.match(html, />仪表盘</);
+  assert.doesNotMatch(html, />Dashboard</);
 });
 
-test("preserves surrounding whitespace when translating text nodes", () => {
-  assert.equal(translateTextContent("  Load Jobs\n", "zh-CN"), "  装车任务\n");
-});
+test("typed translation templates resolve dynamic business parameters", () => {
+  const { format, t } = createTranslator("zh-CN");
 
-test("translates dynamic count and login text patterns", () => {
-  assert.equal(translateTextContent("1 pallet", "zh-CN"), "1 托");
-  assert.equal(translateTextContent("12 pallets", "zh-CN"), "12 托");
   assert.equal(
-    translateTextContent("Signed in as user@example.com.", "zh-CN"),
-    "当前登录：user@example.com。",
-  );
-});
-
-test("translates dynamic action and API fallback text patterns", () => {
-  assert.equal(
-    translateTextContent("API request failed with HTTP status 500.", "zh-CN"),
-    "API 请求失败，HTTP 状态：500。",
+    format("i18n.admin.actionSaved", { action: t("Save") }),
+    "已保存保存，数据已从 API 刷新。",
   );
   assert.equal(
-    translateTextContent("Uploaded june-attendance.xls.", "zh-CN"),
-    "已上传 june-attendance.xls。",
-  );
-  assert.equal(
-    translateTextContent("Parsed 12 employee-day row(s).", "zh-CN"),
-    "已解析 12 条员工日工时行。",
-  );
-  assert.equal(
-    translateTextContent("Generated settlement set-2026-06.", "zh-CN"),
-    "已生成结算 set-2026-06。",
-  );
-  assert.equal(
-    translateTextContent("PAY-2026-06 marked completed.", "zh-CN"),
-    "PAY-2026-06 已标记完成。",
-  );
-  assert.equal(
-    translateTextContent(
-      "Scan saved as pending for load job LJ-1. Inventory will not change until sync succeeds.",
-      "zh-CN",
-    ),
-    "扫码已保存为装车任务 LJ-1 的待同步记录。同步成功前库存不会变化。",
-  );
-  assert.equal(
-    translateTextContent(
-      'Legacy unloader "Alex" must be reselected from the temporary unloader directory before saving.',
-      "zh-CN",
-    ),
-    '旧拆柜人 "Alex" 保存前必须从临时拆柜工目录重新选择。',
-  );
-  assert.equal(
-    translateTextContent("Duplicate unloader: Alex.", "zh-CN"),
-    "重复拆柜人：Alex。",
-  );
-  assert.equal(
-    translateTextContent(
-      'Delete import "wrong.xlsx" from active history? This permanently removes the original uploaded file and all related generated storage files. This action remains audited.',
-      "zh-CN",
-    ),
-    '从当前记录中删除导入 "wrong.xlsx"？这会永久删除原始上传文件和所有关联生成文件，并保留审计记录。',
-  );
-  assert.equal(
-    translateTextContent(
-      "This import already has business records and cannot be deleted. Blockers: load jobs 1, operational pallets 2.",
-      "zh-CN",
-    ),
-    "此导入已有业务记录，不能删除。阻塞项：load jobs 1, operational pallets 2。",
+    format("i18n.settings.unknownField", { key: "customRate" }),
+    "设置 customRate",
   );
 });
 
-test("translates container rule metadata and warning messages", () => {
-  assert.equal(
-    translateTextContent(
-      "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
-      "zh-CN",
-    ),
-    "包装：纸箱 · 私人/商业地址纸箱按体积规则 · 基准 1.800 CBM · 向上取整",
+test("explicit translator rejects missing keys outside production and uses a localized production fallback", () => {
+  assert.throws(
+    () => createTranslator("zh-CN").t("missing.translation.key" as MessageKey),
+    MissingTranslationError,
   );
-  assert.equal(
-    translateTextContent(
-      "Unknown destination 1.7 CBM review rule · Basis 1.700 CBM · Rounding up",
-      "zh-CN",
-    ),
-    "未知目的仓 1.7 CBM 待复核规则 · 基准 1.700 CBM · 向上取整",
+
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalConsoleError = console.error;
+  const mutableEnvironment = process.env as { NODE_ENV?: string };
+  mutableEnvironment.NODE_ENV = "production";
+  console.error = () => undefined;
+
+  try {
+    assert.equal(
+      createTranslator("zh-CN").t("missing.translation.key" as MessageKey),
+      "翻译不可用。",
+    );
+  } finally {
+    console.error = originalConsoleError;
+    if (originalNodeEnv === undefined) {
+      delete mutableEnvironment.NODE_ENV;
+    } else {
+      mutableEnvironment.NODE_ENV = originalNodeEnv;
+    }
+  }
+});
+
+test("runtime source has no legacy DOM or source-string translation path", () => {
+  const runtimeSource = listSourceFiles(path.join(process.cwd(), "src"))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+
+  assert.doesNotMatch(
+    runtimeSource,
+    /MutationObserver|createTreeWalker|translateDocument|translateNode|document\.body/,
   );
-  assert.equal(
-    translateTextContent(
-      "Package wooden crate · Private/commercial wooden crate piece-count rule · Rounding by piece count",
-      "zh-CN",
-    ),
-    "包装：木箱/木架 · 私人/商业地址木箱按件数规则 · 按件数计算",
-  );
-  assert.equal(
-    translateTextContent(
-      "Destination type was not recognized; pallet rule needs confirmation.  2x",
-      "zh-CN",
-    ),
-    "目的仓类型无法识别，托盘规则需要复核。（2 次）",
-  );
-  assert.equal(
-    translateTextContent(
-      "Destination PUR volume is zero with 12 carton(s); 0.01 CBM was used for pallet calculation.",
-      "zh-CN",
-    ),
-    "目的仓 PUR 体积为 0，箱数 12；已按 0.01 CBM 参与托盘计算。",
-  );
-  assert.equal(
-    translateTextContent(
-      "包装：纸箱 · 私人/商业地址纸箱按体积规则 · 基准 1.800 CBM · 向上取整",
-      "en",
-    ),
-    "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
+  assert.doesNotMatch(
+    runtimeSource,
+    /\b(tryT|translate(Message|TextContent|AttributeValue))\b/,
   );
 });
 
-test("restores Chinese exact translations by shared message key", () => {
-  assert.equal(translateTextContent("仪表盘", "en"), "Dashboard");
-  assert.equal(translateTextContent("移动扫码", "en"), "Mobile Scan");
+test("shared entry boundaries use the explicit translation contract", () => {
+  const boundaries: Array<{
+    file: string;
+    requiredSnippets: string[];
+  }> = [
+    {
+      file: "src/app/layout.tsx",
+      requiredSnippets: ["generateMetadata", "createTranslator"],
+    },
+    {
+      file: "src/app/login/page.tsx",
+      requiredSnippets: ["createTranslator", 't("Authentication")'],
+    },
+    {
+      file: "src/app/error.tsx",
+      requiredSnippets: ["useI18n", 't("Page error")'],
+    },
+    {
+      file: "src/components/layout/office-shell.tsx",
+      requiredSnippets: ["createTranslator", 't("Manifest Control Room")'],
+    },
+    {
+      file: "src/components/layout/office-navigation.tsx",
+      requiredSnippets: ["useI18n", 't("Office navigation")'],
+    },
+    {
+      file: "src/components/i18n/language-switcher.tsx",
+      requiredSnippets: ["useI18n", 't("Language")'],
+    },
+    {
+      file: "src/components/layout/theme-control.tsx",
+      requiredSnippets: ["useI18n", 't("Theme")'],
+    },
+    {
+      file: "src/components/auth/login-form.tsx",
+      requiredSnippets: ["useI18n", 't("Email")'],
+    },
+    {
+      file: "src/components/admin/admin-page-shell.tsx",
+      requiredSnippets: ["createTranslator", 't("Admin API error")'],
+    },
+    {
+      file: "src/app/settings/page.tsx",
+      requiredSnippets: ["createTranslator", 't("Settings")'],
+    },
+    {
+      file: "src/components/settings/operational-settings-form.tsx",
+      requiredSnippets: ["useI18n", 't("Editable operational settings")'],
+    },
+    {
+      file: "src/components/admin/role-permission-matrix.tsx",
+      requiredSnippets: ["useI18n", "permissionDescriptionLabel"],
+    },
+    {
+      file: "src/components/admin/user-management-panel.tsx",
+      requiredSnippets: ["useI18n", "roleDisplayLabel"],
+    },
+    {
+      file: "src/app/admin/users/page.tsx",
+      requiredSnippets: [
+        'export const dynamic = "force-dynamic"',
+        "createTranslator",
+      ],
+    },
+    {
+      file: "src/app/admin/roles/page.tsx",
+      requiredSnippets: [
+        'export const dynamic = "force-dynamic"',
+        "createTranslator",
+      ],
+    },
+    {
+      file: "src/components/layout/route-placeholder.tsx",
+      requiredSnippets: ["createTranslator", "t(eyebrow)"],
+    },
+    {
+      file: "src/app/page.tsx",
+      requiredSnippets: [
+        "createTranslator",
+        "function t(key: MessageKey",
+        't("Dashboard error", locale)',
+      ],
+    },
+    {
+      file: "src/components/dashboard/dashboard-components.tsx",
+      requiredSnippets: ["createTranslator", 't("Dock lane strip")'],
+    },
+  ];
+
+  for (const boundary of boundaries) {
+    const source = fs.readFileSync(path.join(process.cwd(), boundary.file), "utf8");
+
+    for (const snippet of boundary.requiredSnippets) {
+      assert.ok(
+        source.includes(snippet),
+        `${boundary.file} must contain ${snippet}`,
+      );
+    }
+  }
 });
 
-test("all extracted UI display strings are managed by the English locale file", () => {
-  const unmanaged = extractUiStringRecords().filter(
-    (record) => translateMessage(record.value, "en") === null,
+test("localized component key boundaries retain their MessageKey contracts", () => {
+  const boundaries: Array<{ file: string; snippets: string[] }> = [
+    {
+      file: "src/app/reports/inventory/page.tsx",
+      snippets: ["fallback: MessageKey", "return t(knownKey ?? fallback);"],
+    },
+    {
+      file: "src/app/work-hours/page.tsx",
+      snippets: ["title: MessageKey", "{t(title)}"],
+    },
+    {
+      file: "src/app/unloading-wage/page.tsx",
+      snippets: ["title: MessageKey", "{t(title)}"],
+    },
+    {
+      file: "src/app/unloading-summary/page.tsx",
+      snippets: ["title: MessageKey", "{t(title)}"],
+    },
+  ];
+
+  for (const boundary of boundaries) {
+    const source = fs.readFileSync(path.join(process.cwd(), boundary.file), "utf8");
+    for (const snippet of boundary.snippets) {
+      assert.ok(source.includes(snippet), `${boundary.file} must contain ${snippet}`);
+    }
+  }
+});
+
+test("rendered web modules import an explicit translator", () => {
+  const exemptFiles = new Set(["src/app/admin/page.tsx"]);
+  const files = renderedSourceFiles();
+  const missingTranslator = files
+    .map((file) => path.relative(process.cwd(), file))
+    .filter(
+      (file) =>
+        !exemptFiles.has(file) &&
+        !/\b(useI18n|createTranslator)\b/.test(
+          fs.readFileSync(path.join(process.cwd(), file), "utf8"),
+        ),
+    )
+    .sort();
+
+  assert.deepEqual(missingTranslator, []);
+});
+
+test("AST localization gate rejects raw visible copy even when the catalog contains it", () => {
+  const fixtures = [
+    {
+      expected: [{ context: "JSX text", value: "File" }],
+      name: "raw table heading",
+      source: "const View = () => <th>File</th>;",
+    },
+    {
+      expected: [{ context: "placeholder", value: "Select reason" }],
+      name: "raw placeholder",
+      source: 'const View = () => <input placeholder="Select reason" />;',
+    },
+    {
+      expected: [{ context: "setError", value: "Save failed" }],
+      name: "raw state error",
+      source: 'const save = () => setError("Save failed");',
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    assert.deepEqual(
+      localizedUiViolations(fixture.source, `${fixture.name}.tsx`).map(
+        ({ context, value }) => ({ context, value }),
+      ),
+      fixture.expected,
+    );
+  }
+});
+
+test("AST localization gate accepts explicit translators and diagnostic raw-value boundaries", () => {
+  const source = `
+    const View = ({ containerNo }) => (
+      <>
+        <th>{t("File")}</th>
+        <input placeholder={t("Select reason")} />
+        <code data-i18n-ignore>RAW_CODE</code>
+        <span>{containerNo}</span>
+      </>
+    );
+    const save = () => setError(t("Save failed"));
+    const confirmDelete = () => window.confirm(t("Delete this planned load job?"));
+  `;
+
+  assert.deepEqual(localizedUiViolations(source, "valid-fixture.tsx"), []);
+});
+
+test("AST localization gate protects every rendered web module", () => {
+  const violations = renderedSourceFiles().flatMap((file) =>
+    localizedUiViolations(fs.readFileSync(file, "utf8"), file),
   );
 
-  assert.deepEqual(unmanaged.map(formatUiRecord), []);
+  assert.deepEqual(violations.map(formatViolation), []);
 });
 
-test("non-i18n source files do not hard-code Chinese UI copy", () => {
-  const chineseCopy = extractUiStringRecords().filter((record) =>
-    /[\u4e00-\u9fff]/.test(record.value),
-  );
-
-  assert.deepEqual(chineseCopy.map(formatUiRecord), []);
-});
-
-interface UiStringRecord {
+interface LocalizationViolation {
+  context: string;
   file: string;
   line: number;
   value: string;
 }
 
-function extractUiStringRecords(): UiStringRecord[] {
-  const roots = ["src/app", "src/components", "src/lib"].map((root) =>
-    path.join(process.cwd(), root),
-  );
-  const files = roots.flatMap((root) => listSourceFiles(root));
-  const records = new Map<string, UiStringRecord>();
+const TRANSLATABLE_ATTRIBUTES = new Set([
+  "aria-description",
+  "aria-label",
+  "alt",
+  "placeholder",
+  "title",
+]);
 
-  for (const file of files) {
-    if (shouldSkipSourceFile(file)) {
-      continue;
+const TRANSLATABLE_PROPERTY_NAMES = new Set([
+  "confirmText",
+  "description",
+  "emptyText",
+  "error",
+  "fallback",
+  "helpText",
+  "label",
+  "message",
+  "notice",
+  "placeholder",
+  "successText",
+  "title",
+]);
+
+const TRANSLATABLE_SETTER_NAMES = new Set([
+  "alert",
+  "confirm",
+  "notify",
+  "setError",
+  "setMessage",
+  "setNotice",
+  "setStatus",
+  "showToast",
+  "toast",
+]);
+
+const LOCALIZED_COMPONENT_PROP_BOUNDARIES = new Set([
+  "src/app/reports/inventory/page.tsx:ApiErrorPanel.fallback",
+  "src/app/unloading-summary/page.tsx:ApiErrorPanel.title",
+  "src/app/unloading-wage/page.tsx:ApiErrorPanel.title",
+  "src/app/work-hours/page.tsx:ApiErrorPanel.title",
+]);
+
+function localizedUiViolations(
+  sourceText: string,
+  fileName: string,
+): LocalizationViolation[] {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const violations = new Map<string, LocalizationViolation>();
+
+  function record(node: ts.Node, context: string, value: string) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    if (!normalized || !/[A-Za-z\u4e00-\u9fff]/.test(normalized)) {
+      return;
     }
 
-    const sourceText = fs.readFileSync(file, "utf8");
-    const sourceFile = ts.createSourceFile(
-      file,
-      sourceText,
-      ts.ScriptTarget.Latest,
-      true,
-      file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    const position = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
     );
-
-    collectUiStrings(sourceFile, sourceFile, records);
+    const relativeFile = path.isAbsolute(fileName)
+      ? path.relative(process.cwd(), fileName)
+      : fileName;
+    const key = `${relativeFile}:${position.line}:${context}:${normalized}`;
+    violations.set(key, {
+      context,
+      file: relativeFile,
+      line: position.line + 1,
+      value: normalized,
+    });
   }
 
-  return Array.from(records.values()).sort((left, right) =>
-    formatUiRecord(left).localeCompare(formatUiRecord(right)),
+  function visit(node: ts.Node): void {
+    if (ts.isJsxText(node)) {
+      if (!isExplicitRawValueBoundary(node)) {
+        record(node, "JSX text", node.getText(sourceFile));
+      }
+    } else if (ts.isStringLiteralLike(node)) {
+      const context = visibleLiteralContext(node);
+      if (
+        context &&
+        !isInsideTranslatorCall(node) &&
+        !isExplicitRawValueBoundary(node) &&
+        !isApprovedBusinessPlaceholder(node, context)
+      ) {
+        record(node, context, node.text);
+      }
+    } else if (ts.isTemplateExpression(node)) {
+      const context = visibleLiteralContext(node);
+      if (
+        context &&
+        !isInsideTranslatorCall(node) &&
+        !isExplicitRawValueBoundary(node) &&
+        !isTechnicalDynamicValue(node, context)
+      ) {
+        record(node, context, templateExpressionSample(node));
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return [...violations.values()].sort((left, right) =>
+    formatViolation(left).localeCompare(formatViolation(right)),
   );
+}
+
+function visibleLiteralContext(node: ts.Node): string | null {
+  const attribute = nearestJsxAttribute(node);
+  if (attribute) {
+    if (!ts.isIdentifier(attribute.name)) {
+      return null;
+    }
+    if (isLocalizedComponentPropBoundary(attribute)) {
+      return null;
+    }
+    if (
+      (TRANSLATABLE_ATTRIBUTES.has(attribute.name.text) ||
+        TRANSLATABLE_PROPERTY_NAMES.has(attribute.name.text)) &&
+      isDirectTranslatableAttributeLiteral(node, attribute)
+    ) {
+      return attribute.name.text;
+    }
+    return null;
+  }
+
+  if (isDirectJsxExpression(node)) {
+    return "JSX expression";
+  }
+
+  const property = findAncestor(node, ts.isPropertyAssignment);
+  if (
+    property &&
+    ts.isIdentifier(property.name) &&
+    TRANSLATABLE_PROPERTY_NAMES.has(property.name.text) &&
+    isMessagePropertyInSetter(property)
+  ) {
+    return property.name.text;
+  }
+
+  const call = findAncestor(node, ts.isCallExpression);
+  if (call && isDirectMessageCallArgument(node, call)) {
+    return calleeName(call.expression);
+  }
+
+  return null;
+}
+
+function isInsideTranslatorCall(node: ts.Node): boolean {
+  return Boolean(
+    findAncestor(node, (ancestor): ancestor is ts.CallExpression =>
+      ts.isCallExpression(ancestor) && isTranslatorCall(ancestor.expression),
+    ),
+  );
+}
+
+function isTranslatorCall(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) {
+    return expression.text === "t" || expression.text === "format";
+  }
+
+  return (
+    ts.isPropertyAccessExpression(expression) &&
+    (expression.name.text === "t" || expression.name.text === "format")
+  );
+}
+
+function isUserMessageCall(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) {
+    return TRANSLATABLE_SETTER_NAMES.has(expression.text);
+  }
+
+  return (
+    ts.isPropertyAccessExpression(expression) &&
+    TRANSLATABLE_SETTER_NAMES.has(expression.name.text)
+  );
+}
+
+function nearestJsxAttribute(node: ts.Node): ts.JsxAttribute | null {
+  let current = node.parent;
+  while (current) {
+    if (ts.isJsxAttribute(current)) {
+      return current;
+    }
+    if (
+      ts.isJsxElement(current) ||
+      ts.isJsxFragment(current) ||
+      ts.isJsxSelfClosingElement(current)
+    ) {
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+function isDirectJsxExpression(node: ts.Node): boolean {
+  let current = node.parent;
+  while (current) {
+    if (ts.isJsxAttribute(current)) {
+      return false;
+    }
+    if (ts.isJsxExpression(current)) {
+      return (
+        ts.isJsxElement(current.parent) || ts.isJsxFragment(current.parent)
+      );
+    }
+    if (ts.isCallExpression(current) || ts.isBinaryExpression(current)) {
+      return false;
+    }
+    if (
+      ts.isJsxElement(current) ||
+      ts.isJsxFragment(current) ||
+      ts.isJsxSelfClosingElement(current)
+    ) {
+      return false;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function isDirectTranslatableAttributeLiteral(
+  node: ts.Node,
+  attribute: ts.JsxAttribute,
+): boolean {
+  let current = node;
+  while (current.parent && current.parent !== attribute) {
+    if (ts.isCallExpression(current.parent) || ts.isBinaryExpression(current.parent)) {
+      return false;
+    }
+    current = current.parent;
+  }
+  return current.parent === attribute;
+}
+
+function isMessagePropertyInSetter(property: ts.PropertyAssignment): boolean {
+  if (!ts.isObjectLiteralExpression(property.parent)) {
+    return false;
+  }
+
+  const call = property.parent.parent;
+  return (
+    ts.isCallExpression(call) &&
+    call.arguments.includes(property.parent) &&
+    isUserMessageCall(call.expression)
+  );
+}
+
+function isDirectMessageCallArgument(
+  node: ts.Node,
+  call: ts.CallExpression,
+): boolean {
+  if (!isUserMessageCall(call.expression)) {
+    return false;
+  }
+
+  let current = node;
+  while (current.parent && current.parent !== call) {
+    if (
+      ts.isObjectLiteralExpression(current.parent) ||
+      ts.isPropertyAssignment(current.parent)
+    ) {
+      return false;
+    }
+    current = current.parent;
+  }
+  return current.parent === call && call.arguments.includes(current as ts.Expression);
+}
+
+function calleeName(expression: ts.Expression): string {
+  if (ts.isIdentifier(expression)) {
+    return expression.text;
+  }
+
+  return ts.isPropertyAccessExpression(expression)
+    ? expression.name.text
+    : "message";
+}
+
+function isLocalizedComponentPropBoundary(attribute: ts.JsxAttribute): boolean {
+  if (!ts.isIdentifier(attribute.name)) {
+    return false;
+  }
+
+  const openingElement = attribute.parent.parent;
+  if (
+    !ts.isJsxOpeningElement(openingElement) &&
+    !ts.isJsxSelfClosingElement(openingElement)
+  ) {
+    return false;
+  }
+
+  const relativeFile = path.isAbsolute(openingElement.getSourceFile().fileName)
+    ? path.relative(process.cwd(), openingElement.getSourceFile().fileName)
+    : openingElement.getSourceFile().fileName;
+  const key = `${relativeFile}:${openingElement.tagName.getText()}.${attribute.name.text}`;
+  return LOCALIZED_COMPONENT_PROP_BOUNDARIES.has(key);
+}
+
+function isExplicitRawValueBoundary(node: ts.Node): boolean {
+  let current = node.parent;
+  while (current) {
+    if (ts.isJsxElement(current)) {
+      return current.openingElement.attributes.properties.some(
+        (attribute) =>
+          ts.isJsxAttribute(attribute) &&
+          ts.isIdentifier(attribute.name) &&
+          attribute.name.text === "data-i18n-ignore",
+      );
+    }
+    if (ts.isJsxSelfClosingElement(current) || ts.isJsxFragment(current)) {
+      return false;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function isApprovedBusinessPlaceholder(
+  node: ts.StringLiteralLike,
+  context: string,
+): boolean {
+  if (context !== "placeholder") {
+    return false;
+  }
+
+  const value = node.text.trim();
+  return /^[A-Z]{4}\d{6,}$/.test(value) || /^[A-Z]{3}\d+$/.test(value);
+}
+
+function isTechnicalDynamicValue(
+  node: ts.TemplateExpression,
+  context: string,
+): boolean {
+  return context === "JSX expression" && /^VALUE%$/.test(templateExpressionSample(node));
+}
+
+function findAncestor<T extends ts.Node>(
+  node: ts.Node,
+  predicate: (ancestor: ts.Node) => ancestor is T,
+): T | null {
+  let current = node.parent;
+  while (current) {
+    if (predicate(current)) {
+      return current;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+function renderedSourceFiles(): string[] {
+  return ["src/app", "src/components"]
+    .flatMap((root) => listSourceFiles(path.join(process.cwd(), root)))
+    .filter((file) => file.endsWith(".tsx"));
 }
 
 function listSourceFiles(root: string): string[] {
@@ -265,275 +741,19 @@ function listSourceFiles(root: string): string[] {
   return files;
 }
 
-const I18N_MANAGED_SOURCE_FILE_PATTERNS = [
-  path.join("src", "lib", "i18n", "catalog.ts"),
-  path.join("src", "lib", "i18n", "locales", "en.ts"),
-  path.join("src", "lib", "i18n", "locales", "zh.ts"),
-  path.join("src", "lib", "i18n", "status-labels.ts"),
-];
-
-function shouldSkipSourceFile(file: string): boolean {
-  const relative = path.relative(process.cwd(), file);
-  return I18N_MANAGED_SOURCE_FILE_PATTERNS.some((pattern) =>
-    relative.endsWith(pattern),
-  );
-}
-
-const TRANSLATABLE_ATTRIBUTES = new Set([
-  "aria-label",
-  "aria-description",
-  "placeholder",
-  "title",
-  "alt",
-]);
-
-const TRANSLATABLE_PROPERTY_NAMES = new Set([
-  "confirmText",
-  "description",
-  "emptyText",
-  "error",
-  "fallback",
-  "helpText",
-  "label",
-  "message",
-  "notice",
-  "placeholder",
-  "successText",
-  "title",
-]);
-
-const TRANSLATABLE_JSX_PROP_NAMES = new Set([
-  ...TRANSLATABLE_ATTRIBUTES,
-  ...TRANSLATABLE_PROPERTY_NAMES,
-]);
-
-const TRANSLATABLE_SETTER_NAMES = new Set([
-  "alert",
-  "setError",
-  "setMessage",
-  "setNotice",
-  "setStatus",
-]);
-
-function collectUiStrings(
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
-  records: Map<string, UiStringRecord>,
-): void {
-  if (ts.isJsxText(node)) {
-    addCandidate(node.getText(sourceFile), node, sourceFile, records);
-  }
-
-  if (
-    ts.isJsxAttribute(node) &&
-    ts.isIdentifier(node.name) &&
-    TRANSLATABLE_JSX_PROP_NAMES.has(node.name.text) &&
-    node.initializer &&
-    ts.isStringLiteral(node.initializer)
-  ) {
-    addCandidate(node.initializer.text, node.initializer, sourceFile, records);
-  }
-
-  if (
-    ts.isStringLiteralLike(node) &&
-    ts.isJsxExpression(node.parent) &&
-    node.parent.expression === node
-  ) {
-    addCandidate(node.text, node, sourceFile, records);
-  }
-
-  if (ts.isStringLiteralLike(node) && isLikelyUiString(node)) {
-    addCandidate(node.text, node, sourceFile, records);
-  }
-
-  if (ts.isTemplateExpression(node) && isLikelyUiTemplate(node)) {
-    addCandidate(templateExpressionSample(node), node, sourceFile, records);
-  }
-
-  ts.forEachChild(node, (child) =>
-    collectUiStrings(child, sourceFile, records),
-  );
-}
-
-function isLikelyUiString(node: ts.StringLiteralLike): boolean {
-  const parent = node.parent;
-
-  if (
-    ts.isPropertyAssignment(parent) &&
-    parent.initializer === node &&
-    ts.isIdentifier(parent.name) &&
-    TRANSLATABLE_PROPERTY_NAMES.has(parent.name.text)
-  ) {
-    return true;
-  }
-
-  if (
-    ts.isVariableDeclaration(parent) &&
-    parent.initializer === node &&
-    ts.isIdentifier(parent.name) &&
-    /(label|message|title|notice|error|text|fallback)/i.test(parent.name.text)
-  ) {
-    return true;
-  }
-
-  if (ts.isConditionalExpression(parent)) {
-    return true;
-  }
-
-  if (ts.isReturnStatement(parent)) {
-    return true;
-  }
-
-  if (
-    ts.isCallExpression(parent) &&
-    parent.arguments.includes(node) &&
-    isTranslatableCallExpression(parent.expression)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function isLikelyUiTemplate(node: ts.TemplateExpression): boolean {
-  const parent = node.parent;
-
-  if (
-    ts.isPropertyAssignment(parent) &&
-    parent.initializer === node &&
-    ts.isIdentifier(parent.name) &&
-    TRANSLATABLE_PROPERTY_NAMES.has(parent.name.text)
-  ) {
-    return true;
-  }
-
-  if (
-    ts.isCallExpression(parent) &&
-    parent.arguments.includes(node) &&
-    isTranslatableCallExpression(parent.expression)
-  ) {
-    return true;
-  }
-
-  if (ts.isReturnStatement(parent)) {
-    return true;
-  }
-
-  return false;
-}
-
-function isTranslatableCallExpression(expression: ts.Expression): boolean {
-  if (ts.isIdentifier(expression)) {
-    return TRANSLATABLE_SETTER_NAMES.has(expression.text);
-  }
-
-  if (
-    ts.isPropertyAccessExpression(expression) &&
-    expression.name.text === "confirm" &&
-    ts.isIdentifier(expression.expression) &&
-    expression.expression.text === "window"
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
 function templateExpressionSample(node: ts.TemplateExpression): string {
   return [
     node.head.text,
-    ...node.templateSpans.flatMap((span) => [
-      expressionSample(span.expression),
-      span.literal.text,
-    ]),
+    ...node.templateSpans.flatMap((span) => ["VALUE", span.literal.text]),
   ].join("");
 }
 
-function expressionSample(expression: ts.Expression): string {
-  if (ts.isConditionalExpression(expression)) {
-    const whenTrue = literalExpressionSample(expression.whenTrue);
-    const whenFalse = literalExpressionSample(expression.whenFalse);
-    return whenTrue.length >= whenFalse.length ? whenTrue : whenFalse;
-  }
-
-  return "TEST";
+function formatViolation(violation: LocalizationViolation): string {
+  return `${violation.file}:${violation.line} ${violation.context} ${JSON.stringify(violation.value)}`;
 }
 
-function literalExpressionSample(expression: ts.Expression): string {
-  if (ts.isStringLiteralLike(expression)) {
-    return expression.text;
-  }
+function TranslationProbe() {
+  const { locale, t } = useI18n();
 
-  if (ts.isTemplateExpression(expression)) {
-    return templateExpressionSample(expression);
-  }
-
-  return "TEST";
-}
-
-function addCandidate(
-  value: string,
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
-  records: Map<string, UiStringRecord>,
-): void {
-  const candidate = value.replace(/\s+/g, " ").trim();
-  if (!candidate || !/[A-Za-z\u4e00-\u9fff]/.test(candidate)) {
-    return;
-  }
-
-  if (shouldIgnoreCandidate(candidate)) {
-    return;
-  }
-
-  const position = sourceFile.getLineAndCharacterOfPosition(
-    node.getStart(sourceFile),
-  );
-  const relative = path.relative(process.cwd(), sourceFile.fileName);
-  const key = `${relative}:${candidate}`;
-  records.set(key, {
-    file: relative,
-    line: position.line + 1,
-    value: candidate,
-  });
-}
-
-function shouldIgnoreCandidate(value: string): boolean {
-  if (isAllowedRawCandidate(value)) {
-    return true;
-  }
-
-  return (
-    value.length < 2 ||
-    value === "Promise" ||
-    value === "string" ||
-    value === "; Secure" ||
-    /^[,.]/.test(value) ||
-    /^[./#?&=:_a-z0-9-]+$/i.test(value) ||
-    /^(TEST[\s·:/#().-]*)+$/.test(value) ||
-    /^(border|bg|text|mt|break|inline|flex|grid|space|px|py|p|m|w|h|min|max|items|justify|rounded|shadow|hover|disabled|focus|overflow|uppercase|font|leading|tracking|tabular)-/.test(
-      value,
-    ) ||
-    value.includes(" border-") ||
-    value.includes(" bg-") ||
-    value.includes(" text-") ||
-    value.includes("className") ||
-    value.endsWith('."') ||
-    value.endsWith(',"')
-  );
-}
-
-function isAllowedRawCandidate(value: string): boolean {
-  const allowedRawPatterns = [
-    // File size units are standard technical units in both locales.
-    /^TEST (B|KB|MB)$/,
-    // Load job source labels combine container/destination/pallet-count codes.
-    /^TEST \/ TEST \/ TESTP$/,
-  ];
-
-  return allowedRawPatterns.some((pattern) => pattern.test(value));
-}
-
-function formatUiRecord(record: UiStringRecord): string {
-  return `${record.file}:${record.line} ${JSON.stringify(record.value)}`;
+  return createElement("span", { "data-locale": locale }, t("Dashboard"));
 }

@@ -212,13 +212,13 @@ test("destination warning summaries group repeated business issues", () => {
   assert.deepEqual(
     summaries.map((summary) => formatIssueSummary(summary)),
     [
-      "Destination code is missing.  2x",
-      "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.  2x",
+      "Destination code is missing. 2x",
+      "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation. 2x",
     ],
   );
 });
 
-test("destination warning lists localizable pallet calculation warning details", () => {
+test("destination warning lists localize stable pallet calculation issue codes", () => {
   assert.deepEqual(
     issueList([
       {
@@ -239,8 +239,29 @@ test("destination warning lists localizable pallet calculation warning details",
     ]),
     [
       "Destination type was not recognized; pallet rule needs confirmation.",
-      "Destination PUR volume is zero with 12 carton(s); 0.01 CBM was used for pallet calculation.",
-      "Row 18 volume is zero with 4 carton(s); 0.01 CBM was used for pallet calculation.",
+      "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.",
+      "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.",
+    ],
+  );
+  assert.deepEqual(
+    issueList(
+      [
+        {
+          code: "NEED_CONFIRM_DESTINATION_TYPE",
+          destinationCode: "PUR",
+          message: "Check",
+        },
+        {
+          code: "ZERO_VOLUME_WITH_CARTONS",
+          destinationCode: "PUR",
+          message: "PUR 体积为0的有12箱，已按0.01 CBM参与托盘计算。",
+        },
+      ],
+      "zh-CN",
+    ),
+    [
+      "目的仓类型无法识别，托盘规则需要复核。",
+      "0.01 CBM 已用于托盘计算，因为体积为 0 但箱数大于 0。",
     ],
   );
 });

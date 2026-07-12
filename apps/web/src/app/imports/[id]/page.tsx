@@ -19,9 +19,10 @@ import {
   statusTone,
   toParseResultSummary,
 } from "@/components/imports/import-detail-flow";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
+import { createTranslator } from "@/lib/i18n/translator";
 import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -45,14 +46,15 @@ export default async function ImportDetailPage({
 }) {
   const { id } = await params;
   const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const state = await loadImportDetail(id);
 
   if (!state.ok) {
-    return <ImportDetailError error={state.error} id={id} />;
+    return <ImportDetailError error={state.error} id={id} locale={locale} />;
   }
 
-  const warningIssues = issueList(state.parseResult?.warnings ?? []);
-  const errorIssues = issueList(state.parseResult?.errors ?? []);
+  const warningIssues = issueList(state.parseResult?.warnings ?? [], locale);
+  const errorIssues = issueList(state.parseResult?.errors ?? [], locale);
   const parseSummary = toParseResultSummary(state.parseResult);
   const manualHref = manualReportHref(state.importFile.id);
   const showManualEntry = shouldOfferManualReportEntry({
@@ -66,7 +68,7 @@ export default async function ImportDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Import detail
+              {t("Import detail")}
             </p>
             <h1 className="mt-2 break-all text-2xl font-semibold text-zinc-950">
               {state.importFile.originalFilename}
@@ -77,13 +79,13 @@ export default async function ImportDetailPage({
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href={manualHref}
             >
-              Create manual report
+              {t("Create manual report")}
             </Link>
             <Link
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/imports/new"
             >
-              Upload another file
+              {t("Upload another file")}
             </Link>
           </div>
         </div>
@@ -92,18 +94,18 @@ export default async function ImportDetailPage({
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-zinc-950">
-            File status
+            {t("File status")}
           </h2>
           <dl className="mt-4 grid gap-3 text-sm">
-            <DetailRow label="Import ID" value={state.importFile.id} />
+            <DetailRow label={t("Import ID")} value={state.importFile.id} />
             <DetailRow
-              label="SHA-256"
+              label={t("SHA-256")}
               value={state.importFile.fileSha256}
               wrap
             />
-            <DetailRow label="Format" value={state.importFile.format} />
+            <DetailRow label={t("Format")} value={state.importFile.format} />
             <DetailRow
-              label="Parse status"
+              label={t("Parse status")}
               value={
                 <StatusBadge
                   locale={locale}
@@ -112,15 +114,21 @@ export default async function ImportDetailPage({
               }
             />
             <DetailRow
-              label="Uploaded at"
+              label={t("Uploaded at")}
               value={formatDateTime(state.importFile.createdAt)}
             />
             <DetailRow
-              label="Warnings / errors"
+              label={t("Warnings / errors")}
               value={`${state.importFile.warningCount} / ${state.importFile.errorCount}`}
             />
             {state.importFile.errorMessage ? (
-              <DetailRow label="Error" value={state.importFile.errorMessage} />
+              <DetailRow
+                label={t("Error")}
+                value={localizedImportMessage(
+                  state.importFile.errorMessage,
+                  locale,
+                )}
+              />
             ) : null}
           </dl>
         </div>
@@ -135,7 +143,8 @@ export default async function ImportDetailPage({
       {state.parseResultError ? (
         <ApiErrorPanel
           error={state.parseResultError}
-          title="Parse result could not be loaded"
+          locale={locale}
+          title={t("Parse result could not be loaded")}
         />
       ) : null}
 
@@ -148,6 +157,7 @@ export default async function ImportDetailPage({
         errors={errorIssues}
         warningCount={state.importFile.warningCount}
         warnings={warningIssues}
+        locale={locale}
       />
     </main>
   );
@@ -209,7 +219,7 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded px-2.5 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={generatedOrImportStatusLabel(status, locale)}
     >
       {generatedOrImportStatusLabel(status, locale)}
     </span>
@@ -221,20 +231,24 @@ function IssueSection({
   errors,
   warningCount,
   warnings,
+  locale,
 }: {
   errorCount: number;
   errors: string[];
+  locale: Locale;
   warningCount: number;
   warnings: string[];
 }) {
+  const { t } = createTranslator(locale);
+
   if (warningCount === 0 && errorCount === 0) {
     return (
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-zinc-950">
-          Warnings and errors
+          {t("Warnings and errors")}
         </h2>
         <p className="mt-3 text-sm text-zinc-600">
-          No parser warnings or errors are currently recorded for this import.
+          {t("No parser warnings or errors are currently recorded for this import.")}
         </p>
       </section>
     );
@@ -244,15 +258,15 @@ function IssueSection({
     <section className="grid gap-4 lg:grid-cols-2">
       <IssueList
         count={warningCount}
-        emptyText="Warning details are not available yet."
+        emptyText={t("Warning details are not available yet.")}
         items={warnings}
-        title="Warnings"
+        title={t("Warnings")}
       />
       <IssueList
         count={errorCount}
-        emptyText="Error details are not available yet."
+        emptyText={t("Error details are not available yet.")}
         items={errors}
-        title="Errors"
+        title={t("Errors")}
       />
     </section>
   );
@@ -293,15 +307,29 @@ function IssueList({
   );
 }
 
-function ImportDetailError({ error, id }: { error: ApiClientError; id: string }) {
+function ImportDetailError({
+  error,
+  id,
+  locale,
+}: {
+  error: ApiClientError;
+  id: string;
+  locale: Locale;
+}) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
-      <ApiErrorPanel error={error} title={`Import ${id} could not be loaded`} />
+      <ApiErrorPanel
+        error={error}
+        locale={locale}
+        title={format("i18n.imports.detail.loadError", { id })}
+      />
       <Link
         className="inline-flex min-h-10 w-fit items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
         href="/imports/new"
       >
-        Upload a file
+        {t("Upload a file")}
       </Link>
     </main>
   );
@@ -309,21 +337,51 @@ function ImportDetailError({ error, id }: { error: ApiClientError; id: string })
 
 function ApiErrorPanel({
   error,
+  locale,
   title,
 }: {
   error: ApiClientError;
+  locale: Locale;
   title: string;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <p className="text-sm font-semibold uppercase">{error.code}</p>
+      <p className="text-sm font-semibold uppercase" data-i18n-ignore>
+        {error.code}
+      </p>
       <h1 className="mt-2 text-xl font-semibold">{title}</h1>
-      <p className="mt-3 text-sm">{error.message}</p>
+      <p className="mt-3 text-sm">
+        {importDetailErrorMessage(error, locale, t)}
+      </p>
     </section>
   );
+}
+
+const importDetailErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "Import detail failed.",
+  WEB_IMPORT_DETAIL_ERROR: "Import detail failed.",
+};
+
+function importDetailErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+  t: (key: MessageKey) => string,
+): string {
+  const knownKey = importDetailErrorKeys[error.code];
+  if (knownKey) {
+    return t(knownKey);
+  }
+
+  return t("Import detail failed.");
+}
+
+function localizedImportMessage(_value: string, locale: Locale): string {
+  return createTranslator(locale).t("Parser issue details are unavailable.");
 }
 
 function toApiClientError(error: unknown): ApiClientError {

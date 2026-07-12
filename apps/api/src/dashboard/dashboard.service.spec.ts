@@ -42,18 +42,21 @@ describe('DashboardService', () => {
     );
     expect(dashboard.inventory).toMatchObject({
       totalPallets: 6,
+      activeTotalPallets: 4,
       loadedPallets: 1,
       remainingPallets: 3,
       topDestinations: [
         {
           destinationCode: 'YYC',
           totalPallets: 5,
+          activeTotalPallets: 3,
           loadedPallets: 1,
           remainingPallets: 2,
         },
         {
           destinationCode: 'YVR',
           totalPallets: 1,
+          activeTotalPallets: 1,
           loadedPallets: 0,
           remainingPallets: 1,
         },

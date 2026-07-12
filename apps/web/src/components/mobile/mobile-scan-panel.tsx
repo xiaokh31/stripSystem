@@ -25,7 +25,8 @@ import {
   type ScannedPalletResponse,
 } from "@/lib/api-client";
 import type { Locale } from "@/lib/i18n/catalog";
-import { translateMessage } from "@/lib/i18n/translator";
+import { roleDisplayLabel } from "@/lib/i18n/status-labels";
+import type { Translator } from "@/lib/i18n/translator";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import {
   isReverseScanDisabled,
@@ -42,6 +43,7 @@ import {
 import {
   offlineQueuedNotice,
   offlineQueueCounts,
+  offlineScanErrorCode,
   offlineScanErrorMessage,
   offlineScanSyncStatusLabel,
   queueOfflineScan,
@@ -105,7 +107,7 @@ export function MobileScanPanel({
   initialLoadJob: LoadJobResponse;
   permissions: MobileScanPermissions;
 }) {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -212,18 +214,18 @@ export function MobileScanPanel({
           : (response.items[0]?.id ?? ""),
       );
     } catch (error) {
-      setLoadedPalletsError(scanErrorNotice(error).message);
+      setLoadedPalletsError(scanErrorNotice(error, locale).message);
     }
-  }, [loadJob.id]);
+  }, [loadJob.id, locale]);
 
   const loadOfflineQueue = useCallback(() => {
     try {
       setOfflineItems(readOfflineScanQueue(window.localStorage));
       setQueueError(null);
     } catch (error) {
-      setQueueError(offlineScanErrorMessage(error));
+      setQueueError(offlineScanErrorMessage(error, locale));
     }
-  }, []);
+  }, [locale]);
 
   const queueScanLocally = useCallback(
     (payload: string) => {
@@ -234,21 +236,21 @@ export function MobileScanPanel({
           qrPayload: payload,
         });
         setOfflineItems(readOfflineScanQueue(window.localStorage));
-        setNotice(offlineQueuedNotice(item));
+        setNotice(offlineQueuedNotice(item, locale));
         setQueueError(null);
         setQrPayload("");
       } catch (error) {
-        const message = offlineScanErrorMessage(error);
+        const message = offlineScanErrorMessage(error, locale);
         setQueueError(message);
         setNotice({
           code: "OFFLINE_QUEUE_WRITE_FAILED",
           message,
-          title: "Offline queue failed",
+          title: t("Offline queue failed"),
           tone: "red",
         });
       }
     },
-    [loadJob.id],
+    [loadJob.id, locale, t],
   );
 
   const syncQueuedScans = useCallback(async () => {
@@ -258,7 +260,7 @@ export function MobileScanPanel({
 
     if (!permissions.canScan) {
       setQueueError(
-        "Sign in as a user with scan permission before syncing queued scans.",
+        t("Sign in as a user with scan permission before syncing queued scans."),
       );
       return;
     }
@@ -288,7 +290,7 @@ export function MobileScanPanel({
           if (item.loadJobId === loadJob.id) {
             setLoadJob(response.loadJob);
             setLastScan(response);
-            setNotice(scanSuccessNotice(response));
+            setNotice(scanSuccessNotice(response, locale));
             if (response.result === "LOADED") {
               setLoadedPallets((items) => [
                 response.pallet,
@@ -300,17 +302,17 @@ export function MobileScanPanel({
             refreshedCurrentLoadJob = true;
           }
         } catch (error) {
-          const message = offlineScanErrorMessage(error);
+          const errorCode = offlineScanErrorCode(error);
           items = markOfflineScanFailed(
             readOfflineScanQueue(window.localStorage),
             item.localId,
-            message,
+            errorCode,
           );
           writeOfflineScanQueue(window.localStorage, items);
           setOfflineItems(items);
 
           if (item.loadJobId === loadJob.id) {
-            setNotice(scanErrorNotice(error));
+            setNotice(scanErrorNotice(error, locale));
           }
         }
       }
@@ -319,12 +321,12 @@ export function MobileScanPanel({
         router.refresh();
       }
     } catch (error) {
-      setQueueError(offlineScanErrorMessage(error));
+      setQueueError(offlineScanErrorMessage(error, locale));
     } finally {
       setSyncingQueue(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [loadJob.id, permissions.canScan, router, syncingQueue]);
+  }, [loadJob.id, locale, permissions.canScan, router, syncingQueue, t]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -384,7 +386,7 @@ export function MobileScanPanel({
       });
       setLoadJob(response.loadJob);
       setLastScan(response);
-      setNotice(scanSuccessNotice(response));
+      setNotice(scanSuccessNotice(response, locale));
       if (response.result === "LOADED") {
         setLoadedPallets((items) => [
           response.pallet,
@@ -410,7 +412,7 @@ export function MobileScanPanel({
           setOverrideConfirmed(false);
           setOverrideReason("");
         }
-        setNotice(scanErrorNotice(error));
+        setNotice(scanErrorNotice(error, locale));
       }
     } finally {
       setSubmitting(false);
@@ -450,8 +452,8 @@ export function MobileScanPanel({
       setLastScan(response);
       setNotice({
         code: "SUPERVISOR_OVERRIDE",
-        message: "Supervisor override accepted and audited.",
-        title: "Override accepted",
+        message: t("Supervisor override accepted and audited."),
+        title: t("Override accepted"),
         tone: "amber",
       });
       setLoadedPallets((items) => [
@@ -466,7 +468,7 @@ export function MobileScanPanel({
       setOverrideConfirmed(false);
       router.refresh();
     } catch (error) {
-      setNotice(scanErrorNotice(error));
+      setNotice(scanErrorNotice(error, locale));
     } finally {
       setSubmitting(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -478,7 +480,7 @@ export function MobileScanPanel({
       return;
     }
 
-    setDockSaveState({ message: "Saving dock number.", status: "saving" });
+    setDockSaveState({ message: t("Saving dock number."), status: "saving" });
 
     try {
       const result = await updateLoadJob(loadJob.id, {
@@ -487,13 +489,15 @@ export function MobileScanPanel({
       setLoadJob(result);
       setDockNo(result.dockNo ?? "");
       setDockSaveState({
-        message: `Dock saved${result.dockNo ? `: ${result.dockNo}` : "."}`,
+        message: result.dockNo
+          ? format("i18n.mobile.dockSaved", { dockNo: result.dockNo })
+          : t("i18n.mobile.dockSavedEmpty"),
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setDockSaveState({
-        message: dockSaveErrorMessage(error),
+        message: dockSaveErrorMessage(error, t),
         status: "error",
       });
     } finally {
@@ -509,14 +513,14 @@ export function MobileScanPanel({
     const normalizedDockNo = dockNo.trim();
     if (!normalizedDockNo) {
       setCompleteLoadJobState({
-        message: "Dock No. is required before completing this load job.",
+        message: t("Dock No. is required before completing this load job."),
         status: "error",
       });
       return;
     }
 
     setCompleteLoadJobState({
-      message: "Completing load job...",
+      message: t("Completing load job..."),
       status: "saving",
     });
 
@@ -530,19 +534,21 @@ export function MobileScanPanel({
       setLoadJob(result);
       setDockNo(result.dockNo ?? normalizedDockNo);
       setCompleteLoadJobState({
-        message: `Load job completed by ${currentUser.name ?? currentUser.email ?? currentUser.id}.`,
+        message: format("i18n.mobile.completedBy", {
+          user: currentUser.name ?? currentUser.email ?? currentUser.id,
+        }),
         status: "completed",
       });
       setNotice({
         code: "LOAD_JOB_COMPLETED",
-        message: "This load job is now completed and closed for scanning.",
-        title: "Loading completed",
+        message: t("This load job is now completed and closed for scanning."),
+        title: t("Loading completed"),
         tone: "emerald",
       });
       router.refresh();
     } catch (error) {
       setCompleteLoadJobState({
-        message: completeLoadJobErrorMessage(error),
+        message: completeLoadJobErrorMessage(error, t),
         status: "error",
       });
     } finally {
@@ -563,15 +569,16 @@ export function MobileScanPanel({
 
     if (mode === "unsupported") {
       setCameraScan({
-        message:
+        message: t(
           "This browser cannot open or decode camera QR scans. Use a scanner or manual input.",
+        ),
         status: "error",
       });
       return;
     }
 
     stopCameraScan();
-    setCameraScan({ message: "Opening camera...", status: "starting" });
+    setCameraScan({ message: t("Opening camera..."), status: "starting" });
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -581,7 +588,7 @@ export function MobileScanPanel({
       cameraStreamRef.current = stream;
 
       if (!videoRef.current) {
-        stopCameraScan("Camera view is not available.");
+        stopCameraScan(t("Camera view is not available."));
         return;
       }
 
@@ -599,8 +606,8 @@ export function MobileScanPanel({
       setCameraScan({
         message:
           mode === "native"
-            ? "Point the camera at a pallet QR label."
-            : "Point the camera at a pallet QR label. Canvas QR scanning is active.",
+            ? t("Point the camera at a pallet QR label.")
+            : t("Point the camera at a pallet QR label. Canvas QR scanning is active."),
         status: "scanning",
       });
 
@@ -615,13 +622,13 @@ export function MobileScanPanel({
           )?.trim();
 
           if (rawValue) {
-            stopCameraScan("QR captured.");
+            stopCameraScan(t("QR captured."));
             await submitPayload(rawValue);
             return;
           }
         } catch {
           stopCameraScan(
-            "Camera QR scanning failed. Use a scanner or manual input.",
+            t("Camera QR scanning failed. Use a scanner or manual input."),
           );
           return;
         }
@@ -630,13 +637,10 @@ export function MobileScanPanel({
       };
 
       cameraFrameRef.current = window.requestAnimationFrame(detectFrame);
-    } catch (error) {
+    } catch {
       stopCameraScan();
       setCameraScan({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Camera permission was denied or unavailable.",
+        message: t("Camera permission was denied or unavailable."),
         status: "error",
       });
     }
@@ -659,7 +663,7 @@ export function MobileScanPanel({
       });
       setLoadJob(response.loadJob);
       setLastScan(response);
-      setNotice(scanSuccessNotice(response));
+      setNotice(scanSuccessNotice(response, locale));
       const nextSelectedPalletId =
         loadedPallets.find((pallet) => pallet.id !== selectedReversePallet.id)
           ?.id ?? "";
@@ -672,7 +676,7 @@ export function MobileScanPanel({
       setReverseReason("");
       router.refresh();
     } catch (error) {
-      setNotice(scanErrorNotice(error));
+      setNotice(scanErrorNotice(error, locale));
     } finally {
       setReversingScan(false);
       window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -683,7 +687,6 @@ export function MobileScanPanel({
     <section className="border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
       <MobileScanUserPanel
         currentUser={currentUser}
-        locale={locale}
         permissions={permissions}
       />
 
@@ -691,12 +694,12 @@ export function MobileScanPanel({
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-3 border border-zinc-200 bg-zinc-50 p-3">
             <label className="grid gap-2 text-base font-semibold text-zinc-950">
-              Dock No.
+              {t("Dock No.")}
               <input
                 className="min-h-14 w-full border border-zinc-300 bg-white px-4 text-xl font-semibold text-zinc-950 outline-none focus:border-teal-700 focus:ring-4 focus:ring-teal-100 disabled:bg-zinc-100 disabled:text-zinc-500"
                 disabled={!canSaveDockNo || dockSaving}
                 onChange={(event) => setDockNo(event.target.value)}
-                placeholder="Dock door"
+                placeholder={t("Dock door")}
                 type="text"
                 value={dockNo}
               />
@@ -710,7 +713,7 @@ export function MobileScanPanel({
                 }}
                 type="button"
               >
-                {dockSaving ? "Saving dock" : "Save dock"}
+                {dockSaving ? t("Saving dock") : t("Save dock")}
               </button>
               <button
                 className="min-h-12 border border-emerald-800 bg-emerald-800 px-4 text-base font-semibold text-white hover:bg-emerald-900 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -722,7 +725,7 @@ export function MobileScanPanel({
                 }}
                 type="button"
               >
-                {completingLoadJob ? "Completing" : "Complete loading"}
+                {completingLoadJob ? t("Completing") : t("Complete loading")}
               </button>
             </div>
             {dockNoRequiredForCompletion ? (
@@ -730,7 +733,7 @@ export function MobileScanPanel({
                 className="border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-950"
                 role="alert"
               >
-                Dock No. is required before completing this load job.
+                {t("Dock No. is required before completing this load job.")}
               </div>
             ) : null}
             {dockSaveState.message ? (
@@ -762,7 +765,7 @@ export function MobileScanPanel({
           </div>
 
           <label className="grid gap-2 text-base font-semibold text-zinc-950">
-            Pallet QR scan
+            {t("Pallet QR scan")}
             <input
               ref={inputRef}
               autoCapitalize="off"
@@ -772,7 +775,7 @@ export function MobileScanPanel({
               disabled={!canScanThisLoadJob || submitting}
               inputMode="text"
               onChange={(event) => setQrPayload(event.target.value)}
-              placeholder="Scan pallet QR, then Enter"
+              placeholder={t("Scan pallet QR, then Enter")}
               spellCheck={false}
               type="text"
               value={qrPayload}
@@ -788,7 +791,7 @@ export function MobileScanPanel({
               }}
               type="button"
             >
-              Camera scan
+              {t("Camera scan")}
             </button>
             <button
               className="min-h-12 border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:border-zinc-500 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
@@ -796,7 +799,7 @@ export function MobileScanPanel({
               onClick={() => stopCameraScan()}
               type="button"
             >
-              Stop camera
+              {t("Stop camera")}
             </button>
           </div>
 
@@ -807,7 +810,7 @@ export function MobileScanPanel({
             disabled={disabled}
             type="submit"
           >
-            {submitting ? "Submitting scan" : "Submit scan"}
+            {submitting ? t("Submitting scan") : t("Submit scan")}
           </button>
 
           {!loadJob.canScan ? (
@@ -815,9 +818,9 @@ export function MobileScanPanel({
               className="border border-amber-200 bg-amber-50 p-4 text-base text-amber-950"
               role="alert"
             >
-              <p className="font-semibold">Load job closed</p>
+              <p className="font-semibold">{t("Load job closed")}</p>
               <p className="mt-1">
-                This load job is not open for scanning. Select an open load job.
+                {t("This load job is not open for scanning. Select an open load job.")}
               </p>
             </div>
           ) : null}
@@ -827,9 +830,9 @@ export function MobileScanPanel({
               className="border border-red-200 bg-red-50 p-4 text-base text-red-950"
               role="alert"
             >
-              <p className="font-semibold">Scan permission required</p>
+              <p className="font-semibold">{t("Scan permission required")}</p>
               <p className="mt-1">
-                This account can view the load job but cannot scan pallets.
+                {t("This account can view the load job but cannot scan pallets.")}
               </p>
             </div>
           ) : null}
@@ -886,7 +889,6 @@ export function MobileScanPanel({
       <OfflineQueuePanel
         canSync={permissions.canScan}
         items={currentLoadJobQueue}
-        locale={locale}
         queueError={queueError}
         syncableCount={syncableCount}
         syncing={syncingQueue}
@@ -897,8 +899,9 @@ export function MobileScanPanel({
       />
 
       <p className="mt-4 border-t border-zinc-100 pt-4 text-sm font-medium text-zinc-600">
-        Remaining pallets are for load job {loadJobDisplayName(loadJob)}, not
-        whole-container inventory.
+        {format("i18n.mobile.remainingForLoadJob", {
+          loadJob: loadJobDisplayName(loadJob),
+        })}
       </p>
     </section>
   );
@@ -911,6 +914,7 @@ function CameraScanPanel({
   cameraScan: CameraScanState;
   videoRef: RefObject<HTMLVideoElement | null>;
 }) {
+  const { t } = useI18n();
   const isActive =
     cameraScan.status === "scanning" || cameraScan.status === "starting";
   const messageStyles =
@@ -922,7 +926,7 @@ function CameraScanPanel({
     <div className="grid gap-2">
       <video
         ref={videoRef}
-        aria-label="Camera QR scanner"
+        aria-label={t("Camera QR scanner")}
         className={[
           "aspect-[4/3] w-full border border-zinc-300 bg-zinc-950 object-cover",
           isActive ? "block" : "hidden",
@@ -960,16 +964,21 @@ function SupervisorOverridePanel({
   reason: string;
   submitting: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <section className="border border-amber-300 bg-amber-50 p-4 text-base text-amber-950">
-      <h2 className="font-semibold">Supervisor override required</h2>
+      <h2 className="font-semibold">{t("Supervisor override required")}</h2>
       <p className="mt-2 text-sm leading-6">
-        This pallet is already assigned to another load job. A supervisor can
-        move it to this load job only after confirming the reason.
+        {t(
+          "This pallet is already assigned to another load job. A supervisor can move it to this load job only after confirming the reason.",
+        )}
       </p>
-      <p className="mt-2 break-all text-xs font-medium">Payload: {payload}</p>
+      <p className="mt-2 break-all text-xs font-medium">
+        {t("Payload:")} {payload}
+      </p>
       <label className="mt-3 grid gap-1 text-sm font-semibold">
-        Override reason
+        {t("Override reason")}
         <textarea
           className="min-h-20 border border-amber-300 bg-white px-3 py-2 text-zinc-950 outline-none focus:border-amber-700"
           onChange={(event) => onReasonChange(event.target.value)}
@@ -983,8 +992,9 @@ function SupervisorOverridePanel({
           onChange={(event) => onConfirmChange(event.target.checked)}
           type="checkbox"
         />
-        I confirm this supervisor override should move the pallet to the current
-        load job and create an audit event.
+        {t(
+          "I confirm this supervisor override should move the pallet to the current load job and create an audit event.",
+        )}
       </label>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <button
@@ -993,14 +1003,14 @@ function SupervisorOverridePanel({
           onClick={onSubmit}
           type="button"
         >
-          {submitting ? "Submitting override" : "Submit override"}
+          {submitting ? t("Submitting override") : t("Submit override")}
         </button>
         <button
           className="min-h-11 border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100"
           onClick={onCancel}
           type="button"
         >
-          Cancel override
+          {t("Cancel override")}
         </button>
       </div>
     </section>
@@ -1009,66 +1019,65 @@ function SupervisorOverridePanel({
 
 function MobileScanUserPanel({
   currentUser,
-  locale,
   permissions,
 }: {
   currentUser: AuthUserResponse;
-  locale: Locale;
   permissions: MobileScanPermissions;
 }) {
+  const { format, locale, t } = useI18n();
   const displayName = currentUser.name ?? currentUser.email ?? currentUser.id;
   const permissionSummary = [
-    permissions.canSaveDockNo ? "Dock" : null,
-    permissions.canCompleteLoadJob ? "Complete" : null,
-    permissions.canScan ? "Scan" : null,
-    permissions.canSupervisorOverride ? "Supervisor override" : null,
-    permissions.canReverseScan ? "Reverse scan" : null,
+    permissions.canSaveDockNo ? t("Dock") : null,
+    permissions.canCompleteLoadJob ? t("Complete") : null,
+    permissions.canScan ? t("Scan") : null,
+    permissions.canSupervisorOverride ? t("Supervisor override") : null,
+    permissions.canReverseScan ? t("Reverse scan") : null,
   ]
-    .filter((label): label is string => Boolean(label))
-    .map((label) => translateMessage(label, locale) ?? label);
-  const roleSource = `Roles: ${currentUser.roles.join(", ") || "None"}`;
-  const roleText = translateMessage(roleSource, locale) ?? roleSource;
-  const permissionSource = `Mobile permissions: ${
-    permissionSummary.join(", ") || "Read only"
-  }`;
-  const permissionText =
-    translateMessage(permissionSource, locale) ?? permissionSource;
+    .filter((label): label is string => Boolean(label));
+  const roleText = format("i18n.mobile.roles", {
+    roles: localizedList(
+      currentUser.roles.map((role) => roleDisplayLabel(role, locale)),
+      locale,
+    ) || t("None"),
+  });
+  const permissionText = format("i18n.mobile.permissions", {
+    permissions: localizedList(permissionSummary, locale) || t("Read only"),
+  });
 
   return (
     <div className="mb-4 border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-      <p className="font-semibold text-zinc-950">Signed in as {displayName}</p>
+      <p className="font-semibold text-zinc-950">
+        {t("Signed in as")} {displayName}
+      </p>
       <p className="mt-1 break-all">{roleText}</p>
       <p className="mt-1">{permissionText}</p>
     </div>
   );
 }
 
-function dockSaveErrorMessage(error: unknown): string {
+function dockSaveErrorMessage(error: unknown, t: Translator["t"]): string {
   if (error instanceof ApiClientError) {
     if (error.code === "NOT_FOUND" && error.message.includes("Cannot PATCH")) {
-      return "The running API has not loaded load job edit routes. Restart the API service and try again.";
+      return t(
+        "The running API has not loaded load job edit routes. Restart the API service and try again.",
+      );
     }
-
-    return error.message;
   }
 
-  return error instanceof Error
-    ? error.message
-    : "Dock number could not be saved.";
+  return t("Dock number could not be saved.");
 }
 
-function completeLoadJobErrorMessage(error: unknown): string {
+function completeLoadJobErrorMessage(
+  error: unknown,
+  t: Translator["t"],
+): string {
   if (error instanceof ApiClientError) {
     if (error.code === "LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED") {
-      return "Dock No. is required before completing this load job.";
+      return t("Dock No. is required before completing this load job.");
     }
-
-    return error.message;
   }
 
-  return error instanceof Error
-    ? error.message
-    : "The load job could not be completed.";
+  return t("The load job could not be completed.");
 }
 
 function ReverseScanPanel({
@@ -1098,24 +1107,26 @@ function ReverseScanPanel({
   reversing: boolean;
   selectedPalletId: string;
 }) {
+  const { t } = useI18n();
   const selectedPallet =
     loadedPallets.find((pallet) => pallet.id === selectedPalletId) ?? null;
 
   return (
     <div className="border border-amber-200 bg-amber-50 p-4">
       <h2 className="text-base font-semibold text-amber-950">
-        Adjust current progress
+        {t("Adjust current progress")}
       </h2>
       <p className="mt-1 text-sm text-amber-950">
-        Remove a loaded pallet from this load job only when it will not be
-        loaded.
+        {t(
+          "Remove a loaded pallet from this load job only when it will not be loaded.",
+        )}
       </p>
       {!canReverse ? (
         <p
           className="mt-3 border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-950"
           role="alert"
         >
-          This account can view loaded pallets but cannot reverse scans.
+          {t("This account can view loaded pallets but cannot reverse scans.")}
         </p>
       ) : null}
 
@@ -1130,14 +1141,14 @@ function ReverseScanPanel({
 
       {loadedPallets.length === 0 ? (
         <p className="mt-3 border border-amber-300 bg-white p-3 text-sm font-medium text-amber-950">
-          No loaded pallets are currently attached to this load job.
+          {t("No loaded pallets are currently attached to this load job.")}
         </p>
       ) : null}
 
       {loadedPallets.length > 0 ? (
         <div className="mt-4 grid gap-3">
           <label className="grid gap-2 text-sm font-semibold text-amber-950">
-            Loaded pallet
+            {t("Loaded pallet")}
             <select
               className="min-h-12 w-full border border-amber-300 bg-white px-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
               disabled={!canReverse || reversing}
@@ -1153,13 +1164,13 @@ function ReverseScanPanel({
           </label>
 
           <label className="grid gap-2 text-sm font-semibold text-amber-950">
-            Reason
+            {t("Reason")}
             <textarea
               className="min-h-24 w-full border border-amber-300 bg-white p-3 text-base text-zinc-950 outline-none focus:border-amber-700 focus:ring-4 focus:ring-amber-100"
               disabled={!canReverse || reversing}
               maxLength={240}
               onChange={(event) => onReasonChange(event.target.value)}
-              placeholder="Damage, pallet consolidation, short load..."
+              placeholder={t("Damage, pallet consolidation, short load...")}
               value={reason}
             />
           </label>
@@ -1172,7 +1183,9 @@ function ReverseScanPanel({
               onChange={(event) => onConfirmChange(event.target.checked)}
               type="checkbox"
             />
-            Confirm this pallet should be removed from current load job progress.
+            {t(
+              "Confirm this pallet should be removed from current load job progress.",
+            )}
           </label>
 
           <button
@@ -1181,7 +1194,7 @@ function ReverseScanPanel({
             onClick={onReverse}
             type="button"
           >
-            {reversing ? "Updating progress" : "Remove from load job"}
+            {reversing ? t("Updating progress") : t("Remove from load job")}
           </button>
         </div>
       ) : null}
@@ -1192,7 +1205,6 @@ function ReverseScanPanel({
 function OfflineQueuePanel({
   canSync,
   items,
-  locale,
   onSync,
   queueError,
   syncableCount,
@@ -1201,23 +1213,25 @@ function OfflineQueuePanel({
 }: {
   canSync: boolean;
   items: OfflineScanQueueItem[];
-  locale: Locale;
   onSync: () => void;
   queueError: string | null;
   syncableCount: number;
   syncing: boolean;
   totalCounts: { failed: number; pending: number; synced: number };
 }) {
+  const { locale, t } = useI18n();
+
   return (
     <div className="mt-4 border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Offline scan queue
+            {t("Offline scan queue")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Pending scans stay local and do not change inventory until the API
-            accepts them.
+            {t(
+              "Pending scans stay local and do not change inventory until the API accepts them.",
+            )}
           </p>
         </div>
         <button
@@ -1226,14 +1240,14 @@ function OfflineQueuePanel({
           onClick={onSync}
           type="button"
         >
-          {syncing ? "Syncing" : "Sync queue"}
+          {syncing ? t("Syncing") : t("Sync queue")}
         </button>
       </div>
 
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <Metric label="Pending" value={totalCounts.pending} />
-        <Metric label="Synced" value={totalCounts.synced} />
-        <Metric label="Failed" value={totalCounts.failed} />
+        <Metric label={t("Pending")} value={totalCounts.pending} />
+        <Metric label={t("Synced")} value={totalCounts.synced} />
+        <Metric label={t("Failed")} value={totalCounts.failed} />
       </dl>
 
       {!canSync ? (
@@ -1241,10 +1255,11 @@ function OfflineQueuePanel({
           className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-950"
           role="alert"
         >
-          <p className="font-semibold">Scan permission required</p>
+          <p className="font-semibold">{t("Scan permission required")}</p>
           <p className="mt-1">
-            Pending scans remain local until a user with scan permission signs
-            in and syncs them.
+            {t(
+              "Pending scans remain local until a user with scan permission signs in and syncs them.",
+            )}
           </p>
         </div>
       ) : null}
@@ -1254,25 +1269,25 @@ function OfflineQueuePanel({
           className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-950"
           role="alert"
         >
-          <p className="font-semibold">Offline queue error</p>
+          <p className="font-semibold">{t("Offline queue error")}</p>
           <p className="mt-1">{queueError}</p>
         </div>
       ) : null}
 
       {items.length === 0 ? (
         <p className="mt-4 border border-dashed border-zinc-300 bg-white p-3 text-sm text-zinc-600">
-          No offline scans are stored for this load job.
+          {t("No offline scans are stored for this load job.")}
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead className="border-y border-zinc-200 bg-white text-xs uppercase text-zinc-500">
               <tr>
-                <th className="px-3 py-3 font-semibold">Status</th>
-                <th className="px-3 py-3 font-semibold">Load job</th>
-                <th className="px-3 py-3 font-semibold">Scanned at</th>
-                <th className="px-3 py-3 font-semibold">QR payload</th>
-                <th className="px-3 py-3 font-semibold">Last error</th>
+                <th className="px-3 py-3 font-semibold">{t("Status")}</th>
+                <th className="px-3 py-3 font-semibold">{t("Load job")}</th>
+                <th className="px-3 py-3 font-semibold">{t("Scanned at")}</th>
+                <th className="px-3 py-3 font-semibold">{t("QR payload")}</th>
+                <th className="px-3 py-3 font-semibold">{t("Last error")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 bg-white">
@@ -1291,7 +1306,9 @@ function OfflineQueuePanel({
                     {item.qrPayload}
                   </td>
                   <td className="px-3 py-3 text-zinc-700">
-                    {item.lastError ?? "-"}
+                    {item.lastError
+                      ? offlineScanErrorMessage(item.lastError, locale)
+                      : "-"}
                   </td>
                 </tr>
               ))}
@@ -1315,7 +1332,12 @@ function ScanNoticePanel({ notice }: { notice: ScanNotice }) {
     <div className={`border p-4 text-base ${styles}`} role="status">
       <p className="text-lg font-semibold">{notice.title}</p>
       {notice.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase">{notice.code}</p>
+        <p
+          className="mt-1 text-xs font-semibold uppercase"
+          data-i18n-ignore
+        >
+          {notice.code}
+        </p>
       ) : null}
       <p className="mt-2 leading-6">{notice.message}</p>
     </div>
@@ -1338,7 +1360,7 @@ function QueueStatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center border px-2 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={offlineScanSyncStatusLabel(status, locale)}
     >
       {offlineScanSyncStatusLabel(status, locale)}
     </span>
@@ -1346,15 +1368,17 @@ function QueueStatusBadge({
 }
 
 function ProgressPanel({ progress }: { progress: LoadJobProgressResponse }) {
+  const { t } = useI18n();
+
   return (
     <div className="border border-zinc-200 bg-zinc-50 p-4">
       <h2 className="text-base font-semibold text-zinc-950">
-        Current load job progress
+        {t("Current load job progress")}
       </h2>
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <Metric label="Plan" value={progress.totalPallets} />
-        <Metric label="Loaded" value={progress.loadedPallets} />
-        <Metric label="Remaining" value={progress.remainingPallets} />
+        <Metric label={t("Plan")} value={progress.totalPallets} />
+        <Metric label={t("Loaded")} value={progress.loadedPallets} />
+        <Metric label={t("Remaining")} value={progress.remainingPallets} />
       </dl>
     </div>
   );
@@ -1453,29 +1477,44 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 function LastScanPanel({ scan }: { scan: LoadJobScanResponse | null }) {
+  const { t } = useI18n();
+
   if (!scan) {
     return (
       <div className="border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-        No pallet has been accepted for this screen session yet.
+        {t("No pallet has been accepted for this screen session yet.")}
       </div>
     );
   }
 
   return (
     <div className="border border-zinc-200 bg-white p-4">
-      <h2 className="text-base font-semibold text-zinc-950">Last pallet</h2>
+      <h2 className="text-base font-semibold text-zinc-950">
+        {t("Last pallet")}
+      </h2>
       <dl className="mt-4 grid gap-3 text-sm">
-        <DetailRow label="Container" value={scan.pallet.containerNo} />
-        <DetailRow label="Destination" value={scan.pallet.destinationCode} />
-        <DetailRow label="Pallet No." value={scan.pallet.palletNo} />
-        <DetailRow label="Pallet ID" value={scan.pallet.palletId} wrap />
+        <DetailRow label={t("Container")} value={scan.pallet.containerNo} />
+        <DetailRow label={t("Destination")} value={scan.pallet.destinationCode} />
+        <DetailRow label={t("Pallet No.")} value={scan.pallet.palletNo} />
+        <DetailRow label={t("Pallet ID")} value={scan.pallet.palletId} wrap />
         <DetailRow
-          label="Remaining in plan"
+          label={t("Remaining in plan")}
           value={scan.progress.remainingPallets}
         />
       </dl>
     </div>
   );
+}
+
+function localizedList(values: string[], locale: Locale): string {
+  if (values.length === 0) {
+    return "";
+  }
+
+  return new Intl.ListFormat(locale, {
+    style: "long",
+    type: "conjunction",
+  }).format(values);
 }
 
 function DetailRow({

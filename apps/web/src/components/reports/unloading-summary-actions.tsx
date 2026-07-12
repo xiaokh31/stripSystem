@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   exportUnloadingSummary,
@@ -10,6 +11,8 @@ import {
   type UnloadingSummaryAvailableMonthResponse,
   type UnloadingSummaryGeneratedFileResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { createTranslator } from "@/lib/i18n/translator";
 import { unloadingSummaryHref } from "./unloading-summary-flow";
 
 interface ExportState {
@@ -33,6 +36,7 @@ export function UnloadingSummaryExportPanel({
   month: string;
   rowCount: number;
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<ExportState>(idleState);
 
@@ -40,7 +44,7 @@ export function UnloadingSummaryExportPanel({
     if (!/^\d{4}-\d{2}$/.test(month)) {
       setState({
         generatedFile: null,
-        message: "Summary month must use YYYY-MM.",
+        message: t("Summary month must use YYYY-MM."),
         status: "error",
       });
       return;
@@ -49,7 +53,9 @@ export function UnloadingSummaryExportPanel({
       setState({
         generatedFile: null,
         message:
-          "Selected month has no summary rows. Choose an available completed month before exporting.",
+          t(
+            "Selected month has no summary rows. Choose an available completed month before exporting.",
+          ),
         status: "error",
       });
       return;
@@ -57,21 +63,23 @@ export function UnloadingSummaryExportPanel({
 
     setState({
       generatedFile: null,
-      message: "Exporting monthly unloading data summary.",
+      message: t("Exporting monthly unloading data summary."),
       status: "running",
     });
     try {
       const result = await exportUnloadingSummary({ month });
       setState({
         generatedFile: result.generatedFile,
-        message: `Generated summary export ${result.generatedFile.id}.`,
+        message: format("i18n.unloadingSummary.generatedExport", {
+          id: result.generatedFile.id,
+        }),
         status: "success",
       });
       router.refresh();
     } catch (error) {
       setState({
         generatedFile: null,
-        message: apiErrorMessage(error),
+        message: apiErrorMessage(error, locale),
         status: "error",
       });
     }
@@ -80,11 +88,12 @@ export function UnloadingSummaryExportPanel({
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Export monthly unloading data
+        {t("Export monthly unloading data")}
       </h2>
       <p className="mt-2 text-sm leading-6 text-zinc-600">
-        Generate an Excel workbook for office review from the selected month
-        summary API.
+        {t(
+          "Generate an Excel workbook for office review from the selected month summary API.",
+        )}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
@@ -93,7 +102,7 @@ export function UnloadingSummaryExportPanel({
           onClick={() => void exportSummary()}
           type="button"
         >
-          Export Excel
+          {t("Export Excel")}
         </button>
         <ExportMessage state={state} />
       </div>
@@ -102,7 +111,7 @@ export function UnloadingSummaryExportPanel({
           className="mt-4 inline-flex min-h-10 items-center border border-teal-800 bg-white px-4 text-sm font-semibold text-teal-800 hover:bg-teal-50"
           href={getUnloadingSummaryExportDownloadUrl(state.generatedFile.id)}
         >
-          Download generated summary
+          {t("Download generated summary")}
         </Link>
       ) : null}
       {rowCount === 0 ? (
@@ -117,11 +126,15 @@ function EmptyMonthExportHint({
 }: {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-      <p className="font-semibold">Export is disabled for empty months.</p>
+      <p className="font-semibold">{t("Export is disabled for empty months.")}</p>
       <p className="mt-1 leading-6">
-        Pick a month with completed unloading rows before generating a workbook.
+        {t(
+          "Pick a month with completed unloading rows before generating a workbook.",
+        )}
       </p>
       {availableMonths.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -159,12 +172,23 @@ function ExportMessage({ state }: { state: ExportState }) {
   );
 }
 
-function apiErrorMessage(error: unknown): string {
+function apiErrorMessage(
+  error: unknown,
+  locale: Locale,
+): string {
+  const { t } = createTranslator(locale);
+  const messages = {
+    UNLOADING_SUMMARY_EXPORT_FAILED:
+      "Monthly unloading summary export could not be generated.",
+    UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH:
+      "Selected month has no summary rows. Choose an available completed month before exporting.",
+  } as const;
+
   if (error instanceof ApiClientError) {
-    return `${error.code}${error.status ? ` (${error.status})` : ""}: ${
-      error.message
-    }`;
+    return t(
+      messages[error.code as keyof typeof messages] ?? "The request failed.",
+    );
   }
 
-  return error instanceof Error ? error.message : "The request failed.";
+  return t("The request failed.");
 }

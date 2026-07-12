@@ -21,6 +21,10 @@ import {
   WageGeneratedFileType,
 } from '../generated/prisma/enums';
 import { Prisma } from '../generated/prisma/client';
+import {
+  ContainerPalletInventorySyncService,
+  type ContainerPalletInventorySyncSummaryDto,
+} from '../pallet-inventory-sync/container-pallet-inventory-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CompleteContainerUnloadingDto,
@@ -196,15 +200,7 @@ interface UnloadingWorkerRecord {
   updatedAt: Date | string;
 }
 
-type UnloadingWageTransaction = Pick<
-  PrismaService,
-  | 'container'
-  | 'correctionFeedback'
-  | 'payContainer'
-  | 'payContainerContainer'
-  | 'unloaderAssignment'
-  | 'unloadingWageSettlement'
->;
+type UnloadingWageTransaction = Prisma.TransactionClient;
 
 @Injectable()
 export class UnloadingWageService {
@@ -212,6 +208,7 @@ export class UnloadingWageService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly palletInventorySync: ContainerPalletInventorySyncService,
     configService: ConfigService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
@@ -448,51 +445,71 @@ export class UnloadingWageService {
         ? PayContainerStatus.NEEDS_REVIEW
         : PayContainerStatus.COMPLETED;
 
-    await this.prisma.$transaction(async (tx) => {
-      await this.markRelatedSettlementsNeedReview(tx, [payContainer.id]);
-      await tx.payContainer.update({
-        where: { id: payContainer.id },
-        data: {
-          completedAt,
-          completedById,
-          completionNote: this.stringOrNull(dto.note),
-          status: nextStatus,
-        },
-      });
-      await this.markSourceContainersUnloadedIfEligible(tx, payContainer, {
-        correctedById: completedById,
-        note: this.stringOrNull(dto.note),
-        reason:
-          this.stringOrNull(dto.reason) ??
-          'Container detail unloading marked completed',
-      });
-      await tx.correctionFeedback.create({
-        data: {
-          targetType: CorrectionTargetType.PAY_CONTAINER,
-          payContainerId: payContainer.id,
-          fieldName: 'unloadingCompletion',
-          oldValue: this.nullableJsonValue({
-            status: payContainer.status,
-            completedAt: payContainer.completedAt,
-            completedById: payContainer.completedById,
-            completionNote: payContainer.completionNote,
-          }),
-          newValue: this.nullableJsonValue({
-            status: nextStatus,
-            completedAt: completedAt.toISOString(),
+    let inventorySync: ContainerPalletInventorySyncSummaryDto[];
+    try {
+      inventorySync = await this.prisma.$transaction(async (tx) => {
+        const inventorySync = await this.markSourceContainersUnloadedIfEligible(
+          tx,
+          payContainer,
+          {
+            correctedById: completedById,
+            note: this.stringOrNull(dto.note),
+            reason:
+              this.stringOrNull(dto.reason) ??
+              'Container detail unloading marked completed',
+          },
+        );
+        await this.markRelatedSettlementsNeedReview(tx, [payContainer.id]);
+        await tx.payContainer.update({
+          where: { id: payContainer.id },
+          data: {
+            completedAt,
             completedById,
             completionNote: this.stringOrNull(dto.note),
-          }),
-          reason:
-            this.stringOrNull(dto.reason) ??
-            'Container detail unloading marked completed',
-          note: this.stringOrNull(dto.note),
-          correctedById: completedById,
-        },
+            status: nextStatus,
+          },
+        });
+        await tx.correctionFeedback.create({
+          data: {
+            targetType: CorrectionTargetType.PAY_CONTAINER,
+            payContainerId: payContainer.id,
+            fieldName: 'unloadingCompletion',
+            oldValue: this.nullableJsonValue({
+              status: payContainer.status,
+              completedAt: payContainer.completedAt,
+              completedById: payContainer.completedById,
+              completionNote: payContainer.completionNote,
+            }),
+            newValue: this.nullableJsonValue({
+              status: nextStatus,
+              completedAt: completedAt.toISOString(),
+              completedById,
+              completionNote: this.stringOrNull(dto.note),
+            }),
+            reason:
+              this.stringOrNull(dto.reason) ??
+              'Container detail unloading marked completed',
+            note: this.stringOrNull(dto.note),
+            correctedById: completedById,
+          },
+        });
+        return inventorySync;
       });
-    });
+    } catch (error) {
+      const concurrentException = this.palletInventorySync.concurrentException(
+        error,
+        containerId,
+      );
+      if (concurrentException) {
+        throw concurrentException;
+      }
+      throw error;
+    }
 
-    return this.getContainerUnloadingWage(containerId);
+    return {
+      ...(await this.getContainerUnloadingWage(containerId)),
+      inventorySync,
+    };
   }
 
   async updateContainerUnloaders(
@@ -701,70 +718,96 @@ export class UnloadingWageService {
     this.validateUnloaderAssignments(existing, allocationMethod, dto.unloaders);
     const completedById = auditUserId(actor);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.unloaderAssignment.deleteMany({
-        where: { payContainerId: id },
-      });
-      await tx.payContainer.update({
-        where: { id },
-        data: {
-          status: PayContainerStatus.COMPLETED,
-          completedAt,
-          completedById,
-          completionNote: this.stringOrNull(dto.note),
-          allocationMethod,
-        },
-      });
-      await this.markSourceContainersUnloadedIfEligible(tx, existing, {
-        correctedById: completedById,
-        note: this.stringOrNull(dto.note),
-        reason: this.stringOrNull(dto.reason) ?? 'Unloading completed',
-      });
-      for (const unloader of dto.unloaders) {
-        await tx.unloaderAssignment.create({
+    let inventorySync: ContainerPalletInventorySyncSummaryDto[];
+    try {
+      inventorySync = await this.prisma.$transaction(async (tx) => {
+        const inventorySync = await this.markSourceContainersUnloadedIfEligible(
+          tx,
+          existing,
+          {
+            correctedById: completedById,
+            note: this.stringOrNull(dto.note),
+            reason: this.stringOrNull(dto.reason) ?? 'Unloading completed',
+          },
+        );
+        await tx.unloaderAssignment.deleteMany({
+          where: { payContainerId: id },
+        });
+        await tx.payContainer.update({
+          where: { id },
           data: {
-            payContainerId: id,
-            workerUserId: this.stringOrNull(unloader.workerUserId),
-            workerCode: this.requiredString(unloader.workerCode, 'workerCode'),
-            workerName: this.requiredString(unloader.workerName, 'workerName'),
-            allocationAmount:
-              unloader.allocationAmount === undefined ||
-              unloader.allocationAmount === null
-                ? null
-                : this.moneyString(unloader.allocationAmount),
-            allocationPercent:
-              unloader.allocationPercent === undefined ||
-              unloader.allocationPercent === null
-                ? null
-                : this.percentString(unloader.allocationPercent),
-            note: this.stringOrNull(unloader.note),
+            status: PayContainerStatus.COMPLETED,
+            completedAt,
+            completedById,
+            completionNote: this.stringOrNull(dto.note),
+            allocationMethod,
           },
         });
-      }
-      await tx.correctionFeedback.create({
-        data: {
-          targetType: CorrectionTargetType.PAY_CONTAINER,
-          payContainerId: id,
-          fieldName: 'unloadingCompletion',
-          oldValue: this.nullableJsonValue({
-            status: existing.status,
-            completedAt: existing.completedAt,
-            allocationMethod: existing.allocationMethod,
-          }),
-          newValue: this.nullableJsonValue({
-            status: PayContainerStatus.COMPLETED,
-            completedAt: completedAt.toISOString(),
-            allocationMethod,
-            unloaders: dto.unloaders,
-          }),
-          reason: this.stringOrNull(dto.reason) ?? 'Unloading completed',
-          note: this.stringOrNull(dto.note),
-          correctedById: completedById,
-        },
+        for (const unloader of dto.unloaders) {
+          await tx.unloaderAssignment.create({
+            data: {
+              payContainerId: id,
+              workerUserId: this.stringOrNull(unloader.workerUserId),
+              workerCode: this.requiredString(
+                unloader.workerCode,
+                'workerCode',
+              ),
+              workerName: this.requiredString(
+                unloader.workerName,
+                'workerName',
+              ),
+              allocationAmount:
+                unloader.allocationAmount === undefined ||
+                unloader.allocationAmount === null
+                  ? null
+                  : this.moneyString(unloader.allocationAmount),
+              allocationPercent:
+                unloader.allocationPercent === undefined ||
+                unloader.allocationPercent === null
+                  ? null
+                  : this.percentString(unloader.allocationPercent),
+              note: this.stringOrNull(unloader.note),
+            },
+          });
+        }
+        await tx.correctionFeedback.create({
+          data: {
+            targetType: CorrectionTargetType.PAY_CONTAINER,
+            payContainerId: id,
+            fieldName: 'unloadingCompletion',
+            oldValue: this.nullableJsonValue({
+              status: existing.status,
+              completedAt: existing.completedAt,
+              allocationMethod: existing.allocationMethod,
+            }),
+            newValue: this.nullableJsonValue({
+              status: PayContainerStatus.COMPLETED,
+              completedAt: completedAt.toISOString(),
+              allocationMethod,
+              unloaders: dto.unloaders,
+            }),
+            reason: this.stringOrNull(dto.reason) ?? 'Unloading completed',
+            note: this.stringOrNull(dto.note),
+            correctedById: completedById,
+          },
+        });
+        return inventorySync;
       });
-    });
+    } catch (error) {
+      const concurrentException = this.palletInventorySync.concurrentException(
+        error,
+        null,
+      );
+      if (concurrentException) {
+        throw concurrentException;
+      }
+      throw error;
+    }
 
-    return this.getPayContainer(id);
+    return {
+      ...(await this.getPayContainer(id)),
+      inventorySync,
+    };
   }
 
   async generateSettlement(
@@ -1391,7 +1434,7 @@ export class UnloadingWageService {
       note: string | null;
       reason: string;
     },
-  ): Promise<void> {
+  ): Promise<ContainerPalletInventorySyncSummaryDto[]> {
     const containerIds = [
       ...new Set(
         (payContainer.sourceContainers ?? []).map(
@@ -1400,15 +1443,25 @@ export class UnloadingWageService {
       ),
     ].filter(Boolean);
     if (containerIds.length === 0) {
-      return;
+      return [];
     }
 
     const containers = (await tx.container.findMany({
       where: { id: { in: containerIds } },
     })) as ContainerRecord[];
 
-    for (const container of containers) {
-      if (!this.canMarkContainerUnloaded(container.status)) {
+    const summaries: ContainerPalletInventorySyncSummaryDto[] = [];
+    for (const container of [...containers].sort((left, right) =>
+      left.containerNo.localeCompare(right.containerNo),
+    )) {
+      summaries.push(
+        await this.palletInventorySync.synchronizeForUnloading(tx, {
+          containerId: container.id,
+          actorId: input.correctedById,
+        }),
+      );
+
+      if (container.status === ContainerStatus.UNLOADED) {
         continue;
       }
 
@@ -1430,14 +1483,8 @@ export class UnloadingWageService {
         },
       });
     }
-  }
 
-  private canMarkContainerUnloaded(status: string): boolean {
-    return (
-      status !== ContainerStatus.UNLOADED &&
-      status !== ContainerStatus.LOADING_IN_PROGRESS &&
-      status !== ContainerStatus.LOADED
-    );
+    return summaries;
   }
 
   private settlementInputs(

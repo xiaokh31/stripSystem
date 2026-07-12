@@ -2,11 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   createManualContainer,
   type ManualContainerResponse,
 } from "@/lib/api-client";
+import type { MessageKey } from "@/lib/i18n/catalog";
 import {
   buildManualContainerRequest,
   defaultManualContainerDraft,
@@ -27,10 +29,24 @@ export function ManualContainerForm({
 }: {
   sourceImportId?: string | null;
 }) {
+  const { format, t } = useI18n();
   const router = useRouter();
-  const [draft, setDraft] = useState<ManualContainerDraft>(() =>
-    defaultManualContainerDraft(sourceImportId),
-  );
+  const [draft, setDraft] = useState<ManualContainerDraft>(() => {
+    const initialDraft = defaultManualContainerDraft(sourceImportId);
+    return {
+      ...initialDraft,
+      correctionNote: sourceImportId
+        ? format("i18n.manualContainer.auditFromImport", {
+            id: sourceImportId,
+          })
+        : t("i18n.manualContainer.auditOffice"),
+      reason: sourceImportId
+        ? format("i18n.manualContainer.reasonFromImport", {
+            id: sourceImportId,
+          })
+        : t("i18n.manualContainer.reasonUnsupported"),
+    };
+  });
   const [saveState, setSaveState] = useState<SaveState>(idleSaveState);
 
   const saving = saveState.status === "saving";
@@ -87,12 +103,15 @@ export function ManualContainerForm({
 
     const request = buildManualContainerRequest(draft);
     if (!request.ok) {
-      setSaveState({ message: request.error, status: "error" });
+      setSaveState({
+        message: manualValidationMessage(request.error, t),
+        status: "error",
+      });
       return;
     }
 
     setSaveState({
-      message: "Creating manual unloading report.",
+      message: t("Creating manual unloading report."),
       status: "saving",
     });
 
@@ -101,14 +120,16 @@ export function ManualContainerForm({
         request.payload,
       );
       setSaveState({
-        message: `Created ${result.container.containerNo}.`,
+        message: format("i18n.containers.created", {
+          containerNo: result.container.containerNo,
+        }),
         status: "saved",
       });
       router.push(`/containers/${result.container.id}`);
       router.refresh();
     } catch (error) {
       setSaveState({
-        message: manualCreateErrorMessage(error),
+        message: manualCreateErrorMessage(error, t),
         status: "error",
       });
     }
@@ -119,37 +140,37 @@ export function ManualContainerForm({
       <div className="grid gap-0 lg:grid-cols-[360px_minmax(0,1fr)]">
         <div className="border-b border-zinc-200 p-5 lg:border-r lg:border-b-0">
           <h2 className="text-base font-semibold text-zinc-950">
-            Container
+            {t("Container")}
           </h2>
           <div className="mt-4 grid gap-4">
             <TextField
               disabled={saving}
-              label="Container No."
+              label={t("Container No.")}
               onChange={(value) => updateContainerField("containerNo", value)}
               required
               value={draft.containerNo}
             />
             <TextField
               disabled={saving}
-              label="Company"
+              label={t("Company")}
               onChange={(value) => updateContainerField("company", value)}
               value={draft.company}
             />
             <TextField
               disabled={saving}
-              label="Dock"
+              label={t("Dock")}
               onChange={(value) => updateContainerField("dockNo", value)}
               value={draft.dockNo}
             />
             <TextAreaField
               disabled={saving}
-              label="Reason"
+              label={t("Reason")}
               onChange={(value) => updateContainerField("reason", value)}
               value={draft.reason}
             />
             <TextAreaField
               disabled={saving}
-              label="Audit note"
+              label={t("Audit note")}
               onChange={(value) =>
                 updateContainerField("correctionNote", value)
               }
@@ -161,7 +182,7 @@ export function ManualContainerForm({
         <div className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-zinc-950">
-              Destinations
+              {t("Destinations")}
             </h2>
             <button
               className="min-h-10 border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-400"
@@ -169,7 +190,7 @@ export function ManualContainerForm({
               onClick={addDestination}
               type="button"
             >
-              Add destination
+              {t("Add destination")}
             </button>
           </div>
 
@@ -207,7 +228,7 @@ export function ManualContainerForm({
               onClick={saveManualContainer}
               type="button"
             >
-              {saving ? "Creating" : "Create manual report"}
+              {saving ? t("Creating") : t("Create manual report")}
             </button>
           </div>
         </div>
@@ -235,11 +256,13 @@ function DestinationEditor({
   onRemove: (index: number) => void;
   removable: boolean;
 }) {
+  const { format, t } = useI18n();
+
   return (
     <div className="border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-zinc-950">
-          Destination {index + 1}
+          {format("i18n.containers.destinationNumber", { number: index + 1 })}
         </h3>
         <button
           className="min-h-9 border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
@@ -247,14 +270,14 @@ function DestinationEditor({
           onClick={() => onRemove(index)}
           type="button"
         >
-          Remove
+          {t("Remove")}
         </button>
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <TextField
           disabled={disabled}
           idPrefix={`destination-${index}`}
-          label="Destination code"
+          label={t("Destination code")}
           onChange={(value) => onChange(index, "destinationCode", value)}
           required
           value={destination.destinationCode}
@@ -262,7 +285,7 @@ function DestinationEditor({
         <TextField
           disabled={disabled}
           idPrefix={`destination-${index}`}
-          label="Destination type"
+          label={t("Destination type")}
           onChange={(value) => onChange(index, "destinationType", value)}
           value={destination.destinationType}
         />
@@ -270,7 +293,7 @@ function DestinationEditor({
           disabled={disabled}
           idPrefix={`destination-${index}`}
           inputMode="numeric"
-          label="Cartons"
+          label={t("Cartons")}
           onChange={(value) => onChange(index, "cartons", value)}
           required
           value={destination.cartons}
@@ -279,7 +302,7 @@ function DestinationEditor({
           disabled={disabled}
           idPrefix={`destination-${index}`}
           inputMode="numeric"
-          label="Pallets"
+          label={t("Pallets")}
           onChange={(value) => onChange(index, "pallets", value)}
           required
           value={destination.pallets}
@@ -288,14 +311,14 @@ function DestinationEditor({
           disabled={disabled}
           idPrefix={`destination-${index}`}
           inputMode="decimal"
-          label="Volume CBM"
+          label={t("Volume CBM")}
           onChange={(value) => onChange(index, "volume", value)}
           value={destination.volume}
         />
         <TextField
           disabled={disabled}
           idPrefix={`destination-${index}`}
-          label="Note"
+          label={t("Note")}
           onChange={(value) => onChange(index, "note", value)}
           value={destination.note}
         />
@@ -366,14 +389,31 @@ function TextAreaField({
   );
 }
 
-function manualCreateErrorMessage(error: unknown): string {
+const manualValidationMessageKeys: Record<string, MessageKey> = {
+  "Container number is required.": "Container number is required.",
+  "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.":
+    "Manual pallets must be a whole number of 1 or greater. Delete the destination instead when there is no cargo.",
+};
+
+function manualValidationMessage(
+  error: string,
+  t: (key: MessageKey) => string,
+): string {
+  return t(
+    manualValidationMessageKeys[error] ??
+      "Manual unloading report could not be created.",
+  );
+}
+
+function manualCreateErrorMessage(
+  error: unknown,
+  t: (key: MessageKey) => string,
+): string {
   if (error instanceof ApiClientError) {
-    return `${error.code}: ${error.message}`;
+    return t("Manual unloading report could not be created.");
   }
 
-  return error instanceof Error
-    ? error.message
-    : "Manual unloading report could not be created.";
+  return t("Manual unloading report could not be created.");
 }
 
 function fieldId(prefix: string, label: string): string {

@@ -10,6 +10,7 @@ import {
   type LoadJobResponse,
   type UpdateLoadJobRequest,
 } from "@/lib/api-client";
+import type { MessageKey } from "@/lib/i18n/catalog";
 import { loadJobStatusLabel } from "@/lib/i18n/status-labels";
 import {
   buildLoadJobRequest,
@@ -31,7 +32,7 @@ export function LoadJobManagementPanel({
 }: {
   loadJob: LoadJobResponse;
 }) {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<LoadJobDraft>(() =>
     loadJobToDraft(loadJob),
@@ -117,7 +118,7 @@ export function LoadJobManagementPanel({
 
     if (statusDraft === "COMPLETED" && !draft.dockNo.trim()) {
       setSaveState({
-        message: "Dock No. is required before completing a load job.",
+        message: t("Dock No. is required before completing a load job."),
         status: "error",
       });
       return;
@@ -126,18 +127,21 @@ export function LoadJobManagementPanel({
     if (
       statusDraft === "COMPLETED" &&
       loadJob.status !== "COMPLETED" &&
-      !window.confirm("Complete this load job? Completed jobs cannot be edited.")
+      !window.confirm(t("Complete this load job? Completed jobs cannot be edited."))
     ) {
       return;
     }
 
     const request = buildLoadJobRequest(draft);
     if (!request.ok) {
-      setSaveState({ message: request.error, status: "error" });
+      setSaveState({
+        message: loadJobValidationMessage(request.error, t),
+        status: "error",
+      });
       return;
     }
 
-    setSaveState({ message: "Saving load job.", status: "saving" });
+    setSaveState({ message: t("Saving load job."), status: "saving" });
 
     try {
       const payload: UpdateLoadJobRequest = {
@@ -146,13 +150,15 @@ export function LoadJobManagementPanel({
       };
       const result = await updateLoadJob(loadJob.id, payload);
       setSaveState({
-        message: `Saved ${result.loadNo ?? result.id}.`,
+        message: format("i18n.loadJobs.saved", {
+          loadNo: result.loadNo ?? result.id,
+        }),
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setSaveState({
-        message: loadJobUpdateErrorMessage(error),
+        message: loadJobUpdateErrorMessage(error, t),
         status: "error",
       });
     }
@@ -163,22 +169,24 @@ export function LoadJobManagementPanel({
       return;
     }
 
-    if (!window.confirm("Delete this planned load job?")) {
+    if (!window.confirm(t("Delete this planned load job?"))) {
       return;
     }
 
-    setSaveState({ message: "Deleting load job.", status: "saving" });
+    setSaveState({ message: t("Deleting load job."), status: "saving" });
 
     try {
       await deleteLoadJob(loadJob.id);
       setSaveState({
-        message: `Deleted ${loadJob.loadNo ?? loadJob.id}.`,
+        message: format("i18n.loadJobs.deleted", {
+          loadNo: loadJob.loadNo ?? loadJob.id,
+        }),
         status: "saved",
       });
       router.refresh();
     } catch (error) {
       setSaveState({
-        message: loadJobUpdateErrorMessage(error),
+        message: loadJobUpdateErrorMessage(error, t),
         status: "error",
       });
     }
@@ -189,12 +197,12 @@ export function LoadJobManagementPanel({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h4 className="text-sm font-semibold text-zinc-950">
-            Load job maintenance
+            {t("Load job maintenance")}
           </h4>
           <p className="mt-1 text-xs font-medium text-zinc-500">
             {editable
-              ? "Edit status, dock, truck, and plan lines when needed."
-              : "Completed jobs are locked for audit."}
+              ? t("Edit status, dock, truck, and plan lines when needed.")
+              : t("Completed jobs are locked for audit.")}
           </p>
         </div>
         <button
@@ -204,7 +212,7 @@ export function LoadJobManagementPanel({
           onClick={() => setExpanded((current) => !current)}
           type="button"
         >
-          {expanded ? "Hide editor" : "Edit load job"}
+          {expanded ? t("Hide editor") : t("Edit load job")}
         </button>
       </div>
 
@@ -215,50 +223,50 @@ export function LoadJobManagementPanel({
         >
         <div className="grid gap-3">
           <div className="grid grid-cols-3 gap-2 text-center">
-            <Metric label="Lines" value={summary.lineCount} />
-            <Metric label="System" value={summary.internalPallets} />
-            <Metric label="External" value={summary.externalPallets} />
+            <Metric label={t("Lines")} value={summary.lineCount} />
+            <Metric label={t("System")} value={summary.internalPallets} />
+            <Metric label={t("External")} value={summary.externalPallets} />
           </div>
           <TextField
             disabled={!editable || saving}
-            label="Load No."
+            label={t("Load No.")}
             onChange={(value) => updateField("loadNo", value)}
             required
             value={draft.loadNo}
           />
           <TextField
             disabled={!editable || saving}
-            label="Destination region"
+            label={t("Destination region")}
             onChange={(value) => updateField("destinationRegion", value)}
             value={draft.destinationRegion}
           />
           <TextField
             disabled={!editable || saving}
-            label="Truck No."
+            label={t("Truck No.")}
             onChange={(value) => updateField("truckNo", value)}
             value={draft.truckNo}
           />
           <TextField
             disabled={!editable || saving}
-            label="Dock No."
+            label={t("Dock No.")}
             onChange={(value) => updateField("dockNo", value)}
             value={draft.dockNo}
           />
           <TextField
             disabled={!editable || saving}
-            label="Carrier"
+            label={t("Carrier")}
             onChange={(value) => updateField("carrier", value)}
             value={draft.carrier}
           />
           <TextField
             disabled={!editable || saving}
-            label="Scheduled departure"
+            label={t("Scheduled departure")}
             onChange={(value) => updateField("scheduledDepartureAt", value)}
             type="datetime-local"
             value={draft.scheduledDepartureAt}
           />
           <label className="grid gap-1 text-sm font-medium text-zinc-700">
-            <span>Status</span>
+            <span>{t("Status")}</span>
             <select
               className="min-h-10 border border-zinc-300 bg-white px-3 text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100 disabled:text-zinc-500"
               disabled={!editable || saving}
@@ -267,13 +275,19 @@ export function LoadJobManagementPanel({
               }
               value={statusDraft}
             >
-              <option title="PLANNED" value="PLANNED">
+              <option title={loadJobStatusLabel("PLANNED", locale)} value="PLANNED">
                 {loadJobStatusLabel("PLANNED", locale)}
               </option>
-              <option title="IN_PROGRESS" value="IN_PROGRESS">
+              <option
+                title={loadJobStatusLabel("IN_PROGRESS", locale)}
+                value="IN_PROGRESS"
+              >
                 {loadJobStatusLabel("IN_PROGRESS", locale)}
               </option>
-              <option title="COMPLETED" value="COMPLETED">
+              <option
+                title={loadJobStatusLabel("COMPLETED", locale)}
+                value="COMPLETED"
+              >
                 {loadJobStatusLabel("COMPLETED", locale)}
               </option>
             </select>
@@ -283,7 +297,7 @@ export function LoadJobManagementPanel({
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h4 className="text-sm font-semibold text-zinc-950">
-              Editable plan lines
+              {t("Editable plan lines")}
             </h4>
             <div className="flex flex-wrap gap-2">
               <button
@@ -292,7 +306,7 @@ export function LoadJobManagementPanel({
                 onClick={() => addLine(false)}
                 type="button"
               >
-                Add system line
+                {t("Add system line")}
               </button>
               <button
                 className="min-h-9 border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-400"
@@ -300,7 +314,7 @@ export function LoadJobManagementPanel({
                 onClick={() => addLine(true)}
                 type="button"
               >
-                Add transfer line
+                {t("Add transfer line")}
               </button>
             </div>
           </div>
@@ -340,7 +354,7 @@ export function LoadJobManagementPanel({
                 onClick={deletePlan}
                 type="button"
               >
-                Delete plan
+                {t("Delete plan")}
               </button>
             ) : null}
             <button
@@ -349,7 +363,7 @@ export function LoadJobManagementPanel({
               onClick={saveChanges}
               type="button"
             >
-              {saving ? "Saving" : "Save changes"}
+              {saving ? t("Saving") : t("Save changes")}
             </button>
           </div>
         </div>
@@ -380,6 +394,8 @@ function LoadJobLineEditor({
   onRemove: (index: number) => void;
   removable: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="border-l-4 border-zinc-300 bg-white px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -393,7 +409,7 @@ function LoadJobLineEditor({
             }
             type="checkbox"
           />
-          External transfer
+          {t("External transfer")}
         </label>
         <button
           className="min-h-8 border border-zinc-300 bg-white px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
@@ -401,33 +417,33 @@ function LoadJobLineEditor({
           onClick={() => onRemove(index)}
           type="button"
         >
-          Remove
+          {t("Remove")}
         </button>
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <TextField
           disabled={disabled}
-          label="Source text"
+          label={t("Source text")}
           onChange={(value) => onChange(index, "sourceText", value)}
           value={line.sourceText}
         />
         <TextField
           disabled={disabled || line.externalTransfer}
-          label="Container No."
+          label={t("Container No.")}
           onChange={(value) => onChange(index, "containerNo", value)}
           value={line.containerNo}
         />
         <TextField
           disabled={disabled || Boolean(destinationRegion.trim())}
-          label="Destination"
+          label={t("Destination")}
           onChange={(value) => onChange(index, "destinationCode", value)}
           value={line.destinationCode}
         />
         <TextField
           disabled={disabled}
           inputMode="numeric"
-          label="Planned pallets"
+          label={t("Planned pallets")}
           onChange={(value) => onChange(index, "plannedPallets", value)}
           value={line.plannedPallets}
         />
@@ -435,7 +451,7 @@ function LoadJobLineEditor({
       <div className="mt-3">
         <TextAreaField
           disabled={disabled}
-          label="Note"
+          label={t("Note")}
           onChange={(value) => onChange(index, "note", value)}
           value={line.note}
         />
@@ -516,6 +532,21 @@ function TextAreaField({
   );
 }
 
+const loadJobValidationMessageKeys: Record<string, MessageKey> = {
+  "At least one plan line is required.": "At least one plan line is required.",
+  "Load number is required.": "Load number is required.",
+  "Scheduled departure time is invalid.": "Scheduled departure time is invalid.",
+};
+
+function loadJobValidationMessage(
+  error: string,
+  t: (key: MessageKey) => string,
+): string {
+  return t(
+    loadJobValidationMessageKeys[error] ?? "Load job could not be saved.",
+  );
+}
+
 function loadJobToDraft(loadJob: LoadJobResponse): LoadJobDraft {
   return {
     carrier: loadJob.carrier ?? "",
@@ -566,35 +597,30 @@ function loadJobStatusValue(
   return "PLANNED";
 }
 
-function loadJobUpdateErrorMessage(error: unknown): string {
+const loadJobUpdateErrorKeys: Record<string, MessageKey> = {
+  LOAD_JOB_COMPLETED_NOT_EDITABLE: "Completed load jobs can no longer be edited.",
+  LOAD_JOB_DELETE_NOT_ALLOWED:
+    "Only planned load jobs can be deleted. In-progress jobs must remain auditable.",
+  LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED:
+    "Dock No. is required before completing a load job.",
+  LOAD_JOB_LINE_DESTINATION_REGION_MISMATCH:
+    "Every plan line destination must match the Destination region.",
+  LOAD_JOB_LINE_PLAN_BELOW_LOADED_COUNT:
+    "The plan cannot be lower than pallets already loaded.",
+  LOAD_JOB_LOADED_PALLET_OUTSIDE_UPDATED_PLAN:
+    "The updated plan would remove a pallet that is already loaded.",
+  LOAD_JOB_STATUS_HAS_LOADED_PALLETS:
+    "This job has loaded pallets and cannot move back to planned.",
+  LOAD_JOB_UPDATE_CONFLICT: "Load number already exists. Use a unique load number.",
+};
+
+function loadJobUpdateErrorMessage(
+  error: unknown,
+  t: (key: MessageKey) => string,
+): string {
   if (error instanceof ApiClientError) {
-    if (error.code === "NOT_FOUND" && error.message.includes("Cannot PATCH")) {
-      return "The running API has not loaded load job edit routes. Restart the API service and try again.";
-    }
-
-    const messages: Record<string, string> = {
-      LOAD_JOB_COMPLETED_NOT_EDITABLE:
-        "Completed load jobs can no longer be edited.",
-      LOAD_JOB_DELETE_NOT_ALLOWED:
-        "Only planned load jobs can be deleted. In-progress jobs must remain auditable.",
-      LOAD_JOB_DOCK_NO_REQUIRED_FOR_COMPLETED:
-        "Dock No. is required before completing a load job.",
-      LOAD_JOB_LINE_DESTINATION_REGION_MISMATCH:
-        "Every plan line destination must match the Destination region.",
-      LOAD_JOB_LINE_PLAN_BELOW_LOADED_COUNT:
-        "The plan cannot be lower than pallets already loaded.",
-      LOAD_JOB_LOADED_PALLET_OUTSIDE_UPDATED_PLAN:
-        "The updated plan would remove a pallet that is already loaded.",
-      LOAD_JOB_STATUS_HAS_LOADED_PALLETS:
-        "This job has loaded pallets and cannot move back to planned.",
-      LOAD_JOB_UPDATE_CONFLICT:
-        "Load number already exists. Use a unique load number.",
-    };
-
-    return messages[error.code] ?? error.message;
+    return t(loadJobUpdateErrorKeys[error.code] ?? "Load job could not be saved.");
   }
 
-  return error instanceof Error
-    ? error.message
-    : "Load job could not be saved.";
+  return t("Load job could not be saved.");
 }

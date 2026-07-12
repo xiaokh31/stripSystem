@@ -1,5 +1,10 @@
-import type { Locale } from "../../lib/i18n/catalog";
+import {
+  DEFAULT_LOCALE,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
 import { offlineQueueStatusLabel } from "../../lib/i18n/status-labels";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export type OfflineScanSyncStatus = "failed" | "pending" | "synced";
 
@@ -128,16 +133,32 @@ export function offlineScanSyncStatusLabel(
   return offlineQueueStatusLabel(status, locale);
 }
 
-export function offlineScanErrorMessage(error: unknown): string {
-  if (isApiClientError(error)) {
-    if (isOfflineScanAuthError(error)) {
-      return "Sign in again before syncing queued scans. Pending scans remain local and inventory was not changed.";
-    }
-
-    return `${error.code}: ${error.message}`;
+export function offlineScanErrorCode(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
   }
 
-  return error instanceof Error ? error.message : "Offline scan sync failed.";
+  return isApiClientError(error) ? error.code : "OFFLINE_SCAN_SYNC_FAILED";
+}
+
+export function offlineScanErrorMessage(
+  error: unknown,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+  const code = offlineScanErrorCode(error);
+
+  if (isOfflineScanAuthError(error) || isOfflineScanAuthCode(code)) {
+    return t(
+      "Sign in again before syncing queued scans. Pending scans remain local and inventory was not changed.",
+    );
+  }
+
+  const messages: Record<string, MessageKey> = {
+    API_NETWORK_ERROR: "The scanner could not reach the API.",
+  };
+
+  return t(messages[code] ?? "Offline scan sync failed.");
 }
 
 export function shouldQueueOfflineScan(error: unknown): boolean {
@@ -156,16 +177,21 @@ export function isOfflineScanAuthError(error: unknown): boolean {
 
 export function offlineQueuedNotice(
   item: OfflineScanQueueItem,
+  locale: Locale = DEFAULT_LOCALE,
 ): {
   code: string;
   message: string;
   title: string;
   tone: "amber";
 } {
+  const { format, t } = createTranslator(locale);
+
   return {
     code: "OFFLINE_SCAN_QUEUED",
-    message: `Scan saved as pending for load job ${item.loadJobId}. Inventory will not change until sync succeeds.`,
-    title: "Scan queued offline",
+    message: format("i18n.mobile.offlineQueued", {
+      loadJobId: item.loadJobId,
+    }),
+    title: t("Scan queued offline"),
     tone: "amber",
   };
 }
@@ -210,6 +236,14 @@ function isApiClientError(
     typeof error.code === "string" &&
     "status" in error &&
     typeof error.status === "number"
+  );
+}
+
+function isOfflineScanAuthCode(code: string): boolean {
+  return (
+    code === "UNAUTHENTICATED" ||
+    code === "AUTH_TOKEN_EXPIRED" ||
+    code === "USER_INACTIVE"
   );
 }
 

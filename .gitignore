@@ -112,6 +112,17 @@ prompts/tasks/*
 !prompts/tasks/WEB-DASHBOARD*.md
 !prompts/tasks/AUTH-SESSION*.md
 !prompts/tasks/INVENTORY-ADJUST*.md
+!prompts/tasks/NATIVE-UX*.md
+!prompts/tasks/NATIVE-AUTH*.md
+!prompts/tasks/WEB-THEME*.md
+!prompts/tasks/WEB-I18N-03*.md
+!prompts/tasks/WEB-I18N-04*.md
+!prompts/tasks/WEB-I18N-05*.md
+!prompts/tasks/WEB-I18N-06*.md
+!prompts/tasks/CROSS-UX-QA*.md
+!prompts/tasks/UNLOAD-INVENTORY*.md
+!prompts/tasks/AGENT-AUTONOMY*.md
+!prompts/tasks/DOCKER-DEV*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

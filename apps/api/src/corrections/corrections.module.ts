@@ -3,10 +3,11 @@ import { ContainerDestinationsController } from './container-destinations.contro
 import { ContainersController } from './containers.controller';
 import { CorrectionsController } from './corrections.controller';
 import { CorrectionsService } from './corrections.service';
+import { PalletInventorySyncModule } from '../pallet-inventory-sync/pallet-inventory-sync.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, PalletInventorySyncModule],
   controllers: [
     ContainersController,
     ContainerDestinationsController,

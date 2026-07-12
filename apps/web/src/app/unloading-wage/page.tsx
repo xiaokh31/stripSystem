@@ -21,9 +21,10 @@ import {
   type PayContainerResponse,
   type UnloadingWageSettlementResponse,
 } from "@/lib/api-client";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { payClassificationLabel } from "@/lib/i18n/status-labels";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   canReviewUnloadingWage,
   canSettleUnloadingWage,
@@ -62,8 +63,8 @@ export default async function UnloadingWagePage({
 
   if (!canRead) {
     return (
-      <UnloadingWagePageShell settlementMonth={settlementMonth}>
-        <PermissionRequiredPanel />
+      <UnloadingWagePageShell locale={locale} settlementMonth={settlementMonth}>
+        <PermissionRequiredPanel locale={locale} />
       </UnloadingWagePageShell>
     );
   }
@@ -71,22 +72,24 @@ export default async function UnloadingWagePage({
   const state = await loadUnloadingWageState(
     settlementMonth,
     requestedSettlementId,
+    locale,
   );
 
   return (
-    <UnloadingWagePageShell settlementMonth={settlementMonth}>
+    <UnloadingWagePageShell locale={locale} settlementMonth={settlementMonth}>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {canSettle ? (
           <SettlementGeneratePanel defaultSettlementMonth={settlementMonth} />
         ) : (
-          <SettlementPermissionPanel />
+          <SettlementPermissionPanel locale={locale} />
         )}
-        <SettlementMonthFilter settlementMonth={settlementMonth} />
+        <SettlementMonthFilter locale={locale} settlementMonth={settlementMonth} />
       </section>
 
       {state.sourceRecordsError ? (
         <ApiErrorPanel
           error={state.sourceRecordsError}
+          locale={locale}
           title="Completed unloading records could not be loaded"
         />
       ) : (
@@ -97,11 +100,12 @@ export default async function UnloadingWagePage({
         />
       )}
 
-      <ReviewAlerts alerts={state.reviewAlerts} />
+      <ReviewAlerts alerts={state.reviewAlerts} locale={locale} />
 
       {state.settlementsError ? (
         <ApiErrorPanel
           error={state.settlementsError}
+          locale={locale}
           title="Settlements could not be loaded"
         />
       ) : (
@@ -118,7 +122,7 @@ export default async function UnloadingWagePage({
               settlement={state.selectedSettlement}
             />
           ) : (
-            <NoSettlementSelected settlementMonth={settlementMonth} />
+            <NoSettlementSelected locale={locale} settlementMonth={settlementMonth} />
           )}
         </section>
       )}
@@ -128,25 +132,30 @@ export default async function UnloadingWagePage({
 
 function UnloadingWagePageShell({
   children,
+  locale,
   settlementMonth,
 }: {
   children: ReactNode;
+  locale: Locale;
   settlementMonth: string;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Warehouse
+              {t("Warehouse")}
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              Warehouse Unloading Wage Settlement
+              {t("Warehouse Unloading Wage Settlement")}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-              Generate and review monthly worker settlement from completed
-              container detail unloading wage data.
+              {t(
+                "Generate and review monthly worker settlement from completed container detail unloading wage data.",
+              )}
             </p>
           </div>
           <Link
@@ -155,7 +164,7 @@ function UnloadingWagePageShell({
               settlementMonth,
             )}`}
           >
-            Refresh
+            {t("Refresh")}
           </Link>
         </div>
       </section>
@@ -164,29 +173,35 @@ function UnloadingWagePageShell({
   );
 }
 
-function PermissionRequiredPanel() {
+function PermissionRequiredPanel({ locale }: { locale: Locale }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
       <h2 className="text-base font-semibold">
-        Unloading wage read permission required
+        {t("Unloading wage read permission required")}
       </h2>
       <p className="mt-2 text-sm leading-6">
-        Ask an administrator for unloading_wage.read before opening Warehouse
-        Unloading Wage Settlement.
+        {t(
+          "Ask an administrator for unloading_wage.read before opening Warehouse Unloading Wage Settlement.",
+        )}
       </p>
     </section>
   );
 }
 
-function SettlementPermissionPanel() {
+function SettlementPermissionPanel({ locale }: { locale: Locale }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm">
       <h2 className="text-base font-semibold">
-        Settlement generation permission required
+        {t("Settlement generation permission required")}
       </h2>
       <p className="mt-2 leading-6">
-        This account can review unloading wage records but needs
-        unloading_wage.settle before generating a monthly settlement.
+        {t(
+          "This account can review unloading wage records but needs unloading_wage.settle before generating a monthly settlement.",
+        )}
       </p>
     </section>
   );
@@ -195,6 +210,7 @@ function SettlementPermissionPanel() {
 async function loadUnloadingWageState(
   settlementMonth: string,
   requestedSettlementId: string | null,
+  locale: Locale,
 ): Promise<UnloadingWageState> {
   const apiOptions = await getServerApiOptions();
   const [sourceRecordsResult, settlementsResult] = await Promise.allSettled([
@@ -208,7 +224,7 @@ async function loadUnloadingWageState(
 
   return {
     monthSettlements: settlementsForMonth(settlements, settlementMonth),
-    reviewAlerts: settlementReviewAlerts(settlements, settlementMonth),
+    reviewAlerts: settlementReviewAlerts(settlements, settlementMonth, locale),
     selectedSettlement:
       settlementsResult.status === "fulfilled"
         ? selectSettlementForMonth(
@@ -236,18 +252,24 @@ async function loadUnloadingWageState(
 }
 
 function SettlementMonthFilter({
+  locale,
   settlementMonth,
 }: {
+  locale: Locale;
   settlementMonth: string;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Review month filter
+        {t("Review month filter")}
       </h2>
       <form className="mt-4 flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Settlement month</span>
+          <span className="font-semibold text-zinc-700">
+            {t("Settlement month")}
+          </span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             defaultValue={settlementMonth}
@@ -259,7 +281,7 @@ function SettlementMonthFilter({
           className="min-h-10 border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
           type="submit"
         >
-          Apply
+          {t("Apply")}
         </button>
       </form>
     </section>
@@ -275,16 +297,20 @@ function MonthSourceRecords({
   settlementMonth: string;
   sourceRecords: PayContainerResponse[];
 }) {
+  const { format, t } = createTranslator(locale);
+
   if (sourceRecords.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
         <h2 className="text-base font-semibold text-zinc-950">
-          No completed unloading records for {settlementMonth}
+          {format("i18n.unloadingWage.noCompletedRecords", {
+            month: settlementMonth,
+          })}
         </h2>
         <p className="mt-2 max-w-3xl leading-6">
-          Mark container detail unloading as completed, assign unloaders, and
-          make sure the completed date falls inside this month before
-          generating settlement.
+          {t(
+            "Mark container detail unloading as completed, assign unloaders, and make sure the completed date falls inside this month before generating settlement.",
+          )}
         </p>
       </section>
     );
@@ -306,17 +332,18 @@ function MonthSourceRecords({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Completed unloading source records
+            {t("Completed unloading source records")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Read-only source records for {settlementMonth} from container detail
-            wage data.
+            {format("i18n.unloadingWage.sourceRecordsForMonth", {
+              month: settlementMonth,
+            })}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 text-right text-sm">
-          <Metric label="Paid units" value={String(sourceRecords.length)} />
-          <Metric label="Workers" value={String(workerNames.size)} />
-          <Metric label="Rate total" value={formatMoney(rateTotal, currency)} />
+          <Metric label={t("Paid units")} value={String(sourceRecords.length)} />
+          <Metric label={t("Workers")} value={String(workerNames.size)} />
+          <Metric label={t("Rate total")} value={formatMoney(rateTotal, currency)} />
         </div>
       </div>
 
@@ -324,13 +351,13 @@ function MonthSourceRecords({
         <table className="min-w-[1120px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="px-3 py-3 font-semibold">Paid unit</th>
-              <th className="px-3 py-3 font-semibold">Status</th>
-              <th className="px-3 py-3 font-semibold">Work type</th>
-              <th className="px-3 py-3 font-semibold">Containers</th>
-              <th className="px-3 py-3 font-semibold">Completed</th>
-              <th className="px-3 py-3 text-right font-semibold">Rate</th>
-              <th className="px-3 py-3 font-semibold">Unloaders</th>
+              <th className="px-3 py-3 font-semibold">{t("Paid unit")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Status")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Work type")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Containers")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Completed")}</th>
+              <th className="px-3 py-3 text-right font-semibold">{t("Rate")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Unloaders")}</th>
             </tr>
           </thead>
           <tbody>
@@ -341,7 +368,7 @@ function MonthSourceRecords({
                     {record.payContainerNo}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {allocationMethodLabel(record.allocationMethod)}
+                    {allocationMethodLabel(record.allocationMethod, locale)}
                   </p>
                 </td>
                 <td className="px-3 py-4">
@@ -350,7 +377,9 @@ function MonthSourceRecords({
                 <td className="px-3 py-4">
                   <p>{payClassificationLabel(record.classification, locale)}</p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    Trailer: {record.trailerNumber ?? "-"}
+                    {format("i18n.unloadingWage.trailer", {
+                      trailerNumber: record.trailerNumber ?? "-",
+                    })}
                   </p>
                 </td>
                 <td className="px-3 py-4">
@@ -386,7 +415,15 @@ function MonthSourceRecords({
   );
 }
 
-function ReviewAlerts({ alerts }: { alerts: string[] }) {
+function ReviewAlerts({
+  alerts,
+  locale,
+}: {
+  alerts: string[];
+  locale: Locale;
+}) {
+  const { t } = createTranslator(locale);
+
   if (alerts.length === 0) {
     return null;
   }
@@ -396,7 +433,7 @@ function ReviewAlerts({ alerts }: { alerts: string[] }) {
       className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-base font-semibold">Settlement review warning</h2>
+      <h2 className="text-base font-semibold">{t("Settlement review warning")}</h2>
       <ul className="mt-2 space-y-1">
         {alerts.map((alert) => (
           <li key={alert}>{alert}</li>
@@ -417,14 +454,18 @@ function SettlementVersions({
   settlementMonth: string;
   settlements: UnloadingWageSettlementResponse[];
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Settlement versions
+        {t("Settlement versions")}
       </h2>
       {settlements.length === 0 ? (
         <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-          No settlement has been generated for {settlementMonth}.
+          {format("i18n.unloadingWage.noSettlementForMonth", {
+            month: settlementMonth,
+          })}
         </p>
       ) : (
         <div className="mt-4 grid gap-3">
@@ -461,19 +502,25 @@ function SettlementVersions({
 }
 
 function NoSettlementSelected({
+  locale,
   settlementMonth,
 }: {
+  locale: Locale;
   settlementMonth: string;
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
       <h2 className="text-base font-semibold text-zinc-950">
-        No settlement selected for {settlementMonth}
+        {format("i18n.unloadingWage.noSettlementSelected", {
+          month: settlementMonth,
+        })}
       </h2>
       <p className="mt-2 max-w-2xl leading-6">
-        Generate the selected month after reviewing completed unloading source
-        records. Generated JSON and HTML task report files will appear in the
-        settlement detail.
+        {t(
+          "Generate the selected month after reviewing completed unloading source records. Generated JSON and HTML task report files will appear in the settlement detail.",
+        )}
       </p>
     </section>
   );
@@ -486,9 +533,10 @@ function SettlementDetail({
   locale: Locale;
   settlement: UnloadingWageSettlementResponse;
 }) {
+  const { format, t } = createTranslator(locale);
   const issues = [
-    ...issueList(settlement.warnings),
-    ...issueList(settlement.errors),
+    ...issueList(settlement.warnings, locale),
+    ...issueList(settlement.errors, locale),
   ];
 
   return (
@@ -497,11 +545,15 @@ function SettlementDetail({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-950">
-              Settlement {settlement.settlementMonth}
+              {format("i18n.unloadingWage.settlementMonth", {
+                month: settlement.settlementMonth,
+              })}
             </h2>
             <p className="mt-2 text-sm text-zinc-600">
-              {settlement.workers.length} worker(s), {settlement.lines.length}{" "}
-              detail line(s)
+              {format("i18n.unloadingWage.settlementCounts", {
+                lines: settlement.lines.length,
+                workers: settlement.workers.length,
+              })}
             </p>
           </div>
           <div className="text-right">
@@ -513,7 +565,7 @@ function SettlementDetail({
         </div>
         {issues.length > 0 ? (
           <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-            <p className="font-semibold">Review issues</p>
+            <p className="font-semibold">{t("Review issues")}</p>
             <ul className="mt-2 space-y-1">
               {issues.map((issue, index) => (
                 <li key={`${issue}-${index}`}>{issue}</li>
@@ -525,25 +577,25 @@ function SettlementDetail({
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
-          Worker summary
+          {t("Worker summary")}
         </h3>
         {settlement.workers.length === 0 ? (
           <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-            No worker wage summary is recorded for this settlement.
+            {t("No worker wage summary is recorded for this settlement.")}
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-[720px] w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <th className="px-3 py-3 font-semibold">Worker</th>
+                  <th className="px-3 py-3 font-semibold">{t("Worker")}</th>
                   <th className="px-3 py-3 text-right font-semibold">
-                    Paid units
+                    {t("Paid units")}
                   </th>
                   <th className="px-3 py-3 text-right font-semibold">
-                    Wage amount
+                    {t("Wage amount")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">Review status</th>
+                  <th className="px-3 py-3 font-semibold">{t("Review status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -576,27 +628,27 @@ function SettlementDetail({
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
-          Monthly detail
+          {t("Monthly detail")}
         </h3>
         {settlement.lines.length === 0 ? (
           <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-            No settlement detail lines are recorded for this settlement.
+            {t("No settlement detail lines are recorded for this settlement.")}
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <th className="px-3 py-3 font-semibold">Paid work</th>
+                  <th className="px-3 py-3 font-semibold">{t("Paid work")}</th>
                   <th className="px-3 py-3 font-semibold">
-                    Associated containers
+                    {t("Associated containers")}
                   </th>
-                  <th className="px-3 py-3 font-semibold">Completed date</th>
-                  <th className="px-3 py-3 text-right font-semibold">Rate</th>
-                  <th className="px-3 py-3 font-semibold">Unloader</th>
-                  <th className="px-3 py-3 font-semibold">Allocation</th>
+                  <th className="px-3 py-3 font-semibold">{t("Completed date")}</th>
+                  <th className="px-3 py-3 text-right font-semibold">{t("Rate")}</th>
+                  <th className="px-3 py-3 font-semibold">{t("Unloader")}</th>
+                  <th className="px-3 py-3 font-semibold">{t("Allocation")}</th>
                   <th className="px-3 py-3 text-right font-semibold">
-                    Worker amount
+                    {t("Worker amount")}
                   </th>
                 </tr>
               </thead>
@@ -634,7 +686,7 @@ function SettlementDetail({
                       </p>
                     </td>
                     <td className="px-3 py-3">
-                      {allocationMethodLabel(line.allocationMethod)}
+                      {allocationMethodLabel(line.allocationMethod, locale)}
                     </td>
                     <td className="px-3 py-3 text-right font-semibold">
                       {formatMoney(line.amount, settlement.currency)}
@@ -649,11 +701,11 @@ function SettlementDetail({
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
-          Generated settlement files
+          {t("Generated settlement files")}
         </h3>
         {settlement.generatedFiles.length === 0 ? (
           <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-            No generated settlement files are recorded.
+            {t("No generated settlement files are recorded.")}
           </p>
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -662,10 +714,10 @@ function SettlementDetail({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-zinc-950">
-                      {wageFileTypeLabel(file.fileType)}
+                      {wageFileTypeLabel(file.fileType, locale)}
                     </p>
                     <p className="mt-1 break-all text-xs text-zinc-500">
-                      {file.fileSha256 ?? "No SHA-256 recorded"}
+                      {file.fileSha256 ?? t("No SHA-256 recorded")}
                     </p>
                   </div>
                   <StatusBadge locale={locale} status={file.status} />
@@ -678,7 +730,7 @@ function SettlementDetail({
                       file.id,
                     )}
                   >
-                    Download
+                    {t("Download")}
                   </Link>
                 ) : null}
               </div>
@@ -704,7 +756,7 @@ function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded border px-2.5 text-xs font-semibold uppercase ${style.styles}`}
-      title={status}
+      title={style.label}
     >
       {style.label}
     </span>
@@ -713,20 +765,24 @@ function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
 
 function ApiErrorPanel({
   error,
+  locale,
   title,
 }: {
   error: ApiClientError;
-  title: string;
+  locale: Locale;
+  title: MessageKey;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-base font-semibold">{title}</h2>
-      <p className="mt-2 text-sm">
+      <h2 className="text-base font-semibold">{t(title)}</h2>
+      <p className="mt-2 text-sm">{unloadingWageApiErrorMessage(error, locale)}</p>
+      <p className="mt-2 text-xs font-semibold uppercase" data-i18n-ignore>
         {error.code}
-        {error.status ? ` (${error.status})` : ""}: {error.message}
       </p>
     </section>
   );
@@ -745,27 +801,46 @@ function settlementLineWorkUnit(line: SettlementLine): string {
   );
 }
 
-function allocationMethodLabel(value: string): string {
+function allocationMethodLabel(value: string, locale: Locale): string {
+  const { t } = createTranslator(locale);
+
   if (value === "EQUAL_SPLIT") {
-    return "Equal split";
+    return t("Equal split");
   }
   if (value === "MANUAL_AMOUNT") {
-    return "Manual amount";
+    return t("Manual amount");
   }
   if (value === "MANUAL_PERCENT") {
-    return "Manual percent";
+    return t("Manual percent");
   }
-  return value;
+  return t("Not recorded");
 }
 
-function wageFileTypeLabel(value: string): string {
+function wageFileTypeLabel(value: string, locale: Locale): string {
+  const { t } = createTranslator(locale);
+
   if (value.includes("JSON")) {
-    return "Settlement JSON";
+    return t("Settlement JSON");
   }
   if (value.includes("HTML")) {
-    return "HTML task report";
+    return t("HTML task report");
   }
-  return value;
+  return t("Generated file");
+}
+
+function unloadingWageApiErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+): string {
+  const { t } = createTranslator(locale);
+  const messages: Record<string, MessageKey> = {
+    NO_CONTAINERS_FOR_UNLOADING_WAGE:
+      "No completed unloading records are available for this settlement month.",
+    UNLOADING_WAGE_SETTLEMENT_NOT_FOUND:
+      "Unloading wage settlement could not be found.",
+  };
+
+  return t(messages[error.code] ?? "The request failed.");
 }
 
 function finiteMoney(value: string): number {

@@ -4,8 +4,13 @@ import type {
   UnloadingSummaryReviewItemResponse,
   UnloadingSummaryRowResponse,
 } from "@/lib/api-client";
-import type { Locale } from "../../lib/i18n/catalog";
+import {
+  DEFAULT_LOCALE,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
 import { payClassificationLabel } from "../../lib/i18n/status-labels";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export const COMPLETED_UNLOADING_STATUS_VALUES = [
   "UNLOADED",
@@ -106,28 +111,50 @@ export function unloadingSummaryWageTag(
 
 export function unloadingSummaryReviewText(
   item: UnloadingSummaryReviewItemResponse,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
-  const details = [
-    item.containerNo ? `Container ${item.containerNo}` : null,
-    item.status ? `Status ${item.status}` : null,
-    item.field ? `Field ${item.field}` : null,
-  ].filter(Boolean);
+  const { format, t } = createTranslator(locale);
+  const messages: Record<string, MessageKey> = {
+    MISSING_APPOINTMENT_TEXT:
+      "Appointment or unloading time is missing for this summary row.",
+    MISSING_COMPLETED_AT:
+      "Completed unloading has no completion date and is not assigned to the selected month.",
+    MISSING_DESTINATION:
+      "Completed unloading has no destination rows for monthly summary review.",
+    MISSING_REFERENCE_TEXT:
+      "Reference, appointment number, shipment, or raw note is missing for this summary row.",
+    MISSING_UNLOADING_COMPLETED_AT:
+      "Completed unloading has no completion date and is not assigned to the selected month.",
+    PAY_CONTAINER_DRAFT_WITH_COMPLETED_AT:
+      "Pay container has a completion date but is still draft; review before export.",
+    SOURCE_CONTAINER_NOT_COMPLETED_UNLOADING_STATUS:
+      "Source container is not in a completed unloading status and is excluded from the summary.",
+  };
+  const message = t(
+    messages[item.code] ?? "Unloading summary review issue needs attention.",
+  );
 
-  return details.length > 0
-    ? `${item.message} (${details.join(" | ")})`
-    : item.message;
+  return item.containerNo
+    ? format("i18n.unloadingSummary.reviewForContainer", {
+        containerNo: item.containerNo,
+        message,
+      })
+    : message;
 }
 
 export function unloadingSummaryGeneratedFileAuditText(
   file: UnloadingSummaryGeneratedFileResponse,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return [
-    file.fileSha256 ? `SHA-256 ${file.fileSha256}` : "No SHA-256 recorded",
-    file.fileSizeBytes ? `Size ${formatFileSize(file.fileSizeBytes)}` : null,
-    file.mimeType ? `MIME ${file.mimeType}` : null,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+  const { format, t } = createTranslator(locale);
+
+  return format("i18n.unloadingSummary.generatedFileAudit", {
+    mimeType: file.mimeType ?? t("Not recorded"),
+    sha256: file.fileSha256 ?? t("No SHA-256 recorded"),
+    size: file.fileSizeBytes
+      ? formatFileSize(file.fileSizeBytes)
+      : t("Not recorded"),
+  });
 }
 
 export function formatUnloadingSummaryDate(value: string | null): string {

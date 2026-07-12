@@ -1,5 +1,10 @@
-import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
+import {
+  DEFAULT_LOCALE,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
 import { businessStatusLabel } from "../../lib/i18n/status-labels";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export interface StatusStyle {
   label: string;
@@ -52,25 +57,44 @@ export function statusStyle(status: string, locale?: Locale): StatusStyle {
   };
 }
 
-export function issueList(input: unknown): string[] {
+export function issueList(
+  input: unknown,
+  locale: Locale = DEFAULT_LOCALE,
+): string[] {
   if (!Array.isArray(input)) {
     return [];
   }
 
-  return input.map((item) => {
-    if (typeof item === "string") {
-      return item;
-    }
+  return input.map((item) => wageIssueMessage(item, locale));
+}
 
-    if (item && typeof item === "object") {
-      const record = item as Record<string, unknown>;
-      return typeof record.message === "string"
-        ? record.message
-        : JSON.stringify(record);
-    }
+const WAGE_ISSUE_MESSAGE_KEYS: Record<string, MessageKey> = {
+  ATTENDANCE_PERIOD_MISSING: "Attendance period is missing.",
+  DETECTOR_ERROR: "Attendance workbook could not be parsed.",
+  DETECTOR_WARNING: "Attendance workbook needs parser review.",
+  MISSING_DEPARTMENT: "Employee department is missing.",
+  MISSING_EMPLOYEE_ID: "Employee ID is missing.",
+  MISSING_EMPLOYEE_NAME: "Employee name is missing.",
+  MISSING_PUNCH_TIMES: "No usable punch times found for employee-day.",
+  ODD_PUNCH_COUNT:
+    "Odd punch count requires manual review before calculating hours.",
+  WAGE_RECORD_GENERATION_FAILED: "Wage record generation failed.",
+  WAGE_TEMPLATE_DATE_ROWS_NOT_FOUND:
+    "Wage template date rows were not found.",
+  WAGE_TEMPLATE_EMPLOYEE_NOT_MATCHED:
+    "Attendance employee was not matched to a wage template sheet.",
+};
 
-    return String(item);
-  });
+function wageIssueMessage(input: unknown, locale: Locale): string {
+  const { t } = createTranslator(locale);
+  if (input && typeof input === "object") {
+    const code = (input as Record<string, unknown>).code;
+    if (typeof code === "string" && WAGE_ISSUE_MESSAGE_KEYS[code]) {
+      return t(WAGE_ISSUE_MESSAGE_KEYS[code]);
+    }
+  }
+
+  return t("Review issue details are unavailable.");
 }
 
 export function formatMoney(amount: string | number, currency = "CAD"): string {

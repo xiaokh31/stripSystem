@@ -1,7 +1,7 @@
 import type { LoadJobListFilters } from "@/lib/api-client";
 import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { loadJobStatusLabel } from "../../lib/i18n/status-labels";
-import { translateMessage } from "../../lib/i18n/translator";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export const LOAD_JOB_HISTORY_PAGE_SIZE = 25;
 export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
@@ -12,11 +12,11 @@ export const LOAD_JOB_HISTORY_STATUS_OPTIONS = [
 ] as const;
 
 export function loadJobHistoryStatusOptions(locale?: Locale) {
+  const { t } = createTranslator(locale ?? DEFAULT_LOCALE);
+
   return [
     {
-      label:
-        translateMessage("All statuses", locale ?? DEFAULT_LOCALE) ??
-        "All statuses",
+      label: t("All statuses"),
       value: "",
     },
     { label: loadJobStatusLabel("PLANNED", locale), value: "PLANNED" },

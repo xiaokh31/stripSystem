@@ -1,10 +1,31 @@
 import {
   DEFAULT_LOCALE,
-  I18N_DYNAMIC_TRANSLATIONS,
   LOCALE_MESSAGES,
+  SAME_TEXT_MESSAGE_KEYS,
   SUPPORTED_LOCALES,
   type Locale,
+  type MessageKey,
 } from "./catalog";
+
+export interface Translator {
+  locale: Locale;
+  t: (key: MessageKey) => string;
+  format: (key: MessageKey, params: TranslationParams) => string;
+}
+
+export type TranslationParams = Readonly<Record<string, string | number>>;
+
+export class MissingTranslationError extends Error {
+  readonly key: string;
+  readonly locale: Locale;
+
+  constructor(key: string, locale: Locale) {
+    super(`Missing ${locale} translation for message key: ${key}`);
+    this.name = "MissingTranslationError";
+    this.key = key;
+    this.locale = locale;
+  }
+}
 
 export function isSupportedLocale(value: string | null | undefined): value is Locale {
   return SUPPORTED_LOCALES.includes(value as Locale);
@@ -22,63 +43,53 @@ export function normalizeLocale(value: string | null | undefined): Locale {
   return DEFAULT_LOCALE;
 }
 
-export function translateTextContent(value: string, locale: Locale): string {
-  if (!value.trim()) {
-    return value;
-  }
+/** Creates the explicit translation interface used by rendered Web UI. */
+export function createTranslator(locale: Locale): Translator {
+  const normalizedLocale = normalizeLocale(locale);
+  const t = (key: MessageKey) => {
+    const value = LOCALE_MESSAGES[normalizedLocale][key];
 
-  const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/);
-  const leading = match?.[1] ?? "";
-  const content = match?.[2] ?? value;
-  const trailing = match?.[3] ?? "";
-  const normalized = content.replace(/\s+/g, " ").trim();
-
-  if (!normalized) {
-    return value;
-  }
-
-  const translated = translateMessage(normalized, locale);
-
-  if (!translated || translated === normalized) {
-    return value;
-  }
-
-  return `${leading}${translated}${trailing}`;
-}
-
-export function translateAttributeValue(value: string, locale: Locale): string {
-  return translateTextContent(value, locale);
-}
-
-export function translateMessage(value: string, locale: Locale): string | null {
-  const targetMessages = LOCALE_MESSAGES[locale];
-  const sourceKey = findSourceKey(value);
-
-  if (sourceKey) {
-    return targetMessages[sourceKey] ?? null;
-  }
-
-  for (const pattern of I18N_DYNAMIC_TRANSLATIONS) {
-    const match = value.match(pattern.source);
-    if (match) {
-      return pattern.render[locale](match);
+    if (value && hasResolvedTranslation(key, normalizedLocale)) {
+      return value;
     }
-  }
 
-  return null;
+    return handleMissingTranslation(key, normalizedLocale);
+  };
+
+  return {
+    locale: normalizedLocale,
+    t,
+    format(key, params) {
+      return formatTranslationTemplate(t(key), params);
+    },
+  };
 }
 
-function findSourceKey(value: string): keyof typeof LOCALE_MESSAGES.en | null {
-  for (const sourceKey of Object.keys(LOCALE_MESSAGES.en) as Array<
-    keyof typeof LOCALE_MESSAGES.en
-  >) {
-    if (
-      LOCALE_MESSAGES.en[sourceKey] === value ||
-      LOCALE_MESSAGES["zh-CN"][sourceKey] === value
-    ) {
-      return sourceKey;
-    }
+export function formatTranslationTemplate(
+  template: string,
+  params: TranslationParams,
+): string {
+  return template.replace(/\{([A-Za-z0-9_]+)\}/g, (placeholder, name: string) => {
+    const value = params[name];
+    return value === undefined ? placeholder : String(value);
+  });
+}
+
+function hasResolvedTranslation(key: MessageKey, locale: Locale): boolean {
+  return (
+    locale !== "zh-CN" ||
+    LOCALE_MESSAGES[locale][key] !== LOCALE_MESSAGES.en[key] ||
+    SAME_TEXT_MESSAGE_KEYS.includes(key as (typeof SAME_TEXT_MESSAGE_KEYS)[number])
+  );
+}
+
+function handleMissingTranslation(key: string, locale: Locale): string {
+  const error = new MissingTranslationError(key, locale);
+
+  if (process.env.NODE_ENV !== "production") {
+    throw error;
   }
 
-  return null;
+  console.error(error);
+  return LOCALE_MESSAGES[locale]["Translation unavailable"];
 }

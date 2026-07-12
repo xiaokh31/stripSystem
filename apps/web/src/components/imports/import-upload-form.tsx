@@ -8,7 +8,7 @@ import {
   uploadImportFile,
   type ImportFileResponse,
 } from "@/lib/api-client";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import {
   buildUploadQueue,
@@ -25,7 +25,7 @@ type UploadItemState = UploadQueueItem & {
 };
 
 export function ImportUploadForm() {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItemState[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
@@ -58,12 +58,12 @@ export function ImportUploadForm() {
     }
 
     if (items.length === 0) {
-      setFormError("Select at least one .xlsx file before uploading.");
+      setFormError(t("Select at least one .xlsx file before uploading."));
       return;
     }
 
     if (validCount === 0) {
-      setFormError("There are no valid .xlsx files to upload.");
+      setFormError(t("There are no valid .xlsx files to upload."));
       return;
     }
 
@@ -101,7 +101,7 @@ export function ImportUploadForm() {
                 message:
                   error instanceof Error
                     ? error.message
-                    : "The file could not be uploaded.",
+                    : t("The file could not be uploaded."),
               });
 
         updateItem(item.id, {
@@ -140,7 +140,7 @@ export function ImportUploadForm() {
             className="block text-sm font-semibold text-zinc-950"
             htmlFor="import-files"
           >
-            Excel files
+            {t("Excel files")}
           </label>
           <input
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -153,8 +153,9 @@ export function ImportUploadForm() {
             type="file"
           />
           <p className="mt-2 text-xs leading-5 text-zinc-500">
-            Only .xlsx files are accepted. Selecting files stages them locally;
-            click upload to send them to the real import API.
+            {t(
+              "Only .xlsx files are accepted. Selecting files stages them locally; click upload to send them to the real import API.",
+            )}
           </p>
 
           {formError ? (
@@ -173,7 +174,9 @@ export function ImportUploadForm() {
               onClick={handleUpload}
               type="button"
             >
-              {uploading ? "Uploading" : uploadButtonLabel(validCount)}
+              {uploading
+                ? t("Uploading")
+                : format("i18n.imports.upload.button", { count: validCount })}
             </button>
             <button
               className="min-h-10 border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400"
@@ -181,14 +184,16 @@ export function ImportUploadForm() {
               onClick={handleClear}
               type="button"
             >
-              Clear
+              {t("Clear")}
             </button>
           </div>
 
           {items.length ? (
             <p className="mt-4 text-xs font-medium text-zinc-600">
-              {completeCount} of {items.length} files finished. Ready files
-              have not been sent until upload starts.
+              {format("i18n.imports.upload.finished", {
+                completed: completeCount,
+                total: items.length,
+              })}
             </p>
           ) : null}
         </div>
@@ -196,25 +201,31 @@ export function ImportUploadForm() {
         <div className="p-5">
           {items.length === 0 ? (
             <div className="border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm text-zinc-600">
-              Selected files will appear here with upload progress and API
-              results.
+              {t(
+                "Selected files will appear here with upload progress and API results.",
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
-                    <th className="w-[30%] py-2 pr-4 font-semibold">File</th>
-                    <th className="w-[18%] py-2 pr-4 font-semibold">Status</th>
+                    <th className="w-[30%] py-2 pr-4 font-semibold">{t("File")}</th>
+                    <th className="w-[18%] py-2 pr-4 font-semibold">{t("Status")}</th>
                     <th className="w-[22%] py-2 pr-4 font-semibold">
-                      Progress
+                      {t("Progress")}
                     </th>
-                    <th className="w-[30%] py-2 font-semibold">Result</th>
+                    <th className="w-[30%] py-2 font-semibold">{t("Result")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item) => (
-                    <UploadRow item={item} key={item.id} locale={locale} />
+                    <UploadRow
+                      item={item}
+                      key={item.id}
+                      locale={locale}
+                      t={t}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -229,9 +240,11 @@ export function ImportUploadForm() {
 function UploadRow({
   item,
   locale,
+  t,
 }: {
   item: UploadItemState;
   locale: Locale;
+  t: (key: MessageKey) => string;
 }) {
   return (
     <tr className="border-b border-zinc-100 align-top last:border-0">
@@ -245,10 +258,10 @@ function UploadRow({
         <StatusChip locale={locale} status={item.status} />
       </td>
       <td className="py-3 pr-4">
-        <ProgressCell item={item} />
+        <ProgressCell item={item} t={t} />
       </td>
       <td className="py-3">
-        <ResultCell item={item} locale={locale} />
+        <ResultCell item={item} locale={locale} t={t} />
       </td>
     </tr>
   );
@@ -279,9 +292,15 @@ function StatusChip({
   );
 }
 
-function ProgressCell({ item }: { item: UploadItemState }) {
+function ProgressCell({
+  item,
+  t,
+}: {
+  item: UploadItemState;
+  t: (key: MessageKey) => string;
+}) {
   if (item.status === "queued") {
-    return <span className="text-xs text-zinc-500">Not started</span>;
+    return <span className="text-xs text-zinc-500">{t("Not started")}</span>;
   }
 
   if (
@@ -289,7 +308,7 @@ function ProgressCell({ item }: { item: UploadItemState }) {
     item.status === "duplicate" ||
     item.status === "error"
   ) {
-    return <span className="text-xs text-zinc-500">Stopped</span>;
+    return <span className="text-xs text-zinc-500">{t("Stopped")}</span>;
   }
 
   const percent = item.progressPercent ?? 0;
@@ -303,7 +322,7 @@ function ProgressCell({ item }: { item: UploadItemState }) {
         />
       </div>
       <p className="mt-1 text-xs text-zinc-500">
-        {item.progressPercent === null ? "Uploading" : `${percent}%`}
+        {item.progressPercent === null ? t("Uploading") : `${percent}%`}
       </p>
     </div>
   );
@@ -312,15 +331,17 @@ function ProgressCell({ item }: { item: UploadItemState }) {
 function ResultCell({
   item,
   locale,
+  t,
 }: {
   item: UploadItemState;
   locale: Locale;
+  t: (key: MessageKey) => string;
 }) {
   if (item.result) {
     return (
       <div className="space-y-1">
         <p className="break-all text-xs text-zinc-600">
-          Import ID:{" "}
+          {t("Import ID:")}{" "}
           <Link
             className="font-semibold text-teal-700 underline hover:text-teal-900"
             href={`/imports/${item.result.id}`}
@@ -329,13 +350,13 @@ function ResultCell({
           </Link>
         </p>
         <p className="text-xs text-zinc-600">
-          Filename:{" "}
+          {t("File name")}: {" "}
           <span className="font-medium text-zinc-950">
             {item.result.originalFilename}
           </span>
         </p>
         <p className="text-xs text-zinc-600">
-          Status:{" "}
+          {t("Status")}: {" "}
           <span
             className="font-medium text-zinc-950"
             title={item.result.importStatus}
@@ -344,7 +365,7 @@ function ResultCell({
           </span>
         </p>
         <p className="break-all text-xs text-zinc-600">
-          SHA-256:{" "}
+          {t("SHA-256")}: {" "}
           <span className="font-medium text-zinc-950">
             {item.result.fileSha256}
           </span>
@@ -356,10 +377,14 @@ function ResultCell({
   if (item.existingImport) {
     return (
       <div className="space-y-1 text-xs text-amber-900">
-        <p className="font-semibold">{item.errorCode}</p>
-        <p>{item.errorMessage}</p>
+        {item.errorCode ? (
+          <p className="font-semibold" data-i18n-ignore>
+            {item.errorCode}
+          </p>
+        ) : null}
+        <p>{uploadFailureMessage(item, t)}</p>
         <p>
-          Existing import:{" "}
+          {t("Existing import:")}{" "}
           <Link
             className="font-semibold underline hover:text-amber-950"
             href={`/imports/${item.existingImport.id}`}
@@ -374,25 +399,40 @@ function ResultCell({
   if (item.errorMessage) {
     return (
       <div className="space-y-1 text-xs text-red-900">
-        <p className="font-semibold">{item.errorCode}</p>
-        <p>{item.errorMessage}</p>
+        {item.errorCode ? (
+          <p className="font-semibold" data-i18n-ignore>
+            {item.errorCode}
+          </p>
+        ) : null}
+        <p>{uploadFailureMessage(item, t)}</p>
       </div>
     );
   }
 
   if (item.status === "queued") {
     return (
-      <span className="text-xs text-zinc-500">Click upload to start</span>
+      <span className="text-xs text-zinc-500">{t("Click upload to start")}</span>
     );
   }
 
-  return <span className="text-xs text-zinc-500">Waiting</span>;
+  return <span className="text-xs text-zinc-500">{t("Waiting")}</span>;
 }
 
-function uploadButtonLabel(validCount: number): string {
-  if (validCount <= 1) {
-    return "Upload file";
-  }
+const uploadFailureMessageKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "The file could not be uploaded.",
+  DUPLICATE_IMPORT: "A file with this SHA-256 already exists.",
+  INVALID_FILE_TYPE: "Only .xlsx files can be uploaded.",
+  UPLOAD_FAILED: "The file could not be uploaded.",
+  UPLOAD_UNAVAILABLE: "File uploads must be started from a browser session.",
+};
 
-  return `Upload ${validCount} files`;
+function uploadFailureMessage(
+  item: UploadItemState,
+  t: (key: MessageKey) => string,
+): string {
+  return t(
+    item.errorCode && uploadFailureMessageKeys[item.errorCode]
+      ? uploadFailureMessageKeys[item.errorCode]
+      : "The file could not be uploaded.",
+  );
 }

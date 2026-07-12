@@ -596,6 +596,7 @@ describe('Container detail unloading wage API (e2e)', () => {
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       operationalSetting: {
         findUnique: jest.fn().mockResolvedValue(null),

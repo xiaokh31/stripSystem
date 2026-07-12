@@ -66,6 +66,7 @@ export interface DashboardContainerLifecycleResponse {
 }
 
 export interface DashboardInventoryDestinationResponse {
+  activeTotalPallets: number;
   destinationCode: string;
   loadedPallets: number;
   remainingPallets: number;
@@ -73,6 +74,7 @@ export interface DashboardInventoryDestinationResponse {
 }
 
 export interface DashboardInventoryResponse {
+  activeTotalPallets: number;
   loadedPallets: number;
   remainingPallets: number;
   topDestinations: DashboardInventoryDestinationResponse[];
@@ -553,6 +555,26 @@ export interface ContainerUnloadingWageResponse {
   status: string | null;
   trailerNumber: string | null;
   unloaders: ContainerUnloadingWageUnloaderResponse[];
+  inventorySync?: ContainerPalletInventorySyncSummaryResponse[];
+}
+
+export interface ContainerPalletInventorySyncSummaryResponse {
+  containerId: string;
+  containerNo: string;
+  destinations: Array<{
+    activeTotalPallets: number;
+    cancelledPallets: number;
+    containerDestinationId: string;
+    createdPallets: number;
+    destinationCode: string;
+    expectedPallets: number;
+    reusedPallets: number;
+    warnings: Array<{
+      adjustedOutPallets: number;
+      cancelledPallets: number;
+      code: "HISTORICAL_PALLETS_EXCLUDED";
+    }>;
+  }>;
 }
 
 export interface SaveContainerUnloadingWageRequest {
@@ -1045,6 +1067,7 @@ export interface ContainerCorrectionResponse {
     updatedAt: string;
   };
   corrections: CorrectionFeedbackResponse[];
+  inventorySync: ContainerPalletInventorySyncSummaryResponse | null;
 }
 
 export interface ManualContainerResponse {
@@ -1128,6 +1151,7 @@ export interface ContainerLabelReprintResponse {
 
 export interface PalletStatsResponse {
   totalPallets: number;
+  activeTotalPallets: number;
   loadedPallets: number;
   adjustedOutPallets: number;
   cancelledPallets: number;

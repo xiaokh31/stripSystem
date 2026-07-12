@@ -33,12 +33,13 @@ export class AuthTokenService {
 
   sign(
     payload: Omit<AuthTokenPayload, 'iat' | 'exp' | 'permissionsIssuedAt'>,
+    expiresInSeconds = this.expiresInSeconds,
   ): {
     accessToken: string;
     expiresIn: number;
   } {
     const issuedAt = Math.floor(Date.now() / 1000);
-    const expiresIn = this.expiresInSeconds;
+    const expiresIn = expiresInSeconds;
     const tokenPayload: AuthTokenPayload = {
       ...payload,
       iat: issuedAt,

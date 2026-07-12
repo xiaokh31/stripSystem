@@ -30,9 +30,14 @@ import {
   effectiveContainerStatus,
   isContainerGenerationLocked,
 } from '../common/container-lifecycle';
+import {
+  lockContainerDestinationRows,
+  lockContainerRow,
+} from '../common/container-pallet-lock';
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import { Prisma } from '../generated/prisma/client';
+import { ContainerPalletInventorySyncService } from '../pallet-inventory-sync/container-pallet-inventory-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type CorrectionTargetTypeValue =
@@ -212,7 +217,10 @@ const PALLET_RECALC_WARNING_CODES = new Set([
 
 @Injectable()
 export class CorrectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly palletInventorySync: ContainerPalletInventorySyncService,
+  ) {}
 
   async getContainer(id: string): Promise<ContainerDetailResponseDto> {
     const container = (await this.prisma.container.findUnique({
@@ -405,7 +413,16 @@ export class CorrectionsService {
         details: { id },
       });
     }
-    this.assertContainerEditableForStatusUpdate(existing, dto.status);
+    const unloadInventorySyncRequested =
+      dto.status === ContainerStatus.UNLOADED;
+    if (
+      !(
+        unloadInventorySyncRequested &&
+        existing.status === ContainerStatus.UNLOADED
+      )
+    ) {
+      this.assertContainerEditableForStatusUpdate(existing, dto.status);
+    }
     const correctedById = auditUserId(actor, dto.correctedById);
 
     const data: Prisma.ContainerUpdateInput = {};
@@ -417,27 +434,50 @@ export class CorrectionsService {
     if (!this.hasProvided(dto, 'status') && changes.length > 0) {
       data.status = ContainerStatus.CORRECTED;
     }
-    this.assertHasChanges(changes);
+    if (!unloadInventorySyncRequested) {
+      this.assertHasChanges(changes);
+    }
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        const container = (await tx.container.update({
-          where: { id },
-          data,
-        })) as ContainerRecord;
-        const corrections = await this.createCorrections(
-          tx,
-          changes,
-          {
-            targetType: CorrectionTargetType.CONTAINER,
+        if (!unloadInventorySyncRequested) {
+          const lockedContainer = await this.lockContainerCorrectionScope(tx, {
             containerId: id,
-          },
-          dto.reason,
-          dto.correctionNote,
-          correctedById,
-        );
+          });
+          this.assertContainerEditableForStatusUpdate(
+            lockedContainer,
+            dto.status,
+          );
+        }
+        const inventorySync = unloadInventorySyncRequested
+          ? await this.palletInventorySync.synchronizeForUnloading(tx, {
+              containerId: id,
+              actorId: correctedById,
+            })
+          : null;
+        const container =
+          Object.keys(data).length > 0
+            ? ((await tx.container.update({
+                where: { id },
+                data,
+              })) as ContainerRecord)
+            : existing;
+        const corrections =
+          changes.length > 0
+            ? await this.createCorrections(
+                tx,
+                changes,
+                {
+                  targetType: CorrectionTargetType.CONTAINER,
+                  containerId: id,
+                },
+                dto.reason,
+                dto.correctionNote,
+                correctedById,
+              )
+            : [];
 
-        return { container, corrections };
+        return { container, corrections, inventorySync };
       });
 
       return {
@@ -445,8 +485,16 @@ export class CorrectionsService {
         corrections: result.corrections.map((record) =>
           this.toCorrectionResponse(record),
         ),
+        inventorySync: result.inventorySync,
       };
     } catch (error) {
+      if (unloadInventorySyncRequested) {
+        const concurrentException =
+          this.palletInventorySync.concurrentException(error, id);
+        if (concurrentException) {
+          throw concurrentException;
+        }
+      }
       this.throwConflictIfUnique(error, 'CONTAINER_CORRECTION_CONFLICT');
       throw error;
     }
@@ -496,6 +544,17 @@ export class CorrectionsService {
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
+        const lockedContainer = await this.lockContainerCorrectionScope(tx, {
+          containerId: existing.containerId,
+          destinationIds: [id],
+        });
+        this.assertContainerEditable(
+          effectiveContainerStatus(
+            lockedContainer.status,
+            lockedContainer.destinations ?? [],
+          ),
+          existing.containerId,
+        );
         const containerDestination = (await tx.containerDestination.update({
           where: { id },
           data,
@@ -632,6 +691,16 @@ export class CorrectionsService {
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
+        const lockedContainer = await this.lockContainerCorrectionScope(tx, {
+          containerId,
+        });
+        this.assertContainerEditable(
+          effectiveContainerStatus(
+            lockedContainer.status,
+            lockedContainer.destinations ?? [],
+          ),
+          containerId,
+        );
         const containerDestination = (await tx.containerDestination.create({
           data: createData,
         })) as ContainerDestinationRecord;
@@ -704,6 +773,17 @@ export class CorrectionsService {
     };
 
     const corrections = await this.prisma.$transaction(async (tx) => {
+      const lockedContainer = await this.lockContainerCorrectionScope(tx, {
+        containerId: existing.containerId,
+        destinationIds: [existing.id],
+      });
+      this.assertContainerEditable(
+        effectiveContainerStatus(
+          lockedContainer.status,
+          lockedContainer.destinations ?? [],
+        ),
+        existing.containerId,
+      );
       const records = await this.createCorrections(
         tx,
         [change],
@@ -1493,6 +1573,15 @@ export class CorrectionsService {
         'This container has entered loading or has been loaded, so destination corrections are locked.',
       details: { containerId, status },
     });
+  }
+
+  private async lockContainerCorrectionScope(
+    tx: Prisma.TransactionClient,
+    input: { containerId: string; destinationIds?: string[] },
+  ): Promise<ContainerRecord> {
+    await lockContainerRow(tx, input.containerId);
+    await lockContainerDestinationRows(tx, input.destinationIds ?? []);
+    return await this.findContainerLifecycleOrThrow(tx, input.containerId);
   }
 
   private assertContainerEditableForStatusUpdate(

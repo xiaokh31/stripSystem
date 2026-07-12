@@ -5,6 +5,7 @@ import {
   buildContainerUnloadingCompletionRequest,
   buildContainerUnloadingWageSaveRequest,
   parseAssociatedContainerNos,
+  summarizeInventorySync,
   unloaderDraftsFromContainer,
   wageDraftFromContainer,
 } from "../src/components/containers/container-unloading-wage-flow";
@@ -93,7 +94,7 @@ test("container detail wage draft starts from API unloading wage data", () => {
     associatedContainerNosText: "TXGU5580229",
     classification: "US_TO_CANADA_TRANSFER",
     note: "",
-    reason: "Container detail unloading wage updated",
+    reason: "",
     trailerNumber: "TR-0604",
   });
 });
@@ -185,7 +186,28 @@ test("selected unloaders submit temporary directory ids and legacy names require
     ),
     {
       error:
-        'Legacy unloader "Worker Two" must be reselected from the temporary unloader directory before saving.',
+        "Legacy unloader Worker Two must be reselected from the temporary unloader directory before saving.",
+      ok: false,
+    },
+  );
+
+  assert.deepEqual(
+    buildContainerUnloadersRequest(
+      [
+        {
+          ...drafts[0],
+          initialWorkerName: "Worker Two",
+          unloadingWorkerId: null,
+          workerCode: "NAME:WORKER TWO",
+          workerName: "Worker Two",
+          workerUserId: "legacy-user-2",
+        },
+      ],
+      "Workers confirmed",
+      "zh-CN",
+    ),
+    {
+      error: "旧拆柜人 Worker Two 保存前必须从临时拆柜人目录重新选择。",
       ok: false,
     },
   );
@@ -219,6 +241,58 @@ test("completion request requires a valid completed timestamp", () => {
       },
     },
   );
+});
+
+test("inventory completion summary uses API active totals and never derives remaining", () => {
+  assert.deepEqual(
+    summarizeInventorySync([
+      {
+        containerId: "container-1",
+        containerNo: "CSNU8877228",
+        destinations: [
+          {
+            activeTotalPallets: 3,
+            cancelledPallets: 0,
+            containerDestinationId: "destination-1",
+            createdPallets: 2,
+            destinationCode: "YEG1",
+            expectedPallets: 3,
+            reusedPallets: 1,
+            warnings: [],
+          },
+          {
+            activeTotalPallets: 0,
+            cancelledPallets: 0,
+            containerDestinationId: "destination-2",
+            createdPallets: 0,
+            destinationCode: "YYC1",
+            expectedPallets: 0,
+            reusedPallets: 0,
+            warnings: [],
+          },
+        ],
+      },
+    ]),
+    {
+      actualPallets: 3,
+      destinationCount: 2,
+      destinations: [
+        {
+          activeTotalPallets: 3,
+          createdPallets: 2,
+          destinationCode: "YEG1",
+          reusedPallets: 1,
+        },
+        {
+          activeTotalPallets: 0,
+          createdPallets: 0,
+          destinationCode: "YYC1",
+          reusedPallets: 0,
+        },
+      ],
+    },
+  );
+  assert.equal(summarizeInventorySync(undefined), null);
 });
 
 function containerRecord(

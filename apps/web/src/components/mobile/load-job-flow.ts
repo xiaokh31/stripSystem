@@ -4,6 +4,12 @@ import type {
   LoadJobResponse,
   LoadJobScanResponse,
 } from "@/lib/api-client";
+import {
+  DEFAULT_LOCALE,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export type ScanNoticeTone = "amber" | "emerald" | "red" | "zinc";
 
@@ -38,11 +44,15 @@ export function loadJobDisplayName(loadJob: LoadJobResponse): string {
   return loadJob.loadNo?.trim() || loadJob.id;
 }
 
-export function loadJobPlanContext(loadJob: LoadJobResponse): string {
-  const region = loadJob.destinationRegion?.trim() || "No destination region";
-  const truck = loadJob.truckNo?.trim() || "No truck";
+export function loadJobPlanContext(
+  loadJob: LoadJobResponse,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { format, t } = createTranslator(locale);
+  const region = loadJob.destinationRegion?.trim() || t("No destination region");
+  const truck = loadJob.truckNo?.trim() || t("No truck");
 
-  return `${region} / ${truck}`;
+  return format("i18n.loadJobs.regionTruck", { region, truck });
 }
 
 export function loadJobProgressSnapshot(
@@ -103,12 +113,17 @@ export function isReverseScanDisabled(input: {
   );
 }
 
-export function scanSuccessNotice(response: LoadJobScanResponse): ScanNotice {
+export function scanSuccessNotice(
+  response: LoadJobScanResponse,
+  locale: Locale = DEFAULT_LOCALE,
+): ScanNotice {
+  const { t } = createTranslator(locale);
+
   if (response.result === "REMOVED") {
     return {
       code: "REMOVED",
-      message: "Pallet was removed from this load job progress.",
-      title: "Progress adjusted",
+      message: t("Pallet was removed from this load job progress."),
+      title: t("Progress adjusted"),
       tone: "amber",
     };
   }
@@ -116,40 +131,48 @@ export function scanSuccessNotice(response: LoadJobScanResponse): ScanNotice {
   if (response.result === "DUPLICATE") {
     return {
       code: "DUPLICATE",
-      message: "This pallet was already scanned for the selected load job.",
-      title: "Duplicate scan",
+      message: t("This pallet was already scanned for the selected load job."),
+      title: t("Duplicate scan"),
       tone: "amber",
     };
   }
 
   return {
     code: null,
-    message: "Pallet loaded into the selected load job.",
-    title: "Scan accepted",
+    message: t("Pallet loaded into the selected load job."),
+    title: t("Scan accepted"),
     tone: "emerald",
   };
 }
 
-export function scanErrorNotice(error: unknown): ScanNotice {
+export function scanErrorNotice(
+  error: unknown,
+  locale: Locale = DEFAULT_LOCALE,
+): ScanNotice {
+  const { t } = createTranslator(locale);
+
   if (isApiClientError(error)) {
     return {
       code: error.code,
-      message: scanErrorMessage(error.code, error.message),
-      title: scanErrorTitle(error.code),
+      message: scanErrorMessage(error.code, locale),
+      title: scanErrorTitle(error.code, locale),
       tone: scanErrorTone(error.code),
     };
   }
 
   return {
     code: "SCAN_FAILED",
-    message: error instanceof Error ? error.message : "Scan failed.",
-    title: "Scan failed",
+    message: t("Scan failed."),
+    title: t("Scan failed"),
     tone: "red",
   };
 }
 
-export function scanErrorMessage(code: string, fallback: string): string {
-  const messages: Record<string, string> = {
+export function scanErrorMessage(
+  code: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const messages: Record<string, MessageKey> = {
     API_NETWORK_ERROR: "The scanner could not reach the API.",
     INVALID_QR_PAYLOAD: "Invalid label. Scan a Bestar pallet QR label.",
     LOAD_JOB_LINE_PALLET_LIMIT_REACHED:
@@ -166,53 +189,67 @@ export function scanErrorMessage(code: string, fallback: string): string {
       "This pallet is not currently loaded in the selected load job.",
   };
 
-  return messages[code] ?? fallback;
+  return createTranslator(locale).t(messages[code] ?? "Scan failed.");
 }
 
-export function scanErrorTitle(code: string): string {
+export function scanErrorTitle(
+  code: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+
   if (code === "LOAD_JOB_NOT_OPEN") {
-    return "Load job closed";
+    return t("Load job closed");
   }
 
   if (code === "PALLET_ALREADY_LOADED") {
-    return "Already loaded";
+    return t("Already loaded");
   }
 
   if (code === "PALLET_NOT_IN_LOAD_PLAN") {
-    return "Wrong load job";
+    return t("Wrong load job");
   }
 
   if (code === "LOAD_JOB_LINE_PALLET_LIMIT_REACHED") {
-    return "Plan line full";
+    return t("Plan line full");
   }
 
   if (
     code === "LOAD_JOB_REVERSE_SCAN_CONFIRMATION_REQUIRED" ||
     code === "PALLET_NOT_LOADED_IN_LOAD_JOB"
   ) {
-    return "Progress adjustment rejected";
+    return t("Progress adjustment rejected");
   }
 
   if (code === "INVALID_QR_PAYLOAD" || code === "PALLET_NOT_FOUND") {
-    return "Invalid scan";
+    return t("Invalid scan");
   }
 
-  return "Scan rejected";
+  return t("Scan rejected");
 }
 
 export function scanErrorTone(code: string): ScanNoticeTone {
   return code === "LOAD_JOB_NOT_OPEN" ? "amber" : "red";
 }
 
-export function loadJobLineLabel(line: LoadJobResponse["lines"][number]): string {
+export function loadJobLineLabel(
+  line: LoadJobResponse["lines"][number],
+  locale: Locale = DEFAULT_LOCALE,
+): string {
   if (line.sourceText?.trim()) {
     return line.sourceText.trim();
   }
 
-  const container = line.containerNo ?? line.container?.containerNo ?? "External";
-  const destination = line.destinationCode ?? "Any destination";
+  const { format, t } = createTranslator(locale);
+  const container =
+    line.containerNo ?? line.container?.containerNo ?? t("External");
+  const destination = line.destinationCode ?? t("Any destination");
 
-  return `${container} / ${destination} / ${line.plannedPallets}P`;
+  return format("i18n.loadJobs.lineFallback", {
+    container,
+    destination,
+    pallets: line.plannedPallets,
+  });
 }
 
 function isApiClientError(error: unknown): error is ApiClientError {

@@ -11,6 +11,7 @@ import {
   type LoadJobContainerSuggestionResponse,
   type LoadJobResponse,
 } from "@/lib/api-client";
+import type { MessageKey } from "@/lib/i18n/catalog";
 import {
   applyContainerSuggestionToDraft,
   buildLoadJobRequest,
@@ -49,7 +50,7 @@ const idleSuggestionState: SuggestionState = {
 };
 
 export function LoadJobPlanningForm() {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<LoadJobDraft>(() => defaultLoadJobDraft());
   const [saveState, setSaveState] = useState<SaveState>(idleSaveState);
@@ -128,23 +129,28 @@ export function LoadJobPlanningForm() {
 
     const request = buildLoadJobRequest(draft);
     if (!request.ok) {
-      setSaveState({ message: request.error, status: "error" });
+      setSaveState({
+        message: loadJobValidationMessage(request.error, t),
+        status: "error",
+      });
       return;
     }
 
-    setSaveState({ message: "Publishing load job.", status: "saving" });
+    setSaveState({ message: t("Publishing load job."), status: "saving" });
 
     try {
       const result: LoadJobResponse = await createLoadJob(request.payload);
       setSaveState({
-        message: `Published ${result.loadNo ?? result.id}.`,
+        message: format("i18n.loadJobs.published", {
+          loadNo: result.loadNo ?? result.id,
+        }),
         status: "saved",
       });
       setDraft(defaultLoadJobDraft());
       router.refresh();
     } catch (error) {
       setSaveState({
-        message: loadJobCreateErrorMessage(error),
+        message: loadJobCreateErrorMessage(error, t),
         status: "error",
       });
     }
@@ -160,7 +166,7 @@ export function LoadJobPlanningForm() {
         destinationRegion,
         error: destinationRegion
           ? ""
-          : "Enter Destination region before loading container suggestions.",
+          : t("Enter Destination region before loading container suggestions."),
         items: [],
         loading: false,
         opened: true,
@@ -207,7 +213,7 @@ export function LoadJobPlanningForm() {
         loading: false,
         opened: true,
       });
-    } catch (error) {
+    } catch {
       if (suggestionRequestIdRef.current !== requestId) {
         return;
       }
@@ -216,9 +222,7 @@ export function LoadJobPlanningForm() {
         containerNo: containerNoQuery,
         destinationRegion,
         error:
-          error instanceof ApiClientError
-            ? error.message
-            : "Container suggestions could not be loaded.",
+          t("Container suggestions could not be loaded."),
         items: [],
         loading: false,
         opened: true,
@@ -247,43 +251,43 @@ export function LoadJobPlanningForm() {
       <div className="grid gap-0 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="border-b border-zinc-200 p-5 xl:border-r xl:border-b-0">
           <h2 className="text-base font-semibold text-zinc-950">
-            Publish load job
+            {t("Publish load job")}
           </h2>
           <div className="mt-4 grid gap-4">
             <TextField
               disabled={saving}
-              label="Load No."
+              label={t("Load No.")}
               onChange={(value) => updateField("loadNo", value)}
               required
               value={draft.loadNo}
             />
             <TextField
               disabled={saving}
-              label="Destination region"
+              label={t("Destination region")}
               onChange={(value) => updateField("destinationRegion", value)}
               value={draft.destinationRegion}
             />
             <TextField
               disabled={saving}
-              label="Truck No."
+              label={t("Truck No.")}
               onChange={(value) => updateField("truckNo", value)}
               value={draft.truckNo}
             />
             <TextField
               disabled={saving}
-              label="Dock No."
+              label={t("Dock No.")}
               onChange={(value) => updateField("dockNo", value)}
               value={draft.dockNo}
             />
             <TextField
               disabled={saving}
-              label="Carrier"
+              label={t("Carrier")}
               onChange={(value) => updateField("carrier", value)}
               value={draft.carrier}
             />
             <TextField
               disabled={saving}
-              label="Scheduled departure"
+              label={t("Scheduled departure")}
               onChange={(value) => updateField("scheduledDepartureAt", value)}
               type="datetime-local"
               value={draft.scheduledDepartureAt}
@@ -291,16 +295,16 @@ export function LoadJobPlanningForm() {
           </div>
 
           <dl className="mt-5 grid grid-cols-3 gap-2 text-center">
-            <Metric label="Lines" value={summary.lineCount} />
-            <Metric label="System" value={summary.internalPallets} />
-            <Metric label="External" value={summary.externalPallets} />
+            <Metric label={t("Lines")} value={summary.lineCount} />
+            <Metric label={t("System")} value={summary.internalPallets} />
+            <Metric label={t("External")} value={summary.externalPallets} />
           </dl>
         </div>
 
         <div className="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-zinc-950">
-              Plan lines
+              {t("Plan lines")}
             </h2>
             <div className="flex flex-wrap gap-2">
               <button
@@ -309,7 +313,7 @@ export function LoadJobPlanningForm() {
                 onClick={() => addLine(false)}
                 type="button"
               >
-                Add system line
+                {t("Add system line")}
               </button>
               <button
                 className="min-h-10 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:text-zinc-400"
@@ -317,7 +321,7 @@ export function LoadJobPlanningForm() {
                 onClick={() => addLine(true)}
                 type="button"
               >
-                Add transfer line
+                {t("Add transfer line")}
               </button>
             </div>
           </div>
@@ -369,7 +373,7 @@ export function LoadJobPlanningForm() {
               onClick={publishLoadJob}
               type="button"
             >
-              {saving ? "Publishing" : "Publish load job"}
+              {saving ? t("Publishing") : t("Publish load job")}
             </button>
           </div>
         </div>
@@ -405,12 +409,14 @@ function LoadJobLineEditor({
   onRemove: (index: number) => void;
   removable: boolean;
 }) {
+  const { format, t } = useI18n();
+
   return (
     <div className="border border-zinc-200 bg-zinc-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-zinc-950">
-            Plan line {index + 1}
+            {format("i18n.loadJobs.planLine", { number: index + 1 })}
           </h3>
           <label className="mt-2 inline-flex min-h-8 items-center gap-2 text-sm font-medium text-zinc-700">
             <input
@@ -422,7 +428,7 @@ function LoadJobLineEditor({
               }
               type="checkbox"
             />
-            External transfer
+            {t("External transfer")}
           </label>
         </div>
         <button
@@ -431,20 +437,20 @@ function LoadJobLineEditor({
           onClick={() => onRemove(index)}
           type="button"
         >
-          Remove
+          {t("Remove")}
         </button>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TextField
           disabled={disabled}
-          label="Source text"
+          label={t("Source text")}
           onChange={(value) => onChange(index, "sourceText", value)}
           value={line.sourceText}
         />
         <TextField
           disabled={disabled || line.externalTransfer}
-          label="Container No."
+          label={t("Container No.")}
           onBlur={onContainerBlur}
           onChange={(value) => {
             onChange(index, "containerNo", value);
@@ -455,14 +461,14 @@ function LoadJobLineEditor({
         />
         <TextField
           disabled={disabled || Boolean(destinationRegion.trim())}
-          label="Destination"
+          label={t("Destination")}
           onChange={(value) => onChange(index, "destinationCode", value)}
           value={line.destinationCode}
         />
         <TextField
           disabled={disabled}
           inputMode="numeric"
-          label="Planned pallets"
+          label={t("Planned pallets")}
           onChange={(value) => onChange(index, "plannedPallets", value)}
           value={line.plannedPallets}
         />
@@ -470,7 +476,7 @@ function LoadJobLineEditor({
       <div className="mt-4">
         <TextAreaField
           disabled={disabled}
-          label="Note"
+          label={t("Note")}
           onChange={(value) => onChange(index, "note", value)}
           value={line.note}
         />
@@ -540,6 +546,8 @@ function ContainerSuggestionPanel({
   onSelect: (suggestion: LoadJobContainerSuggestionResponse) => void;
   state: SuggestionState;
 }) {
+  const { format, t } = useI18n();
+
   if (!state.opened) {
     return null;
   }
@@ -548,19 +556,19 @@ function ContainerSuggestionPanel({
     <div className="border border-zinc-200 bg-zinc-50 p-3 text-sm">
       <div className="flex items-center justify-between gap-3">
         <span className="font-semibold text-zinc-900">
-          Container suggestions
+          {t("Container suggestions")}
         </span>
         <span className="text-xs font-medium text-zinc-500">
-          From current inventory
+          {t("From current inventory")}
         </span>
       </div>
       {state.loading ? (
-        <p className="mt-2 text-zinc-600">Loading suggestions.</p>
+        <p className="mt-2 text-zinc-600">{t("Loading suggestions.")}</p>
       ) : state.error ? (
         <p className="mt-2 text-red-800">{state.error}</p>
       ) : state.items.length === 0 ? (
         <p className="mt-2 text-zinc-600">
-          No eligible containers with remaining pallets were found.
+          {t("No eligible containers with remaining pallets were found.")}
         </p>
       ) : (
         <div className="mt-2 grid gap-2">
@@ -576,11 +584,11 @@ function ContainerSuggestionPanel({
                 {item.containerNo} / {item.destinationCode}
               </span>
               <span className="text-xs text-zinc-600">
-                Remaining {item.remainingPallets} pallets, loaded{" "}
-                {item.loadedPallets}, status{" "}
-                <span title={item.status}>
-                  {containerStatusLabel(item.status, locale)}
-                </span>
+                {format("i18n.loadJobs.suggestionSummary", {
+                  loaded: item.loadedPallets,
+                  remaining: item.remainingPallets,
+                  status: containerStatusLabel(item.status, locale),
+                })}
               </span>
             </button>
           ))}
@@ -614,23 +622,38 @@ function TextAreaField({
   );
 }
 
-function loadJobCreateErrorMessage(error: unknown): string {
-  if (error instanceof ApiClientError) {
-    const messages: Record<string, string> = {
-      LOAD_JOB_CONTAINER_DESTINATION_NOT_FOUND:
-        "Destination was not found for this system container.",
-      LOAD_JOB_CONTAINER_NOT_FOUND:
-        "System container was not found. Check the container number.",
-      LOAD_JOB_CREATE_CONFLICT:
-        "Load number already exists. Use a unique load number.",
-      LOAD_JOB_LINE_PALLETS_REQUIRED: "Each plan line needs a pallet count.",
-      LOAD_JOB_LINES_REQUIRED: "At least one plan line is required.",
-    };
+const loadJobValidationMessageKeys: Record<string, MessageKey> = {
+  "At least one plan line is required.": "At least one plan line is required.",
+  "Load number is required.": "Load number is required.",
+  "Scheduled departure time is invalid.": "Scheduled departure time is invalid.",
+};
 
-    return messages[error.code] ?? error.message;
+function loadJobValidationMessage(
+  error: string,
+  t: (key: MessageKey) => string,
+): string {
+  return t(
+    loadJobValidationMessageKeys[error] ?? "Load job could not be saved.",
+  );
+}
+
+const loadJobCreateErrorKeys: Record<string, MessageKey> = {
+  LOAD_JOB_CONTAINER_DESTINATION_NOT_FOUND:
+    "Destination was not found for this system container.",
+  LOAD_JOB_CONTAINER_NOT_FOUND:
+    "System container was not found. Check the container number.",
+  LOAD_JOB_CREATE_CONFLICT: "Load number already exists. Use a unique load number.",
+  LOAD_JOB_LINE_PALLETS_REQUIRED: "Each plan line needs a pallet count.",
+  LOAD_JOB_LINES_REQUIRED: "At least one plan line is required.",
+};
+
+function loadJobCreateErrorMessage(
+  error: unknown,
+  t: (key: MessageKey) => string,
+): string {
+  if (error instanceof ApiClientError) {
+    return t(loadJobCreateErrorKeys[error.code] ?? "Load job could not be saved.");
   }
 
-  return error instanceof Error
-    ? error.message
-    : "Load job could not be saved.";
+  return t("Load job could not be saved.");
 }

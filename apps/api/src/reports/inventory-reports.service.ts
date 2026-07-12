@@ -64,6 +64,7 @@ export class InventoryReportsService {
         const existing = byDestination.get(destination.destinationCode);
         if (existing) {
           existing.totalPallets += stats.totalPallets;
+          existing.activeTotalPallets += stats.activeTotalPallets;
           existing.loadedPallets += stats.loadedPallets;
           existing.adjustedOutPallets += stats.adjustedOutPallets;
           existing.cancelledPallets += stats.cancelledPallets;
@@ -153,10 +154,12 @@ export class InventoryReportsService {
   ): ContainerDestinationRecord[] {
     return (container.destinations ?? [])
       .filter((destination) => this.matchesDestination(destination, query))
-      .filter(
-        (destination) =>
-          this.stats(destination.pallets ?? [], query.status).totalPallets > 0,
-      );
+      .filter((destination) => {
+        const stats = this.stats(destination.pallets ?? [], query.status);
+        return query.status
+          ? stats.totalPallets > 0
+          : stats.activeTotalPallets > 0;
+      });
   }
 
   private toContainerSummary(
@@ -213,6 +216,11 @@ export class InventoryReportsService {
     const cancelledPallets = filtered.filter(
       (pallet) => pallet.status === PalletStatus.CANCELLED,
     ).length;
+    const activeTotalPallets = filtered.filter(
+      (pallet) =>
+        pallet.status !== PalletStatus.CANCELLED &&
+        pallet.status !== PalletStatus.ADJUSTED_OUT,
+    ).length;
     const remainingPallets = filtered.filter(
       (pallet) =>
         pallet.status !== PalletStatus.LOADED &&
@@ -223,6 +231,7 @@ export class InventoryReportsService {
 
     return {
       totalPallets,
+      activeTotalPallets,
       loadedPallets,
       adjustedOutPallets,
       cancelledPallets,
@@ -236,6 +245,7 @@ export class InventoryReportsService {
   ): PalletStatsDto {
     return {
       totalPallets: left.totalPallets + right.totalPallets,
+      activeTotalPallets: left.activeTotalPallets + right.activeTotalPallets,
       loadedPallets: left.loadedPallets + right.loadedPallets,
       adjustedOutPallets: left.adjustedOutPallets + right.adjustedOutPallets,
       cancelledPallets: left.cancelledPallets + right.cancelledPallets,
@@ -246,6 +256,7 @@ export class InventoryReportsService {
   private emptyStats(): PalletStatsDto {
     return {
       totalPallets: 0,
+      activeTotalPallets: 0,
       loadedPallets: 0,
       adjustedOutPallets: 0,
       cancelledPallets: 0,

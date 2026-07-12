@@ -21,6 +21,15 @@ react {
     autolinkLibrariesWithApp()
 }
 
+// React Native's generated autolinking CMake file references AsyncStorage's
+// codegen JNI directory during native configuration. Generate it first so a
+// clean release build does not rely on stale node_modules build output.
+tasks.configureEach { task ->
+    if (task.name.startsWith("configureCMake")) {
+        task.dependsOn(":react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema")
+    }
+}
+
 android {
     namespace "com.bestar.nativescan"
     compileSdk 36
@@ -32,6 +41,29 @@ android {
         targetSdk 36
         versionCode 1
         versionName "0.1.0"
+    }
+}
+
+def releaseMergedManifest = layout.buildDirectory.file(
+    "intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml",
+)
+
+tasks.register("verifyReleaseCleartextTraffic") {
+    dependsOn("processReleaseMainManifest")
+    inputs.file(releaseMergedManifest)
+    doLast {
+        def manifest = releaseMergedManifest.get().asFile
+        if (!manifest.text.contains('android:usesCleartextTraffic="true"')) {
+            throw new GradleException(
+                "Release manifest must allow documented closed-LAN HTTP API access.",
+            )
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "assembleRelease") {
+        task.dependsOn("verifyReleaseCleartextTraffic")
     }
 }
 

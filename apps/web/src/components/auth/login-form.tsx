@@ -12,17 +12,18 @@ import {
   safeAuthRedirectTarget,
   setBrowserAuthToken,
 } from "@/lib/auth-token";
-import { translateMessage } from "@/lib/i18n/translator";
+import type { MessageKey } from "@/lib/i18n/catalog";
+import type { Translator } from "@/lib/i18n/translator";
 import { useClientHydrated } from "@/lib/use-client-hydrated";
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
-  const { locale } = useI18n();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<LoginError | null>(null);
   const isHydrated = useClientHydrated();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const localizedError = error ? localizeLoginError(error, locale) : null;
+  const localizedError = error ? localizeLoginError(error, t) : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +48,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
   return (
     <form className="grid gap-4" onSubmit={handleSubmit}>
       <label className="grid gap-2 text-sm font-medium text-zinc-700">
-        Email
+        {t("Email")}
         <input
           autoComplete="email"
           className="min-h-11 border border-zinc-300 bg-white px-3 text-base text-zinc-950 outline-none focus:border-teal-700"
@@ -60,7 +61,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
       </label>
 
       <label className="grid gap-2 text-sm font-medium text-zinc-700">
-        Password
+        {t("Password")}
         <input
           autoComplete="current-password"
           className="min-h-11 border border-zinc-300 bg-white px-3 text-base text-zinc-950 outline-none focus:border-teal-700"
@@ -78,7 +79,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
           <p className="font-semibold">{localizedError.title}</p>
           <p className="mt-1">{localizedError.message}</p>
           <p className="mt-2 text-xs text-red-800">
-            <span>Code</span>:{" "}
+            <span>{t("Code")}</span>: {" "}
             <span data-i18n-ignore="true">
               {error.code}
               {error.status ? ` (${error.status})` : ""}
@@ -92,7 +93,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
         disabled={!isHydrated || isSubmitting}
         type="submit"
       >
-        {isSubmitting ? "Signing in" : "Sign in"}
+        {isSubmitting ? t("Signing in") : t("Sign in")}
       </button>
     </form>
   );
@@ -118,8 +119,8 @@ function toLoginError(error: unknown): LoginError {
 }
 
 interface LocalizedLoginError {
-  title: string;
-  message: string;
+  title: MessageKey;
+  message: MessageKey;
 }
 
 const LOGIN_ERROR_MESSAGES: Record<string, LocalizedLoginError> = {
@@ -155,13 +156,13 @@ const LOGIN_ERROR_MESSAGES: Record<string, LocalizedLoginError> = {
 
 function localizeLoginError(
   error: LoginError,
-  locale: Parameters<typeof translateMessage>[1],
-): LocalizedLoginError {
+  t: Translator["t"],
+): { title: string; message: string } {
   const message =
     LOGIN_ERROR_MESSAGES[error.code] ?? LOGIN_ERROR_MESSAGES.LOGIN_FAILED;
 
   return {
-    title: translateMessage(message.title, locale) ?? message.title,
-    message: translateMessage(message.message, locale) ?? message.message,
+    title: t(message.title),
+    message: t(message.message),
   };
 }

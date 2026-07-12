@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export type DashboardTone =
   | "neutral"
@@ -159,15 +161,19 @@ export interface DockLane {
 }
 
 export function DockLaneStrip({
-  ariaLabel = "Dock lane strip",
+  ariaLabel,
   lanes,
+  locale = DEFAULT_LOCALE,
 }: {
   ariaLabel?: string;
   lanes: DockLane[];
+  locale?: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <div
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("Dock lane strip")}
       className="dock-lane-strip overflow-x-auto border border-[var(--line-soft)] bg-[var(--panel-surface)]"
     >
       <div className="grid min-w-[720px] auto-cols-fr grid-flow-col">
@@ -177,7 +183,7 @@ export function DockLaneStrip({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase text-zinc-500">
-                    Dock
+                    {t("Dock")}
                   </p>
                   <p
                     className="font-data mt-1 text-lg font-semibold text-[var(--ink)]"
@@ -193,14 +199,14 @@ export function DockLaneStrip({
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-zinc-600">
                 <div>
-                  <p className="font-semibold uppercase text-zinc-500">Truck</p>
+                  <p className="font-semibold uppercase text-zinc-500">{t("Truck")}</p>
                   <p className="font-data mt-1" data-i18n-ignore="true">
                     {lane.truckNo}
                   </p>
                 </div>
                 <div>
                   <p className="font-semibold uppercase text-zinc-500">
-                    Remaining
+                    {t("Remaining")}
                   </p>
                   <p className="font-data mt-1" data-i18n-ignore="true">
                     {lane.remainingPallets}
@@ -208,7 +214,7 @@ export function DockLaneStrip({
                 </div>
               </div>
               <ProgressBar
-                label="Loaded"
+                label={t("Loaded")}
                 max={lane.totalPallets}
                 tone={lane.tone ?? "info"}
                 value={lane.loadedPallets}
@@ -242,19 +248,22 @@ export interface LifecycleLane {
 }
 
 export function LifecycleDockStrip({
-  ariaLabel = "Dock lane strip",
+  ariaLabel,
   lanes,
+  locale = DEFAULT_LOCALE,
   total,
 }: {
   ariaLabel?: string;
   lanes: LifecycleLane[];
+  locale?: Locale;
   total: number;
 }) {
+  const { t } = createTranslator(locale);
   const safeTotal = Math.max(0, total);
 
   return (
     <div
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("Dock lane strip")}
       className="lifecycle-dock-strip overflow-x-auto border border-[var(--line-soft)] bg-[var(--panel-surface)]"
     >
       <div className="grid min-w-[860px] grid-flow-col auto-cols-fr">
@@ -348,8 +357,9 @@ export function PressureBar({
 }
 
 export function ExceptionList({
-  emptyLabel = "No issues",
+  emptyLabel,
   items,
+  locale = DEFAULT_LOCALE,
 }: {
   emptyLabel?: string;
   items: Array<{
@@ -358,11 +368,14 @@ export function ExceptionList({
     label: string;
     tone?: Exclude<DashboardTone, "success">;
   }>;
+  locale?: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   if (items.length === 0) {
     return (
       <p className="border border-dashed border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 text-sm text-zinc-600">
-        {emptyLabel}
+        {emptyLabel ?? t("No issues")}
       </p>
     );
   }
@@ -424,7 +437,7 @@ function toneFillClass(tone: DashboardTone): string {
 function tonePillClass(tone: DashboardTone): string {
   return {
     danger: "border-red-200 bg-red-50 text-red-800",
-    info: "border-slate-200 bg-slate-50 text-slate-700",
+    info: "border-[var(--info-border)] bg-[var(--info-surface)] text-[var(--info-text)]",
     neutral: "border-zinc-200 bg-zinc-50 text-zinc-700",
     success: "border-emerald-200 bg-emerald-50 text-emerald-800",
     warning: "border-amber-200 bg-amber-50 text-amber-800",

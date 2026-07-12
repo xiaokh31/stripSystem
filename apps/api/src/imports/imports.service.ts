@@ -675,7 +675,6 @@ export class ImportsService {
     return (pallet.events ?? []).some((event) => {
       return (
         (event.loadJobId ?? null) !== null ||
-        (event.scanPayload ?? null) !== null ||
         !deletableEventTypes.includes(event.eventType)
       );
     });
@@ -706,7 +705,7 @@ export class ImportsService {
     const seenResolvedPaths = new Set<string>();
 
     for (const candidate of candidates) {
-      const resolvedPath = this.resolveStoragePathForDelete(
+      const resolvedPath = await this.resolveStoragePathForDelete(
         candidate.storagePath,
       );
       if (seenResolvedPaths.has(resolvedPath)) {
@@ -728,7 +727,9 @@ export class ImportsService {
     return targets;
   }
 
-  private resolveStoragePathForDelete(storagePath: string): string {
+  private async resolveStoragePathForDelete(
+    storagePath: string,
+  ): Promise<string> {
     if (!storagePath || storagePath.includes('\0')) {
       throw new BadRequestException({
         code: 'IMPORT_DELETE_INVALID_STORAGE_PATH',
@@ -738,13 +739,16 @@ export class ImportsService {
     }
 
     const storageRoot = resolve(this.storageRoot);
+    const realStorageRoot = await this.realStorageRoot();
     const resolvedPath = isAbsolute(storagePath)
       ? resolve(storagePath)
       : resolve(storageRoot, storagePath);
 
     if (
       resolvedPath === storageRoot ||
-      !this.isPathWithinStorageRoot(resolvedPath)
+      resolvedPath === realStorageRoot ||
+      (!this.isPathWithinStorageRoot(resolvedPath, storageRoot) &&
+        !this.isPathWithinStorageRoot(resolvedPath, realStorageRoot))
     ) {
       throw new BadRequestException({
         code: 'IMPORT_DELETE_STORAGE_PATH_OUTSIDE_ROOT',
@@ -752,6 +756,7 @@ export class ImportsService {
           'Import deletion refused to remove a file outside the configured storage root.',
         details: {
           storageRoot,
+          realStorageRoot,
           storagePath,
           resolvedPath,
         },

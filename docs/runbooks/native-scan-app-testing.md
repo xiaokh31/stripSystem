@@ -597,6 +597,49 @@ Android can be built from `apps/mobile-scan-app/android`; iOS has a generated
 Xcode workspace and device smoke evidence; Windows still requires its generated
 React Native Windows project before MSIX device acceptance.
 
+## NATIVE-UX-04 Startup And Cross-Platform Exit Gate
+
+Use a signed release APK/IPA/MSIX on the same physical device for a five-sample
+cold-start baseline. Do not use Fast Refresh, a debug build, or a warm resume.
+Record the median of these app-relative marks:
+
+| Mark | Meaning | Target |
+| --- | --- | --- |
+| `first-shell` | Process start to the first usable native shell | <= 1.5s |
+| `session-resolved` | Process start to session restore/validation result | <= 2.5s |
+| `load-jobs-ready` | Process start to the authenticated task list becoming ready on normal LAN | <= 4s |
+
+`src/app/startup-metrics.ts` records elapsed durations only. It must never
+record or emit passwords, JWTs, API request bodies, QR payloads, device IDs, or
+other sensitive values. Use a local development debugger or approved platform
+profiler to read the three marks; do not send the values to production logs.
+
+For each platform, record the release artifact/version, SHA-256, device model,
+OS version, network condition, five cold-start samples, median, and whether the
+task list was populated from live API data. Keep screenshots limited to Login,
+Bay Board, Scan Workspace, an offline/error state, and Settings in both English
+and Chinese. Do not capture credentials, tokens, real QR payloads, or private
+customer data.
+
+Current evidence on 2026-07-11:
+
+- Android `:app:assembleRelease` passes from a clean generated-output state.
+  `android/app/build.gradle` explicitly makes every CMake configuration task
+  depend on AsyncStorage Codegen, preventing a clean build from failing when
+  autolinking references its generated JNI directory.
+- Startup safely loads settings, device ID, and locale together; it restores
+  the session before choosing the screen, then reads the offline queue without
+  holding up the initial shell. Queue replay and backend scan confirmation
+  semantics are unchanged.
+- No Android or iOS device was attached to this workstation at the gate check,
+  so no Android five-sample release baseline or Android release screenshots may
+  be claimed. On 2026-07-11, the signed iOS Release app was built, installed,
+  and launched on a paired iPhone 15 Pro; five-sample timing, screenshots, and
+  Login/Bay Board/scan/manual regression remain required.
+- Windows remains blocked pending the generated React Native Windows project,
+  MSIX build, and Windows-device smoke. This gate is therefore `Partial`, not
+  complete.
+
 ## P6-MOBILE-13 Windows MSIX Release Completion
 
 Purpose:

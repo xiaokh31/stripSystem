@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
 import {
   DashboardPanel,
   ExceptionList,
@@ -45,13 +46,13 @@ import {
   formatOperationalDateTime,
   OPERATIONAL_TIME_ZONE_DESCRIPTION,
 } from "@/lib/date-time";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import {
   healthStatusLabel,
   loadJobStatusLabel,
 } from "@/lib/i18n/status-labels";
-import { translateMessage } from "@/lib/i18n/translator";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   ATTENDANCE_READ_PERMISSION,
   INVENTORY_READ_PERMISSION,
@@ -84,16 +85,17 @@ export default async function Home({
 }) {
   const requestedParams = await searchParams;
   const filters = normalizeDashboardFilters(requestedParams);
-  const [locale, currentUser, state] = await Promise.all([
-    getServerLocale(),
+  const locale = await getServerLocale();
+  const [currentUser, state] = await Promise.all([
     getServerCurrentUser(),
-    loadDashboard(filters),
+    loadDashboard(filters, locale),
   ]);
   const dashboard = state.ok ? state.dashboard : null;
   const monthValue = dashboard?.month ?? filters.month ?? "";
 
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8 2xl:px-10">
+      <InventorySyncRefreshListener />
       <OpsHeader
         dashboard={dashboard}
         filters={filters}
@@ -117,6 +119,7 @@ export default async function Home({
 
 async function loadDashboard(
   filters: OperationsDashboardFilters,
+  locale: Locale,
 ): Promise<DashboardPageState> {
   const apiOptions = await getServerApiOptions();
   const [dashboardResult, healthResult] = await Promise.allSettled([
@@ -129,7 +132,7 @@ async function loadDashboard(
   }
 
   return {
-    error: toApiClientError(dashboardResult.reason),
+    error: toApiClientError(dashboardResult.reason, locale),
     health: healthResult.status === "fulfilled" ? healthResult.value : null,
     ok: false,
   };
@@ -157,24 +160,26 @@ function OpsHeader({
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,520px)]">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase text-[var(--seal-teal)]">
-            Manifest Control Room
+            {t("Manifest Control Room", locale)}
           </p>
           <h1 className="font-control mt-2 text-2xl font-semibold text-[var(--ink)]">
-            Operations dashboard
+            {t("Operations dashboard", locale)}
           </h1>
           <p className="mt-2 max-w-5xl text-sm leading-6 text-zinc-600">
-            Live control surface for imports, containers, inventory, loading,
-            exceptions, wage queues, and recent audit activity.
+            {t(
+              "Live control surface for imports, containers, inventory, loading, exceptions, wage queues, and recent audit activity.",
+              locale,
+            )}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <StatusPill
               label={healthStatusLabel(apiStatus, locale)}
-              title="API status"
+              title={t("API status", locale)}
               tone={apiStatus === "ok" ? "success" : "warning"}
             />
             <StatusPill
               label={healthStatusLabel(databaseStatus, locale)}
-              title="Database status"
+              title={t("Database status", locale)}
               tone={databaseStatus === "up" ? "success" : "danger"}
             />
             <span className="inline-flex min-h-7 items-center border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold uppercase text-zinc-700">
@@ -182,7 +187,7 @@ function OpsHeader({
             </span>
             {dashboard ? (
               <span className="inline-flex min-h-7 items-center border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold uppercase text-zinc-700">
-                <span className="mr-1">Month</span>
+                <span className="mr-1">{t("Month", locale)}</span>
                 <span className="font-data" data-i18n-ignore="true">
                   {dashboard.month}
                 </span>
@@ -196,7 +201,7 @@ function OpsHeader({
           className="grid gap-3 border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 sm:grid-cols-[1fr_1fr_auto]"
         >
           <label className="grid gap-1 text-xs font-semibold uppercase text-zinc-600">
-            Range
+            {t("Range", locale)}
             <select
               className="min-h-10 border border-zinc-300 bg-white px-3 text-sm normal-case text-zinc-950"
               defaultValue={filters.range ?? "today"}
@@ -210,7 +215,7 @@ function OpsHeader({
             </select>
           </label>
           <label className="grid gap-1 text-xs font-semibold uppercase text-zinc-600">
-            Month
+            {t("Month", locale)}
             <input
               className="min-h-10 border border-zinc-300 bg-white px-3 text-sm normal-case text-zinc-950"
               defaultValue={monthValue}
@@ -222,13 +227,13 @@ function OpsHeader({
             className="inline-flex min-h-10 items-center justify-center border border-[var(--dock-steel)] bg-[var(--dock-steel)] px-4 text-sm font-semibold text-white hover:bg-[var(--dock-steel-muted)] sm:self-end"
             type="submit"
           >
-            Refresh dashboard
+            {t("Refresh dashboard", locale)}
           </button>
         </form>
       </div>
       <div className="grid gap-2 border-t border-[var(--line-soft)] px-4 py-3 text-xs text-zinc-600 sm:grid-cols-3">
         <p>
-          <span className="font-semibold uppercase">Generated at</span>{" "}
+          <span className="font-semibold uppercase">{t("Generated at", locale)}</span>{" "}
           <span className="font-data" data-i18n-ignore="true">
             {dashboard
               ? formatOperationalDateTime(dashboard.generatedAt)
@@ -236,13 +241,13 @@ function OpsHeader({
           </span>
         </p>
         <p>
-          <span className="font-semibold uppercase">Time zone</span>{" "}
+          <span className="font-semibold uppercase">{t("Time zone", locale)}</span>{" "}
           <span className="font-data" data-i18n-ignore="true">
             {dashboard?.timeZone ?? OPERATIONAL_TIME_ZONE_DESCRIPTION}
           </span>
         </p>
         <p>
-          <span className="font-semibold uppercase">API version</span>{" "}
+          <span className="font-semibold uppercase">{t("API version", locale)}</span>{" "}
           <span className="font-data" data-i18n-ignore="true">
             {dashboard?.health.version ?? health?.version ?? "0.0.1"}
           </span>
@@ -265,7 +270,9 @@ function DashboardContent({
     <>
       {dashboard.hiddenSections.length > 0 ? (
         <section className="border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-          <p className="font-semibold">Some dashboard sections are hidden by permissions.</p>
+          <p className="font-semibold">
+            {t("Some dashboard sections are hidden by permissions.", locale)}
+          </p>
         </section>
       ) : null}
 
@@ -304,7 +311,10 @@ function WorkQueueSection({
   locale: Locale;
 }) {
   return (
-    <DashboardPanel eyebrow="Work queue" title="Action queue">
+    <DashboardPanel
+      eyebrow={t("Work queue", locale)}
+      title={t("Action queue", locale)}
+    >
       {items.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           {items.map((item) => (
@@ -325,8 +335,8 @@ function WorkQueueSection({
       ) : (
         <EmptyAction
           href="/settings"
-          label="No dashboard actions are visible for this account."
-          linkLabel="Open settings"
+          label={t("No dashboard actions are visible for this account.", locale)}
+          linkLabel={t("Open settings", locale)}
         />
       )}
     </DashboardPanel>
@@ -351,14 +361,19 @@ function LifecycleSection({
   return (
     <DashboardPanel
       actions={
-        <LinkButton href="/containers" label="Open containers" tone="neutral" />
+        <LinkButton
+          href="/containers"
+          label={t("Open containers", locale)}
+          tone="neutral"
+        />
       }
-      eyebrow="Dock lane strip"
-      title="Container lifecycle"
+      eyebrow={t("Dock lane strip", locale)}
+      title={t("Container lifecycle", locale)}
     >
       <LifecycleDockStrip
         ariaLabel={t("Dock lane strip", locale)}
         lanes={lanes}
+        locale={locale}
         total={dashboard.containerLifecycle.totalContainers}
       />
     </DashboardPanel>
@@ -377,7 +392,8 @@ function InventorySection({
       <UnavailablePanel
         href="/reports/inventory"
         message={dashboardUnavailableMessage("inventory", locale)}
-        title="Inventory pressure"
+        locale={locale}
+        title={t("Inventory pressure", locale)}
       />
     );
   }
@@ -385,27 +401,31 @@ function InventorySection({
   return (
     <DashboardPanel
       actions={
-        <LinkButton href="/reports/inventory" label="Open inventory" tone="neutral" />
+        <LinkButton
+          href="/reports/inventory"
+          label={t("Open inventory", locale)}
+          tone="neutral"
+        />
       }
-      eyebrow="Inventory pressure"
-      title="Pallet pressure"
+      eyebrow={t("Inventory pressure", locale)}
+      title={t("Pallet pressure", locale)}
     >
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
           href="/reports/inventory"
-          label="Total pallets"
+          label={t("Active pallets", locale)}
           tone="info"
-          value={inventory.totalPallets}
+          value={inventory.activeTotalPallets}
         />
         <MetricTile
           href="/reports/inventory?status=LOADED"
-          label="Loaded pallets"
+          label={t("Loaded pallets", locale)}
           tone="success"
           value={inventory.loadedPallets}
         />
         <MetricTile
           href="/reports/inventory"
-          label="Remaining pallets"
+          label={t("Remaining pallets", locale)}
           tone={inventory.remainingPallets > 0 ? "warning" : "success"}
           value={inventory.remainingPallets}
         />
@@ -428,7 +448,7 @@ function InventorySection({
       </div>
       <div className="mt-5 grid gap-3">
         <h3 className="text-sm font-semibold text-[var(--ink)]">
-          Top destinations by remaining pallets
+          {t("Top destinations by remaining pallets", locale)}
         </h3>
         {inventory.topDestinations.length > 0 ? (
           inventory.topDestinations.map((destination) => (
@@ -444,13 +464,13 @@ function InventorySection({
                   {destination.destinationCode}
                 </p>
                 <p className="font-data text-xs text-zinc-600" data-i18n-ignore="true">
-                  {destination.remainingPallets}/{destination.totalPallets}
+                  {destination.remainingPallets}/{destination.activeTotalPallets}
                 </p>
               </div>
               <div className="mt-3">
                 <ProgressBar
                   label={t("Remaining pallets", locale)}
-                  max={destination.totalPallets}
+                  max={destination.activeTotalPallets}
                   tone={destination.remainingPallets > 0 ? "warning" : "success"}
                   value={destination.remainingPallets}
                 />
@@ -460,8 +480,8 @@ function InventorySection({
         ) : (
           <EmptyAction
             href="/reports/inventory"
-            label="No destination inventory pressure"
-            linkLabel="Open inventory"
+            label={t("No destination inventory pressure", locale)}
+            linkLabel={t("Open inventory", locale)}
           />
         )}
       </div>
@@ -481,33 +501,40 @@ function LoadJobsSection({
       <UnavailablePanel
         href="/load-jobs"
         message={dashboardUnavailableMessage("loadJobs", locale)}
-        title="Active load jobs"
+        locale={locale}
+        title={t("Active load jobs", locale)}
       />
     );
   }
 
   return (
     <DashboardPanel
-      actions={<LinkButton href="/load-jobs" label="Open load jobs" tone="neutral" />}
-      eyebrow="Active load jobs"
-      title="Loading progress"
+      actions={
+        <LinkButton
+          href="/load-jobs"
+          label={t("Open load jobs", locale)}
+          tone="neutral"
+        />
+      }
+      eyebrow={t("Active load jobs", locale)}
+      title={t("Loading progress", locale)}
     >
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
           href="/load-jobs"
-          label="Open load jobs"
+          label={t("Open load jobs", locale)}
           tone={loadJobs.openCount > 0 ? "warning" : "success"}
           value={loadJobs.openCount}
         />
         <MetricTile
           href="/load-jobs"
-          label="In progress"
+          label={t("In progress", locale)}
           tone={loadJobs.inProgressCount > 0 ? "info" : "neutral"}
           value={loadJobs.inProgressCount}
         />
         <MetricTile
           href="/load-jobs"
-          label="Due today"
+          label={t("Due today", locale)}
           tone={loadJobs.dueTodayCount > 0 ? "warning" : "success"}
           value={loadJobs.dueTodayCount}
         />
@@ -557,8 +584,8 @@ function LoadJobsSection({
         ) : (
           <EmptyAction
             href="/load-jobs"
-            label="No active load jobs"
-            linkLabel="Open load jobs"
+            label={t("No active load jobs", locale)}
+            linkLabel={t("Open load jobs", locale)}
           />
         )}
       </div>
@@ -575,9 +602,15 @@ function ExceptionSection({
 }) {
   return (
     <DashboardPanel
-      actions={<LinkButton href="/imports" label="Open imports" tone="neutral" />}
-      eyebrow="Exceptions"
-      title="Review queue"
+      actions={
+        <LinkButton
+          href="/imports"
+          label={t("Open imports", locale)}
+          tone="neutral"
+        />
+      }
+      eyebrow={t("Exceptions", locale)}
+      title={t("Review queue", locale)}
     >
       <ExceptionList
         emptyLabel={t("No dashboard exceptions", locale)}
@@ -590,6 +623,7 @@ function ExceptionSection({
             "success"
           >,
         }))}
+        locale={locale}
       />
     </DashboardPanel>
   );
@@ -606,18 +640,22 @@ function WorkflowSection({
   monthlySummary: DashboardMonthlySummaryResponse | null;
   wageAndAttendance: DashboardWageAndAttendanceResponse | null;
 }) {
-  const shortcuts = workflowShortcuts(currentUser);
+  const shortcuts = workflowShortcuts(currentUser, locale);
 
   return (
     <div className="grid gap-4">
       <DashboardPanel
         actions={
           monthlySummary ? (
-            <LinkButton href={monthlySummary.href} label="Open reports" tone="neutral" />
+            <LinkButton
+              href={monthlySummary.href}
+              label={t("Open reports", locale)}
+              tone="neutral"
+            />
           ) : undefined
         }
-        eyebrow="Monthly settlement"
-        title="Summary and wage queues"
+        eyebrow={t("Monthly settlement", locale)}
+        title={t("Summary and wage queues", locale)}
       >
         {monthlySummary || wageAndAttendance ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -625,19 +663,19 @@ function WorkflowSection({
               <>
                 <MetricTile
                   href={monthlySummary.href}
-                  label="Completed containers"
+                  label={t("Completed containers", locale)}
                   tone="success"
                   value={monthlySummary.completedContainerCount}
                 />
                 <MetricTile
                   href={monthlySummary.href}
-                  label="Summary rows"
+                  label={t("Summary rows", locale)}
                   tone="info"
                   value={monthlySummary.rowCount}
                 />
                 <MetricTile
                   href={monthlySummary.href}
-                  label="Review warnings"
+                  label={t("Review warnings", locale)}
                   tone={monthlySummary.reviewWarningCount > 0 ? "warning" : "success"}
                   value={monthlySummary.reviewWarningCount}
                 />
@@ -647,7 +685,7 @@ function WorkflowSection({
             wageAndAttendance?.attendanceImportsNeedingParse !== undefined ? (
               <MetricTile
                 href={wageAndAttendance.hrefs.attendance ?? "/work-hours"}
-                label="Attendance imports needing parse"
+                label={t("Attendance imports needing parse", locale)}
                 tone={
                   wageAndAttendance.attendanceImportsNeedingParse > 0
                     ? "warning"
@@ -660,7 +698,7 @@ function WorkflowSection({
             wageAndAttendance?.attendanceImportsWithErrors !== undefined ? (
               <MetricTile
                 href={wageAndAttendance.hrefs.attendance ?? "/work-hours"}
-                label="Attendance imports with errors"
+                label={t("Attendance imports with errors", locale)}
                 tone={
                   wageAndAttendance.attendanceImportsWithErrors > 0
                     ? "danger"
@@ -673,7 +711,7 @@ function WorkflowSection({
             wageAndAttendance?.wageSettlementsNeedingReview !== undefined ? (
               <MetricTile
                 href={wageAndAttendance.hrefs.unloadingWage ?? "/unloading-wage"}
-                label="Wage settlements needing review"
+                label={t("Wage settlements needing review", locale)}
                 tone={
                   wageAndAttendance.wageSettlementsNeedingReview > 0
                     ? "warning"
@@ -687,12 +725,16 @@ function WorkflowSection({
           <UnavailablePanel
             href="/reports"
             message={dashboardUnavailableMessage("monthlySummary", locale)}
-            title="Monthly settlement"
+            locale={locale}
+            title={t("Monthly settlement", locale)}
           />
         )}
       </DashboardPanel>
 
-      <DashboardPanel eyebrow="Workflow shortcuts" title="Role-aware actions">
+      <DashboardPanel
+        eyebrow={t("Workflow shortcuts", locale)}
+        title={t("Role-aware actions", locale)}
+      >
         {shortcuts.length > 0 ? (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {shortcuts.map((shortcut) => (
@@ -707,8 +749,8 @@ function WorkflowSection({
         ) : (
           <EmptyAction
             href="/login"
-            label="No workflow shortcuts are available for this account."
-            linkLabel="Sign in"
+            label={t("No workflow shortcuts are available for this account.", locale)}
+            linkLabel={t("Sign in", locale)}
           />
         )}
       </DashboardPanel>
@@ -725,9 +767,15 @@ function RecentActivitySection({
 }) {
   return (
     <DashboardPanel
-      actions={<LinkButton href={dashboardHref({ range: "30d" })} label="30 days" tone="neutral" />}
-      eyebrow="Recent activity"
-      title="Latest operational records"
+      actions={
+        <LinkButton
+          href={dashboardHref({ range: "30d" })}
+          label={t("30 days", locale)}
+          tone="neutral"
+        />
+      }
+      eyebrow={t("Recent activity", locale)}
+      title={t("Latest operational records", locale)}
     >
       {items.length > 0 ? (
         <ul className="divide-y divide-[var(--line-soft)] border border-[var(--line-soft)]">
@@ -758,8 +806,8 @@ function RecentActivitySection({
       ) : (
         <EmptyAction
           href={dashboardHref({ range: "30d" })}
-          label="No recent activity in this range"
-          linkLabel="30 days"
+          label={t("No recent activity in this range", locale)}
+          linkLabel={t("30 days", locale)}
         />
       )}
     </DashboardPanel>
@@ -779,22 +827,37 @@ function DashboardErrorState({
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Dashboard error</p>
+        <p className="text-sm font-semibold uppercase">
+          {t("Dashboard error", locale)}
+        </p>
         <h2 className="mt-2 text-xl font-semibold">
-          Dashboard data could not be loaded.
+          {t("Dashboard data could not be loaded.", locale)}
         </h2>
-        <p className="mt-3 text-sm leading-6">{error.message}</p>
+        <p className="mt-3 text-sm leading-6">
+          {localizedDashboardErrorMessage(error, locale)}
+        </p>
         <p className="font-data mt-3 text-xs" data-i18n-ignore="true">
           {error.code}
           {error.status ? ` (${error.status})` : ""}
         </p>
       </div>
-      <DashboardPanel eyebrow="Shortcuts" title="Available shortcuts">
+      <DashboardPanel
+        eyebrow={t("Shortcuts", locale)}
+        title={t("Available shortcuts", locale)}
+      >
         <div className="grid gap-2">
-          <LinkButton href="/imports" label="Open imports" tone="neutral" />
-          <LinkButton href="/containers" label="Open containers" tone="neutral" />
-          <LinkButton href="/load-jobs" label="Open load jobs" tone="neutral" />
-          <LinkButton href="/reports" label="Open reports" tone="neutral" />
+          <LinkButton href="/imports" label={t("Open imports", locale)} tone="neutral" />
+          <LinkButton
+            href="/containers"
+            label={t("Open containers", locale)}
+            tone="neutral"
+          />
+          <LinkButton
+            href="/load-jobs"
+            label={t("Open load jobs", locale)}
+            tone="neutral"
+          />
+          <LinkButton href="/reports" label={t("Open reports", locale)} tone="neutral" />
         </div>
         <p className="mt-3 text-xs text-zinc-600">
           {t("Use these routes while the dashboard API is unavailable.", locale)}
@@ -806,10 +869,12 @@ function DashboardErrorState({
 
 function UnavailablePanel({
   href,
+  locale,
   message,
   title,
 }: {
   href: string;
+  locale: Locale;
   message: string;
   title: string;
 }) {
@@ -817,7 +882,11 @@ function UnavailablePanel({
     <section className="border border-dashed border-[var(--line-soft)] bg-[var(--panel-muted)] p-4">
       <h3 className="text-base font-semibold text-[var(--ink)]">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-zinc-600">{message}</p>
-      <LinkButton href={href} label="Open dashboard target" tone="neutral" />
+      <LinkButton
+        href={href}
+        label={t("Open dashboard target", locale)}
+        tone="neutral"
+      />
     </section>
   );
 }
@@ -864,51 +933,92 @@ function LinkButton({
 
 function workflowShortcuts(
   user: AuthUserResponse | null,
+  locale: Locale,
 ): Array<{ href: string; label: string; tone: DashboardTone }> {
   const shortcuts: Array<{ href: string; label: string; tone: DashboardTone }> =
     [];
 
   if (hasPermission(user, INVENTORY_READ_PERMISSION)) {
-    shortcuts.push({ href: "/reports/inventory", label: "Open inventory", tone: "neutral" });
+    shortcuts.push({
+      href: "/reports/inventory",
+      label: t("Open inventory", locale),
+      tone: "neutral",
+    });
   }
   if (hasPermission(user, LOAD_JOBS_READ_PERMISSION)) {
-    shortcuts.push({ href: "/load-jobs", label: "Open load jobs", tone: "neutral" });
+    shortcuts.push({
+      href: "/load-jobs",
+      label: t("Open load jobs", locale),
+      tone: "neutral",
+    });
   }
   if (hasPermission(user, SCAN_CREATE_PERMISSION)) {
-    shortcuts.push({ href: "/mobile/load-jobs", label: "Open mobile scan", tone: "neutral" });
+    shortcuts.push({
+      href: "/mobile/load-jobs",
+      label: t("Open mobile scan", locale),
+      tone: "neutral",
+    });
   }
   if (hasPermission(user, ATTENDANCE_READ_PERMISSION)) {
-    shortcuts.push({ href: "/work-hours", label: "Open work hours", tone: "neutral" });
+    shortcuts.push({
+      href: "/work-hours",
+      label: t("Open work hours", locale),
+      tone: "neutral",
+    });
   }
   if (hasPermission(user, UNLOADING_WAGE_READ_PERMISSION)) {
-    shortcuts.push({ href: "/unloading-wage", label: "Open unloading wage", tone: "neutral" });
+    shortcuts.push({
+      href: "/unloading-wage",
+      label: t("Open unloading wage", locale),
+      tone: "neutral",
+    });
   }
   if (hasPermission(user, UNLOADING_SUMMARY_READ_PERMISSION)) {
-    shortcuts.push({ href: "/unloading-summary", label: "Open unloading summary", tone: "neutral" });
+    shortcuts.push({
+      href: "/unloading-summary",
+      label: t("Open unloading summary", locale),
+      tone: "neutral",
+    });
   }
   if (canManageAccounts(user)) {
-    shortcuts.push({ href: "/admin/users", label: "Open admin users", tone: "neutral" });
-    shortcuts.push({ href: "/settings", label: "Open settings", tone: "neutral" });
+    shortcuts.push({
+      href: "/admin/users",
+      label: t("Open admin users", locale),
+      tone: "neutral",
+    });
+    shortcuts.push({
+      href: "/settings",
+      label: t("Open settings", locale),
+      tone: "neutral",
+    });
   }
 
   return shortcuts;
 }
 
-function toApiClientError(error: unknown): ApiClientError {
+function toApiClientError(error: unknown, locale: Locale): ApiClientError {
   if (error instanceof ApiClientError) {
     return error;
   }
 
   return new ApiClientError({
     code: "DASHBOARD_LOAD_FAILED",
-    message:
-      error instanceof Error
-        ? error.message
-        : "The dashboard API request could not be sent.",
+    message: localizedUnknownErrorMessage(error, locale),
     status: 0,
   });
 }
 
-function t(source: string, locale: Locale): string {
-  return translateMessage(source, locale) ?? source;
+function localizedDashboardErrorMessage(
+  _error: ApiClientError,
+  locale: Locale,
+): string {
+  return t("The dashboard API request could not be sent.", locale);
+}
+
+function localizedUnknownErrorMessage(_error: unknown, locale: Locale): string {
+  return t("The dashboard API request could not be sent.", locale);
+}
+
+function t(key: MessageKey, locale: Locale): string {
+  return createTranslator(locale).t(key);
 }

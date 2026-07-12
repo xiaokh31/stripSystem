@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/login-form";
 import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +12,8 @@ export default async function LoginPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
+  const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const nextValue = params[AUTH_REDIRECT_PARAM];
   const nextPath = Array.isArray(nextValue) ? nextValue[0] : nextValue;
 
@@ -18,10 +22,10 @@ export default async function LoginPage({
       <section className="grid w-full max-w-md gap-5 border border-zinc-200 bg-white p-5 shadow-sm">
         <div>
           <p className="text-sm font-semibold uppercase text-teal-700">
-            Authentication
+            {t("Authentication")}
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-            Sign in
+            {t("Sign in")}
           </h1>
         </div>
 
@@ -32,7 +36,7 @@ export default async function LoginPage({
             className="font-semibold text-teal-700 underline hover:text-teal-900"
             href="/api/health"
           >
-            Check API health
+            {t("Check API health")}
           </Link>
         </div>
       </section>

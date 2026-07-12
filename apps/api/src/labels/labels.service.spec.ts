@@ -161,6 +161,7 @@ interface ContainerUpdateArgs {
 type TransactionCallback = (tx: LabelsPrismaMock) => Promise<any>;
 
 interface LabelsPrismaMock {
+  $queryRaw: jest.Mock;
   $transaction: jest.Mock<Promise<any>, [TransactionCallback]>;
   user: {
     findUnique: jest.Mock<Promise<{ id: string } | null>, [unknown?]>;
@@ -390,7 +391,7 @@ describe('LabelsService', () => {
         pallets: [],
       },
     ];
-    prisma.container.findUnique.mockResolvedValueOnce(manualContainer);
+    prisma.container.findUnique.mockResolvedValue(manualContainer);
 
     const result = await service.generateLabels(
       'container-manual',
@@ -427,7 +428,7 @@ describe('LabelsService', () => {
         ],
       },
     ];
-    prisma.container.findUnique.mockResolvedValueOnce(duplicateContainer);
+    prisma.container.findUnique.mockResolvedValue(duplicateContainer);
 
     const result = await service.generateLabels('container-1', officeActor);
 
@@ -628,6 +629,7 @@ describe('LabelsService', () => {
     const generatedFiles: GeneratedFileRecord[] = [];
     const mock = {} as LabelsPrismaMock;
 
+    mock.$queryRaw = jest.fn().mockResolvedValue([]);
     mock.$transaction = jest.fn<Promise<any>, [TransactionCallback]>(
       (callback) => callback(mock),
     );

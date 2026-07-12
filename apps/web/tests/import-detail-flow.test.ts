@@ -116,7 +116,7 @@ test("import timestamps are formatted in dynamic Edmonton standard time", () => 
   assert.equal(formatDateTime("not-a-date"), "not-a-date");
 });
 
-test("issue lists preserve parser warning and error messages", () => {
+test("issue lists map stable parser codes and hide unrecognized raw payload text", () => {
   assert.deepEqual(
     issueList([
       {
@@ -126,6 +126,19 @@ test("issue lists preserve parser warning and error messages", () => {
       },
       "plain warning",
     ]),
-    ["Worker parsed the file without a container number.", "plain warning"],
+    ["Container number is missing.", "Parser issue details are unavailable."],
+  );
+  assert.deepEqual(
+    issueList(
+      [
+        {
+          code: "MISSING_CONTAINER_NO",
+          field: "containerNo",
+          message: "Worker parsed the file without a container number.",
+        },
+      ],
+      "zh-CN",
+    ),
+    ["柜号缺失。"],
   );
 });

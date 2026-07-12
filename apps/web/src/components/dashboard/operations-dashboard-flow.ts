@@ -5,14 +5,18 @@ import {
   type DashboardSeverity,
   type OperationsDashboardFilters,
 } from "@/lib/api-client";
-import { LOCALE_MESSAGES, type Locale } from "../../lib/i18n/catalog";
+import {
+  LOCALE_MESSAGES,
+  type Locale,
+  type MessageKey,
+} from "../../lib/i18n/catalog";
 import {
   businessStatusLabel,
   containerLifecycleStatusLabel,
   generatedOrImportStatusLabel,
   loadJobStatusLabel,
 } from "../../lib/i18n/status-labels";
-import { translateMessage } from "../../lib/i18n/translator";
+import { createTranslator } from "../../lib/i18n/translator";
 import type { DashboardTone } from "./dashboard-components";
 
 export interface DashboardSearchParams {
@@ -60,7 +64,7 @@ export function dashboardRangeLabel(
   range: DashboardRange,
   locale: Locale,
 ): string {
-  const labels: Record<DashboardRange, string> = {
+  const labels: Record<DashboardRange, MessageKey> = {
     "30d": "30 days",
     "7d": "7 days",
     today: "Today",
@@ -71,8 +75,8 @@ export function dashboardRangeLabel(
 
 export function dashboardLabel(labelKey: string, locale: Locale): string {
   if (labelKey in LOCALE_MESSAGES.en) {
-    const key = labelKey as keyof typeof LOCALE_MESSAGES.en;
-    return LOCALE_MESSAGES[locale][key];
+    const key = labelKey as MessageKey;
+    return createTranslator(locale).t(key);
   }
 
   return translate("Unknown dashboard item", locale);
@@ -109,18 +113,17 @@ export function dashboardSeverityLabel(
   severity: DashboardSeverity,
   locale: Locale,
 ): string {
-  return translate(
-    {
-      attention: "Needs attention",
-      blocked: "Blocked",
-      normal: "Normal",
-    }[severity],
-    locale,
-  );
+  const labels: Record<DashboardSeverity, MessageKey> = {
+    attention: "Needs attention",
+    blocked: "Blocked",
+    normal: "Normal",
+  };
+
+  return translate(labels[severity], locale);
 }
 
 export function dashboardEmptyLabel(code: string, locale: Locale): string {
-  const labels: Record<string, string> = {
+  const labels: Record<string, MessageKey> = {
     ATTENDANCE_IMPORTS_NEED_PARSE: "No attendance imports need parsing",
     CONTAINERS_MISSING_LABELS: "No containers need labels",
     CONTAINERS_MISSING_REPORT: "No containers need reports",
@@ -134,7 +137,7 @@ export function dashboardEmptyLabel(code: string, locale: Locale): string {
 }
 
 export function dashboardOpenActionLabel(code: string, locale: Locale): string {
-  const labels: Record<string, string> = {
+  const labels: Record<string, MessageKey> = {
     ATTENDANCE_IMPORTS_NEED_PARSE: "Open work hours",
     CONTAINERS_MISSING_LABELS: "Open containers",
     CONTAINERS_MISSING_REPORT: "Open containers",
@@ -151,7 +154,7 @@ export function dashboardUnavailableMessage(
   section: "inventory" | "loadJobs" | "monthlySummary" | "wageAndAttendance",
   locale: Locale,
 ): string {
-  const labels: Record<typeof section, string> = {
+  const labels: Record<typeof section, MessageKey> = {
     inventory: "Inventory pressure is unavailable for this account.",
     loadJobs: "Load job progress is unavailable for this account.",
     monthlySummary: "Monthly unloading summary is unavailable for this account.",
@@ -165,7 +168,7 @@ export function dashboardActivityKindLabel(
   kind: DashboardActivityKind,
   locale: Locale,
 ): string {
-  const labels: Record<DashboardActivityKind, string> = {
+  const labels: Record<DashboardActivityKind, MessageKey> = {
     CONTAINER: "Container",
     CORRECTION: "Correction",
     GENERATED_FILE: "Generated file",
@@ -215,7 +218,7 @@ export function generatedFileTypeLabel(
   fileType: string,
   locale: Locale,
 ): string {
-  const labels: Record<string, string> = {
+  const labels: Record<string, MessageKey> = {
     EXCEL_REPORT: "Excel report",
     MONTHLY_UNLOADING_SUMMARY_XLSX: "Monthly unloading summary",
     PALLET_LABEL_PDF: "Label PDF",
@@ -241,6 +244,6 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function translate(source: string, locale: Locale): string {
-  return translateMessage(source, locale) ?? source;
+function translate(source: MessageKey, locale: Locale): string {
+  return createTranslator(locale).t(source);
 }

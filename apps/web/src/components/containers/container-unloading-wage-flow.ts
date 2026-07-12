@@ -1,16 +1,18 @@
 import type {
   CompleteContainerUnloadingRequest,
   ContainerDetailResponse,
+  ContainerPalletInventorySyncSummaryResponse,
   ContainerPayClassification,
   SaveContainerUnloadingWageRequest,
   UpdateContainerUnloadersRequest,
   UpdateContainerUnloadingWageAssociationsRequest,
 } from "@/lib/api-client";
-import type { Locale } from "../../lib/i18n/catalog";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import {
   payClassificationLabel,
   unloadingWageCompletionDescription,
 } from "../../lib/i18n/status-labels";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export interface ContainerUnloadingWageDraft {
   associatedContainerNosText: string;
@@ -49,6 +51,43 @@ export type BuildResult<TPayload> =
   | { ok: true; payload: TPayload }
   | { error: string; ok: false };
 
+export interface InventorySyncResult {
+  actualPallets: number;
+  destinationCount: number;
+  destinations: Array<{
+    activeTotalPallets: number;
+    createdPallets: number;
+    destinationCode: string;
+    reusedPallets: number;
+  }>;
+}
+
+/** Uses the completion API summary only; it never derives inventory remaining. */
+export function summarizeInventorySync(
+  inventorySync: ContainerPalletInventorySyncSummaryResponse[] | null | undefined,
+): InventorySyncResult | null {
+  if (!inventorySync) {
+    return null;
+  }
+
+  const destinations = inventorySync.flatMap((summary) =>
+    summary.destinations.map((destination) => ({
+      activeTotalPallets: destination.activeTotalPallets,
+      createdPallets: destination.createdPallets,
+      destinationCode: destination.destinationCode,
+      reusedPallets: destination.reusedPallets,
+    })),
+  );
+  return {
+    actualPallets: destinations.reduce(
+      (total, destination) => total + destination.activeTotalPallets,
+      0,
+    ),
+    destinationCount: destinations.length,
+    destinations,
+  };
+}
+
 export function wageDraftFromContainer(
   container: ContainerDetailResponse,
 ): ContainerUnloadingWageDraft {
@@ -65,7 +104,7 @@ export function wageDraftFromContainer(
         .join("\n") ?? "",
     classification,
     note: "",
-    reason: "Container detail unloading wage updated",
+    reason: "",
     trailerNumber: wage?.trailerNumber ?? container.payTrailerNumber ?? "",
   };
 }
@@ -95,7 +134,7 @@ export function completionDraftFromContainer(
   return {
     completedAt: datetimeLocalInput(container.unloadingWage?.completedAt, now),
     note: container.unloadingWage?.completionNote ?? "",
-    reason: "Container detail unloading marked completed",
+    reason: "",
   };
 }
 
@@ -113,7 +152,9 @@ export function emptyContainerUnloaderDraft(): ContainerUnloaderDraft {
 export function buildContainerUnloadingWageSaveRequest(
   containerNo: string,
   draft: ContainerUnloadingWageDraft,
+  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<ContainerUnloadingWageSaveRequest> {
+  const { t } = createTranslator(locale);
   const note = nullableTrimmedString(draft.note);
   const reason = nullableTrimmedString(draft.reason);
 
@@ -135,7 +176,7 @@ export function buildContainerUnloadingWageSaveRequest(
   const trailerNumber = nullableTrimmedString(draft.trailerNumber);
   if (!trailerNumber) {
     return {
-      error: "US-to-Canada transfer requires a trailer number.",
+      error: t("US-to-Canada transfer requires a trailer number."),
       ok: false,
     };
   }
@@ -160,7 +201,9 @@ export function buildContainerUnloadingWageSaveRequest(
 export function buildContainerUnloadersRequest(
   drafts: ContainerUnloaderDraft[],
   reason: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<UpdateContainerUnloadersRequest> {
+  const { format, t } = createTranslator(locale);
   const unloaders = drafts
     .map((draft) => ({
       note: nullableTrimmedString(draft.note),
@@ -177,7 +220,7 @@ export function buildContainerUnloadersRequest(
     );
 
   if (unloaders.length === 0) {
-    return { error: "Add at least one unloader.", ok: false };
+    return { error: t("Add at least one unloader."), ok: false };
   }
 
   const seenWorkerIds = new Set<string>();
@@ -185,21 +228,23 @@ export function buildContainerUnloadersRequest(
     if (!unloader.unloadingWorkerId) {
       if (unloader.workerName) {
         return {
-          error: `Legacy unloader "${unloader.workerName}" must be reselected from the temporary unloader directory before saving.`,
+          error: format("i18n.unloadingWage.legacyUnloader", {
+            workerName: unloader.workerName,
+          }),
           ok: false,
         };
       }
       return {
-        error: "Each unloader row requires a selected temporary worker.",
+        error: t("Each unloader row requires a selected temporary worker."),
         ok: false,
       };
     }
 
     if (seenWorkerIds.has(unloader.unloadingWorkerId)) {
       return {
-        error: `Duplicate unloader: ${
-          unloader.workerName || unloader.unloadingWorkerId
-        }.`,
+        error: format("i18n.unloadingWage.duplicateUnloader", {
+          worker: unloader.workerName || unloader.unloadingWorkerId,
+        }),
         ok: false,
       };
     }
@@ -220,15 +265,17 @@ export function buildContainerUnloadersRequest(
 
 export function buildContainerUnloadingCompletionRequest(
   draft: ContainerUnloadingCompletionDraft,
+  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<CompleteContainerUnloadingRequest> {
+  const { t } = createTranslator(locale);
   const completedAt = draft.completedAt.trim();
   if (!completedAt) {
-    return { error: "Completed date and time are required.", ok: false };
+    return { error: t("Completed date and time are required."), ok: false };
   }
 
   const completedDate = new Date(completedAt);
   if (Number.isNaN(completedDate.getTime())) {
-    return { error: "Completed date and time must be valid.", ok: false };
+    return { error: t("Completed date and time must be valid."), ok: false };
   }
 
   return {
@@ -250,10 +297,12 @@ export function classificationLabel(
 
 export function rateRuleLabel(
   classification: ContainerPayClassification,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
+  const { t } = createTranslator(locale);
   return classification === "US_TO_CANADA_TRANSFER"
-    ? "CAD 360 / transfer group"
-    : "CAD 300 / container";
+    ? t("CAD 360 / transfer group")
+    : t("CAD 300 / container");
 }
 
 export function completionStatusLabel(

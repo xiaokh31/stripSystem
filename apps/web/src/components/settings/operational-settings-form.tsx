@@ -7,7 +7,16 @@ import {
   type OperationalSettingsResponse,
   updateOperationalSettings,
 } from "@/lib/api-client";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import { formatOperationalDateTime } from "@/lib/date-time";
+import {
+  operationalSettingCategoryLabel,
+  operationalSettingFieldDescription,
+  operationalSettingFieldLabel,
+  operationalSettingOptionLabel,
+} from "@/lib/i18n/operational-settings-labels";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
+import { createTranslator } from "@/lib/i18n/translator";
 import { useClientHydrated } from "@/lib/use-client-hydrated";
 
 export function OperationalSettingsForm({
@@ -17,6 +26,7 @@ export function OperationalSettingsForm({
   canEdit: boolean;
   initialSettings: OperationalSettingsResponse;
 }) {
+  const { format, locale, t } = useI18n();
   const isHydrated = useClientHydrated();
   const [settings, setSettings] = useState(initialSettings);
   const [draft, setDraft] = useState(() => valuesFromFields(initialSettings.fields));
@@ -43,7 +53,7 @@ export function OperationalSettingsForm({
       ),
     );
     setNotice({
-      message: "Default values are staged. Save changes to persist them.",
+      message: t("i18n.settings.defaultsStaged"),
       status: "success",
     });
   }
@@ -58,7 +68,7 @@ export function OperationalSettingsForm({
     });
 
     async function saveSettings() {
-      setNotice({ message: "Saving operational settings.", status: "running" });
+      setNotice({ message: t("Saving operational settings."), status: "running" });
       try {
         const response = await updateOperationalSettings({
           values: editableValuesFromDraft(settings.fields, draft),
@@ -66,11 +76,13 @@ export function OperationalSettingsForm({
         setSettings(response.settings);
         setDraft(valuesFromFields(response.settings.fields));
         setNotice({
-          message: `Operational settings saved. ${response.audit.changedKeys.length} field(s) updated.`,
+          message: format("i18n.settings.updatedFields", {
+            count: response.audit.changedKeys.length,
+          }),
           status: "success",
         });
       } catch (error) {
-        setNotice(toSaveNotice(error));
+        setNotice(toSaveNotice(error, locale));
       }
     }
   }
@@ -80,18 +92,19 @@ export function OperationalSettingsForm({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Editable operational settings
+            {t("Editable operational settings")}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-            Values are loaded from the Settings API and saved to the database.
-            Role permissions decide who can edit them.
+            {t(
+              "Values are loaded from the Settings API and saved to the database. Role permissions decide who can edit them.",
+            )}
           </p>
           <p className="mt-2 text-sm text-zinc-500">
-            Last saved:{" "}
+            {t("Last saved:")}{" "}
             <span className="font-semibold text-zinc-800">
               {settings.updatedAt
                 ? formatOperationalDateTime(settings.updatedAt)
-                : "Not saved yet"}
+                : t("Not saved yet")}
             </span>
           </p>
         </div>
@@ -102,7 +115,7 @@ export function OperationalSettingsForm({
             onClick={resetDraft}
             type="button"
           >
-            Reset draft
+            {t("Reset draft")}
           </button>
           {canEdit ? (
             <button
@@ -111,7 +124,7 @@ export function OperationalSettingsForm({
               onClick={resetToDefaults}
               type="button"
             >
-              Stage defaults
+              {t("Stage defaults")}
             </button>
           ) : null}
           <button
@@ -120,14 +133,14 @@ export function OperationalSettingsForm({
             onClick={save}
             type="button"
           >
-            {isPending ? "Saving" : "Save settings"}
+            {isPending ? t("Saving") : t("Save settings")}
           </button>
         </div>
       </div>
 
       {!canEdit ? (
         <p className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-950">
-          You can view operational settings, but your role cannot edit them.
+          {t("You can view operational settings, but your role cannot edit them.")}
         </p>
       ) : null}
 
@@ -140,7 +153,7 @@ export function OperationalSettingsForm({
             key={section.category}
           >
             <h3 className="text-sm font-semibold uppercase text-zinc-600">
-              {section.category}
+              {operationalSettingCategoryLabel(section.category, locale)}
             </h3>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {section.fields.map((field) => (
@@ -174,14 +187,19 @@ function SettingInput({
   onChange: (key: string, value: string) => void;
   value: string;
 }) {
+  const { format, locale } = useI18n();
   const disabled = !canEdit || !isHydrated || !field.editable;
   const commonClassName =
     "mt-2 min-h-11 w-full border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100 disabled:text-zinc-500";
 
   return (
     <label className="grid gap-1 text-sm text-zinc-700">
-      <span className="font-semibold text-zinc-950">{field.label}</span>
-      <span className="leading-5 text-zinc-500">{field.description}</span>
+      <span className="font-semibold text-zinc-950">
+        {operationalSettingFieldLabel(field.key, locale)}
+      </span>
+      <span className="leading-5 text-zinc-500">
+        {operationalSettingFieldDescription(field.key, locale)}
+      </span>
       {field.inputType === "select" ? (
         <select
           className={commonClassName}
@@ -191,7 +209,7 @@ function SettingInput({
         >
           {(field.options ?? []).map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {operationalSettingOptionLabel(field.key, option.value, locale)}
             </option>
           ))}
         </select>
@@ -214,11 +232,22 @@ function SettingInput({
         />
       )}
       <span className="text-xs text-zinc-500">
-        Default: <span className="font-medium">{field.defaultValue}</span>
+        {format("i18n.settings.defaultValue", {
+          value:
+            field.inputType === "select"
+              ? operationalSettingOptionLabel(
+                  field.key,
+                  field.defaultValue,
+                  locale,
+                )
+              : field.defaultValue,
+        })}
         {field.updatedAt ? (
           <>
             {" "}
-            Saved {formatOperationalDateTime(field.updatedAt)}
+            {format("i18n.settings.fieldSavedAt", {
+              date: formatOperationalDateTime(field.updatedAt),
+            })}
           </>
         ) : null}
       </span>
@@ -242,7 +271,12 @@ function SaveNoticePanel({ notice }: { notice: SaveNotice }) {
     >
       <p>{notice.message}</p>
       {notice.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase">{notice.code}</p>
+        <p
+          className="mt-1 text-xs font-semibold uppercase"
+          data-i18n-ignore="true"
+        >
+          {notice.code}
+        </p>
       ) : null}
     </div>
   );
@@ -276,23 +310,28 @@ function groupFields(fields: OperationalSettingFieldResponse[]) {
   }));
 }
 
-function toSaveNotice(error: unknown): SaveNotice {
+function toSaveNotice(error: unknown, locale: Locale): SaveNotice {
+  const { t } = createTranslator(locale);
+
   if (error instanceof ApiClientError) {
     return {
       code: error.code,
-      message: error.message,
+      message: t(settingsSaveErrorMessageKey(error.code)),
       status: "error",
     };
   }
 
   return {
     code: "SETTINGS_SAVE_FAILED",
-    message:
-      error instanceof Error
-        ? error.message
-        : "Operational settings could not be saved.",
+    message: t("Operational settings could not be saved."),
     status: "error",
   };
+}
+
+function settingsSaveErrorMessageKey(code: string): MessageKey {
+  return code === "FORBIDDEN"
+    ? "Permission denied"
+    : "Operational settings could not be saved.";
 }
 
 interface SaveNotice {

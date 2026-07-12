@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { ConflictException } from '@nestjs/common';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,6 +44,7 @@ describe('UnloadingWageService', () => {
   let settlementLines: any[];
   let generatedFiles: any[];
   let unloadingWorkers: any[];
+  let palletInventorySync: any;
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'unloading-wage-service-'));
@@ -99,6 +101,28 @@ describe('UnloadingWageService', () => {
               payContainer: payContainerSnapshot(),
             }))
         : [];
+    palletInventorySync = {
+      concurrentException: jest.fn(() => null),
+      synchronizeForUnloading: jest.fn(async (_tx: unknown, input: any) => {
+        const container = containers.find(
+          (item) => item.id === input.containerId,
+        );
+        if (
+          container?.status === 'LOADING_IN_PROGRESS' ||
+          container?.status === 'LOADED'
+        ) {
+          throw new ConflictException({
+            code: 'CONTAINER_INVENTORY_SYNC_CONTAINER_LOCKED',
+            details: { containerId: input.containerId },
+          });
+        }
+        return {
+          containerId: input.containerId,
+          containerNo: container?.containerNo ?? input.containerId,
+          destinations: [],
+        };
+      }),
+    };
     prisma = {
       $transaction: jest.fn((callback) => callback(prisma)),
       container: {
@@ -398,7 +422,7 @@ describe('UnloadingWageService', () => {
         }),
       },
     };
-    service = new UnloadingWageService(prisma, {
+    service = new UnloadingWageService(prisma, palletInventorySync, {
       getOrThrow: jest.fn((key: string) => {
         if (key === 'app.storageRoot') {
           return storageRoot;
@@ -530,6 +554,13 @@ describe('UnloadingWageService', () => {
       completedAt: '2026-06-04T17:10:00.000Z',
       completedById: 'auth-office',
     });
+    expect(completed.inventorySync).toEqual([
+      {
+        containerId: 'container-zcsu',
+        containerNo: 'ZCSU9025988B',
+        destinations: [],
+      },
+    ]);
     expect(containers[0]).toMatchObject({ status: 'UNLOADED' });
     expect(prisma.correctionFeedback.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -568,7 +599,7 @@ describe('UnloadingWageService', () => {
   });
 
   it.each(['LOADING_IN_PROGRESS', 'LOADED'])(
-    'does not downgrade %s containers when unloading completion is saved',
+    'rejects %s containers before unloading completion mutates pay state',
     async (existingStatus) => {
       await service.saveContainerUnloadingWage(
         'container-zcsu',
@@ -578,14 +609,20 @@ describe('UnloadingWageService', () => {
       containers[0].status = existingStatus;
       prisma.correctionFeedback.create.mockClear();
 
-      await service.completeContainerUnloading(
-        'container-zcsu',
-        {
-          completedAt: '2026-06-04T17:10:00.000Z',
-          reason: 'Unloading finished',
-        },
-        officeActor,
-      );
+      await expect(
+        service.completeContainerUnloading(
+          'container-zcsu',
+          {
+            completedAt: '2026-06-04T17:10:00.000Z',
+            reason: 'Unloading finished',
+          },
+          officeActor,
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'CONTAINER_INVENTORY_SYNC_CONTAINER_LOCKED',
+        }),
+      });
 
       expect(containers[0].status).toBe(existingStatus);
       expect(prisma.correctionFeedback.create).not.toHaveBeenCalledWith({

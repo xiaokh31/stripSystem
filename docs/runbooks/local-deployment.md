@@ -21,10 +21,35 @@ production nginx `/api` route.
 It does not add business behavior. It only describes local Docker startup,
 persistence, health checks, and operator access.
 
+## Docker-Only Development
+
+Docker Compose is the only local development runtime for the API, web, worker,
+dependency installation, Prisma, lint, typecheck, tests, and builds. The
+Compose images copy the current source tree at build time and install
+dependencies into named volumes; do not run host
+`pnpm install`, `npm install`, `npx`, `jest`, `next`, `prisma`, `uv sync`, or
+`uv run pytest`, and do not create host `node_modules` to repair a check.
+
+After a source change, rebuild the affected service with Docker Compose. This
+is intentional: it keeps host dependency folders out of the execution path and
+makes the local runtime match the Docker deployment image.
+
+```bash
+docker compose -f infra/docker/compose.local.yml up -d --build api web worker-python
+```
+
+Use host commands only for Docker Compose orchestration, Git/file inspection,
+or an explicitly assigned Android, iOS, or Windows native-platform task. Test
+variables such as `NODE_ENV=test`, `QUEUE_ENABLED=false`, and `JEST_WORKER_ID`
+must stay within the relevant test process or container, never in `.env`, shell
+startup files, or normal runtime Compose configuration.
+
 ## Files
 
 - Compose file: `infra/docker/compose.local.yml`
 - API local image base: `infra/docker/api.Dockerfile`
+- Web local image base: `infra/docker/web.Dockerfile`
+- Worker local image base: `infra/docker/worker-python.Dockerfile`
 - nginx config: `infra/nginx/nginx.conf`
 - Environment template: `.env.example`
 - Healthcheck script: `scripts/healthcheck.sh`
@@ -85,8 +110,9 @@ timezone and automatically switches between MDT and MST.
 
 ## Persistent Storage
 
-The compose file bind-mounts the host repository and `storage/` directory into
-the API, web, and worker containers. Do not delete `storage/`; it contains:
+The compose file copies application source into the API, web, and worker images
+at build time, then bind-mounts only host `storage/` where API and worker
+runtime artifacts must persist. Do not delete `storage/`; it contains:
 
 - original uploaded Excel files
 - parsed JSON
@@ -213,6 +239,43 @@ Full scripted healthcheck:
 scripts/healthcheck.sh
 ```
 
+## Docker Development Checks
+
+Run all application checks inside the already-running Compose services. These
+commands use the same dependency volumes and service configuration as the
+local production rehearsal.
+
+API lint, typecheck, unit, and E2E checks:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api lint
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api typecheck
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test -- --runInBand
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test:e2e
+```
+
+Web lint, typecheck, unit test, and production build:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web lint
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web typecheck
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web test
+docker compose -f infra/docker/compose.local.yml up -d --build web
+```
+
+Worker and Prisma checks:
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T worker-python uv run pytest
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api prisma generate
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api prisma migrate status
+```
+
+The API service already runs committed migrations during normal startup. Do not
+use `prisma migrate reset` against the local persistent database. For a fully
+isolated test process, use `docker compose ... run --rm -T <service> <command>`
+instead of introducing a host dependency environment.
+
 Then verify authentication through nginx:
 
 ```bash
@@ -288,6 +351,7 @@ drift checks, and recovery rules.
 | Web starts but API calls fail | `WEB_API_PROXY_BASE_URL` should be `http://api:4000/api`. |
 | `http://127.0.0.1:3000` behaves differently from `http://127.0.0.1/` | Use `http://127.0.0.1/` for Docker/nginx testing; `3000` bypasses nginx. |
 | Upload succeeds but file disappears | `storage/` bind mount and host permissions. |
+| Source edit is not visible | Rebuild the affected service with `docker compose -f infra/docker/compose.local.yml up -d --build api web worker-python`; source is intentionally image-copied. |
 | Worker parse/report/label fails | API image must include Python, uv, and worker dependencies; inspect `api` logs. |
 | Report generation fails | Confirm `samples/templates/卸柜报告-En.xlsx` exists on the host. |
 | Mobile cannot access app | Use the server LAN IP and allow HTTP port through firewall. |
@@ -300,3 +364,63 @@ drift checks, and recovery rules.
 - Preserve original uploaded files.
 - Keep generated reports and labels in `storage/`.
 - Use the reprint audit workflow before reprinting labels.
+
+## Business Agent Non-Interactive Profile
+
+This project has a Codex CLI profile for the business-logic development agent.
+It is intentionally separate from the default Codex profile and is only loaded
+through the project launcher.
+
+Install or validate the local profile once after checking out the repository:
+
+```bash
+scripts/install-business-agent-profile.sh
+```
+
+Start an interactive task from the fixed project root:
+
+```bash
+scripts/run-business-agent.sh "Execute the specified task and follow AGENTS.md."
+```
+
+For a non-interactive Codex invocation, keep the same launcher and pass the
+Codex subcommand after it:
+
+```bash
+scripts/run-business-agent.sh exec "Run the requested project task."
+```
+
+The launcher always applies `business-agent`, the profile's `:workspace`
+sandbox, `--ask-for-approval never`, the repository root, and the
+workspace profile's `/private/tmp` test directory. Its profile enables
+dependency network access only to the degree permitted by the host/managed
+Codex policy. It does not use `danger-full-access`, does not expose
+credentials, and must not be replaced by a direct `codex` invocation when this
+profile is required.
+
+The canonical profile is `.codex/business-agent.config.toml`; the installed
+copy is `$CODEX_HOME/business-agent.config.toml`. The installer refuses to
+overwrite a different local profile; use `--replace` only to migrate an older
+copy that was installed from this repository. Project `.codex/execpolicy.rules` blocks
+destructive Git operations, recursive deletion, package/image publishing,
+remote infrastructure tools, high-risk Docker operations, and direct host
+package/test/build commands. Docker Compose builds, tests, Prisma
+generate/migrations, and local services remain normal in-scope work, subject
+to platform-managed restrictions.
+
+Run the no-business-side-effect capability smoke after installation or Codex
+CLI updates:
+
+```bash
+scripts/smoke-business-agent-profile.sh
+```
+
+The smoke only reads `AGENTS.md`, writes and deletes a file in `/private/tmp`,
+prints ESLint help from the web container, performs `docker compose ps`, and
+verifies policy blocks. Use `scripts/smoke-business-agent-profile.sh
+--policy-only` when validating only the allow/deny policy without launching a
+nested Codex sandbox.
+It does not create business records, change database/storage data, or call an
+external release endpoint. A managed sandbox, OS permission, credential
+request, production deployment, or action forbidden by the policy remains a
+hard boundary; a repository prompt or launcher cannot override it.

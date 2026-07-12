@@ -2,6 +2,14 @@ export interface SecureTokenStore {
   clearToken(): Promise<void>;
   getToken(): Promise<string | null>;
   setToken(token: string): Promise<void>;
+  getSession?(): Promise<NativeStoredSession | null>;
+  setSession?(session: NativeStoredSession): Promise<void>;
+}
+
+export interface NativeStoredSession {
+  accessToken: string;
+  refreshToken: string;
+  sessionId: string;
 }
 
 interface NativeSecureTokenStoreModule {
@@ -29,7 +37,8 @@ export class NativeSecureTokenStore implements SecureTokenStore {
     if (typeof token !== "string") {
       throw new Error("Secure token storage returned a non-string auth token.");
     }
-    return token.trim() ? token : null;
+    const session = parseStoredSession(token);
+    return session?.accessToken ?? (token.trim() ? token : null);
   }
 
   async setToken(token: string): Promise<void> {
@@ -37,6 +46,15 @@ export class NativeSecureTokenStore implements SecureTokenStore {
       throw new Error("Cannot persist an empty auth token.");
     }
     await this.nativeModule.setToken(token);
+  }
+
+  async getSession(): Promise<NativeStoredSession | null> {
+    const token = await this.nativeModule.getToken();
+    return typeof token === "string" ? parseStoredSession(token) : null;
+  }
+
+  async setSession(session: NativeStoredSession): Promise<void> {
+    await this.nativeModule.setToken(JSON.stringify(session));
   }
 }
 
@@ -57,6 +75,9 @@ export class MemorySecureTokenStore implements SecureTokenStore {
     }
     this.token = token;
   }
+
+  async getSession(): Promise<NativeStoredSession | null> { return parseStoredSession(this.token); }
+  async setSession(session: NativeStoredSession): Promise<void> { this.token = JSON.stringify(session); }
 }
 
 class UnavailableSecureTokenStore implements SecureTokenStore {
@@ -96,4 +117,12 @@ function loadReactNativeModules(): NativeSecureTokenModuleMap {
     NativeModules?: NativeSecureTokenModuleMap;
   };
   return reactNative.NativeModules ?? {};
+}
+
+function parseStoredSession(value: string | null): NativeStoredSession | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as NativeStoredSession;
+    return typeof parsed.accessToken === "string" && typeof parsed.refreshToken === "string" && typeof parsed.sessionId === "string" ? parsed : null;
+  } catch { return null; }
 }

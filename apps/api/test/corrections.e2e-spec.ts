@@ -154,6 +154,50 @@ describe('CorrectionsController (e2e)', () => {
     ]);
   });
 
+  it('synchronizes pallet inventory before a manual UNLOADED status update', async () => {
+    const first = await authorizedRequest(app, officeAuthHeader())
+      .patch('/api/containers/container-1')
+      .send({
+        correctionNote: 'Warehouse confirmed unloading',
+        reason: 'Office unloading completion',
+        status: 'UNLOADED',
+      })
+      .expect(200);
+
+    expect(first.body).toMatchObject({
+      container: { id: 'container-1', status: 'UNLOADED' },
+      inventorySync: {
+        containerId: 'container-1',
+        destinations: [
+          {
+            containerDestinationId: 'destination-1',
+            expectedPallets: 4,
+            createdPallets: 4,
+            reusedPallets: 0,
+            cancelledPallets: 0,
+            activeTotalPallets: 4,
+          },
+        ],
+      },
+    });
+    expect(prisma.pallet.create).toHaveBeenCalledTimes(4);
+    expect(prisma.palletEvent.create).toHaveBeenCalledTimes(4);
+
+    const retried = await authorizedRequest(app, officeAuthHeader())
+      .patch('/api/containers/container-1')
+      .send({ status: 'UNLOADED' })
+      .expect(200);
+
+    expect(retried.body.inventorySync.destinations[0]).toMatchObject({
+      activeTotalPallets: 4,
+      createdPallets: 0,
+      reusedPallets: 4,
+      cancelledPallets: 0,
+    });
+    expect(prisma.pallet.create).toHaveBeenCalledTimes(4);
+    expect(prisma.palletEvent.create).toHaveBeenCalledTimes(4);
+  });
+
   it('creates a manual unloading report container with destinations and audit feedback', async () => {
     const response = await authorizedRequest(app)
       .post('/api/containers/manual')
@@ -373,21 +417,25 @@ describe('CorrectionsController (e2e)', () => {
         containerId: 'container-1',
         destinationCode: 'YYZ',
         destinationType: 'AMAZON_FBA',
+        packageType: 'CARTON',
         cartons: 40,
         volume: '5.250',
         calculatedPallets: 4,
         manualPallets: null,
         finalPallets: 4,
         note: null,
+        pallets: [] as any[],
         updatedAt: new Date('2026-06-26T00:00:00.000Z'),
       },
     ];
     const corrections: any[] = [];
+    const palletEvents: any[] = [];
     let manualDestinationCount = 0;
     containers[0].destinations = [destinations[0]];
 
     const mock: any = {
       $transaction: jest.fn((callback) => callback(mock)),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       importFile: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -398,6 +446,39 @@ describe('CorrectionsController (e2e)', () => {
       pallet: {
         findUnique: jest.fn().mockResolvedValue(null),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn(({ data }) => {
+          const destination = destinations.find(
+            (item) => item.id === data.containerDestinationId,
+          );
+          const record = {
+            id: `pallet-${(destination?.pallets.length ?? 0) + 1}`,
+            loadedAt: null,
+            loadJobId: null,
+            ...data,
+          };
+          destination?.pallets.push(record);
+          return Promise.resolve(record);
+        }),
+        update: jest.fn(({ where, data }) => {
+          const pallet = destinations
+            .flatMap((destination) => destination.pallets)
+            .find((item) => item.id === where.id);
+          if (!pallet) {
+            throw new Error(`Pallet not found: ${where.id}`);
+          }
+          Object.assign(pallet, data);
+          return Promise.resolve(pallet);
+        }),
+      },
+      palletEvent: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `pallet-event-${palletEvents.length + 1}`,
+            ...data,
+          };
+          palletEvents.push(record);
+          return Promise.resolve(record);
+        }),
       },
       generatedFile: {
         findUnique: jest.fn().mockResolvedValue(null),

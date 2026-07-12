@@ -6,9 +6,13 @@ import {
   canReviewWorkHours,
   hasPermission,
 } from "@/lib/permissions";
+import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import { getServerCurrentUser } from "@/lib/server-auth";
 
 export default async function ReportsPage() {
+  const locale = await getServerLocale();
+  const { t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
   const showInventory = hasPermission(currentUser, INVENTORY_READ_PERMISSION);
   const showWorkHours = canReviewWorkHours(currentUser);
@@ -18,30 +22,42 @@ export default async function ReportsPage() {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-        <p className="text-sm font-semibold uppercase text-teal-700">Reports</p>
+        <p className="text-sm font-semibold uppercase text-teal-700">
+          {t("Reports")}
+        </p>
         <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-          Warehouse reports
+          {t("Warehouse reports")}
         </h1>
       </section>
 
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3">
           {showInventory ? (
-            <ReportLink href="/reports/inventory" title="Inventory report" />
+            <ReportLink
+              href="/reports/inventory"
+              openLabel={t("Open report")}
+              title={t("Inventory report")}
+            />
           ) : null}
           {showWorkHours ? (
-            <ReportLink href="/work-hours" title="HR Work Hours Settlement" />
+            <ReportLink
+              href="/work-hours"
+              openLabel={t("Open report")}
+              title={t("HR Work Hours Settlement")}
+            />
           ) : null}
           {showUnloadingWage ? (
             <ReportLink
               href="/unloading-wage"
-              title="Warehouse Unloading Wage Settlement"
+              openLabel={t("Open report")}
+              title={t("Warehouse Unloading Wage Settlement")}
             />
           ) : null}
           {showUnloadingSummary ? (
             <ReportLink
               href="/unloading-summary"
-              title="Monthly Unloading Data Summary"
+              openLabel={t("Open report")}
+              title={t("Monthly Unloading Data Summary")}
             />
           ) : null}
           {!showInventory &&
@@ -49,7 +65,7 @@ export default async function ReportsPage() {
           !showUnloadingWage &&
           !showUnloadingSummary ? (
             <p className="border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              No report permission is assigned to the current account.
+              {t("No report permission is assigned to the current account.")}
             </p>
           ) : null}
         </div>
@@ -58,7 +74,15 @@ export default async function ReportsPage() {
   );
 }
 
-function ReportLink({ href, title }: { href: string; title: string }) {
+function ReportLink({
+  href,
+  openLabel,
+  title,
+}: {
+  href: string;
+  openLabel: string;
+  title: string;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 py-3 last:border-0">
       <h2 className="text-base font-semibold text-zinc-950">{title}</h2>
@@ -66,7 +90,7 @@ function ReportLink({ href, title }: { href: string; title: string }) {
         className="inline-flex min-h-10 items-center border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900"
         href={href}
       >
-        Open report
+        {openLabel}
       </Link>
     </div>
   );

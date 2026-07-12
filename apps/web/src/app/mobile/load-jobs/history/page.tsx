@@ -9,6 +9,9 @@ import {
   type ScannedPalletResponse,
 } from "@/lib/api-client";
 import { AUTH_REDIRECT_PARAM } from "@/lib/auth-token";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
+import { getServerLocale } from "@/lib/i18n/server";
+import { createTranslator } from "@/lib/i18n/translator";
 import { canViewMobileLoadJobs } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
 
@@ -28,14 +31,16 @@ type OperatorHistoryState =
     };
 
 export default async function MobileLoadJobHistoryPage() {
+  const locale = await getServerLocale();
+  const { format, t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
 
   if (!currentUser) {
-    return <MobileLoginRequired nextPath={MOBILE_HISTORY_PATH} />;
+    return <MobileLoginRequired locale={locale} nextPath={MOBILE_HISTORY_PATH} />;
   }
 
   if (!canViewMobileLoadJobs(currentUser)) {
-    return <MobilePermissionDenied currentUser={currentUser} />;
+    return <MobilePermissionDenied currentUser={currentUser} locale={locale} />;
   }
 
   const state = await loadOperatorHistory();
@@ -46,13 +51,15 @@ export default async function MobileLoadJobHistoryPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Mobile loading history
+              {t("Mobile loading history")}
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              My completed load jobs
+              {t("My completed load jobs")}
             </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Signed in as {currentUser.name ?? currentUser.email ?? currentUser.id}.
+              {format("i18n.loadJobs.signedInAs", {
+                user: currentUser.name ?? currentUser.email ?? currentUser.id,
+              })}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -60,22 +67,22 @@ export default async function MobileLoadJobHistoryPage() {
               className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/mobile/load-jobs"
             >
-              Open jobs
+              {t("Open jobs")}
             </Link>
             <Link
               className="inline-flex min-h-12 items-center border border-zinc-300 bg-white px-4 text-base font-semibold text-zinc-950 hover:bg-zinc-50"
               href={MOBILE_HISTORY_PATH}
             >
-              Refresh
+              {t("Refresh")}
             </Link>
           </div>
         </div>
       </section>
 
       {state.ok ? (
-        <OperatorHistoryList history={state.history} />
+        <OperatorHistoryList history={state.history} locale={locale} />
       ) : (
-        <ApiErrorPanel error={state.error} />
+        <ApiErrorPanel error={state.error} locale={locale} />
       )}
     </main>
   );
@@ -102,18 +109,23 @@ async function loadOperatorHistory(): Promise<OperatorHistoryState> {
 
 function OperatorHistoryList({
   history,
+  locale,
 }: {
   history: LoadJobOperatorHistoryResponse;
+  locale: Locale;
 }) {
+  const { t } = createTranslator(locale);
+
   if (history.items.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-5 text-base text-zinc-700">
         <h2 className="text-lg font-semibold text-zinc-950">
-          No completed loading history
+          {t("No completed loading history")}
         </h2>
         <p className="mt-2 leading-7">
-          Completed load jobs will appear here after you tap Complete loading on
-          the mobile scan page.
+          {t(
+            "Completed load jobs will appear here after you tap Complete loading on the mobile scan page.",
+          )}
         </p>
       </section>
     );
@@ -122,7 +134,7 @@ function OperatorHistoryList({
   return (
     <section className="grid gap-3">
       {history.items.map((item) => (
-        <OperatorHistoryCard item={item} key={item.id} />
+        <OperatorHistoryCard item={item} key={item.id} locale={locale} />
       ))}
     </section>
   );
@@ -130,45 +142,48 @@ function OperatorHistoryList({
 
 function OperatorHistoryCard({
   item,
+  locale,
 }: {
   item: LoadJobOperatorHistoryItemResponse;
+  locale: Locale;
 }) {
-  const palletGroups = groupPalletsByContainer(item.pallets);
+  const { format, t } = createTranslator(locale);
+  const palletGroups = groupPalletsByContainer(item.pallets, locale);
 
   return (
     <article className="border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="break-all text-2xl font-bold text-zinc-950">
-            {item.destinationRegion ?? "No destination region"}
+            {item.destinationRegion ?? t("No destination region")}
           </p>
           <h2 className="mt-1 break-all text-base font-semibold text-zinc-700">
             {item.loadNo ?? item.id}
           </h2>
         </div>
         <span className="inline-flex min-h-8 items-center border border-zinc-200 bg-zinc-50 px-2.5 text-xs font-semibold uppercase text-zinc-700">
-          Completed
+          {t("Completed")}
         </span>
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-        <DetailItem label="Truck No." value={item.truckNo ?? "No truck"} />
-        <DetailItem label="Dock No." value={item.dockNo ?? "No dock"} />
-        <DetailItem label="Carrier" value={item.carrier ?? "No carrier"} />
+        <DetailItem label={t("Truck No.")} value={item.truckNo ?? t("No truck")} />
+        <DetailItem label={t("Dock No.")} value={item.dockNo ?? t("No dock")} />
+        <DetailItem label={t("Carrier")} value={item.carrier ?? t("No carrier")} />
         <DetailItem
-          label="Departure"
-          value={formatOptionalDate(item.scheduledDepartureAt)}
+          label={t("Departure")}
+          value={formatOptionalDate(item.scheduledDepartureAt, locale)}
         />
         <DetailItem
-          label="Loaded at"
-          value={formatOptionalDate(item.completedAt)}
+          label={t("Loaded at")}
+          value={formatOptionalDate(item.completedAt, locale)}
         />
-        <DetailItem label="Total pallets" value={String(item.totalPallets)} />
+        <DetailItem label={t("Total pallets")} value={String(item.totalPallets)} />
       </dl>
 
       <section className="mt-4 border-t border-zinc-100 pt-3">
         <h3 className="text-sm font-semibold uppercase text-zinc-500">
-          Loaded pallets
+          {t("Loaded pallets")}
         </h3>
         {palletGroups.length ? (
           <ul className="mt-2 grid gap-2 text-sm text-zinc-700">
@@ -178,7 +193,7 @@ function OperatorHistoryCard({
                   {group.containerNo}
                 </span>
                 <span className="ml-2">
-                  {group.count} pallet{group.count === 1 ? "" : "s"}
+                  {format("i18n.mobile.palletCount", { count: group.count })}
                 </span>
                 <p className="mt-1 break-all text-xs leading-5 text-zinc-600">
                   {group.palletIds.join(", ")}
@@ -188,7 +203,7 @@ function OperatorHistoryCard({
           </ul>
         ) : (
           <p className="mt-2 text-sm text-zinc-600">
-            No system pallets were recorded for this completed load job.
+            {t("No system pallets were recorded for this completed load job.")}
           </p>
         )}
       </section>
@@ -205,7 +220,11 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function groupPalletsByContainer(pallets: ScannedPalletResponse[]) {
+function groupPalletsByContainer(
+  pallets: ScannedPalletResponse[],
+  locale: Locale,
+) {
+  const { t } = createTranslator(locale);
   const groups = new Map<
     string,
     {
@@ -216,7 +235,7 @@ function groupPalletsByContainer(pallets: ScannedPalletResponse[]) {
   >();
 
   for (const pallet of pallets) {
-    const containerNo = pallet.containerNo || "Unknown container";
+    const containerNo = pallet.containerNo || t("Unknown container");
     const existing = groups.get(containerNo) ?? {
       containerNo,
       count: 0,
@@ -230,22 +249,30 @@ function groupPalletsByContainer(pallets: ScannedPalletResponse[]) {
   return Array.from(groups.values());
 }
 
-function MobileLoginRequired({ nextPath }: { nextPath: string }) {
+function MobileLoginRequired({
+  locale,
+  nextPath,
+}: {
+  locale: Locale;
+  nextPath: string;
+}) {
+  const { t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
       <section
         className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Authentication</p>
+        <p className="text-sm font-semibold uppercase">{t("Authentication")}</p>
         <h1 className="mt-2 text-2xl font-semibold">
-          Sign in to view loading history
+          {t("Sign in to view loading history")}
         </h1>
         <Link
           className="mt-4 inline-flex min-h-12 items-center border border-amber-700 bg-white px-4 text-base font-semibold text-amber-950 hover:bg-amber-100"
           href={loginHref(nextPath)}
         >
-          Sign in
+          {t("Sign in")}
         </Link>
       </section>
     </main>
@@ -254,39 +281,57 @@ function MobileLoginRequired({ nextPath }: { nextPath: string }) {
 
 function MobilePermissionDenied({
   currentUser,
+  locale,
 }: {
   currentUser: AuthUserResponse;
+  locale: Locale;
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-3 py-4 sm:px-5">
       <section
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"
       >
-        <p className="text-sm font-semibold uppercase">Permission denied</p>
+        <p className="text-sm font-semibold uppercase">
+          {t("Permission denied")}
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">
-          Loading history is not available
+          {t("Loading history is not available")}
         </h1>
         <p className="mt-2 leading-7">
-          The signed-in user does not have load job read permission.
+          {t("The signed-in user does not have load job read permission.")}
         </p>
         <p className="mt-3 break-all text-sm font-medium">
-          Signed in as {currentUser.email ?? currentUser.name ?? currentUser.id}
+          {format("i18n.loadJobs.signedInAs", {
+            user: currentUser.email ?? currentUser.name ?? currentUser.id,
+          })}
         </p>
       </section>
     </main>
   );
 }
 
-function ApiErrorPanel({ error }: { error: ApiClientError }) {
+function ApiErrorPanel({
+  error,
+  locale,
+}: {
+  error: ApiClientError;
+  locale: Locale;
+}) {
+  const { t } = createTranslator(locale);
+
   return (
     <section
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-lg font-semibold">Loading history unavailable</h2>
-      <p className="mt-2">{error.message}</p>
-      <p className="mt-2 text-xs font-semibold uppercase">
+      <h2 className="text-lg font-semibold">
+        {t("Loading history unavailable")}
+      </h2>
+      <p className="mt-2">{mobileHistoryErrorMessage(error, locale)}</p>
+      <p className="mt-2 text-xs font-semibold uppercase" data-i18n-ignore>
         {error.code}
         {error.status ? ` (${error.status})` : ""}
       </p>
@@ -294,8 +339,22 @@ function ApiErrorPanel({ error }: { error: ApiClientError }) {
   );
 }
 
-function formatOptionalDate(value: string | null): string {
-  return value ? formatDateTime(value) : "Not recorded";
+function formatOptionalDate(value: string | null, locale: Locale): string {
+  return value ? formatDateTime(value) : createTranslator(locale).t("Not recorded");
+}
+
+const mobileHistoryErrorKeys: Record<string, MessageKey> = {
+  API_NETWORK_ERROR: "Loading history could not be loaded.",
+  WEB_API_ERROR: "Loading history could not be loaded.",
+};
+
+function mobileHistoryErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+): string {
+  const { t } = createTranslator(locale);
+  const knownKey = mobileHistoryErrorKeys[error.code];
+  return t(knownKey ?? "Loading history could not be loaded.");
 }
 
 function toApiClientError(error: unknown, fallback: string): ApiClientError {

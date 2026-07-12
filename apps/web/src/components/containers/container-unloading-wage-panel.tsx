@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ContainerInventorySyncResult } from "@/components/containers/container-inventory-sync-result";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { publishInventorySyncRefresh } from "@/components/inventory/inventory-sync-refresh";
 import {
   ApiClientError,
   completeContainerUnloading,
@@ -11,9 +13,12 @@ import {
   updateContainerUnloaders,
   updateContainerUnloadingWageAssociations,
   type ContainerDetailResponse,
+  type ContainerPalletInventorySyncSummaryResponse,
   type ContainerPayClassification,
   type UnloadingWageWorkerResponse,
 } from "@/lib/api-client";
+import type { Locale } from "@/lib/i18n/catalog";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   buildContainerUnloadersRequest,
   buildContainerUnloadingCompletionRequest,
@@ -67,7 +72,7 @@ export function ContainerUnloadingWagePanel({
   workerOptions: UnloadingWageWorkerResponse[];
   workerOptionsError: ApiClientError | null;
 }) {
-  const { locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [wageDraft, setWageDraft] = useState<ContainerUnloadingWageDraft>(() =>
     wageDraftFromContainer(container),
@@ -91,8 +96,33 @@ export function ContainerUnloadingWagePanel({
     useState<ActionState>(idleState);
   const [completionState, setCompletionState] =
     useState<ActionState>(idleState);
+  const [completionInventorySync, setCompletionInventorySync] = useState<
+    ContainerPalletInventorySyncSummaryResponse[] | null
+  >(null);
   const wage = container.unloadingWage;
   const isTransfer = wageDraft.classification === "US_TO_CANADA_TRANSFER";
+
+  useEffect(() => {
+    try {
+      const key = completionSyncStorageKey(container.id);
+      const serialized = window.sessionStorage.getItem(key);
+      if (!serialized) {
+        return;
+      }
+      const inventorySync: unknown = JSON.parse(serialized);
+      if (Array.isArray(inventorySync)) {
+        const timeoutId = window.setTimeout(() => {
+          window.sessionStorage.removeItem(key);
+          setCompletionInventorySync(
+            inventorySync as ContainerPalletInventorySyncSummaryResponse[],
+          );
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+      }
+    } catch {
+      // Browser storage can be unavailable or contain a stale malformed summary.
+    }
+  }, [container.id]);
 
   function updateWageDraft<K extends keyof ContainerUnloadingWageDraft>(
     key: K,
@@ -154,6 +184,7 @@ export function ContainerUnloadingWagePanel({
     const request = buildContainerUnloadingWageSaveRequest(
       container.containerNo,
       wageDraft,
+      locale,
     );
     if (!request.ok) {
       setWageState({ code: null, message: request.error, status: "error" });
@@ -162,7 +193,7 @@ export function ContainerUnloadingWagePanel({
 
     setWageState({
       code: null,
-      message: "Saving unloading wage information.",
+      message: t("Saving unloading wage information."),
       status: "running",
     });
 
@@ -177,12 +208,12 @@ export function ContainerUnloadingWagePanel({
       }
       setWageState({
         code: null,
-        message: "Saved. Refreshing from API.",
+        message: t("Saved. Refreshing from API."),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setWageState(toActionError(error));
+      setWageState(toActionError(error, locale));
     }
   }
 
@@ -190,7 +221,7 @@ export function ContainerUnloadingWagePanel({
     if (workerOptionsError) {
       setUnloaderState({
         code: workerOptionsError.code,
-        message: "Worker directory could not be loaded.",
+        message: t("Worker directory could not be loaded."),
         status: "error",
       });
       return;
@@ -199,7 +230,7 @@ export function ContainerUnloadingWagePanel({
     if (activeWorkers.length === 0) {
       setUnloaderState({
         code: null,
-        message: "Create or load an active temporary unloader before saving.",
+        message: t("Create or load an active temporary unloader before saving."),
         status: "error",
       });
       return;
@@ -215,8 +246,9 @@ export function ContainerUnloadingWagePanel({
     if (missingWorker) {
       setUnloaderState({
         code: null,
-        message:
+        message: t(
           "Saved temporary unloader is inactive or unavailable. Select an active temporary worker before saving.",
+        ),
         status: "error",
       });
       return;
@@ -224,7 +256,8 @@ export function ContainerUnloadingWagePanel({
 
     const request = buildContainerUnloadersRequest(
       unloaderDrafts,
-      "Container detail unloaders updated",
+      "",
+      locale,
     );
     if (!request.ok) {
       setUnloaderState({
@@ -237,7 +270,7 @@ export function ContainerUnloadingWagePanel({
 
     setUnloaderState({
       code: null,
-      message: "Saving unloaders.",
+      message: t("Saving unloaders."),
       status: "running",
     });
 
@@ -245,12 +278,12 @@ export function ContainerUnloadingWagePanel({
       await updateContainerUnloaders(container.id, request.payload);
       setUnloaderState({
         code: null,
-        message: "Saved. Refreshing from API.",
+        message: t("Saved. Refreshing from API."),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setUnloaderState(toActionError(error));
+      setUnloaderState(toActionError(error, locale));
     }
   }
 
@@ -259,7 +292,7 @@ export function ContainerUnloadingWagePanel({
     if (!displayName) {
       setWorkerCreateState({
         code: null,
-        message: "Temporary unloader name is required.",
+        message: t("Temporary unloader name is required."),
         status: "error",
       });
       return;
@@ -267,7 +300,7 @@ export function ContainerUnloadingWagePanel({
 
     setWorkerCreateState({
       code: null,
-      message: "Creating temporary unloader.",
+      message: t("Creating temporary unloader."),
       status: "running",
     });
 
@@ -297,17 +330,20 @@ export function ContainerUnloadingWagePanel({
       setWorkerCreateDraft(emptyWorkerCreateDraft);
       setWorkerCreateState({
         code: null,
-        message: "Created and selected temporary unloader.",
+        message: t("Created and selected temporary unloader."),
         status: "success",
       });
       setShowWorkerCreate(false);
     } catch (error) {
-      setWorkerCreateState(toActionError(error));
+      setWorkerCreateState(toActionError(error, locale));
     }
   }
 
   async function markCompleted() {
-    const request = buildContainerUnloadingCompletionRequest(completionDraft);
+    const request = buildContainerUnloadingCompletionRequest(
+      completionDraft,
+      locale,
+    );
     if (!request.ok) {
       setCompletionState({
         code: null,
@@ -319,20 +355,31 @@ export function ContainerUnloadingWagePanel({
 
     setCompletionState({
       code: null,
-      message: "Saving unloading completion.",
+      message: t("Saving unloading completion."),
       status: "running",
     });
 
     try {
-      await completeContainerUnloading(container.id, request.payload);
+      const response = await completeContainerUnloading(container.id, request.payload);
+      const inventorySync = response.inventorySync ?? [];
+      setCompletionInventorySync(inventorySync);
+      try {
+        window.sessionStorage.setItem(
+          completionSyncStorageKey(container.id),
+          JSON.stringify(inventorySync),
+        );
+      } catch {
+        // The current panel still shows the API summary when storage is disabled.
+      }
       setCompletionState({
         code: null,
-        message: "Saved. Refreshing from API.",
+        message: t("Saved. Refreshing from API."),
         status: "success",
       });
+      publishInventorySyncRefresh();
       router.refresh();
     } catch (error) {
-      setCompletionState(toActionError(error));
+      setCompletionState(toActionError(error, locale));
     }
   }
 
@@ -341,10 +388,10 @@ export function ContainerUnloadingWagePanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Unloading wage information
+            {t("Unloading wage information")}
           </h2>
           <p className="mt-2 text-sm text-zinc-600">
-            {wage?.payContainerNo ?? "Unsaved pay unit"}
+            {wage?.payContainerNo ?? t("Unsaved pay unit")}
           </p>
         </div>
         <span
@@ -358,16 +405,19 @@ export function ContainerUnloadingWagePanel({
 
       <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
         <SummaryItem
-          label="Wage tag"
+          label={t("Wage tag")}
           value={classificationLabel(wage?.classification ?? null, locale)}
         />
         <SummaryItem
-          label="Rate rule"
-          value={rateRuleLabel(wage?.classification ?? wageDraft.classification)}
+          label={t("Rate rule")}
+          value={rateRuleLabel(
+            wage?.classification ?? wageDraft.classification,
+            locale,
+          )}
         />
-        <SummaryItem label="Trailer number" value={wage?.trailerNumber ?? "-"} />
+        <SummaryItem label={t("Trailer number")} value={wage?.trailerNumber ?? "-"} />
         <SummaryItem
-          label="Unloaders"
+          label={t("Unloaders")}
           value={wage ? String(wage.unloaders.length) : "-"}
         />
       </dl>
@@ -375,7 +425,7 @@ export function ContainerUnloadingWagePanel({
       {wage?.associatedContainers.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase text-zinc-500">
-            Associated containers
+            {t("Associated containers")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {wage.associatedContainers.map((item) => (
@@ -393,16 +443,16 @@ export function ContainerUnloadingWagePanel({
       {wage?.unloaders.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase text-zinc-500">
-            Saved unloaders
+            {t("Saved unloaders")}
           </p>
           <div className="mt-2 overflow-x-auto">
             <table className="min-w-[520px] w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                  <th className="px-3 py-2 font-semibold">Worker</th>
-                  <th className="px-3 py-2 font-semibold">Code</th>
-                  <th className="px-3 py-2 font-semibold">Source</th>
-                  <th className="px-3 py-2 font-semibold">Note</th>
+                  <th className="px-3 py-2 font-semibold">{t("Worker")}</th>
+                  <th className="px-3 py-2 font-semibold">{t("Code")}</th>
+                  <th className="px-3 py-2 font-semibold">{t("Source")}</th>
+                  <th className="px-3 py-2 font-semibold">{t("Note")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -447,7 +497,7 @@ export function ContainerUnloadingWagePanel({
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <div className="grid gap-3 lg:grid-cols-[220px_260px_minmax(0,1fr)]">
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Wage tag
+                {t("Wage tag")}
                 <select
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -467,19 +517,19 @@ export function ContainerUnloadingWagePanel({
                 </select>
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Trailer number
+                {t("Trailer number")}
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 disabled:bg-zinc-100 disabled:text-zinc-500"
                   disabled={!isTransfer}
                   onChange={(event) =>
                     updateWageDraft("trailerNumber", event.target.value)
                   }
-                  placeholder={isTransfer ? "Required" : "Not required"}
+                  placeholder={isTransfer ? t("Required") : t("Not required")}
                   value={wageDraft.trailerNumber}
                 />
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Associated containers
+                {t("Associated containers")}
                 <textarea
                   className="min-h-11 border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 disabled:bg-zinc-100 disabled:text-zinc-500"
                   disabled={!isTransfer}
@@ -490,7 +540,9 @@ export function ContainerUnloadingWagePanel({
                     )
                   }
                   placeholder={
-                    isTransfer ? "One or more container numbers" : "Not required"
+                    isTransfer
+                      ? t("One or more container numbers")
+                      : t("Not required")
                   }
                   value={wageDraft.associatedContainerNosText}
                 />
@@ -498,7 +550,7 @@ export function ContainerUnloadingWagePanel({
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Audit note
+                {t("Audit note")}
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -513,7 +565,7 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void saveWage()}
                 type="button"
               >
-                Save wage information
+                {t("Save wage information")}
               </button>
             </div>
             <ActionMessage state={wageState} />
@@ -521,7 +573,7 @@ export function ContainerUnloadingWagePanel({
 
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-zinc-950">Unloaders</h3>
+              <h3 className="text-sm font-semibold text-zinc-950">{t("Unloaders")}</h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
@@ -533,7 +585,7 @@ export function ContainerUnloadingWagePanel({
                   }
                   type="button"
                 >
-                  Add unloader
+                  {t("Add unloader")}
                 </button>
                 <button
                   className="min-h-9 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
@@ -543,7 +595,7 @@ export function ContainerUnloadingWagePanel({
                   }}
                   type="button"
                 >
-                  Create temporary unloader (no login account)
+                  {t("Create temporary unloader (no login account)")}
                 </button>
               </div>
             </div>
@@ -551,7 +603,7 @@ export function ContainerUnloadingWagePanel({
               <div className="mt-3 border border-zinc-200 bg-zinc-50 p-3">
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_minmax(0,1fr)]">
                   <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                    Name
+                    {t("Name")}
                     <input
                       className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                       onChange={(event) =>
@@ -564,7 +616,7 @@ export function ContainerUnloadingWagePanel({
                     />
                   </label>
                   <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                    Worker code
+                    {t("Worker code")}
                     <input
                       className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                       onChange={(event) =>
@@ -573,12 +625,12 @@ export function ContainerUnloadingWagePanel({
                           event.target.value,
                         )
                       }
-                      placeholder="Auto if blank"
+                      placeholder={t("Auto if blank")}
                       value={workerCreateDraft.workerCode}
                     />
                   </label>
                   <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                    Phone
+                    {t("Phone")}
                     <input
                       className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                       onChange={(event) =>
@@ -588,7 +640,7 @@ export function ContainerUnloadingWagePanel({
                     />
                   </label>
                   <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                    Note
+                    {t("Note")}
                     <input
                       className="min-h-10 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                       onChange={(event) =>
@@ -605,7 +657,7 @@ export function ContainerUnloadingWagePanel({
                     onClick={() => void createTemporaryWorker()}
                     type="button"
                   >
-                    Create and select
+                    {t("Create and select")}
                   </button>
                   <ActionMessage state={workerCreateState} />
                 </div>
@@ -615,9 +667,9 @@ export function ContainerUnloadingWagePanel({
               <table className="min-w-[620px] w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-                    <th className="px-3 py-3 font-semibold">Worker</th>
-                    <th className="px-3 py-3 font-semibold">Note</th>
-                    <th className="px-3 py-3 font-semibold">Action</th>
+                    <th className="px-3 py-3 font-semibold">{t("Worker")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("Note")}</th>
+                    <th className="px-3 py-3 font-semibold">{t("Action")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -641,10 +693,10 @@ export function ContainerUnloadingWagePanel({
                             }
                             value={unloader.unloadingWorkerId ?? ""}
                           >
-                            <option value="">Select temporary worker</option>
+                            <option value="">{t("Select temporary worker")}</option>
                             {hasMissingWorker ? (
                               <option value={unloader.unloadingWorkerId ?? ""}>
-                                Saved worker inactive/unavailable:{" "}
+                                {t("Saved worker inactive/unavailable:")}{" "}
                                 {unloader.workerName}
                               </option>
                             ) : null}
@@ -656,14 +708,16 @@ export function ContainerUnloadingWagePanel({
                           </select>
                           {hasLegacyName ? (
                             <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
-                              Legacy snapshot: {unloader.initialWorkerName}.
-                              Select an active temporary worker before saving.
+                              {format("i18n.unloadingWage.legacySnapshot", {
+                                workerName: unloader.initialWorkerName,
+                              })}
                             </p>
                           ) : null}
                           {hasMissingWorker ? (
                             <p className="mt-2 border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950">
-                              Saved temporary worker is inactive or unavailable.
-                              Select an active temporary worker before saving.
+                              {t(
+                                "Saved temporary worker is inactive or unavailable. Select an active temporary worker before saving.",
+                              )}
                             </p>
                           ) : null}
                         </td>
@@ -689,7 +743,7 @@ export function ContainerUnloadingWagePanel({
                             }
                             type="button"
                           >
-                            Remove
+                            {t("Remove")}
                           </button>
                         </td>
                       </tr>
@@ -704,9 +758,12 @@ export function ContainerUnloadingWagePanel({
                 role="alert"
               >
                 <p className="font-medium">
-                  Worker directory could not be loaded.
+                  {t("Worker directory could not be loaded.")}
                 </p>
-                <p className="mt-1 text-xs font-semibold uppercase">
+                <p
+                  className="mt-1 text-xs font-semibold uppercase"
+                  data-i18n-ignore
+                >
                   {workerOptionsError.code}
                 </p>
               </div>
@@ -720,7 +777,7 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void saveUnloaders()}
                 type="button"
               >
-                Save unloaders
+                {t("Save unloaders")}
               </button>
               <ActionMessage state={unloaderState} />
             </div>
@@ -728,11 +785,11 @@ export function ContainerUnloadingWagePanel({
 
           <div className="mt-6 border-t border-zinc-100 pt-5">
             <h3 className="text-sm font-semibold text-zinc-950">
-              Unloading status
+              {t("Unloading status")}
             </h3>
             <div className="mt-3 grid gap-3 md:grid-cols-[260px_minmax(0,1fr)_180px]">
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Completed at
+                {t("Completed at")}
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -743,7 +800,7 @@ export function ContainerUnloadingWagePanel({
                 />
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                Completion note
+                {t("Completion note")}
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
@@ -758,10 +815,15 @@ export function ContainerUnloadingWagePanel({
                 onClick={() => void markCompleted()}
                 type="button"
               >
-                Mark unloaded
+                {t("Mark unloaded")}
               </button>
             </div>
             <ActionMessage state={completionState} />
+            {completionState.status === "success" ? (
+              <ContainerInventorySyncResult
+                inventorySync={completionInventorySync}
+              />
+            ) : null}
           </div>
         </>
       ) : (
@@ -771,16 +833,22 @@ export function ContainerUnloadingWagePanel({
   );
 }
 
+function completionSyncStorageKey(containerId: string): string {
+  return `bestar.inventory-sync-result.${containerId}`;
+}
+
 function PermissionRequiredPanel() {
+  const { t } = useI18n();
+
   return (
     <div className="mt-6 border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
       <h3 className="font-semibold">
-        Warehouse manager permission required
+        {t("Warehouse manager permission required")}
       </h3>
       <p className="mt-2 leading-6">
-        Ask an administrator for unloading_wage.classify,
-        unloading_wage.complete, and corrections.create before editing
-        container unloading wage information.
+        {t(
+          "Ask an administrator for unloading_wage.classify, unloading_wage.complete, and corrections.create before editing container unloading wage information.",
+        )}
       </p>
     </div>
   );
@@ -795,30 +863,32 @@ function SnapshotBadge({
   unloadingWorkerId: string | null;
   workerUserId: string | null;
 }) {
+  const { t } = useI18n();
+
   if (unloadingWorkerId && isActiveDirectoryWorker) {
     return (
       <span className="inline-flex min-h-7 items-center border border-emerald-200 bg-emerald-50 px-2 text-xs font-semibold text-emerald-800">
-        Temporary directory
+        {t("Temporary directory")}
       </span>
     );
   }
   if (unloadingWorkerId) {
     return (
       <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
-        Inactive snapshot
+        {t("Inactive snapshot")}
       </span>
     );
   }
   if (workerUserId) {
     return (
       <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
-        Legacy user-backed
+        {t("Legacy user-backed")}
       </span>
     );
   }
   return (
     <span className="inline-flex min-h-7 items-center border border-amber-200 bg-amber-50 px-2 text-xs font-semibold text-amber-900">
-      Legacy snapshot
+      {t("Legacy snapshot")}
     </span>
   );
 }
@@ -898,7 +968,12 @@ function ActionMessage({ state }: { state: ActionState }) {
     >
       <p className="font-medium">{state.message}</p>
       {state.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase">{state.code}</p>
+        <p
+          className="mt-1 text-xs font-semibold uppercase"
+          data-i18n-ignore
+        >
+          {state.code}
+        </p>
       ) : null}
     </div>
   );
@@ -917,21 +992,39 @@ function completionBadgeStyles(status: string | null): string {
   return "border-zinc-200 bg-zinc-50 text-zinc-700";
 }
 
-function toActionError(error: unknown): ActionState {
+function toActionError(error: unknown, locale: Locale): ActionState {
+  const { t } = createTranslator(locale);
+  const messages: Record<string, Parameters<typeof t>[0]> = {
+    CONTAINER_UNLOADING_WAGE_NOT_CONFIGURED:
+      "Container unloading wage information is not configured.",
+    CONTAINER_INVENTORY_SYNC_CONCURRENT:
+      "Pallet inventory changed while saving. Refresh and try again.",
+    CONTAINER_INVENTORY_SYNC_CONTAINER_LOCKED:
+      "This container has already entered loading or delivery and cannot be marked unloaded.",
+    CONTAINER_INVENTORY_SYNC_FAILED:
+      "Pallet inventory could not be synchronized. No unloading completion was saved.",
+    CONTAINER_INVENTORY_SYNC_INVALID_FINAL_COUNT:
+      "Final pallet count is invalid. Review destination totals before completing unloading.",
+    CONTAINER_INVENTORY_SYNC_UNSAFE_SURPLUS:
+      "Actual pallet total is lower than the operational pallet history. Resolve loading, delivery, or inventory adjustments before completing unloading.",
+    FORBIDDEN: "Unloading wage action permission denied.",
+    UNLOADING_WORKER_INACTIVE:
+      "Selected temporary unloader is inactive or unavailable.",
+    UNLOADING_WORKER_NOT_FOUND: "Selected temporary unloader could not be found.",
+    UNLOADING_WORKER_REQUIRED: "Add at least one unloader.",
+  };
+
   if (error instanceof ApiClientError) {
     return {
       code: error.code,
-      message: error.message,
+      message: t(messages[error.code] ?? "Unloading wage information could not be saved."),
       status: "error",
     };
   }
 
   return {
     code: "UNLOADING_WAGE_SAVE_FAILED",
-    message:
-      error instanceof Error
-        ? error.message
-        : "Unloading wage information could not be saved.",
+    message: t("Unloading wage information could not be saved."),
     status: "error",
   };
 }

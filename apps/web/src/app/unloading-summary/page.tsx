@@ -23,10 +23,15 @@ import {
   type UnloadingSummaryResponse,
   type UnloadingSummaryRowResponse,
 } from "@/lib/api-client";
-import type { Locale } from "@/lib/i18n/catalog";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
-import { businessStatusLabel } from "@/lib/i18n/status-labels";
-import { translateMessage } from "@/lib/i18n/translator";
+import {
+  businessStatusLabel,
+  destinationTypeLabel,
+  generatedFileTypeLabel,
+  payClassificationLabel,
+} from "@/lib/i18n/status-labels";
+import { createTranslator } from "@/lib/i18n/translator";
 import {
   canExportUnloadingSummary,
   canReviewUnloadingSummary,
@@ -57,8 +62,8 @@ export default async function UnloadingSummaryPage({
   if (!canRead) {
     const month = resolveUnloadingSummaryMonth(requestedSearchParams, []);
     return (
-      <UnloadingSummaryPageShell month={month}>
-        <PermissionRequiredPanel />
+      <UnloadingSummaryPageShell locale={locale} month={month}>
+        <PermissionRequiredPanel locale={locale} />
       </UnloadingSummaryPageShell>
     );
   }
@@ -69,7 +74,7 @@ export default async function UnloadingSummaryPage({
     state.summary?.availableMonths ?? state.availableMonths;
 
   return (
-    <UnloadingSummaryPageShell month={month}>
+    <UnloadingSummaryPageShell locale={locale} month={month}>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {canExport ? (
           <UnloadingSummaryExportPanel
@@ -78,9 +83,9 @@ export default async function UnloadingSummaryPage({
             rowCount={state.summary?.rowCount ?? 0}
           />
         ) : (
-          <ExportPermissionPanel />
+          <ExportPermissionPanel locale={locale} />
         )}
-        <MonthFilter availableMonths={availableMonths} month={month} />
+        <MonthFilter availableMonths={availableMonths} locale={locale} month={month} />
       </section>
 
       <CompletionStatusRule locale={locale} />
@@ -88,14 +93,15 @@ export default async function UnloadingSummaryPage({
       {state.error ? (
         <ApiErrorPanel
           error={state.error}
+          locale={locale}
           title="Monthly unloading data summary could not be loaded"
         />
       ) : null}
 
       {state.summary ? (
         <>
-          <SummaryMetrics summary={state.summary} />
-          <ReviewWarnings summary={state.summary} />
+          <SummaryMetrics locale={locale} summary={state.summary} />
+          <ReviewWarnings locale={locale} summary={state.summary} />
           <SummaryRowsTable
             availableMonths={state.summary.availableMonths}
             locale={locale}
@@ -148,25 +154,30 @@ async function loadUnloadingSummaryState(
 
 function UnloadingSummaryPageShell({
   children,
+  locale,
   month,
 }: {
   children: ReactNode;
+  locale: Locale;
   month: string;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
-              Reports
+              {t("Reports")}
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-zinc-950">
-              Monthly Unloading Data Summary
+              {t("Monthly Unloading Data Summary")}
             </h1>
             <p className="mt-3 max-w-4xl text-sm leading-6 text-zinc-600">
-              Review completed unloading container data for office operations
-              without generating unloading wage settlement.
+              {t(
+                "Review completed unloading container data for office operations without generating unloading wage settlement.",
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -174,13 +185,13 @@ function UnloadingSummaryPageShell({
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href="/reports"
             >
-              Reports
+              {t("Reports")}
             </Link>
             <Link
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
               href={unloadingSummaryHref(month)}
             >
-              Refresh
+              {t("Refresh")}
             </Link>
           </div>
         </div>
@@ -190,29 +201,35 @@ function UnloadingSummaryPageShell({
   );
 }
 
-function PermissionRequiredPanel() {
+function PermissionRequiredPanel({ locale }: { locale: Locale }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-amber-200 bg-amber-50 p-5 text-amber-950 shadow-sm">
       <h2 className="text-base font-semibold">
-        Unloading summary read permission required
+        {t("Unloading summary read permission required")}
       </h2>
       <p className="mt-2 text-sm leading-6">
-        Ask an administrator for unloading_summary.read before opening Monthly
-        Unloading Data Summary.
+        {t(
+          "Ask an administrator for unloading_summary.read before opening Monthly Unloading Data Summary.",
+        )}
       </p>
     </section>
   );
 }
 
-function ExportPermissionPanel() {
+function ExportPermissionPanel({ locale }: { locale: Locale }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm">
       <h2 className="text-base font-semibold">
-        Unloading summary export permission required
+        {t("Unloading summary export permission required")}
       </h2>
       <p className="mt-2 leading-6">
-        This account can review monthly unloading data but needs
-        unloading_summary.export before generating Excel exports.
+        {t(
+          "This account can review monthly unloading data but needs unloading_summary.export before generating Excel exports.",
+        )}
       </p>
     </section>
   );
@@ -220,22 +237,28 @@ function ExportPermissionPanel() {
 
 function MonthFilter({
   availableMonths,
+  locale,
   month,
 }: {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  locale: Locale;
   month: string;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Summary month filter
+        {t("Summary month filter")}
       </h2>
       <form
         action="/unloading-summary"
         className="mt-4 flex flex-wrap items-end gap-3"
       >
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Selected month</span>
+          <span className="font-semibold text-zinc-700">
+            {t("Selected month")}
+          </span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             defaultValue={month}
@@ -247,23 +270,27 @@ function MonthFilter({
           className="min-h-10 border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
           type="submit"
         >
-          Apply
+          {t("Apply")}
         </button>
       </form>
-      <AvailableMonthShortcuts availableMonths={availableMonths} />
+      <AvailableMonthShortcuts availableMonths={availableMonths} locale={locale} />
     </section>
   );
 }
 
 function AvailableMonthShortcuts({
   availableMonths,
+  locale,
 }: {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  locale: Locale;
 }) {
+  const { format, t } = createTranslator(locale);
+
   if (availableMonths.length === 0) {
     return (
       <p className="mt-4 text-sm text-zinc-600">
-        No available completed unloading months yet.
+        {t("No available completed unloading months yet.")}
       </p>
     );
   }
@@ -271,7 +298,7 @@ function AvailableMonthShortcuts({
   return (
     <div className="mt-4">
       <p className="text-sm font-semibold text-zinc-700">
-        Available completed months
+        {t("Available completed months")}
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {availableMonths.slice(0, 8).map((availableMonth) => (
@@ -280,8 +307,11 @@ function AvailableMonthShortcuts({
             href={unloadingSummaryHref(availableMonth.month)}
             key={availableMonth.month}
           >
-            {availableMonth.month} · {availableMonth.completedContainerCount}{" "}
-            container(s) · {availableMonth.rowCount} row(s)
+            {format("i18n.unloadingSummary.availableMonth", {
+              containers: availableMonth.completedContainerCount,
+              month: availableMonth.month,
+              rows: availableMonth.rowCount,
+            })}
           </Link>
         ))}
       </div>
@@ -290,53 +320,53 @@ function AvailableMonthShortcuts({
 }
 
 function CompletionStatusRule({ locale }: { locale: Locale }) {
+  const { format, t } = createTranslator(locale);
   const completedLabels = COMPLETED_UNLOADING_STATUS_VALUES.map((status) =>
     businessStatusLabel(status, locale),
-  ).join(" / ");
-  const prefix =
-    translateMessage(
-      "Summary includes API rows from completed unloading statuses:",
-      locale,
-    ) ?? "Summary includes API rows from completed unloading statuses:";
-  const suffix =
-    translateMessage(
-      "Label-generated containers are excluded until unloading is marked complete.",
-      locale,
-    ) ??
-    "Label-generated containers are excluded until unloading is marked complete.";
-  const sentenceSeparator = locale === "zh-CN" ? "。" : ".";
+  );
 
   return (
     <section className="border border-sky-200 bg-sky-50 p-5 text-sm text-sky-950 shadow-sm">
-      <h2 className="text-base font-semibold">Completed status filter</h2>
+      <h2 className="text-base font-semibold">{t("Completed status filter")}</h2>
       <p className="mt-2 leading-6">
-        {prefix} {completedLabels}
-        {sentenceSeparator} {suffix}
+        {format("i18n.unloadingSummary.completedStatusRule", {
+          statuses: new Intl.ListFormat(locale, {
+            style: "long",
+            type: "conjunction",
+          }).format(completedLabels),
+        })}
       </p>
     </section>
   );
 }
 
-function SummaryMetrics({ summary }: { summary: UnloadingSummaryResponse }) {
+function SummaryMetrics({
+  locale,
+  summary,
+}: {
+  locale: Locale;
+  summary: UnloadingSummaryResponse;
+}) {
+  const { t } = createTranslator(locale);
   const counts = unloadingSummaryBusinessTypeCounts(summary.rows);
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-7">
-        <Metric label="Selected month" value={summary.month} />
+        <Metric label={t("Selected month")} value={summary.month} />
         <Metric
-          label="Completed containers"
+          label={t("Completed containers")}
           value={String(summary.sourceContainerCount)}
         />
-        <Metric label="Detail rows" value={String(summary.rowCount)} />
-        <Metric label="Ocean containers" value={String(counts.ocean)} />
-        <Metric label="US-to-Canada" value={String(counts.usToCanada)} />
+        <Metric label={t("Detail rows")} value={String(summary.rowCount)} />
+        <Metric label={t("Ocean containers")} value={String(counts.ocean)} />
+        <Metric label={t("US-to-Canada")} value={String(counts.usToCanada)} />
         <Metric
-          label="Review warnings"
+          label={t("Review warnings")}
           value={String(summary.reviewItems.length)}
         />
         <Metric
-          label="Missing completed dates"
+          label={t("Missing completed dates")}
           value={String(summary.missingCompletionReviewCount)}
         />
       </div>
@@ -344,14 +374,22 @@ function SummaryMetrics({ summary }: { summary: UnloadingSummaryResponse }) {
   );
 }
 
-function ReviewWarnings({ summary }: { summary: UnloadingSummaryResponse }) {
+function ReviewWarnings({
+  locale,
+  summary,
+}: {
+  locale: Locale;
+  summary: UnloadingSummaryResponse;
+}) {
+  const { t } = createTranslator(locale);
+
   if (summary.reviewItems.length === 0) {
     return (
       <section className="border border-zinc-200 bg-white p-5 text-sm text-zinc-600 shadow-sm">
         <h2 className="text-base font-semibold text-zinc-950">
-          Review warnings
+          {t("Review warnings")}
         </h2>
-        <p className="mt-2">No review warnings for the selected month.</p>
+        <p className="mt-2">{t("No review warnings for the selected month.")}</p>
       </section>
     );
   }
@@ -361,12 +399,14 @@ function ReviewWarnings({ summary }: { summary: UnloadingSummaryResponse }) {
       className="border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-base font-semibold">Review warnings</h2>
+      <h2 className="text-base font-semibold">{t("Review warnings")}</h2>
       <ul className="mt-3 grid gap-2">
         {summary.reviewItems.map((item, index) => (
           <li className="border border-amber-200 bg-white px-3 py-2" key={index}>
-            <p className="font-semibold">{item.code}</p>
-            <p className="mt-1">{unloadingSummaryReviewText(item)}</p>
+            <p className="font-semibold" data-i18n-ignore>
+              {item.code}
+            </p>
+            <p className="mt-1">{unloadingSummaryReviewText(item, locale)}</p>
           </li>
         ))}
       </ul>
@@ -383,17 +423,20 @@ function SummaryRowsTable({
   locale: Locale;
   rows: UnloadingSummaryRowResponse[];
 }) {
+  const { format, t } = createTranslator(locale);
+
   if (rows.length === 0) {
     return (
       <section className="border border-dashed border-zinc-300 bg-zinc-50 p-6 text-sm text-zinc-600">
         <h2 className="text-base font-semibold text-zinc-950">
-          No completed unloading rows for the selected month
+          {t("No completed unloading rows for the selected month")}
         </h2>
         <p className="mt-2 max-w-3xl leading-6">
-          Mark container unloading as complete and confirm the completion date
-          falls inside this month before exporting the office summary.
+          {t(
+            "Mark container unloading as complete and confirm the completion date falls inside this month before exporting the office summary.",
+          )}
         </p>
-        <AvailableMonthShortcuts availableMonths={availableMonths} />
+        <AvailableMonthShortcuts availableMonths={availableMonths} locale={locale} />
       </section>
     );
   }
@@ -403,14 +446,14 @@ function SummaryRowsTable({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            Monthly unloading detail
+            {t("Monthly unloading detail")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
-            Destination and note lines are returned by the summary API.
+            {t("Destination and note lines are returned by the summary API.")}
           </p>
         </div>
         <p className="text-sm font-semibold text-zinc-700">
-          {rows.length} detail row(s)
+          {format("i18n.unloadingSummary.detailRows", { count: rows.length })}
         </p>
       </div>
 
@@ -418,20 +461,20 @@ function SummaryRowsTable({
         <table className="w-full min-w-[1500px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="px-3 py-3 font-semibold">Container number</th>
-              <th className="px-3 py-3 font-semibold">Current status</th>
-              <th className="px-3 py-3 font-semibold">Completed date</th>
-              <th className="px-3 py-3 font-semibold">Wage tag</th>
-              <th className="px-3 py-3 font-semibold">Trailer number</th>
+              <th className="px-3 py-3 font-semibold">{t("Container number")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Current status")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Completed date")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Wage tag")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Trailer number")}</th>
               <th className="px-3 py-3 font-semibold">
-                Destination and service line
+                {t("Destination and service line")}
               </th>
-              <th className="px-3 py-3 font-semibold">Cartons and pallets</th>
+              <th className="px-3 py-3 font-semibold">{t("Cartons and pallets")}</th>
               <th className="px-3 py-3 font-semibold">
-                Reference and appointment
+                {t("Reference and appointment")}
               </th>
               <th className="px-3 py-3 font-semibold">
-                Split variance and note
+                {t("Split variance and note")}
               </th>
             </tr>
           </thead>
@@ -466,7 +509,7 @@ function SummaryRowsTable({
                     {unloadingSummaryWageTag(row, locale)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {displayText(row.classification)}
+                    {payClassificationLabel(row.classification, locale)}
                   </p>
                 </td>
                 <td className="px-3 py-4">{displayText(row.trailerNumber)}</td>
@@ -476,13 +519,16 @@ function SummaryRowsTable({
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {displayText(row.destinationCode)} ·{" "}
-                    {displayText(row.destinationType)}
+                    {destinationTypeLabel(row.destinationType, locale)}
                   </p>
                 </td>
                 <td className="px-3 py-4">
                   <p>{displayText(row.quantityText)}</p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {row.cartons} carton(s), {row.finalPallets} pallet(s)
+                    {format("i18n.unloadingSummary.cartonsPallets", {
+                      cartons: row.cartons,
+                      pallets: row.finalPallets,
+                    })}
                   </p>
                 </td>
                 <td className="px-3 py-4">
@@ -513,15 +559,16 @@ function GeneratedSummaryFiles({
   locale: Locale;
   summary: UnloadingSummaryResponse;
 }) {
+  const { format, t } = createTranslator(locale);
+
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Generated summary files
+        {t("Generated summary files")}
       </h2>
       {summary.generatedFiles.length === 0 ? (
         <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-          No monthly unloading summary export has been generated for this
-          month.
+          {t("No monthly unloading summary export has been generated for this month.")}
         </p>
       ) : (
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -530,23 +577,25 @@ function GeneratedSummaryFiles({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-zinc-950">
-                    {displayText(file.fileType)}
+                    {generatedFileTypeLabel(file.fileType, locale)}
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    Created {formatUnloadingSummaryDate(file.createdAt)}
+                    {format("i18n.unloadingSummary.createdAt", {
+                      date: formatUnloadingSummaryDate(file.createdAt),
+                    })}
                   </p>
                 </div>
                 <StatusBadge locale={locale} status={file.status} />
               </div>
               <p className="mt-3 break-all text-xs text-zinc-600">
-                {unloadingSummaryGeneratedFileAuditText(file)}
+                {unloadingSummaryGeneratedFileAuditText(file, locale)}
               </p>
               {file.status === "GENERATED" ? (
                 <Link
                   className="mt-3 inline-flex min-h-9 items-center border border-teal-700 bg-white px-3 text-xs font-semibold uppercase text-teal-800 hover:bg-teal-50"
                   href={getUnloadingSummaryExportDownloadUrl(file.id)}
                 >
-                  Download
+                  {t("Download")}
                 </Link>
               ) : null}
             </div>
@@ -577,7 +626,7 @@ function StatusBadge({
   return (
     <span
       className={`inline-flex min-h-7 items-center rounded border px-2.5 text-xs font-semibold uppercase ${styles}`}
-      title={status}
+      title={businessStatusLabel(status, locale)}
     >
       {businessStatusLabel(status, locale)}
     </span>
@@ -586,23 +635,48 @@ function StatusBadge({
 
 function ApiErrorPanel({
   error,
+  locale,
   title,
 }: {
   error: ApiClientError;
-  title: string;
+  locale: Locale;
+  title: MessageKey;
 }) {
+  const { t } = createTranslator(locale);
+
   return (
     <section
       className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
       role="alert"
     >
-      <h2 className="text-base font-semibold">{title}</h2>
-      <p className="mt-2 text-sm">
+      <h2 className="text-base font-semibold">{t(title)}</h2>
+      <p className="mt-2 text-sm">{unloadingSummaryApiErrorMessage(error, locale)}</p>
+      <p className="mt-2 text-xs font-semibold uppercase" data-i18n-ignore>
         {error.code}
-        {error.status ? ` (${error.status})` : ""}: {error.message}
       </p>
     </section>
   );
+}
+
+function unloadingSummaryApiErrorMessage(
+  error: ApiClientError,
+  locale: Locale,
+): string {
+  const { t } = createTranslator(locale);
+  const messages: Record<string, MessageKey> = {
+    UNLOADING_SUMMARY_EXPORT_FAILED:
+      "Monthly unloading summary export could not be generated.",
+    UNLOADING_SUMMARY_EXPORT_NOT_DOWNLOADABLE:
+      "Monthly unloading summary export is not available for download.",
+    UNLOADING_SUMMARY_EXPORT_NOT_FOUND:
+      "Monthly unloading summary export could not be found.",
+    UNLOADING_SUMMARY_EXPORT_STORAGE_MISSING:
+      "Monthly unloading summary export file is unavailable.",
+    UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH:
+      "Selected month has no summary rows. Choose an available completed month before exporting.",
+  };
+
+  return t(messages[error.code] ?? "The request failed.");
 }
 
 function statusBadgeStyles(status: string): string {

@@ -1,6 +1,10 @@
 import type { GeneratedFileResponse } from "@/lib/api-client";
-import type { Locale } from "../../lib/i18n/catalog";
-import { containerLifecycleStatusLabel } from "../../lib/i18n/status-labels";
+import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
+import {
+  containerLifecycleStatusLabel,
+  generatedFileTypeLabel as localizedGeneratedFileTypeLabel,
+} from "../../lib/i18n/status-labels";
+import { createTranslator } from "../../lib/i18n/translator";
 
 export type GenerationAction = "labels" | "report";
 
@@ -19,15 +23,26 @@ export function isContainerOperationLocked(status: string): boolean {
   );
 }
 
-export function containerOperationLockMessage(status: string): string {
+export function containerOperationLockMessage(
+  status: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+
   if (status === "LOADED") {
-    return "This container is loaded and archived. Reports, labels, and destination corrections are locked.";
+    return t(
+      "This container is loaded and archived. Reports, labels, and destination corrections are locked.",
+    );
   }
   if (status === "LOADING_IN_PROGRESS") {
-    return "This container is in loading. Reports, labels, and destination corrections are locked until loading corrections are handled by scan workflow.";
+    return t(
+      "This container is in loading. Reports, labels, and destination corrections are locked until loading corrections are handled by scan workflow.",
+    );
   }
   if (status === "UNLOADED") {
-    return "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.";
+    return t(
+      "This container is unloaded. Reports, labels, and destination corrections are locked before loading workflow starts.",
+    );
   }
   return "";
 }
@@ -51,13 +66,18 @@ export function canShowLabelReprintAction(
 export function labelReprintUnavailableMessage(
   canReprintLabels: boolean,
   files: readonly GeneratedFileResponse[],
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
+  const { t } = createTranslator(locale);
+
   if (!hasGeneratedLabelPdf(files)) {
-    return "Generate a label PDF before recording a reprint.";
+    return t("Generate a label PDF before recording a reprint.");
   }
 
   if (!canReprintLabels) {
-    return "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.";
+    return t(
+      "Label reprint requires labels.reprint permission. Ask office staff or an administrator to record the reprint audit.",
+    );
   }
 
   return "";
@@ -69,41 +89,58 @@ export function isDownloadableGeneratedFile(
   return file.status === "GENERATED" && Boolean(file.fileSha256);
 }
 
-export function generatedFileTypeLabel(fileType: string): string {
-  const labels: Record<string, string> = {
-    EXCEL_REPORT: "Excel report",
-    PALLET_LABEL_PDF: "Label PDF",
-    TASK_REPORT_HTML: "Task report",
-  };
-
-  return labels[fileType] ?? fileType;
+export function generatedFileTypeLabel(
+  fileType: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return localizedGeneratedFileTypeLabel(fileType, locale);
 }
 
-export function generationActionLabel(action: GenerationAction): string {
-  return action === "report" ? "Generate Excel Report" : "Generate Label PDF";
+export function generationActionLabel(
+  action: GenerationAction,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+  return action === "report" ? t("Generate Excel Report") : t("Generate Label PDF");
 }
 
-export function generationActionNotice(action: GenerationAction): string {
+export function generationActionNotice(
+  action: GenerationAction,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+
   if (action === "report") {
-    return "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.";
+    return t(
+      "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.",
+    );
   }
 
-  return "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.";
+  return t(
+    "Label PDF generation rebuilds unused planned or label-printed pallets from the latest saved destination totals; unloaded, loading, or loaded containers are locked.",
+  );
 }
 
 export function generationFailureMessage(
   action: GenerationAction,
   code: string | null,
-  message: string,
+  _message: string,
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
+  const { t } = createTranslator(locale);
+
   if (action === "labels" && code === "PALLETS_ALREADY_IN_USE") {
-    return `${message} Existing pallets have already been assigned, loaded, marked unloaded, or entered loading, so the label PDF and pallet records cannot be rebuilt.`;
+    return t(
+      "The label PDF and pallet records cannot be rebuilt because existing pallets have already been assigned, loaded, marked unloaded, or entered loading.",
+    );
   }
   if (code === "CONTAINER_GENERATION_LOCKED") {
-    return `${message} Use the scan correction workflow for loading changes, or work from a container that has not entered loading.`;
+    return t(
+      "Container generation is locked. Use the scan correction workflow for loading changes, or work from a container that has not entered loading.",
+    );
   }
 
-  return message;
+  return t("Generation failed.");
 }
 
 export function formatFileSizeBytes(value: string | null): string {

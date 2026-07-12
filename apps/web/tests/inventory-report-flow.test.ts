@@ -65,6 +65,7 @@ test("pallet summary totals use API supplied remaining counts", () => {
     sumPalletStats([
       {
         adjustedOutPallets: 1,
+        activeTotalPallets: 5,
         cancelledPallets: 0,
         loadedPallets: 1,
         remainingPallets: 4,
@@ -72,6 +73,7 @@ test("pallet summary totals use API supplied remaining counts", () => {
       },
       {
         adjustedOutPallets: 0,
+        activeTotalPallets: 2,
         cancelledPallets: 1,
         loadedPallets: 2,
         remainingPallets: 0,
@@ -80,6 +82,7 @@ test("pallet summary totals use API supplied remaining counts", () => {
     ]),
     {
       adjustedOutPallets: 1,
+      activeTotalPallets: 7,
       cancelledPallets: 1,
       loadedPallets: 3,
       remainingPallets: 4,

@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   SafeAreaView,
+  FlatList,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from "react-native";
 import { NativeApiError } from "../api/api-error";
@@ -30,10 +33,12 @@ import {
 import type { LoadJob, LoadJobScanResponse } from "../load-jobs/load-job-types";
 import {
   formatNullable,
+  bayBoardJobs,
   formatScheduledDeparture,
   loadJobDisplayName,
   loadJobLineSummary,
   loadJobProgress,
+  loadJobStatusLabel,
 } from "../load-jobs/load-job-view-model";
 import type { OfflineScanRecord } from "../offline-queue/offline-queue-types";
 import { AsyncStorageOfflineQueueStore } from "../offline-queue/offline-queue-store";
@@ -54,7 +59,25 @@ import {
 } from "../scan/scan-view-model";
 import { AsyncStorageSettingsStore } from "../storage/async-storage-settings-store";
 import type { SettingsStore } from "../storage/settings-store";
-import { appStyles } from "../ui/styles";
+import {
+  loadNativeLocale,
+  nativeApiErrorMessage,
+  saveNativeLocale,
+  t,
+  type NativeLocale,
+} from "../i18n/native-i18n";
+import {
+  initialNativeScreen,
+  resolveNativeScreen,
+  type NativeScreen,
+} from "./navigation";
+import { startupMetrics } from "./startup-metrics";
+import {
+  getNativeThemeTokens,
+  resolveNativeColorScheme,
+  setAppColorScheme,
+  appStyles,
+} from "../ui/styles";
 
 const initialAuthSession: AuthSession = {
   message: "Checking saved session.",
@@ -64,17 +87,23 @@ const initialAuthSession: AuthSession = {
 
 interface LoadJobsState {
   items: LoadJob[];
+  lastSuccessfulAt: string | null;
   message: string;
   status: "blocked" | "empty" | "error" | "idle" | "loading" | "ready";
 }
 
 const initialLoadJobsState: LoadJobsState = {
   items: [],
+  lastSuccessfulAt: null,
   message: "Sign in to view open load jobs.",
   status: "idle",
 };
 
 export function App() {
+  startupMetrics.mark("first-shell");
+  const systemColorScheme = resolveNativeColorScheme(useColorScheme());
+  setAppColorScheme(systemColorScheme);
+  const theme = getNativeThemeTokens(systemColorScheme);
   const settingsStore = useMemo<SettingsStore>(
     () => new AsyncStorageSettingsStore(),
     [],
@@ -85,6 +114,8 @@ export function App() {
     [settingsStore],
   );
   const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
+  const [locale, setLocale] = useState<NativeLocale>("en");
+  const [screen, setScreen] = useState<NativeScreen>("login");
   const [deviceId, setDeviceId] = useState("Loading device.");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -97,6 +128,7 @@ export function App() {
     useState<AuthSession>(initialAuthSession);
   const [loadJobsState, setLoadJobsState] =
     useState<LoadJobsState>(initialLoadJobsState);
+  const [loadJobQuery, setLoadJobQuery] = useState("");
   const [selectedLoadJob, setSelectedLoadJob] = useState<LoadJob | null>(null);
   const [qrPayload, setQrPayload] = useState("");
   const [dockNo, setDockNo] = useState("");
@@ -104,6 +136,8 @@ export function App() {
   const [overridePayload, setOverridePayload] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [scanNotice, setScanNotice] = useState<ScanNotice | null>(null);
+  const [secondaryActionsExpanded, setSecondaryActionsExpanded] = useState(false);
+  const [queueDetailsExpanded, setQueueDetailsExpanded] = useState(false);
   const [lastScan, setLastScan] = useState<LoadJobScanResponse | null>(null);
   const [offlineQueue, setOfflineQueue] = useState<OfflineScanRecord[]>([]);
   const [submittingScan, setSubmittingScan] = useState(false);
@@ -119,23 +153,29 @@ export function App() {
   useEffect(() => {
     let mounted = true;
     async function load() {
-      const [settings, resolvedDeviceId] = await Promise.all([
+      const [settings, resolvedDeviceId, savedLocale] = await Promise.all([
         loadLanSettings(settingsStore),
         getOrCreateDeviceId(settingsStore),
+        loadNativeLocale(settingsStore),
       ]);
-      const queuedScans = await offlineQueueStore.list();
       if (!mounted) {
         return;
       }
       setApiBaseUrl(settings.apiBaseUrl);
+      setLocale(savedLocale);
       setDeviceId(resolvedDeviceId);
+      const restored = await restoreSession({
+        apiBaseUrl: settings.apiBaseUrl,
+        tokenStore,
+      });
+      setAuthSession(restored);
+      setScreen(initialNativeScreen(restored));
+      startupMetrics.mark("session-resolved");
+      const queuedScans = await offlineQueueStore.list();
+      if (!mounted) {
+        return;
+      }
       setOfflineQueue(queuedScans);
-      setAuthSession(
-        await restoreSession({
-          apiBaseUrl: settings.apiBaseUrl,
-          tokenStore,
-        }),
-      );
     }
 
     void load();
@@ -189,8 +229,10 @@ export function App() {
         await signIn(
           apiBaseUrl,
           {
+            deviceId,
             email,
             password,
+            platform: "react-native",
           },
           tokenStore,
         ),
@@ -199,6 +241,7 @@ export function App() {
       setSelectedLoadJob(null);
       setDockNo("");
       clearScanState();
+      setScreen("load-jobs");
       await syncOfflineQueue(apiBaseUrl);
     } catch (error) {
       setAuthSession({
@@ -215,17 +258,19 @@ export function App() {
   }
 
   async function submitLogout() {
-    setAuthSession(await signOut(tokenStore));
+    setAuthSession(await signOut(tokenStore, apiBaseUrl));
     setLoadJobsState(initialLoadJobsState);
     setSelectedLoadJob(null);
     setDockNo("");
     clearScanState();
+    setScreen("login");
   }
 
   async function refreshOpenLoadJobs() {
     if (!canUseMobileScan(authSession.user)) {
       setLoadJobsState({
         items: [],
+        lastSuccessfulAt: null,
         message: "This account cannot view mobile load jobs.",
         status: "blocked",
       });
@@ -246,6 +291,7 @@ export function App() {
 
     setLoadJobsState({
       items: loadJobsState.items,
+      lastSuccessfulAt: loadJobsState.lastSuccessfulAt,
       message: "Loading open load jobs.",
       status: "loading",
     });
@@ -253,12 +299,14 @@ export function App() {
       const response = await listOpenLoadJobs(apiBaseUrl, token);
       setLoadJobsState({
         items: response.items,
+        lastSuccessfulAt: new Date().toISOString(),
         message:
           response.items.length > 0
             ? "Open load jobs loaded from API."
             : "No open load jobs. Ask office staff to publish a truck loading plan.",
         status: response.items.length > 0 ? "ready" : "empty",
       });
+      startupMetrics.mark("load-jobs-ready");
     } catch (error) {
       handleProtectedApiError(error, "Load jobs could not be loaded.");
     }
@@ -283,6 +331,7 @@ export function App() {
       setSelectedLoadJob(loadJob);
       setDockNo(loadJob.dockNo ?? "");
       clearScanState();
+      setScreen("scan");
     } catch (error) {
       handleProtectedApiError(error, "Load job detail could not be opened.");
     } finally {
@@ -654,6 +703,8 @@ export function App() {
     setSavingDock(false);
     setCompletingLoadJob(false);
     setCameraScanning(false);
+    setSecondaryActionsExpanded(false);
+    setQueueDetailsExpanded(false);
     clearSupervisorOverrideState();
   }
 
@@ -691,6 +742,7 @@ export function App() {
     if (error instanceof NativeApiError && error.status === 403) {
       setLoadJobsState({
         items: [],
+        lastSuccessfulAt: null,
         message: "Permission denied. This account cannot view mobile load jobs.",
         status: "blocked",
       });
@@ -699,194 +751,86 @@ export function App() {
 
     setLoadJobsState({
       items: loadJobsState.items,
+      lastSuccessfulAt: loadJobsState.lastSuccessfulAt,
       message: error instanceof Error ? error.message : fallbackMessage,
       status: "error",
     });
   }
 
   const currentUser = authSession.user;
+  const activeScreen = resolveNativeScreen({
+    requested: screen,
+    selectedLoadJob,
+    session: authSession,
+  });
+
+  async function changeLocale(nextLocale: NativeLocale) {
+    setLocale(nextLocale);
+    await saveNativeLocale(settingsStore, nextLocale);
+  }
 
   return React.createElement(
     SafeAreaView,
     { style: appStyles.screen },
+    React.createElement(StatusBar, {
+      backgroundColor: theme.background,
+      barStyle: systemColorScheme === "dark" ? "light-content" : "dark-content",
+    }),
     React.createElement(
       ScrollView,
       { contentContainerStyle: appStyles.content },
-      React.createElement(Text, { style: appStyles.eyebrow }, "Bestar Native Scan"),
-      React.createElement(Text, { style: appStyles.title }, "Warehouse Scan"),
-      React.createElement(
-        Text,
-        { style: appStyles.body },
-        "Configure the LAN API, then sign in with an existing warehouse account. This native app is separate from the office web app.",
-      ),
       React.createElement(
         View,
-        { style: appStyles.section },
-        React.createElement(Text, { style: appStyles.label }, "API base URL"),
-        React.createElement(TextInput, {
-          autoCapitalize: "none",
-          autoCorrect: false,
-          keyboardType: "url",
-          onChangeText: setApiBaseUrl,
-          placeholder: "http://192.168.1.10/api",
-          style: appStyles.input,
-          value: apiBaseUrl,
-        }),
+        { style: appStyles.appHeader },
         React.createElement(
-          TouchableOpacity,
-          {
-            disabled: checking,
-            onPress: () => {
-              void saveAndCheck();
-            },
-            style: checking ? appStyles.buttonDisabled : appStyles.button,
-          },
+          View,
+          { style: appStyles.appHeaderBrand },
           React.createElement(
             Text,
-            { style: appStyles.buttonText },
-            checking ? "Checking API" : "Save and check API",
+            { ellipsizeMode: "clip", numberOfLines: 2, style: appStyles.eyebrow },
+            t(locale, "appName"),
           ),
-        ),
-      ),
-      React.createElement(
-        View,
-        { style: appStyles.statusPanel },
-        React.createElement(
-          Text,
-          { style: health.ok ? appStyles.statusOk : appStyles.statusError },
-          health.ok ? "Reachable" : "Not connected",
-        ),
-        React.createElement(Text, { style: appStyles.statusMessage }, health.message),
-        health.checkedAt
-          ? React.createElement(
-              Text,
-              { style: appStyles.meta },
-              `Checked at ${health.checkedAt}`,
-            )
-          : null,
-      ),
-      React.createElement(
-        View,
-        { style: appStyles.section },
-        React.createElement(Text, { style: appStyles.label }, "Device ID"),
-        React.createElement(Text, { style: appStyles.mono }, deviceId),
-      ),
-      React.createElement(
-        View,
-        { style: appStyles.section },
-        React.createElement(Text, { style: appStyles.sectionTitle }, "Login"),
-        currentUser
-          ? React.createElement(
-              View,
-              { style: appStyles.userPanel },
-              React.createElement(
-                Text,
-                { style: appStyles.userName },
-                currentUser.name ?? currentUser.email ?? "Signed-in user",
-              ),
-              React.createElement(
-                Text,
-                { style: appStyles.meta },
-                currentUser.email ?? "No email on account",
-              ),
-              React.createElement(
-                Text,
-                { style: appStyles.meta },
-                `Roles: ${currentUser.roles.join(", ") || "None"}`,
-              ),
-              React.createElement(
-                Text,
-                { style: appStyles.meta },
-                `Permissions: ${currentUser.permissions.join(", ") || "None"}`,
-              ),
-            )
-          : React.createElement(
-              View,
-              null,
-              React.createElement(Text, { style: appStyles.label }, "Email"),
-              React.createElement(TextInput, {
-                autoCapitalize: "none",
-                autoCorrect: false,
-                keyboardType: "email-address",
-                onChangeText: setEmail,
-                placeholder: "warehouse@example.com",
-                style: appStyles.input,
-                value: email,
-              }),
-              React.createElement(Text, { style: appStyles.labelSpaced }, "Password"),
-              React.createElement(TextInput, {
-                autoCapitalize: "none",
-                autoCorrect: false,
-                onChangeText: setPassword,
-                placeholder: "Password",
-                secureTextEntry: true,
-                style: appStyles.input,
-                value: password,
-              }),
-              React.createElement(
-                TouchableOpacity,
-                {
-                  disabled: signingIn,
-                  onPress: () => {
-                    void submitLogin();
-                  },
-                  style: signingIn ? appStyles.buttonDisabled : appStyles.button,
-                },
-                React.createElement(
-                  Text,
-                  { style: appStyles.buttonText },
-                  signingIn ? "Signing in" : "Sign in",
-                ),
-              ),
-            ),
-        React.createElement(
-          Text,
-          {
-            style:
-              authSession.status === "authenticated"
-                ? appStyles.statusOk
-                : authSession.status === "logged_out"
-                  ? appStyles.statusMessage
-                  : appStyles.statusError,
-          },
-          authSession.message,
         ),
         currentUser
           ? React.createElement(
               TouchableOpacity,
               {
-                onPress: () => {
-                  void submitLogout();
-                },
-                style: appStyles.secondaryButton,
+                accessibilityLabel: t(locale, "settingsAccessibilityLabel"),
+                onPress: () => setScreen("settings"),
+                style: appStyles.iconButton,
               },
-              React.createElement(Text, { style: appStyles.secondaryButtonText }, "Logout"),
+              React.createElement(Text, { style: appStyles.iconButtonText }, "⚙"),
             )
           : null,
       ),
-      React.createElement(
-        View,
-        { style: appStyles.statusPanel },
-        React.createElement(
-          Text,
-          {
-            style: canUseMobileScan(currentUser)
-              ? appStyles.statusOk
-              : appStyles.statusError,
-          },
-          canUseMobileScan(currentUser) ? "Mobile scan allowed" : "Scan permission required",
-        ),
-        React.createElement(
-          Text,
-          { style: appStyles.statusMessage },
-          canUseMobileScan(currentUser)
-            ? "Open jobs and scan submission use the real API."
-            : "The signed-in account must have load_jobs.read and scan.create.",
-        ),
-      ),
-      canUseMobileScan(currentUser)
-        ? selectedLoadJob
-          ? renderScanScreen({
+      activeScreen === "settings"
+        ? renderSettingsScreen({
+              apiBaseUrl,
+              checking,
+              deviceId,
+              health,
+              locale,
+              onBack: () => setScreen("load-jobs"),
+              onChangeApiBaseUrl: setApiBaseUrl,
+              onChangeLocale: (nextLocale) => void changeLocale(nextLocale),
+              onSaveAndCheck: () => void saveAndCheck(),
+              onSignOut: () => void submitLogout(),
+            })
+        : !currentUser
+          ? renderLoginScreen({
+              authSession,
+              email,
+              locale,
+              onChangeEmail: setEmail,
+              onChangePassword: setPassword,
+              onOpenSettings: () => setScreen("settings"),
+              onSubmit: () => void submitLogin(),
+              password,
+              signingIn,
+            })
+          : canUseMobileScan(currentUser)
+            ? selectedLoadJob && activeScreen === "scan"
+              ? renderScanScreen({
               canComplete: canCompleteMobileLoadJob(currentUser),
               canOverride: canSupervisorOverrideScans(currentUser),
               canUpdateDock: canUpdateMobileDock(currentUser),
@@ -899,6 +843,7 @@ export function App() {
                 clearScanState();
                 setDockNo("");
                 setSelectedLoadJob(null);
+                setScreen("load-jobs");
               },
               onCameraScan: () => {
                 void startNativeCameraScan();
@@ -925,6 +870,12 @@ export function App() {
               onToggleOverrideConfirmed: () => {
                 setOverrideConfirmed((confirmed) => !confirmed);
               },
+              onToggleQueueDetails: () => {
+                setQueueDetailsExpanded((expanded) => !expanded);
+              },
+              onToggleSecondaryActions: () => {
+                setSecondaryActionsExpanded((expanded) => !expanded);
+              },
               offlineQueue,
               overrideConfirmed,
               overridePayload,
@@ -932,12 +883,18 @@ export function App() {
               qrPayload,
               savingDock,
               scanNotice,
+              queueDetailsExpanded,
+              secondaryActionsExpanded,
               syncingQueue,
               submitting: submittingScan,
               submittingOverride,
+              locale,
             })
-          : renderLoadJobList({
+              : renderLoadJobList({
               loadJobsState,
+              loadJobQuery,
+              locale,
+              onChangeQuery: setLoadJobQuery,
               onOpen: (loadJobId) => {
                 void openLoadJob(loadJobId);
               },
@@ -946,37 +903,150 @@ export function App() {
               },
               openingLoadJobId,
             })
-        : null,
+            : React.createElement(
+                View,
+                { style: appStyles.section },
+                React.createElement(Text, { style: appStyles.statusError }, t(locale, "cannotUseScan")),
+                React.createElement(
+                  TouchableOpacity,
+                  { onPress: () => void submitLogout(), style: appStyles.secondaryButton },
+                  React.createElement(Text, { style: appStyles.secondaryButtonText }, t(locale, "signOut")),
+                ),
+              ),
     ),
+  );
+}
+
+function renderLoginScreen(input: {
+  authSession: AuthSession;
+  email: string;
+  locale: NativeLocale;
+  onChangeEmail(value: string): void;
+  onChangePassword(value: string): void;
+  onOpenSettings(): void;
+  onSubmit(): void;
+  password: string;
+  signingIn: boolean;
+}) {
+  return React.createElement(
+    View,
+    { style: appStyles.section },
+    React.createElement(Text, { style: appStyles.title }, t(input.locale, "signIn")),
+    React.createElement(Text, { style: appStyles.body }, input.authSession.status === "checking" ? t(input.locale, "checkingSession") : t(input.locale, "configureServer")),
+    React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "email")),
+    React.createElement(TextInput, {
+      accessibilityLabel: t(input.locale, "email"), autoCapitalize: "none", autoCorrect: false,
+      keyboardType: "email-address", onChangeText: input.onChangeEmail,
+      placeholder: t(input.locale, "emailPlaceholder"), style: appStyles.input, value: input.email,
+    }),
+    React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "password")),
+    React.createElement(TextInput, {
+      accessibilityLabel: t(input.locale, "password"), autoCapitalize: "none", autoCorrect: false,
+      onChangeText: input.onChangePassword, placeholder: t(input.locale, "passwordPlaceholder"),
+      secureTextEntry: true, style: appStyles.input, value: input.password,
+    }),
+    React.createElement(
+      TouchableOpacity,
+      { disabled: input.signingIn, onPress: input.onSubmit, style: input.signingIn ? appStyles.buttonDisabled : appStyles.button },
+      React.createElement(Text, { style: appStyles.buttonText }, input.signingIn ? t(input.locale, "signingIn") : t(input.locale, "signIn")),
+    ),
+    input.authSession.status !== "logged_out" && input.authSession.status !== "checking"
+      ? React.createElement(Text, { style: appStyles.statusError }, localizeAuthMessage(input.authSession, input.locale))
+      : null,
+    React.createElement(
+      TouchableOpacity,
+      { accessibilityLabel: t(input.locale, "settingsAccessibilityLabel"), onPress: input.onOpenSettings, style: appStyles.secondaryButton },
+      React.createElement(Text, { style: appStyles.secondaryButtonText }, t(input.locale, "openSettings")),
+    ),
+  );
+}
+
+function renderSettingsScreen(input: {
+  apiBaseUrl: string;
+  checking: boolean;
+  deviceId: string;
+  health: HealthCheckResult;
+  locale: NativeLocale;
+  onBack(): void;
+  onChangeApiBaseUrl(value: string): void;
+  onChangeLocale(locale: NativeLocale): void;
+  onSaveAndCheck(): void;
+  onSignOut(): void;
+}) {
+  return React.createElement(
+    View,
+    { style: appStyles.section },
+    React.createElement(Text, { style: appStyles.sectionTitle }, t(input.locale, "settings")),
+    React.createElement(Text, { style: appStyles.body }, t(input.locale, "diagnostics")),
+    React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "serverAddress")),
+    React.createElement(TextInput, {
+      accessibilityLabel: t(input.locale, "serverAddress"), autoCapitalize: "none", autoCorrect: false,
+      keyboardType: "url", onChangeText: input.onChangeApiBaseUrl,
+      placeholder: t(input.locale, "serverPlaceholder"), style: appStyles.input, value: input.apiBaseUrl,
+    }),
+    React.createElement(
+      TouchableOpacity,
+      { disabled: input.checking, onPress: input.onSaveAndCheck, style: input.checking ? appStyles.buttonDisabled : appStyles.button },
+      React.createElement(Text, { style: appStyles.buttonText }, input.checking ? t(input.locale, "checkingConnection") : t(input.locale, "saveAndCheck")),
+    ),
+    React.createElement(Text, { style: input.health.ok ? appStyles.statusOk : appStyles.statusError }, input.health.ok ? t(input.locale, "connectionReady") : t(input.locale, "connectionOffline")),
+    React.createElement(Text, { style: appStyles.statusMessage }, input.health.ok ? t(input.locale, "connectionReady") : t(input.locale, "apiUnreachable")),
+    React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "language")),
+    React.createElement(
+      View,
+      { style: appStyles.actionRow },
+      React.createElement(TouchableOpacity, { accessibilityLabel: t(input.locale, "english"), onPress: () => input.onChangeLocale("en"), style: input.locale === "en" ? appStyles.button : appStyles.secondaryButton }, React.createElement(Text, { style: input.locale === "en" ? appStyles.buttonText : appStyles.secondaryButtonText }, t(input.locale, "english"))),
+      React.createElement(TouchableOpacity, { accessibilityLabel: t(input.locale, "chinese"), onPress: () => input.onChangeLocale("zh-CN"), style: input.locale === "zh-CN" ? appStyles.button : appStyles.secondaryButton }, React.createElement(Text, { style: input.locale === "zh-CN" ? appStyles.buttonText : appStyles.secondaryButtonText }, t(input.locale, "chinese"))),
+    ),
+    React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "device")),
+    React.createElement(Text, { style: appStyles.mono }, input.deviceId),
+    React.createElement(TouchableOpacity, { onPress: input.onBack, style: appStyles.secondaryButton }, React.createElement(Text, { style: appStyles.secondaryButtonText }, t(input.locale, "returnToJobs"))),
+    React.createElement(TouchableOpacity, { onPress: input.onSignOut, style: appStyles.secondaryButton }, React.createElement(Text, { style: appStyles.secondaryButtonText }, t(input.locale, "signOut"))),
   );
 }
 
 function renderLoadJobList(input: {
   loadJobsState: LoadJobsState;
+  loadJobQuery: string;
+  locale: NativeLocale;
+  onChangeQuery(value: string): void;
   onOpen(loadJobId: string): void;
   onRefresh(): void;
   openingLoadJobId: string | null;
 }) {
+  const jobs = bayBoardJobs(input.loadJobsState.items, input.loadJobQuery);
   return React.createElement(
     View,
-    { style: appStyles.section },
-    React.createElement(Text, { style: appStyles.sectionTitle }, "Open load jobs"),
+    { style: appStyles.bayBoard },
     React.createElement(
-      TouchableOpacity,
-      {
-        disabled: input.loadJobsState.status === "loading",
-        onPress: input.onRefresh,
-        style:
-          input.loadJobsState.status === "loading"
-            ? appStyles.buttonDisabled
-            : appStyles.button,
-      },
+      View,
+      { style: appStyles.bayBoardHeader },
       React.createElement(
-        Text,
-        { style: appStyles.buttonText },
-        input.loadJobsState.status === "loading" ? "Loading jobs" : "Refresh jobs",
+        View,
+        null,
+        React.createElement(Text, { style: appStyles.sectionTitle }, t(input.locale, "bayBoard")),
+        React.createElement(Text, { style: appStyles.meta }, t(input.locale, "jobCount", { count: jobs.length })),
+      ),
+      React.createElement(
+        TouchableOpacity,
+        {
+          accessibilityLabel: t(input.locale, "refresh"),
+          disabled: input.loadJobsState.status === "loading",
+          onPress: input.onRefresh,
+          style: input.loadJobsState.status === "loading" ? appStyles.iconButtonDisabled : appStyles.iconButton,
+        },
+        React.createElement(Text, { style: appStyles.iconButtonText }, "↻"),
       ),
     ),
+    React.createElement(TextInput, {
+      accessibilityLabel: t(input.locale, "searchJobsAccessibilityLabel"),
+      autoCapitalize: "characters",
+      autoCorrect: false,
+      onChangeText: input.onChangeQuery,
+      placeholder: t(input.locale, "searchJobs"),
+      style: appStyles.input,
+      value: input.loadJobQuery,
+    }),
     React.createElement(
       Text,
       {
@@ -987,63 +1057,58 @@ function renderLoadJobList(input: {
               ? appStyles.statusMessage
               : appStyles.statusError,
       },
-      input.loadJobsState.message,
+      localizeLoadJobsMessage(input.loadJobsState, input.locale),
     ),
-    ...input.loadJobsState.items.map((loadJob) =>
-      renderLoadJobCard({
-        loadJob,
+    input.loadJobsState.status === "error" && jobs.length > 0
+      ? React.createElement(Text, { style: appStyles.statusMessage }, t(input.locale, "staleJobs"))
+      : null,
+    React.createElement(FlatList, {
+      data: jobs,
+      initialNumToRender: 12,
+      keyExtractor: (loadJob: LoadJob) => loadJob.id,
+      maxToRenderPerBatch: 12,
+      removeClippedSubviews: true,
+      renderItem: ({ item }: { item: LoadJob }) => renderLoadJobCard({
+        loadJob: item,
+        locale: input.locale,
         onOpen: input.onOpen,
-        opening: input.openingLoadJobId === loadJob.id,
+        opening: input.openingLoadJobId === item.id,
       }),
-    ),
+      windowSize: 9,
+    }),
   );
 }
 
 function renderLoadJobCard(input: {
   loadJob: LoadJob;
+  locale: NativeLocale;
   onOpen(loadJobId: string): void;
   opening: boolean;
 }) {
   const progress = loadJobProgress(input.loadJob);
   return React.createElement(
     View,
-    { key: input.loadJob.id, style: appStyles.jobCard },
-    React.createElement(
-      Text,
-      { style: appStyles.jobRegion },
-      formatNullable(input.loadJob.destinationRegion),
+    { key: input.loadJob.id, style: appStyles.bayRow },
+    React.createElement(View, { style: appStyles.bayRowTop },
+      React.createElement(Text, { style: appStyles.jobRegion }, formatNullable(input.loadJob.destinationRegion, t(input.locale, "notSet"))),
+      React.createElement(Text, { style: appStyles.bayProgress }, `${progress.loaded} / ${progress.planned}`),
     ),
-    React.createElement(
-      Text,
-      { style: appStyles.jobTitle },
-      loadJobDisplayName(input.loadJob),
-    ),
-    React.createElement(
-      Text,
-      { style: appStyles.jobDeparture },
-      formatScheduledDeparture(input.loadJob.scheduledDepartureAt),
-    ),
-    React.createElement(
-      View,
-      { style: appStyles.jobMetaGrid },
-      renderMeta("Truck", input.loadJob.truckNo),
-      renderMeta("Dock", input.loadJob.dockNo),
-      renderMeta("Carrier", input.loadJob.carrier),
-      renderMeta("Status", input.loadJob.status),
-    ),
+    React.createElement(Text, { style: appStyles.jobTitle }, loadJobDisplayName(input.loadJob)),
+    React.createElement(Text, { style: appStyles.bayMetaLine }, `${formatNullable(input.loadJob.dockNo, t(input.locale, "notSet"))} · ${formatNullable(input.loadJob.truckNo, t(input.locale, "notSet"))}`),
+    React.createElement(Text, { style: input.loadJob.canScan ? appStyles.bayReady : appStyles.bayBlocked }, input.loadJob.canScan ? t(input.locale, "scanAvailable") : t(input.locale, "scanUnavailable")),
     React.createElement(
       Text,
       { style: appStyles.statusMessage },
-      `Progress ${progress.loaded}/${progress.planned}, remaining ${progress.remaining}`,
-    ),
-    React.createElement(
-      Text,
-      { style: appStyles.meta },
-      loadJobLineSummary(input.loadJob),
+      t(input.locale, "currentProgress", {
+        loaded: progress.loaded,
+        planned: progress.planned,
+        remaining: progress.remaining,
+      }),
     ),
     React.createElement(
       TouchableOpacity,
       {
+        accessibilityLabel: `${t(input.locale, "openScan")} ${loadJobDisplayName(input.loadJob)}`,
         disabled: input.opening,
         onPress: () => input.onOpen(input.loadJob.id),
         style: input.opening ? appStyles.buttonDisabled : appStyles.button,
@@ -1051,7 +1116,7 @@ function renderLoadJobCard(input: {
       React.createElement(
         Text,
         { style: appStyles.buttonText },
-        input.opening ? "Opening" : "Open scan screen",
+        input.opening ? t(input.locale, "opening") : t(input.locale, "openScan"),
       ),
     ),
   );
@@ -1077,6 +1142,8 @@ function renderScanScreen(input: {
   onSyncQueue(): void;
   onSubmit(): void;
   onSubmitOverride(): void;
+  onToggleQueueDetails(): void;
+  onToggleSecondaryActions(): void;
   onToggleOverrideConfirmed(): void;
   offlineQueue: OfflineScanRecord[];
   overrideConfirmed: boolean;
@@ -1085,9 +1152,12 @@ function renderScanScreen(input: {
   qrPayload: string;
   savingDock: boolean;
   scanNotice: ScanNotice | null;
+  queueDetailsExpanded: boolean;
+  secondaryActionsExpanded: boolean;
   syncingQueue: boolean;
   submitting: boolean;
   submittingOverride: boolean;
+  locale: NativeLocale;
 }) {
   const loadJob = input.loadJob;
   const progress = loadJobProgress(loadJob);
@@ -1118,25 +1188,26 @@ function renderScanScreen(input: {
   return React.createElement(
     View,
     { style: appStyles.section },
-    React.createElement(Text, { style: appStyles.sectionTitle }, "Scan screen"),
-    React.createElement(Text, { style: appStyles.jobRegion }, formatNullable(loadJob.destinationRegion)),
+    React.createElement(Text, { style: appStyles.sectionTitle }, t(input.locale, "scanWorkspace")),
+    React.createElement(Text, { style: appStyles.jobRegion }, formatNullable(loadJob.destinationRegion, t(input.locale, "notSet"))),
     React.createElement(Text, { style: appStyles.jobTitle }, loadJobDisplayName(loadJob)),
     React.createElement(
       Text,
       { style: appStyles.statusMessage },
-      `Progress ${progress.loaded}/${progress.planned}, remaining ${progress.remaining}`,
+      t(input.locale, "currentProgress", { loaded: progress.loaded, planned: progress.planned, remaining: progress.remaining }),
     ),
-    React.createElement(
+    input.secondaryActionsExpanded
+      ? React.createElement(
       View,
       { style: appStyles.userPanel },
-      React.createElement(Text, { style: appStyles.userName }, "Dock and completion"),
-      React.createElement(Text, { style: appStyles.labelSpaced }, "Dock No."),
+      React.createElement(Text, { style: appStyles.userName }, t(input.locale, "dockAndCompletion")),
+      React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "dockNo")),
       React.createElement(TextInput, {
         autoCapitalize: "characters",
         autoCorrect: false,
         editable: input.canUpdateDock && !input.savingDock,
         onChangeText: input.onChangeDockNo,
-        placeholder: "Dock door",
+        placeholder: t(input.locale, "dockPlaceholder"),
         style: appStyles.input,
         value: input.dockNo,
       }),
@@ -1161,7 +1232,7 @@ function renderScanScreen(input: {
                   ? appStyles.buttonText
                   : appStyles.secondaryButtonText,
             },
-            input.savingDock ? "Saving dock" : "Save dock",
+            input.savingDock ? t(input.locale, "savingDock") : t(input.locale, "saveDock"),
           ),
         ),
         React.createElement(
@@ -1174,7 +1245,7 @@ function renderScanScreen(input: {
           React.createElement(
             Text,
             { style: appStyles.buttonText },
-            input.completingLoadJob ? "Completing" : "Complete loading",
+            input.completingLoadJob ? t(input.locale, "completing") : t(input.locale, "completeLoading"),
           ),
         ),
       ),
@@ -1182,52 +1253,54 @@ function renderScanScreen(input: {
         ? React.createElement(
             Text,
             { style: appStyles.statusError },
-            "Dock No. is required before completing this load job.",
+            t(input.locale, "dockRequired"),
+          )
+        : null,
+    ) : null,
+    React.createElement(
+      View,
+      { style: appStyles.scanFeedbackSlot },
+      input.scanNotice
+        ? React.createElement(
+            View,
+            {
+              style:
+                input.scanNotice.tone === "emerald"
+                  ? appStyles.noticeOk
+                  : input.scanNotice.tone === "amber"
+                    ? appStyles.noticeWarn
+                    : appStyles.noticeError,
+            },
+            React.createElement(Text, { style: appStyles.noticeTitle }, localizeScanNotice(input.scanNotice, input.locale).title),
+            React.createElement(Text, { style: appStyles.noticeMessage }, localizeScanNotice(input.scanNotice, input.locale).message),
           )
         : null,
     ),
-    input.scanNotice
-      ? React.createElement(
-          View,
-          {
-            style:
-              input.scanNotice.tone === "emerald"
-                ? appStyles.noticeOk
-                : input.scanNotice.tone === "amber"
-                  ? appStyles.noticeWarn
-                  : appStyles.noticeError,
-          },
-          React.createElement(Text, { style: appStyles.noticeTitle }, input.scanNotice.title),
-          React.createElement(Text, { style: appStyles.noticeMessage }, input.scanNotice.message),
-          input.scanNotice.code
-            ? React.createElement(Text, { style: appStyles.meta }, input.scanNotice.code)
-            : null,
-        )
-      : null,
     input.lastScan
       ? React.createElement(
           View,
           { style: appStyles.userPanel },
+          React.createElement(Text, { style: appStyles.noticeTitle }, t(input.locale, "recentScan")),
           React.createElement(Text, { style: appStyles.userName }, input.lastScan.pallet.containerNo),
           React.createElement(
             Text,
             { style: appStyles.statusMessage },
-            `${input.lastScan.pallet.destinationCode} / Pallet ${input.lastScan.pallet.palletNo}`,
+            `${input.lastScan.pallet.destinationCode} · ${t(input.locale, "pallet", { number: input.lastScan.pallet.palletNo })}`,
           ),
           React.createElement(
             Text,
             { style: appStyles.statusMessage },
-            `Backend remaining ${input.lastScan.progress.remainingPallets}`,
+            t(input.locale, "currentProgress", { loaded: input.lastScan.progress.loadedPallets, planned: input.lastScan.progress.totalPallets, remaining: input.lastScan.progress.remainingPallets }),
           ),
         )
       : null,
-    React.createElement(Text, { style: appStyles.label }, "QR payload"),
+    React.createElement(Text, { style: appStyles.label }, t(input.locale, "scanLabel")),
     React.createElement(TextInput, {
       autoCapitalize: "none",
       autoCorrect: false,
       onChangeText: input.onChangePayload,
       onSubmitEditing: input.onSubmit,
-      placeholder: "Scan with scanner gun or paste QR payload",
+      placeholder: t(input.locale, "scanPlaceholder"),
       returnKeyType: "send",
       style: appStyles.input,
       value: input.qrPayload,
@@ -1242,7 +1315,7 @@ function renderScanScreen(input: {
       React.createElement(
         Text,
         { style: appStyles.buttonText },
-        input.submitting ? "Submitting scan" : "Submit scan",
+        input.submitting ? t(input.locale, "submittingScan") : t(input.locale, "submitScan"),
       ),
     ),
     React.createElement(
@@ -1259,44 +1332,48 @@ function renderScanScreen(input: {
             ? appStyles.buttonText
             : appStyles.secondaryButtonText,
         },
-        input.cameraScanning ? "Opening camera" : "Start native camera scan",
+        input.cameraScanning ? t(input.locale, "openingCamera") : t(input.locale, "startCamera"),
       ),
     ),
     React.createElement(
-      Text,
-      { style: appStyles.meta },
-      "Camera scanning uses a native React Native module. If camera permission or the module is unavailable, scanner-gun and manual input remain available.",
+      TouchableOpacity,
+      { onPress: input.onToggleSecondaryActions, style: appStyles.secondaryButton },
+      React.createElement(
+        Text,
+        { style: appStyles.secondaryButtonText },
+        input.secondaryActionsExpanded ? t(input.locale, "hideSecondaryActions") : t(input.locale, "secondaryActions"),
+      ),
     ),
-    input.canOverride
+    input.secondaryActionsExpanded && input.canOverride
       ? React.createElement(
           View,
           { style: appStyles.userPanel },
           React.createElement(
             Text,
             { style: appStyles.userName },
-            "Supervisor override",
+            t(input.locale, "supervisorOverride"),
           ),
           React.createElement(
             Text,
             { style: appStyles.statusMessage },
-            "Use only when the API rejects a pallet that a supervisor has approved for loading. The API records the override reason and current user.",
+            t(input.locale, "overrideReasonPlaceholder"),
           ),
-          React.createElement(Text, { style: appStyles.labelSpaced }, "QR payload"),
+          React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "scanLabel")),
           React.createElement(TextInput, {
             autoCapitalize: "none",
             autoCorrect: false,
             onChangeText: input.onChangeOverridePayload,
-            placeholder: "Rejected QR payload",
+            placeholder: t(input.locale, "scanPlaceholder"),
             style: appStyles.input,
             value: input.overridePayload,
           }),
-          React.createElement(Text, { style: appStyles.labelSpaced }, "Reason"),
+          React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "overrideReason")),
           React.createElement(TextInput, {
             autoCapitalize: "sentences",
             autoCorrect: true,
             multiline: true,
             onChangeText: input.onChangeOverrideReason,
-            placeholder: "Explain why this pallet is approved.",
+            placeholder: t(input.locale, "overrideReasonPlaceholder"),
             style: appStyles.textArea,
             value: input.overrideReason,
           }),
@@ -1316,8 +1393,8 @@ function renderScanScreen(input: {
                   : appStyles.confirmationText,
               },
               input.overrideConfirmed
-                ? "Confirmed: submit supervisor override"
-                : "Tap to confirm supervisor override",
+                ? t(input.locale, "confirmedOverride")
+                : t(input.locale, "confirmOverride"),
             ),
           ),
           React.createElement(
@@ -1331,8 +1408,8 @@ function renderScanScreen(input: {
               Text,
               { style: appStyles.buttonText },
               input.submittingOverride
-                ? "Submitting override"
-                : "Submit supervisor override",
+                ? t(input.locale, "submittingOverride")
+                : t(input.locale, "submitOverride"),
             ),
           ),
         )
@@ -1340,44 +1417,43 @@ function renderScanScreen(input: {
     React.createElement(
       View,
       { style: appStyles.userPanel },
-      React.createElement(Text, { style: appStyles.userName }, "Offline queue"),
+      React.createElement(Text, { style: appStyles.userName }, t(input.locale, "offlineQueue")),
       React.createElement(
         Text,
         { style: appStyles.statusMessage },
-        `${pendingCount} pending or failed scans. Pending scans do not change inventory until API sync succeeds.`,
+        pendingCount > 0 ? t(input.locale, "pendingCount", { count: pendingCount }) : t(input.locale, "noPendingScans"),
       ),
       React.createElement(
         TouchableOpacity,
         {
-          disabled: input.syncingQueue || pendingCount === 0,
-          onPress: input.onSyncQueue,
+          disabled: pendingCount === 0,
+          onPress: input.onToggleQueueDetails,
           style:
-            input.syncingQueue || pendingCount === 0
+            pendingCount === 0
               ? appStyles.buttonDisabled
               : appStyles.button,
         },
         React.createElement(
           Text,
           { style: appStyles.buttonText },
-          input.syncingQueue ? "Syncing" : "Sync pending scans",
+          input.queueDetailsExpanded ? t(input.locale, "hideQueueDetails") : t(input.locale, "queueDetails"),
         ),
       ),
-      ...queueForLoadJob.slice(0, 5).map((record) =>
-        React.createElement(
-          View,
-          { key: record.localId, style: appStyles.queueItem },
-          React.createElement(
-            Text,
-            { style: appStyles.metaValue },
-            `${record.syncStatus} / ${record.localId}`,
-          ),
-          React.createElement(Text, { style: appStyles.meta }, record.scannedAt),
-          React.createElement(Text, { style: appStyles.meta }, record.qrPayload),
-          record.lastError
-            ? React.createElement(Text, { style: appStyles.statusError }, record.lastError)
-            : null,
-        ),
-      ),
+      input.queueDetailsExpanded
+        ? React.createElement(
+            TouchableOpacity,
+            {
+              disabled: input.syncingQueue || pendingCount === 0,
+              onPress: input.onSyncQueue,
+              style: input.syncingQueue || pendingCount === 0 ? appStyles.buttonDisabled : appStyles.secondaryButton,
+            },
+            React.createElement(
+              Text,
+              { style: input.syncingQueue || pendingCount === 0 ? appStyles.buttonText : appStyles.secondaryButtonText },
+              input.syncingQueue ? t(input.locale, "syncing") : t(input.locale, "syncPending"),
+            ),
+          )
+        : null,
     ),
     React.createElement(
       TouchableOpacity,
@@ -1385,17 +1461,17 @@ function renderScanScreen(input: {
         onPress: input.onBack,
         style: appStyles.secondaryButton,
       },
-      React.createElement(Text, { style: appStyles.secondaryButtonText }, "Back to jobs"),
+      React.createElement(Text, { style: appStyles.secondaryButtonText }, t(input.locale, "backToJobs")),
     ),
   );
 }
 
-function renderMeta(label: string, value: string | null) {
+function renderMeta(label: string, value: string | null, locale: NativeLocale) {
   return React.createElement(
     View,
     { key: label, style: appStyles.jobMetaItem },
     React.createElement(Text, { style: appStyles.metaLabel }, label),
-    React.createElement(Text, { style: appStyles.metaValue }, formatNullable(value)),
+    React.createElement(Text, { style: appStyles.metaValue }, formatNullable(value, t(locale, "notSet"))),
   );
 }
 
@@ -1417,4 +1493,57 @@ function toLoginErrorMessage(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : "Login failed.";
+}
+
+function localizeAuthMessage(session: AuthSession, locale: NativeLocale): string {
+  if (session.status === "session_expired") return t(locale, "sessionExpired");
+  if (session.status === "permission_denied") return t(locale, "cannotUseScan");
+  return nativeApiErrorMessage(locale, "UNKNOWN_AUTH_ERROR");
+}
+
+function localizeLoadJobsMessage(
+  state: LoadJobsState,
+  locale: NativeLocale,
+): string {
+  if (state.status === "loading") return t(locale, "loadingJobs");
+  if (state.status === "empty") return t(locale, "noJobs");
+  if (state.status === "blocked") return t(locale, "cannotUseScan");
+  if (state.status === "idle") return t(locale, "loginRequired");
+  if (state.status === "error") return t(locale, "genericError");
+  return "";
+}
+
+function localizeScanNotice(
+  notice: ScanNotice,
+  locale: NativeLocale,
+): { message: string; title: string } {
+  const byCode: Record<string, { message: keyof typeof nativeNoticeKeys; title: keyof typeof nativeNoticeKeys }> = {
+    DUPLICATE: { title: "duplicateTitle", message: "duplicateMessage" },
+    OFFLINE_SCAN_QUEUED: { title: "offlineTitle", message: "offlineMessage" },
+    OFFLINE_SYNCED: { title: "syncTitle", message: "syncMessage" },
+  };
+  const match = notice.code ? byCode[notice.code] : undefined;
+  if (match) return { title: nativeNotice(locale, match.title), message: nativeNotice(locale, match.message) };
+  return { title: notice.code ? nativeApiErrorMessage(locale, notice.code) : notice.title, message: notice.code ? nativeApiErrorMessage(locale, notice.code) : notice.message };
+}
+
+const nativeNoticeKeys = {
+  duplicateMessage: "This pallet was already scanned for the selected load job.",
+  duplicateTitle: "Duplicate scan",
+  offlineMessage: "This scan is waiting for server confirmation.",
+  offlineTitle: "Scan queued",
+  syncMessage: "Pending scans were sent to the server.",
+  syncTitle: "Scans synced",
+} as const;
+
+function nativeNotice(locale: NativeLocale, key: keyof typeof nativeNoticeKeys): string {
+  const chinese: Record<keyof typeof nativeNoticeKeys, string> = {
+    duplicateMessage: "此托盘已在当前装车任务中扫描。",
+    duplicateTitle: "重复扫描",
+    offlineMessage: "此扫描正在等待服务器确认。",
+    offlineTitle: "扫描已待同步",
+    syncMessage: "待处理扫描已发送到服务器。",
+    syncTitle: "扫描已同步",
+  };
+  return locale === "zh-CN" ? chinese[key] : nativeNoticeKeys[key];
 }

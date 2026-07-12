@@ -1,5 +1,6 @@
 export interface PalletStatsDto {
   totalPallets: number;
+  activeTotalPallets: number;
   loadedPallets: number;
   adjustedOutPallets: number;
   cancelledPallets: number;

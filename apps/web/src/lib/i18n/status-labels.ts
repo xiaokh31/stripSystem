@@ -1,4 +1,5 @@
-import { DEFAULT_LOCALE, type Locale } from "./catalog";
+import { DEFAULT_LOCALE, type Locale, type MessageKey } from "./catalog";
+import { createTranslator } from "./translator";
 
 type LocalizedLabel = Record<Locale, string>;
 
@@ -244,6 +245,30 @@ const healthStatusLabels: Record<string, LocalizedLabel> = {
   up: { en: "Up", "zh-CN": "在线" },
 };
 
+const destinationTypeKeys: Record<string, MessageKey> = {
+  AMAZON_FBA: "i18n.destinationType.amazonFba",
+  COURIER: "i18n.destinationType.courier",
+  PARCEL_COMMERCIAL: "i18n.destinationType.parcelCommercial",
+  PARCEL_PRIVATE: "i18n.destinationType.parcelPrivate",
+  TRANSFER: "i18n.destinationType.transfer",
+  UNKNOWN: "i18n.destinationType.unknown",
+  UNSPECIFIED: "i18n.destinationType.unknown",
+  WAREHOUSE: "i18n.destinationType.warehouse",
+};
+
+const generatedFileTypeKeys: Record<string, MessageKey> = {
+  ATTENDANCE_PARSED_JSON: "i18n.generatedFile.attendanceParsed",
+  EXCEL_REPORT: "Excel report",
+  MONTHLY_UNLOADING_SUMMARY_XLSX: "Monthly unloading summary",
+  PALLET_LABEL_PDF: "Label PDF",
+  TASK_REPORT_HTML: "Task report",
+  UNLOADING_WAGE_SETTLEMENT_JSON: "Settlement JSON",
+  UNLOADING_WAGE_SETTLEMENT_XLSX: "Unloading wage settlement",
+  UNLOADING_WAGE_TASK_REPORT_HTML: "HTML task report",
+  WAGE_RECORD_XLS: "Wage record",
+  WAGE_RECORD_XLSX: "Wage record",
+};
+
 export function containerLifecycleStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
@@ -362,6 +387,31 @@ export function roleDisplayLabel(
   locale: Locale = DEFAULT_LOCALE,
 ): string {
   return labelFrom(roleLabels, roleCode, locale);
+}
+
+export function destinationTypeLabel(
+  destinationType: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const normalized = destinationType?.trim().toUpperCase();
+  const { format, t } = createTranslator(locale);
+
+  if (!normalized) {
+    return t("No type");
+  }
+
+  const key = destinationTypeKeys[normalized];
+  return key
+    ? t(key)
+    : format("i18n.destinationType.other", { value: destinationType?.trim() ?? "" });
+}
+
+export function generatedFileTypeLabel(
+  fileType: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const { t } = createTranslator(locale);
+  return t(generatedFileTypeKeys[fileType?.trim() ?? ""] ?? "Generated file");
 }
 
 export function healthStatusLabel(

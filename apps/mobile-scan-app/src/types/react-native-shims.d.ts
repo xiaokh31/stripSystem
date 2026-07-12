@@ -23,13 +23,16 @@ declare module "react-native" {
   export const AppRegistry: {
     registerComponent(name: string, factory: () => unknown): void;
   };
+  export const FlatList: unknown;
   export const NativeModules: Record<string, unknown>;
   export const SafeAreaView: unknown;
   export const ScrollView: unknown;
+  export const StatusBar: unknown;
   export const Text: unknown;
   export const TextInput: unknown;
   export const TouchableOpacity: unknown;
   export const View: unknown;
+  export function useColorScheme(): "dark" | "light" | null;
 }
 
 declare module "@react-native-async-storage/async-storage" {

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   completePayContainer,
@@ -11,6 +12,9 @@ import {
   type PayAllocationMethod,
   type PayContainerResponse,
 } from "@/lib/api-client";
+import type { Locale, MessageKey } from "@/lib/i18n/catalog";
+import { createTranslator } from "@/lib/i18n/translator";
+import { payClassificationLabel } from "@/lib/i18n/status-labels";
 import {
   buildCompletePayContainerRequest,
   buildCreatePayContainerRequest,
@@ -37,14 +41,15 @@ export function CreatePayContainerPanel({
   defaultClassification?: ContainerPayClassification;
   defaultContainerIdsText?: string;
   defaultTrailerNumber?: string;
-  title?: string;
+  title?: MessageKey;
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<CreatePayContainerDraft>({
     classification: defaultClassification,
     containerIdsText: defaultContainerIdsText,
     rateAmount: "",
-    reason: "Pay container created from office review",
+    reason: "",
     trailerNumber: defaultTrailerNumber,
   });
   const [created, setCreated] = useState<PayContainerResponse | null>(null);
@@ -58,32 +63,34 @@ export function CreatePayContainerPanel({
   }
 
   async function submit() {
-    const request = buildCreatePayContainerRequest(draft);
+    const request = buildCreatePayContainerRequest(draft, locale);
     if (!request.ok) {
       setState({ message: request.error, status: "error" });
       return;
     }
 
-    setState({ message: "Creating pay container.", status: "running" });
+    setState({ message: t("Creating pay container."), status: "running" });
     try {
       const result = await createPayContainer(request.payload);
       setCreated(result);
       setState({
-        message: `Created ${result.payContainerNo}.`,
+        message: format("i18n.unloadingWage.createdPayContainer", {
+          payContainerNo: result.payContainerNo,
+        }),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setState({ message: apiErrorMessage(error), status: "error" });
+      setState({ message: apiErrorMessage(error, locale), status: "error" });
     }
   }
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-zinc-950">{title}</h2>
+      <h2 className="text-base font-semibold text-zinc-950">{t(title)}</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Classification</span>
+          <span className="font-semibold text-zinc-700">{t("Classification")}</span>
           <select
             className="min-h-10 border border-zinc-300 bg-white px-3 text-sm"
             onChange={(event) =>
@@ -94,40 +101,44 @@ export function CreatePayContainerPanel({
             }
             value={draft.classification}
           >
-            <option value="OCEAN_CONTAINER">Ocean container</option>
-            <option value="US_TO_CANADA_TRANSFER">US-to-Canada transfer</option>
+            <option value="OCEAN_CONTAINER">
+              {payClassificationLabel("OCEAN_CONTAINER", locale)}
+            </option>
+            <option value="US_TO_CANADA_TRANSFER">
+              {payClassificationLabel("US_TO_CANADA_TRANSFER", locale)}
+            </option>
           </select>
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Trailer number</span>
+          <span className="font-semibold text-zinc-700">{t("Trailer number")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => update("trailerNumber", event.target.value)}
-            placeholder="Required for transfer"
+            placeholder={t("Required for transfer")}
             value={draft.trailerNumber}
           />
         </label>
         <label className="grid gap-1 text-sm md:col-span-2">
-          <span className="font-semibold text-zinc-700">Container IDs</span>
+          <span className="font-semibold text-zinc-700">{t("Container IDs")}</span>
           <textarea
             className="min-h-24 border border-zinc-300 px-3 py-2 text-sm"
             onChange={(event) => update("containerIdsText", event.target.value)}
-            placeholder="Paste one or more container database ids"
+            placeholder={t("Paste one or more container database ids")}
             value={draft.containerIdsText}
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Override rate</span>
+          <span className="font-semibold text-zinc-700">{t("Override rate")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             inputMode="decimal"
             onChange={(event) => update("rateAmount", event.target.value)}
-            placeholder="Blank uses operational setting"
+            placeholder={t("Blank uses operational setting")}
             value={draft.rateAmount}
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Audit reason</span>
+          <span className="font-semibold text-zinc-700">{t("Audit reason")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => update("reason", event.target.value)}
@@ -142,13 +153,13 @@ export function CreatePayContainerPanel({
           onClick={() => void submit()}
           type="button"
         >
-          Create pay container
+          {t("Create pay container")}
         </button>
         <ActionMessage state={state} />
       </div>
       {created ? (
         <p className="mt-3 break-all border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-          Pay container id: {created.id}
+          {format("i18n.unloadingWage.payContainerId", { id: created.id })}
         </p>
       ) : null}
     </section>
@@ -160,15 +171,16 @@ export function CompletePayContainerPanel({
   title = "Complete unloading",
 }: {
   defaultPayContainerId?: string;
-  title?: string;
+  title?: MessageKey;
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [payContainerId, setPayContainerId] = useState(defaultPayContainerId);
   const [draft, setDraft] = useState<CompletePayContainerDraft>({
     allocationMethod: "EQUAL_SPLIT",
     completedAt: defaultCompletedAtInput(),
     note: "",
-    reason: "Unloading completed from office review",
+    reason: "",
     unloaders: [
       {
         ...emptyUnloaderDraft(),
@@ -200,35 +212,37 @@ export function CompletePayContainerPanel({
   async function submit() {
     const id = payContainerId.trim();
     if (!id) {
-      setState({ message: "Pay container id is required.", status: "error" });
+      setState({ message: t("Pay container id is required."), status: "error" });
       return;
     }
 
-    const request = buildCompletePayContainerRequest(draft);
+    const request = buildCompletePayContainerRequest(draft, locale);
     if (!request.ok) {
       setState({ message: request.error, status: "error" });
       return;
     }
 
-    setState({ message: "Completing unloading.", status: "running" });
+    setState({ message: t("Completing unloading."), status: "running" });
     try {
       const result = await completePayContainer(id, request.payload);
       setState({
-        message: `${result.payContainerNo} marked completed.`,
+        message: format("i18n.unloadingWage.payContainerCompleted", {
+          payContainerNo: result.payContainerNo,
+        }),
         status: "success",
       });
       router.refresh();
     } catch (error) {
-      setState({ message: apiErrorMessage(error), status: "error" });
+      setState({ message: apiErrorMessage(error, locale), status: "error" });
     }
   }
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-zinc-950">{title}</h2>
+      <h2 className="text-base font-semibold text-zinc-950">{t(title)}</h2>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Pay container id</span>
+          <span className="font-semibold text-zinc-700">{t("Pay container id")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => setPayContainerId(event.target.value)}
@@ -236,7 +250,7 @@ export function CompletePayContainerPanel({
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Completed at</span>
+          <span className="font-semibold text-zinc-700">{t("Completed at")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => update("completedAt", event.target.value)}
@@ -245,7 +259,7 @@ export function CompletePayContainerPanel({
           />
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Allocation method</span>
+          <span className="font-semibold text-zinc-700">{t("Allocation method")}</span>
           <select
             className="min-h-10 border border-zinc-300 bg-white px-3 text-sm"
             onChange={(event) =>
@@ -253,13 +267,13 @@ export function CompletePayContainerPanel({
             }
             value={draft.allocationMethod}
           >
-            <option value="EQUAL_SPLIT">Equal split</option>
-            <option value="MANUAL_AMOUNT">Manual amount</option>
-            <option value="MANUAL_PERCENT">Manual percent</option>
+            <option value="EQUAL_SPLIT">{t("Equal split")}</option>
+            <option value="MANUAL_AMOUNT">{t("Manual amount")}</option>
+            <option value="MANUAL_PERCENT">{t("Manual percent")}</option>
           </select>
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Audit reason</span>
+          <span className="font-semibold text-zinc-700">{t("Audit reason")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => update("reason", event.target.value)}
@@ -272,12 +286,12 @@ export function CompletePayContainerPanel({
         <table className="min-w-[760px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="px-3 py-3 font-semibold">Worker code</th>
-              <th className="px-3 py-3 font-semibold">Worker name</th>
-              <th className="px-3 py-3 font-semibold">Amount</th>
-              <th className="px-3 py-3 font-semibold">Percent</th>
-              <th className="px-3 py-3 font-semibold">Note</th>
-              <th className="px-3 py-3 font-semibold">Action</th>
+              <th className="px-3 py-3 font-semibold">{t("Worker code")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Worker name")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Amount")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Percent")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Note")}</th>
+              <th className="px-3 py-3 font-semibold">{t("Action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -352,7 +366,7 @@ export function CompletePayContainerPanel({
                     }
                     type="button"
                   >
-                    Remove
+                    {t("Remove")}
                   </button>
                 </td>
               </tr>
@@ -362,7 +376,7 @@ export function CompletePayContainerPanel({
       </div>
 
       <label className="mt-4 grid gap-1 text-sm">
-        <span className="font-semibold text-zinc-700">Completion note</span>
+        <span className="font-semibold text-zinc-700">{t("Completion note")}</span>
         <textarea
           className="min-h-20 border border-zinc-300 px-3 py-2 text-sm"
           onChange={(event) => update("note", event.target.value)}
@@ -378,7 +392,7 @@ export function CompletePayContainerPanel({
           }
           type="button"
         >
-          Add unloader
+          {t("Add unloader")}
         </button>
         <button
           className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"
@@ -386,7 +400,7 @@ export function CompletePayContainerPanel({
           onClick={() => void submit()}
           type="button"
         >
-          Complete unloading
+          {t("Complete unloading")}
         </button>
         <ActionMessage state={state} />
       </div>
@@ -399,6 +413,7 @@ export function SettlementGeneratePanel({
 }: {
   defaultSettlementMonth: string;
 }) {
+  const { format, locale, t } = useI18n();
   const router = useRouter();
   const [settlementMonth, setSettlementMonth] = useState(defaultSettlementMonth);
   const [state, setState] = useState<ActionState>(idleState);
@@ -406,17 +421,22 @@ export function SettlementGeneratePanel({
   async function generate() {
     if (!/^\d{4}-\d{2}$/.test(settlementMonth)) {
       setState({
-        message: "Settlement month must use YYYY-MM.",
+        message: t("Settlement month must use YYYY-MM."),
         status: "error",
       });
       return;
     }
 
-    setState({ message: "Generating unloading wage settlement.", status: "running" });
+    setState({
+      message: t("Generating unloading wage settlement."),
+      status: "running",
+    });
     try {
       const result = await generateUnloadingWageSettlement({ settlementMonth });
       setState({
-        message: `Generated settlement ${result.id}.`,
+        message: format("i18n.unloadingWage.generatedSettlement", {
+          id: result.id,
+        }),
         status: "success",
       });
       router.push(
@@ -426,18 +446,18 @@ export function SettlementGeneratePanel({
       );
       router.refresh();
     } catch (error) {
-      setState({ message: apiErrorMessage(error), status: "error" });
+      setState({ message: apiErrorMessage(error, locale), status: "error" });
     }
   }
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-base font-semibold text-zinc-950">
-        Generate monthly settlement
+        {t("Generate monthly settlement")}
       </h2>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">Settlement month</span>
+          <span className="font-semibold text-zinc-700">{t("Settlement month")}</span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
             onChange={(event) => setSettlementMonth(event.target.value)}
@@ -451,7 +471,7 @@ export function SettlementGeneratePanel({
           onClick={() => void generate()}
           type="button"
         >
-          Generate settlement
+          {t("Generate settlement")}
         </button>
         <ActionMessage state={state} />
       </div>
@@ -478,12 +498,26 @@ function ActionMessage({ state }: { state: ActionState }) {
   );
 }
 
-function apiErrorMessage(error: unknown): string {
+function apiErrorMessage(error: unknown, locale: Locale): string {
+  const { t } = createTranslator(locale);
+  const messages = {
+    CONTAINER_UNLOADING_WAGE_NOT_CONFIGURED:
+      "Container unloading wage information is not configured.",
+    NO_CONTAINERS_FOR_UNLOADING_WAGE:
+      "No completed unloading records are available for this settlement month.",
+    UNLOADING_WAGE_SETTLEMENT_NOT_FOUND:
+      "Unloading wage settlement could not be found.",
+    UNLOADING_WORKER_INACTIVE:
+      "Selected temporary unloader is inactive or unavailable.",
+    UNLOADING_WORKER_NOT_FOUND: "Selected temporary unloader could not be found.",
+    UNLOADING_WORKER_REQUIRED: "Add at least one unloader.",
+  } as const;
+
   if (error instanceof ApiClientError) {
-    return `${error.code}${error.status ? ` (${error.status})` : ""}: ${
-      error.message
-    }`;
+    return t(
+      messages[error.code as keyof typeof messages] ?? "The request failed.",
+    );
   }
 
-  return error instanceof Error ? error.message : "The request failed.";
+  return t("The request failed.");
 }

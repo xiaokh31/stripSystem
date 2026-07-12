@@ -1,0 +1,163 @@
+# Project guardrails loaded by Codex before a shell command is run. These are
+# defense in depth for the non-interactive business-agent profile; AGENTS.md
+# and platform-managed requirements remain authoritative.
+
+prefix_rule(
+    pattern = ["git", "reset"],
+    decision = "forbidden",
+    justification = "Git reset can discard user work. Preserve the worktree and use an explicit reviewed change instead.",
+    match = [["git", "reset", "--hard"]],
+)
+
+prefix_rule(
+    pattern = ["git", "clean"],
+    decision = "forbidden",
+    justification = "Git clean can delete untracked user files. Do not remove project files automatically.",
+)
+
+prefix_rule(
+    pattern = ["git", "restore"],
+    decision = "forbidden",
+    justification = "Git restore can overwrite user changes. Apply a reviewed patch instead.",
+)
+
+prefix_rule(
+    pattern = ["git", "checkout", "--"],
+    decision = "forbidden",
+    justification = "Git checkout with -- can overwrite user changes. Do not discard files automatically.",
+)
+
+prefix_rule(
+    pattern = ["git", "rebase"],
+    decision = "forbidden",
+    justification = "Rebasing rewrites history. Keep history changes outside this profile.",
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "forbidden",
+    justification = "External publishing is outside this profile. Push changes through a separately reviewed workflow.",
+)
+
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "forbidden",
+    justification = "The business-agent profile does not create commits. Leave review and commit ownership with the operator.",
+)
+
+prefix_rule(
+    pattern = [["npm", "pnpm", "yarn"], "publish"],
+    decision = "forbidden",
+    justification = "Package publishing is an external release action and is outside this profile.",
+)
+
+# Development dependencies are installed and invoked only through the local
+# Docker Compose services. These top-level rules do not match arguments passed
+# to `docker compose exec` or `docker compose run`.
+prefix_rule(
+    pattern = ["pnpm"],
+    decision = "forbidden",
+    justification = "Host pnpm commands create duplicate dependencies and drift from the Docker runtime. Use docker compose exec or run.",
+)
+
+prefix_rule(
+    pattern = ["npm"],
+    decision = "forbidden",
+    justification = "Host npm commands create duplicate dependencies and drift from the Docker runtime. Use docker compose exec or run.",
+)
+
+prefix_rule(
+    pattern = ["npx"],
+    decision = "forbidden",
+    justification = "Host npx commands bypass the Docker-only development workflow. Use docker compose exec or run.",
+)
+
+prefix_rule(
+    pattern = ["yarn"],
+    decision = "forbidden",
+    justification = "Host yarn commands bypass the Docker-only development workflow. Use docker compose exec or run.",
+)
+
+prefix_rule(
+    pattern = ["jest"],
+    decision = "forbidden",
+    justification = "Run Jest inside the API Docker service so its dependencies and test environment are isolated.",
+)
+
+prefix_rule(
+    pattern = ["next"],
+    decision = "forbidden",
+    justification = "Run Next.js inside the web Docker service so build output stays in the named volume.",
+)
+
+prefix_rule(
+    pattern = ["prisma"],
+    decision = "forbidden",
+    justification = "Run Prisma inside the API Docker service against the Compose database configuration.",
+)
+
+prefix_rule(
+    pattern = ["uv"],
+    decision = "forbidden",
+    justification = "Run uv inside the worker-python Docker service so the host Python environment is not changed.",
+)
+
+prefix_rule(
+    pattern = ["docker", "push"],
+    decision = "forbidden",
+    justification = "Image publishing is an external release action and is outside this profile.",
+)
+
+prefix_rule(
+    pattern = ["docker", "login"],
+    decision = "forbidden",
+    justification = "Do not read or modify registry credentials from the business-agent profile.",
+)
+
+prefix_rule(
+    pattern = ["docker", "exec"],
+    decision = "forbidden",
+    justification = "Direct container execution can bypass local data safeguards. Use documented Docker Compose workflows instead.",
+)
+
+prefix_rule(
+    pattern = ["docker", "system"],
+    decision = "forbidden",
+    justification = "Docker system operations can remove shared local resources. Keep them outside this profile.",
+)
+
+prefix_rule(
+    pattern = ["docker", "compose", "down", ["-v", "--volumes"]],
+    decision = "forbidden",
+    justification = "Removing Docker volumes can delete local database data. Preserve named volumes and use the archive runbook.",
+)
+
+prefix_rule(
+    pattern = ["rm", ["-r", "-rf", "-fr", "--recursive"]],
+    decision = "forbidden",
+    justification = "Recursive deletion can remove project storage or user work. Delete only an identified temporary file when required.",
+)
+
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "forbidden",
+    justification = "Privilege escalation is outside the project-scoped profile.",
+)
+
+prefix_rule(
+    pattern = [["dd", "mkfs", "diskutil"]],
+    decision = "forbidden",
+    justification = "Direct disk operations are outside the project-scoped profile.",
+)
+
+prefix_rule(
+    pattern = ["prisma", "migrate", "reset"],
+    decision = "forbidden",
+    justification = "Migration reset deletes database state. Use additive migrations and documented cleanup procedures.",
+)
+
+prefix_rule(
+    pattern = [["kubectl", "helm", "terraform", "aws", "gcloud", "az"]],
+    decision = "forbidden",
+    justification = "Remote infrastructure changes are outside the local business-agent profile.",
+)

@@ -425,16 +425,23 @@ export class DashboardService {
       string,
       DashboardInventoryDto['topDestinations'][number]
     >();
-    const totals = { totalPallets: 0, loadedPallets: 0, remainingPallets: 0 };
+    const totals = {
+      totalPallets: 0,
+      activeTotalPallets: 0,
+      loadedPallets: 0,
+      remainingPallets: 0,
+    };
 
     for (const destination of destinations) {
       const stats = this.palletStats(destination.pallets);
       totals.totalPallets += stats.totalPallets;
+      totals.activeTotalPallets += stats.activeTotalPallets;
       totals.loadedPallets += stats.loadedPallets;
       totals.remainingPallets += stats.remainingPallets;
       const existing = byDestination.get(destination.destinationCode);
       if (existing) {
         existing.totalPallets += stats.totalPallets;
+        existing.activeTotalPallets += stats.activeTotalPallets;
         existing.loadedPallets += stats.loadedPallets;
         existing.remainingPallets += stats.remainingPallets;
         continue;
@@ -941,12 +948,18 @@ export class DashboardService {
 
   private palletStats(pallets: Array<{ status: string }>): {
     totalPallets: number;
+    activeTotalPallets: number;
     loadedPallets: number;
     remainingPallets: number;
   } {
     const totalPallets = pallets.length;
     const loadedPallets = pallets.filter(
       (pallet) => pallet.status === PalletStatus.LOADED,
+    ).length;
+    const activeTotalPallets = pallets.filter(
+      (pallet) =>
+        pallet.status !== PalletStatus.CANCELLED &&
+        pallet.status !== PalletStatus.ADJUSTED_OUT,
     ).length;
     const remainingPallets = pallets.filter(
       (pallet) =>
@@ -956,6 +969,7 @@ export class DashboardService {
     ).length;
     return {
       totalPallets,
+      activeTotalPallets,
       loadedPallets,
       remainingPallets,
     };

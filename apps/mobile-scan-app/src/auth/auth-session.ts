@@ -1,8 +1,8 @@
-import { getCurrentUser, login } from "../api/auth-client";
+import { getCurrentUser, nativeLogin, refreshNativeSession, revokeNativeSession } from "../api/auth-client";
 import { NativeApiError } from "../api/api-error";
 import type { AuthUser, AuthStatus } from "./auth-types";
 import { canUseMobileScan } from "./mobile-permissions";
-import type { SecureTokenStore } from "./token-store";
+import type { NativeStoredSession, SecureTokenStore } from "./token-store";
 
 export interface AuthSession {
   message: string;
@@ -35,6 +35,7 @@ export async function restoreSession(
     };
   }
 
+  const storedSession = await options.tokenStore.getSession?.();
   if (!token) {
     return {
       message: "Sign in with an existing warehouse account.",
@@ -50,6 +51,16 @@ export async function restoreSession(
     return toAuthenticatedSession(user);
   } catch (error) {
     if (isSessionExpired(error)) {
+      if (storedSession) {
+        try {
+          const refreshed = await refreshNativeSession(options.apiBaseUrl, storedSession.refreshToken, { fetcher: options.fetcher });
+          await saveNativeSession(options.tokenStore, refreshed);
+          return toAuthenticatedSession(refreshed.user);
+        } catch (refreshError) {
+          if (!isNetworkFailure(refreshError)) await options.tokenStore.clearToken();
+          return { message: isNetworkFailure(refreshError) ? "Offline. Session will be checked when connection returns." : "Session expired. Sign in again.", status: isNetworkFailure(refreshError) ? "error" : "session_expired", user: null };
+        }
+      }
       await options.tokenStore.clearToken();
       return {
         message: "Session expired. Sign in again.",
@@ -68,18 +79,34 @@ export async function restoreSession(
 
 export async function signIn(
   apiBaseUrl: string,
-  credentials: LoginCredentials,
+  credentials: LoginCredentials & { deviceId?: string; platform?: string; appVersion?: string },
   tokenStore: SecureTokenStore,
   options: { fetcher?: typeof fetch } = {},
 ): Promise<AuthSession> {
-  const result = await login(apiBaseUrl, credentials, {
+  const result = await nativeLogin(apiBaseUrl, { ...credentials, deviceId: credentials.deviceId ?? "unknown-native-device" }, {
     fetcher: options.fetcher,
   });
-  await tokenStore.setToken(result.accessToken);
+  await saveNativeSession(tokenStore, result);
   return toAuthenticatedSession(result.user);
 }
 
-export async function signOut(tokenStore: SecureTokenStore): Promise<AuthSession> {
+async function saveNativeSession(tokenStore: SecureTokenStore, result: { accessToken: string; refreshToken?: string; sessionId?: string }): Promise<void> {
+  if (!result.refreshToken || !result.sessionId) {
+    await tokenStore.setToken(result.accessToken);
+    return;
+  }
+  const session: NativeStoredSession = { accessToken: result.accessToken, refreshToken: result.refreshToken, sessionId: result.sessionId };
+  if (tokenStore.setSession) return tokenStore.setSession(session);
+  await tokenStore.setToken(session.accessToken);
+}
+
+function isNetworkFailure(error: unknown): boolean { return !(error instanceof NativeApiError); }
+
+export async function signOut(tokenStore: SecureTokenStore, apiBaseUrl?: string): Promise<AuthSession> {
+  const session = await tokenStore.getSession?.();
+  if (apiBaseUrl && session) {
+    try { await revokeNativeSession(apiBaseUrl, session.refreshToken); } catch { /* Offline logout still clears local secure storage. */ }
+  }
   await tokenStore.clearToken();
   return {
     message: "Signed out.",

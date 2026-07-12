@@ -11,11 +11,23 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface NativeLoginRequest extends LoginRequest {
+  appVersion?: string;
+  deviceId: string;
+  platform?: string;
+}
+
 export interface LoginResponse {
   accessToken: string;
   expiresIn: number;
   tokenType: "Bearer";
   user: AuthUser;
+}
+
+export interface NativeSessionResponse extends LoginResponse {
+  refreshExpiresIn: number;
+  refreshToken: string;
+  sessionId: string;
 }
 
 export interface ApiErrorPayload {

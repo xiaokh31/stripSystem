@@ -42,12 +42,14 @@ export interface DashboardContainerLifecycleDto {
 export interface DashboardInventoryDestinationDto {
   destinationCode: string;
   totalPallets: number;
+  activeTotalPallets: number;
   loadedPallets: number;
   remainingPallets: number;
 }
 
 export interface DashboardInventoryDto {
   totalPallets: number;
+  activeTotalPallets: number;
   loadedPallets: number;
   remainingPallets: number;
   topDestinations: DashboardInventoryDestinationDto[];

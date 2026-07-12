@@ -37,8 +37,18 @@ import {
 } from '../common/container-lifecycle';
 import { auditUserId, isAuditUserOverride } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
+import { Prisma } from '../generated/prisma/client';
 import { GeneratedFileResponseDto } from '../reports/dto/generated-file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  lockContainerDestinationRows,
+  lockContainerRow,
+  lockPalletRows,
+} from '../common/container-pallet-lock';
+import {
+  buildPalletIdentityDrafts,
+  type PalletIdentityDraft,
+} from '../common/pallet-identity';
 import { operationalLocalDate } from '../common/operational-time';
 
 interface ContainerRecord {
@@ -123,16 +133,7 @@ interface PalletEventRecord {
   updatedAt: Date | string;
 }
 
-interface PalletDraft {
-  containerId: string;
-  containerDestinationId: string;
-  destinationCode: string;
-  destinationType: string | null;
-  palletNo: number;
-  displayPalletNo: string;
-  palletId: string;
-  qrPayload: string;
-}
+type PalletDraft = PalletIdentityDraft;
 
 interface PersistedLabels {
   generatedFile: GeneratedFileRecord;
@@ -184,8 +185,6 @@ interface GeneratedFileUpsertInput {
 }
 
 const PDF_MIME_TYPE = 'application/pdf';
-const MANUAL_DESTINATION = 'NEED_MANUAL_DESTINATION';
-
 @Injectable()
 export class LabelsService {
   private readonly storageRoot: string;
@@ -265,6 +264,7 @@ export class LabelsService {
       outputPath,
       printedAt,
       generatedById,
+      labelDate,
     );
 
     return {
@@ -628,42 +628,11 @@ export class LabelsService {
     container: ContainerRecord,
     labelDate: string,
   ): PalletDraft[] {
-    const destinations = container.destinations ?? [];
-    const drafts: PalletDraft[] = [];
-
-    destinations.forEach((destination, destinationIndex) => {
-      const finalPallets = Math.max(0, destination.finalPallets);
-      const destinationCode = destination.destinationCode || MANUAL_DESTINATION;
-
-      for (let palletNo = 1; palletNo <= finalPallets; palletNo += 1) {
-        const displayPalletNo = String(palletNo);
-        const palletId = this.buildPalletId(
-          container,
-          destination,
-          destinationIndex + 1,
-          palletNo,
-        );
-        const qrPayload = this.buildQrPayload({
-          labelDate,
-          containerNo: container.containerNo,
-          destination: destinationCode,
-          palletNo: displayPalletNo,
-          palletId,
-        });
-        drafts.push({
-          containerId: container.id,
-          containerDestinationId: destination.id,
-          destinationCode,
-          destinationType: destination.destinationType,
-          palletNo,
-          displayPalletNo,
-          palletId,
-          qrPayload,
-        });
-      }
-    });
-
-    return drafts;
+    return buildPalletIdentityDrafts(
+      container,
+      container.destinations ?? [],
+      labelDate,
+    );
   }
 
   private async replacePalletsAndRecordGeneratedLabels(
@@ -672,9 +641,17 @@ export class LabelsService {
     outputPath: string,
     printedAt: Date,
     generatedById: string,
+    labelDate: string,
   ): Promise<PersistedLabels> {
     return await this.prisma.$transaction(async (tx) => {
-      const destinationIds = (container.destinations ?? []).map(
+      const lockedContainer = await this.lockAndReadContainerForPalletReplace(
+        tx,
+        container.id,
+      );
+      this.assertCanRegeneratePallets(lockedContainer);
+      this.assertPalletDraftsAreCurrent(lockedContainer, drafts, labelDate);
+
+      const destinationIds = (lockedContainer.destinations ?? []).map(
         (destination) => destination.id,
       );
       await tx.pallet.deleteMany({
@@ -711,16 +688,20 @@ export class LabelsService {
       const fileBuffer = await readFile(outputPath);
       const fileStat = await stat(outputPath);
       const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
-      const generatedFile = await this.upsertGeneratedFile(tx, container, {
-        fileType: GeneratedFileType.PALLET_LABEL_PDF,
-        storagePath: outputPath,
-        fileSha256,
-        mimeType: PDF_MIME_TYPE,
-        fileSizeBytes: BigInt(fileStat.size),
-        status: GeneratedFileStatus.GENERATED,
-        errorMessage: null,
-        generatedById,
-      });
+      const generatedFile = await this.upsertGeneratedFile(
+        tx,
+        lockedContainer,
+        {
+          fileType: GeneratedFileType.PALLET_LABEL_PDF,
+          storagePath: outputPath,
+          fileSha256,
+          mimeType: PDF_MIME_TYPE,
+          fileSizeBytes: BigInt(fileStat.size),
+          status: GeneratedFileStatus.GENERATED,
+          errorMessage: null,
+          generatedById,
+        },
+      );
       const palletIds = created.map((pallet) => pallet.id);
 
       await tx.pallet.updateMany({
@@ -746,11 +727,94 @@ export class LabelsService {
         })),
       });
       await tx.container.update({
-        where: { id: container.id },
+        where: { id: lockedContainer.id },
         data: { status: ContainerStatus.LABELS_GENERATED },
       });
 
       return { generatedFile, pallets: created };
+    });
+  }
+
+  private async lockAndReadContainerForPalletReplace(
+    tx: Prisma.TransactionClient,
+    containerId: string,
+  ): Promise<ContainerRecord> {
+    await lockContainerRow(tx, containerId);
+    const initial = await this.findContainerForPalletReplace(tx, containerId);
+    await lockContainerDestinationRows(
+      tx,
+      (initial.destinations ?? []).map((destination) => destination.id),
+    );
+    await lockPalletRows(
+      tx,
+      (initial.destinations ?? []).flatMap((destination) =>
+        (destination.pallets ?? []).map((pallet) => pallet.id),
+      ),
+    );
+    return this.findContainerForPalletReplace(tx, containerId);
+  }
+
+  private async findContainerForPalletReplace(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<ContainerRecord> {
+    const container = (await tx.container.findUnique({
+      where: { id },
+      include: {
+        destinations: {
+          orderBy: [
+            { destinationCode: 'asc' },
+            { destinationType: 'asc' },
+            { packageType: 'asc' },
+          ],
+          include: {
+            pallets: {
+              select: {
+                id: true,
+                status: true,
+                loadJobId: true,
+                loadedAt: true,
+              },
+            },
+          },
+        },
+      },
+    })) as ContainerRecord | null;
+
+    if (!container) {
+      throw new NotFoundException({
+        code: 'CONTAINER_NOT_FOUND',
+        message: `Container ${id} was not found.`,
+        details: { id },
+      });
+    }
+    return container;
+  }
+
+  private assertPalletDraftsAreCurrent(
+    container: ContainerRecord,
+    drafts: PalletDraft[],
+    labelDate: string,
+  ): void {
+    const currentDrafts = this.buildPalletDrafts(container, labelDate);
+    const unchanged =
+      currentDrafts.length === drafts.length &&
+      currentDrafts.every((draft, index) => {
+        const existing = drafts[index];
+        return (
+          existing?.containerDestinationId === draft.containerDestinationId &&
+          existing.palletNo === draft.palletNo &&
+          existing.palletId === draft.palletId &&
+          existing.qrPayload === draft.qrPayload
+        );
+      });
+    if (unchanged) {
+      return;
+    }
+
+    throw new ConflictException({
+      code: 'LABEL_GENERATION_CONCURRENT_CHANGE',
+      details: { containerId: container.id },
     });
   }
 
@@ -968,43 +1032,6 @@ export class LabelsService {
     };
   }
 
-  private buildPalletId(
-    container: ContainerRecord,
-    destination: ContainerDestinationRecord,
-    destinationIndex: number,
-    palletNo: number,
-  ): string {
-    return [
-      this.slug(container.containerNo),
-      `D${destinationIndex.toString().padStart(3, '0')}`,
-      this.slug(destination.destinationCode || MANUAL_DESTINATION),
-      `P${palletNo.toString().padStart(3, '0')}`,
-      this.slug(container.id).slice(-16),
-    ].join('-');
-  }
-
-  private buildQrPayload(input: {
-    labelDate: string;
-    containerNo: string;
-    destination: string;
-    palletNo: string;
-    palletId: string;
-  }): string {
-    return [
-      'SSP1',
-      'PALLET',
-      input.labelDate,
-      this.payloadPart(input.containerNo),
-      this.payloadPart(input.destination),
-      this.payloadPart(input.palletNo),
-      this.payloadPart(input.palletId),
-    ].join('|');
-  }
-
-  private payloadPart(value: string): string {
-    return value.replace(/\|/g, '/').trim();
-  }
-
   private labelDate(): string {
     return operationalLocalDate();
   }
@@ -1040,15 +1067,6 @@ export class LabelsService {
     return (
       value.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') ||
       'UNKNOWN-CONTAINER'
-    );
-  }
-
-  private slug(value: string): string {
-    return (
-      value
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'UNKNOWN'
     );
   }
 
