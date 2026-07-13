@@ -118,6 +118,20 @@ describe('ImportsService', () => {
         }),
       } as unknown as ConfigService,
       workerParser as never,
+      { resolve: jest.fn().mockResolvedValue({
+        policyVersion: 'pallet-footprint-v1',
+        settingsRevision: 'test-policy',
+        palletLengthM: '1.0',
+        palletWidthM: '1.2',
+        lowHeightM: '1.7',
+        otherHeightM: '2.2',
+        lowHeightCapacityCbm: '2.04',
+        otherDestinationCapacityCbm: '2.64',
+        yeg1ExtraPallets: 4,
+        lowHeightDestinationCodes: [],
+        otherDestinationAliases: [],
+        destinationAliasVersion: 'test',
+      }) } as never,
     );
   });
 
@@ -477,7 +491,14 @@ describe('ImportsService', () => {
 
     const result = await service.parse(record.id, officeActor);
 
-    expect(workerParser.parseFile).toHaveBeenCalledWith(storedPath);
+    expect(workerParser.parseFile).toHaveBeenCalledWith(
+      storedPath,
+      expect.objectContaining({
+        policyVersion: 'pallet-footprint-v1',
+        palletLengthM: '1.0',
+        palletWidthM: '1.2',
+      }),
+    );
     expect(result.importFile).toMatchObject({
       id: record.id,
       storedPath,

@@ -705,17 +705,17 @@ describe('ImportsController (e2e)', () => {
       destinations: [
         expect.objectContaining({
           destinationCode: 'YEG1',
-          calculatedPallets: 6,
+          calculatedPallets: 5,
           manualPallets: 4,
           finalPallets: 4,
-          palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+          palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
           calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
-          palletRuleCode: 'VOLUME_2_2',
+          palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
         }),
       ],
     });
@@ -1373,6 +1373,9 @@ describe('ImportsController (e2e)', () => {
     };
     const prisma: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
+      operationalSetting: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       importFile: {
         findUnique: jest.fn(
           (args: FindUniqueArgs & { include?: unknown; select?: unknown }) => {

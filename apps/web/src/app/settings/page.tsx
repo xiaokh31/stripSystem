@@ -3,7 +3,9 @@ import { OperationalSettingsForm } from "@/components/settings/operational-setti
 import {
   ApiClientError,
   getOperationalSettings,
+  getPalletPolicy,
   type OperationalSettingsResponse,
+  type PalletPolicySnapshotResponse,
 } from "@/lib/api-client";
 import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
@@ -17,6 +19,7 @@ type SettingsState =
   | {
       ok: true;
       settings: OperationalSettingsResponse;
+      policy: PalletPolicySnapshotResponse;
     }
   | {
       error: ApiClientError;
@@ -104,6 +107,7 @@ export default async function SettingsPage() {
         <OperationalSettingsForm
           canEdit={canEditSettings}
           initialSettings={state.settings}
+          palletPolicy={state.policy}
         />
       ) : (
         <SettingsErrorPanel error={state.error} locale={locale} />
@@ -114,9 +118,15 @@ export default async function SettingsPage() {
 
 async function loadSettings(): Promise<SettingsState> {
   try {
+    const options = await getServerApiOptions();
+    const [settings, policy] = await Promise.all([
+      getOperationalSettings(options),
+      getPalletPolicy(options),
+    ]);
     return {
       ok: true,
-      settings: await getOperationalSettings(await getServerApiOptions()),
+      policy,
+      settings,
     };
   } catch (error) {
     return {

@@ -76,9 +76,11 @@ Before editing:
 
 During implementation:
 - Modify only files relevant to the task.
-- Prefer small commits.
+- Prefer small, reviewable diffs. The business-agent profile does not create Git commits.
 - Do not introduce mock business data as if it were real.
 - Do not bypass tests.
+- Treat directly related files required by the current task as in scope; adapt to the actual codebase and continue.
+- Do not end with an in-progress report while actionable task work remains.
 
 After implementation:
 - Show changed files.
@@ -86,6 +88,17 @@ After implementation:
 - Show known limitations.
 - Show manual verification steps.
 - Show next recommended task.
+
+## Business Agent Sessions
+
+- Read `prompts/agents/business-logic-agent.md` and `docs/runbooks/business-agent-execution.md` before executing a business task.
+- Execute a complete Task only through `scripts/run-business-agent.sh task '<task-file>'`. Raw `exec`, manual `resume`, and direct launcher prompts are intentionally rejected.
+- Use one fresh supervisor-created session per Task. Do not reuse a session created for another Task.
+- The supervisor may automatically resume that same session while the current Task reports `CONTINUE`; this does not authorize the next Task.
+- A fresh session must inspect and preserve existing uncommitted work, then continue the named Task from the current worktree.
+- Progress updates are not completion responses. The supervisor accepts only `DONE`, `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`, or a proven `BLOCKED` state as Task completion.
+- External device, Microsoft Excel, target-host, business-signoff, or unavailable-real-sample checks do not justify stopping early; finish every automatable implementation and test first.
+- Start and recovery commands are documented in `docs/runbooks/business-agent-execution.md`.
 
 ## Commands
 
@@ -96,8 +109,9 @@ commands must run in Docker. Do not run host `pnpm install`, `npm install`,
 `npx`, `jest`, `next`, `prisma`, `uv sync`, or `uv run pytest` for this project.
 Do not create or repair host `node_modules` as part of normal development.
 
-The Compose services use named volumes for Node dependencies and the Python
-virtual environment. Test-only variables such as `NODE_ENV=test`,
+The Compose images bake Node dependencies, the Python virtual environment, and
+production build outputs from frozen lockfiles. Runtime mounts are limited to
+the PostgreSQL data volume and real `storage/` bind mounts. Test-only variables such as `NODE_ENV=test`,
 `QUEUE_ENABLED=false`, and `JEST_WORKER_ID` must be scoped to the test process
 or test container; do not persist them in the local `.env` or shell profile.
 
@@ -125,7 +139,7 @@ Run all checks:
 ```bash
 docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api lint
 docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api typecheck
-docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test -- --runInBand
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test --runInBand
 docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web lint
 docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web typecheck
 docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web test

@@ -5,6 +5,7 @@ from worker_python.pallets.calculator import (
     PalletPlan,
     calculate_pallets,
     inputs_from_destination_summaries,
+    inputs_from_parsed_result,
 )
 from worker_python.pallets.rules import (
     DEFAULT_PALLET_CONFIG,
@@ -22,4 +23,5 @@ __all__ = [
     "calculate_pallets",
     "classify_destination",
     "inputs_from_destination_summaries",
+    "inputs_from_parsed_result",
 ]

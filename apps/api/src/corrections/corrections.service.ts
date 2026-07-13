@@ -39,6 +39,11 @@ import { AuthenticatedUser } from '../auth/auth-user';
 import { Prisma } from '../generated/prisma/client';
 import { ContainerPalletInventorySyncService } from '../pallet-inventory-sync/container-pallet-inventory-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
+import {
+  calculateDestinationPallets,
+  type DestinationPalletCalculationResult,
+} from '../pallet-calculation/pallet-calculation';
 
 type CorrectionTargetTypeValue =
   (typeof CorrectionTargetType)[keyof typeof CorrectionTargetType];
@@ -114,6 +119,7 @@ interface ContainerDestinationRecord {
   palletRuleCode?: string | null;
   calculationBasisCbm?: { toString(): string } | number | string | null;
   roundingMode?: string | null;
+  palletPolicySnapshot?: unknown;
   note: string | null;
   warnings?: unknown;
   errors?: unknown;
@@ -164,55 +170,19 @@ const TARGET_ID_FIELDS = [
   'unloadingWageSettlementId',
 ] as const;
 
-type PackageTypeForStorage =
-  | 'CARTON'
-  | 'WOODEN_CRATE'
-  | 'UNKNOWN'
-  | 'UNSPECIFIED';
+type PackageTypeForStorage = 'CARTON' | 'WOODEN_CRATE';
 
-interface DestinationPalletRuleResult {
-  calculatedPallets: number;
-  calculationBasisCbm: string | null;
-  effectivePackageType: 'CARTON' | 'WOODEN_CRATE' | null;
-  palletRuleCode: string;
-  roundingMode: 'CEIL' | 'PIECE_COUNT';
+type DestinationPalletRuleResult = DestinationPalletCalculationResult & {
   storedPackageType: PackageTypeForStorage;
-  warnings: Array<{
-    code: string;
-    destinationCode: string | null;
-    field?: string;
-    message: string;
-  }>;
-}
+};
 
-const ADDRESS_CARTON_DIVISOR_CBM = 1.8;
-const VOLUME_1_7_DIVISOR_CBM = 1.7;
-const VOLUME_2_2_DIVISOR_CBM = 2.2;
-const YEG1_EXTRA_PALLETS = 5;
-const MIN_VOLUME_CBM = 0.01;
-const VOLUME_1_7_DESTINATIONS = new Set(['YYC4', 'YYC6', 'YEG2']);
-const VOLUME_2_2_DESTINATIONS = new Set(['YVR2', 'YVR3', 'YVR4']);
-const PARCEL_PRIVATE_TERMS = [
-  'UPS',
-  'PUROLATOR',
-  'PURO',
-  'P/A',
-  'PRIVATE',
-  'PRIVATE ADDRESS',
-  'COMMERCIAL',
-  'COMMERCIAL ADDRESS',
-  'BUSINESS ADDRESS',
-  '私人',
-  '私人地址',
-  '商业',
-  '商业地址',
-  '商業',
-  '商業地址',
-];
 const PALLET_RECALC_WARNING_CODES = new Set([
+  'MISSING_DESTINATION',
   'NEED_CONFIRM_DESTINATION_TYPE',
   'PACKAGE_TYPE_CONFIRMATION_REQUIRED',
   'ZERO_VOLUME_WITH_CARTONS',
+  'WOODEN_CRATE_PIECE_COUNT_REQUIRED',
+  'OVERSIZE_PIECE_COUNT_REQUIRED',
 ]);
 
 @Injectable()
@@ -220,6 +190,7 @@ export class CorrectionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly palletInventorySync: ContainerPalletInventorySyncService,
+    private readonly palletPolicyResolver: PalletPolicyResolver,
   ) {}
 
   async getContainer(id: string): Promise<ContainerDetailResponseDto> {
@@ -272,9 +243,9 @@ export class CorrectionsService {
     actor: AuthenticatedUser,
   ): Promise<ManualContainerResponseDto> {
     const containerNo = this.requiredString(dto.containerNo, 'containerNo');
-    const destinationInputs = dto.destinations.map((destination, index) =>
+    const destinationInputs = await Promise.all(dto.destinations.map((destination, index) =>
       this.toManualDestinationCreateInput(destination, index + 1),
-    );
+    ));
     const createdAt = new Date();
     const correctedById = auditUserId(actor, dto.correctedById);
 
@@ -347,6 +318,8 @@ export class CorrectionsService {
                     volume: destination.volume.toString(),
                     manualPallets: destination.manualPallets,
                     finalPallets: destination.finalPallets,
+                    palletPolicySnapshot:
+                      destination.palletPolicySnapshot ?? null,
                     note: destination.note,
                   },
                 },
@@ -539,7 +512,7 @@ export class CorrectionsService {
     this.addNumberChange(dto, existing, data, changes, 'cartons');
     this.addDecimalChange(dto, existing, data, changes, 'volume');
     this.addNullableStringChange(dto, existing, data, changes, 'note');
-    this.applyDestinationPalletRuleChanges(dto, existing, data, changes);
+    await this.applyDestinationPalletRuleChanges(dto, existing, data, changes);
     this.assertHasChanges(changes);
 
     try {
@@ -647,11 +620,12 @@ export class CorrectionsService {
     this.assertPositiveManualPallets(manualPallets, 'manualPallets');
     const volume = this.decimalString(dto.volume);
     const packageType = this.normalizePackageTypeForStorage(dto.packageType);
-    const palletRule = this.calculateDestinationPalletRule({
+    const palletRule = await this.calculateDestinationPalletRule({
       cartons: Number(dto.cartons),
       destinationCode,
+      manualPallets,
       packageType,
-      volume: Number(dto.volume),
+      volumeCbm: volume,
     });
     const calculatedPallets = palletRule.calculatedPallets;
     const createData: Prisma.ContainerDestinationUncheckedCreateInput = {
@@ -663,12 +637,15 @@ export class CorrectionsService {
       volume,
       calculatedPallets,
       manualPallets,
-      finalPallets: manualPallets ?? calculatedPallets,
+      finalPallets: palletRule.finalPallets,
       palletRuleCode: palletRule.palletRuleCode,
       calculationBasisCbm: palletRule.calculationBasisCbm,
       roundingMode: palletRule.roundingMode,
+      palletPolicySnapshot: this.nullableJsonValue(
+        palletRule.palletPolicySnapshot,
+      ),
       note: this.stringOrNull(dto.note),
-      warnings: palletRule.warnings,
+      warnings: this.nullableJsonValue(palletRule.warnings),
       errors: [],
     };
     const change: Change = {
@@ -685,6 +662,7 @@ export class CorrectionsService {
         palletRuleCode: createData.palletRuleCode,
         calculationBasisCbm: createData.calculationBasisCbm,
         roundingMode: createData.roundingMode,
+        palletPolicySnapshot: palletRule.palletPolicySnapshot,
         note: createData.note,
       },
     };
@@ -915,10 +893,10 @@ export class CorrectionsService {
     return records;
   }
 
-  private toManualDestinationCreateInput(
+  private async toManualDestinationCreateInput(
     dto: CreateManualContainerDestinationDto,
     sequence: number,
-  ): Omit<Prisma.ContainerDestinationUncheckedCreateInput, 'containerId'> {
+  ): Promise<Omit<Prisma.ContainerDestinationUncheckedCreateInput, 'containerId'>> {
     const destinationCode = this.requiredString(
       dto.destinationCode,
       `destinations[${sequence}].destinationCode`,
@@ -933,11 +911,12 @@ export class CorrectionsService {
       dto.volume === undefined || dto.volume === null
         ? '0.000'
         : this.decimalString(dto.volume);
-    const palletRule = this.calculateDestinationPalletRule({
+    const palletRule = await this.calculateDestinationPalletRule({
       cartons,
       destinationCode,
+      manualPallets: pallets,
       packageType: 'CARTON',
-      volume: Number(volume),
+      volumeCbm: volume,
     });
 
     return {
@@ -952,8 +931,11 @@ export class CorrectionsService {
       palletRuleCode: palletRule.palletRuleCode,
       calculationBasisCbm: palletRule.calculationBasisCbm,
       roundingMode: palletRule.roundingMode,
+      palletPolicySnapshot: this.nullableJsonValue(
+        palletRule.palletPolicySnapshot,
+      ),
       note: this.stringOrNull(dto.note),
-      warnings: palletRule.warnings,
+      warnings: this.nullableJsonValue(palletRule.warnings),
       errors: [],
     };
   }
@@ -1042,12 +1024,12 @@ export class CorrectionsService {
     this.addChange(existing, data, changes, fieldName, newValue);
   }
 
-  private applyDestinationPalletRuleChanges(
+  private async applyDestinationPalletRuleChanges(
     dto: UpdateContainerDestinationDto,
     existing: ContainerDestinationRecord,
     data: Prisma.ContainerDestinationUpdateInput,
     changes: Change[],
-  ): void {
+  ): Promise<void> {
     const shouldRecalculate =
       this.hasProvided(dto, 'destinationCode') ||
       this.hasProvided(dto, 'packageType') ||
@@ -1060,17 +1042,26 @@ export class CorrectionsService {
       ? Number(dto.cartons)
       : existing.cartons;
     const nextVolume = this.hasProvided(dto, 'volume')
-      ? Number(dto.volume)
-      : (this.numberOrNull(existing.volume) ?? 0);
+      ? this.decimalString(dto.volume)
+      : existing.volume.toString();
     const nextDestinationCode = this.hasProvided(dto, 'destinationCode')
       ? this.requiredString(dto.destinationCode, 'destinationCode')
       : existing.destinationCode;
+    const manualPallets = this.hasProvided(dto, 'manualPallets')
+      ? dto.manualPallets === null || dto.manualPallets === undefined
+        ? null
+        : Number(dto.manualPallets)
+      : existing.manualPallets;
+    if (this.hasProvided(dto, 'manualPallets')) {
+      this.assertPositiveManualPallets(manualPallets, 'manualPallets');
+    }
     const rule = shouldRecalculate
-      ? this.calculateDestinationPalletRule({
+      ? await this.calculateDestinationPalletRule({
           cartons: nextCartons,
           destinationCode: nextDestinationCode,
+          manualPallets,
           packageType: nextPackageType,
-          volume: nextVolume,
+          volumeCbm: nextVolume,
         })
       : null;
 
@@ -1115,29 +1106,14 @@ export class CorrectionsService {
       this.applyPalletWarningsChange(existing, data, changes, rule.warnings);
     }
 
-    if (!this.hasProvided(dto, 'manualPallets')) {
-      if (rule) {
-        this.addChange(
-          existing,
-          data,
-          changes,
-          'finalPallets',
-          existing.manualPallets ?? rule.calculatedPallets,
-        );
-      }
-      return;
-    }
-
-    const manualPallets =
-      dto.manualPallets === null || dto.manualPallets === undefined
-        ? null
-        : Number(dto.manualPallets);
-    this.assertPositiveManualPallets(manualPallets, 'manualPallets');
     const calculatedPallets =
       rule?.calculatedPallets ?? existing.calculatedPallets;
     const finalPallets = manualPallets ?? calculatedPallets;
 
-    if (!this.sameValue(existing.manualPallets, manualPallets)) {
+    if (
+      this.hasProvided(dto, 'manualPallets') &&
+      !this.sameValue(existing.manualPallets, manualPallets)
+    ) {
       data.manualPallets = manualPallets;
       changes.push({
         fieldName: 'manualPallets',
@@ -1153,6 +1129,23 @@ export class CorrectionsService {
         oldValue: existing.finalPallets,
         newValue: finalPallets,
       });
+    }
+
+    const policySnapshot =
+      rule?.palletPolicySnapshot ??
+      this.withManualPalletSnapshot(
+        existing.palletPolicySnapshot,
+        manualPallets,
+        finalPallets,
+      );
+    if (policySnapshot !== null) {
+      this.addJsonChange(
+        existing,
+        data,
+        changes,
+        'palletPolicySnapshot',
+        policySnapshot,
+      );
     }
   }
 
@@ -1194,6 +1187,39 @@ export class CorrectionsService {
       oldValue: existing.warnings ?? null,
       newValue: warnings,
     });
+  }
+
+  private addJsonChange(
+    existing: object,
+    data: object,
+    changes: Change[],
+    fieldName: string,
+    newValue: unknown,
+  ): void {
+    const oldValue = (existing as Record<string, unknown>)[fieldName] ?? null;
+    if (this.sameJsonValue(oldValue, newValue)) {
+      return;
+    }
+
+    (data as Record<string, unknown>)[fieldName] =
+      this.nullableJsonValue(newValue);
+    changes.push({ fieldName, oldValue, newValue });
+  }
+
+  private withManualPalletSnapshot(
+    snapshot: unknown,
+    manualPallets: number | null,
+    finalPallets: number,
+  ): Record<string, unknown> | null {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      return null;
+    }
+
+    return {
+      ...(snapshot as Record<string, unknown>),
+      manualPallets,
+      finalPallets,
+    };
   }
 
   private addStatusChange(
@@ -1425,6 +1451,7 @@ export class CorrectionsService {
           ? null
           : record.calculationBasisCbm.toString(),
       roundingMode: record.roundingMode ?? null,
+      palletPolicySnapshot: record.palletPolicySnapshot ?? null,
       note: record.note,
       updatedAt: this.toIsoString(record.updatedAt),
     };
@@ -1451,6 +1478,7 @@ export class CorrectionsService {
           ? null
           : record.calculationBasisCbm.toString(),
       roundingMode: record.roundingMode ?? null,
+      palletPolicySnapshot: record.palletPolicySnapshot ?? null,
       note: record.note,
       warnings: record.warnings ?? null,
       errors: record.errors ?? null,
@@ -1512,6 +1540,7 @@ export class CorrectionsService {
             ? null
             : destination.calculationBasisCbm.toString(),
         roundingMode: destination.roundingMode ?? null,
+        palletPolicySnapshot: destination.palletPolicySnapshot ?? null,
         note: destination.note,
         warnings: destination.warnings ?? null,
         errors: destination.errors ?? null,
@@ -1743,126 +1772,28 @@ export class CorrectionsService {
     });
   }
 
-  private calculateDestinationPalletRule(input: {
+  private async calculateDestinationPalletRule(input: {
     cartons: number;
     destinationCode: string | null;
+    manualPallets: number | null;
     packageType: PackageTypeForStorage;
-    volume: number;
-  }): DestinationPalletRuleResult {
-    const destination = input.destinationCode;
-    const normalizedDestination = this.normalizeText(destination);
-    const addressDestination = this.isPrivateCommercialDestination(
-      normalizedDestination,
+    volumeCbm: string;
+  }): Promise<DestinationPalletRuleResult> {
+    const policy = await this.palletPolicyResolver.resolve();
+    const result = calculateDestinationPallets(
+      {
+        cartons: input.cartons,
+        destinationCode: input.destinationCode,
+        manualPallets: input.manualPallets,
+        packageType: input.packageType,
+        volumeCbm: input.volumeCbm,
+      },
+      policy,
     );
-    let palletRuleCode = 'UNKNOWN_DESTINATION_VOLUME_1_7';
-    let divisor: number | null = VOLUME_1_7_DIVISOR_CBM;
-    let extraPallets = 0;
-    let roundingMode: DestinationPalletRuleResult['roundingMode'] = 'CEIL';
-    let usesPieceCount = false;
-    let effectivePackageType: DestinationPalletRuleResult['effectivePackageType'] =
-      null;
-    const warnings: DestinationPalletRuleResult['warnings'] = [];
-
-    if (this.containsDestinationCode(normalizedDestination, 'YEG1')) {
-      palletRuleCode = 'YEG1_VOLUME_1_7_PLUS_5';
-      divisor = VOLUME_1_7_DIVISOR_CBM;
-      extraPallets = YEG1_EXTRA_PALLETS;
-    } else if (
-      this.containsAnyDestinationCode(
-        normalizedDestination,
-        VOLUME_1_7_DESTINATIONS,
-      )
-    ) {
-      palletRuleCode = 'VOLUME_1_7';
-      divisor = VOLUME_1_7_DIVISOR_CBM;
-    } else if (
-      this.containsAnyDestinationCode(
-        normalizedDestination,
-        VOLUME_2_2_DESTINATIONS,
-      )
-    ) {
-      palletRuleCode = 'VOLUME_2_2';
-      divisor = VOLUME_2_2_DIVISOR_CBM;
-    } else if (addressDestination) {
-      effectivePackageType =
-        input.packageType === 'WOODEN_CRATE' ? 'WOODEN_CRATE' : 'CARTON';
-      if (effectivePackageType === 'WOODEN_CRATE') {
-        palletRuleCode = 'ADDRESS_WOODEN_CRATE_PIECE_COUNT';
-        divisor = null;
-        roundingMode = 'PIECE_COUNT';
-        usesPieceCount = true;
-      } else {
-        palletRuleCode = 'ADDRESS_CARTON_VOLUME_1_8';
-        divisor = ADDRESS_CARTON_DIVISOR_CBM;
-      }
-    } else if (
-      normalizedDestination.includes('AMAZON') ||
-      normalizedDestination.includes('FBA') ||
-      /\b[A-Z]{3}\d\b/.test(normalizedDestination)
-    ) {
-      palletRuleCode = 'VOLUME_1_7';
-      divisor = VOLUME_1_7_DIVISOR_CBM;
-    } else {
-      warnings.push({
-        code: 'NEED_CONFIRM_DESTINATION_TYPE',
-        destinationCode: destination,
-        message:
-          'Destination type was not recognized; pallet rule needs confirmation.',
-      });
-    }
-
-    let volume = Math.max(0, input.volume);
-    const cartons = Math.max(0, Math.trunc(input.cartons));
-    if (cartons > 0 && volume === 0) {
-      warnings.push({
-        code: 'ZERO_VOLUME_WITH_CARTONS',
-        destinationCode: destination,
-        field: 'volume',
-        message: `${destination ?? '未识别目的仓'} 体积为0的有${cartons}箱，已按0.01 CBM参与托盘计算。`,
-      });
-      volume = MIN_VOLUME_CBM;
-    }
-
     return {
-      calculatedPallets: this.calculatedPalletCount({
-        cartons,
-        divisor,
-        extraPallets,
-        usesPieceCount,
-        volume,
-      }),
-      calculationBasisCbm: divisor === null ? null : divisor.toFixed(3),
-      effectivePackageType,
-      palletRuleCode,
-      roundingMode,
+      ...result,
       storedPackageType: input.packageType,
-      warnings,
     };
-  }
-
-  private calculatedPalletCount(input: {
-    cartons: number;
-    divisor: number | null;
-    extraPallets: number;
-    usesPieceCount: boolean;
-    volume: number;
-  }): number {
-    if (input.cartons <= 0 && input.volume <= 0) {
-      return 0;
-    }
-    if (input.usesPieceCount) {
-      return input.cartons;
-    }
-    if (input.divisor === null || input.divisor <= 0) {
-      return 0;
-    }
-
-    let calculated =
-      input.volume > 0 ? Math.ceil(input.volume / input.divisor) : 0;
-    if (input.cartons > 0 && calculated < 1) {
-      calculated = 1;
-    }
-    return calculated + input.extraPallets;
   }
 
   private mergePalletRuleWarnings(
@@ -1881,33 +1812,6 @@ export class CorrectionsService {
     });
 
     return [...preserved, ...ruleWarnings];
-  }
-
-  private containsAnyDestinationCode(
-    normalizedDestination: string,
-    codes: Set<string>,
-  ): boolean {
-    for (const code of codes) {
-      if (this.containsDestinationCode(normalizedDestination, code)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private containsDestinationCode(
-    normalizedDestination: string,
-    code: string,
-  ): boolean {
-    return new RegExp(`\\b${code}\\b`).test(normalizedDestination);
-  }
-
-  private isPrivateCommercialDestination(
-    normalizedDestination: string,
-  ): boolean {
-    return PARCEL_PRIVATE_TERMS.some((term) =>
-      normalizedDestination.includes(this.normalizeText(term)),
-    );
   }
 
   private normalizeText(value: string | null | undefined): string {

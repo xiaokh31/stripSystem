@@ -236,11 +236,21 @@ test("destination warning lists localize stable pallet calculation issue codes",
         field: "volumeCbm",
         message: "第18行体积为0，共4箱，已按0.01 CBM参与托盘计算。",
       },
+      {
+        code: "WOODEN_CRATE_PIECE_COUNT_REQUIRED",
+        message: "Ignored API copy",
+      },
+      {
+        code: "OVERSIZE_PIECE_COUNT_REQUIRED",
+        message: "Ignored API copy",
+      },
     ]),
     [
-      "Destination type was not recognized; pallet rule needs confirmation.",
+      "Destination type was not recognized; other-destination capacity was used and requires review.",
       "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.",
       "Volume is zero while cartons are greater than zero; 0.01 CBM was used for pallet calculation.",
+      "A reliable wooden-crate piece count is required; volume calculation was retained.",
+      "A reliable piece count is required to confirm oversize cargo; volume calculation was retained.",
     ],
   );
   assert.deepEqual(
@@ -260,7 +270,7 @@ test("destination warning lists localize stable pallet calculation issue codes",
       "zh-CN",
     ),
     [
-      "目的仓类型无法识别，托盘规则需要复核。",
+      "目的仓类型无法识别；已使用其他目的仓容量，且需要复核。",
       "0.01 CBM 已用于托盘计算，因为体积为 0 但箱数大于 0。",
     ],
   );
@@ -269,7 +279,7 @@ test("destination warning lists localize stable pallet calculation issue codes",
 test("container detail rule summary exposes pallet calculation metadata", () => {
   assert.equal(
     ruleSummary(destinationRecord()),
-    "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
+    "Package carton · Other-destination footprint volume rule · Basis 2.640 CBM · Rounding up",
   );
 });
 
@@ -280,7 +290,8 @@ test("container detail exposes UPS courier carton rule metadata and pallets", ()
     destinationType: "PARCEL_PRIVATE",
     finalPallets: 3,
     packageType: "CARTON",
-    palletRuleCode: "ADDRESS_CARTON_VOLUME_1_8",
+    calculationBasisCbm: "2.640",
+    palletRuleCode: "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
     totalCartons: 57,
     totalVolumeCbm: "5.400",
   });
@@ -289,7 +300,7 @@ test("container detail exposes UPS courier carton rule metadata and pallets", ()
   assert.equal(destination.finalPallets, 3);
   assert.equal(
     ruleSummary(destination),
-    "Package carton · Private/commercial carton volume rule · Basis 1.800 CBM · Rounding up",
+    "Package carton · Other-destination footprint volume rule · Basis 2.640 CBM · Rounding up",
   );
 });
 
@@ -297,23 +308,23 @@ test("container detail localizes known warehouse and address pallet rules", () =
   assert.equal(
     ruleSummary(
       destinationRecord({
-        calculationBasisCbm: "1.700",
+        calculationBasisCbm: "2.040",
         packageType: null,
-        palletRuleCode: "YEG1_VOLUME_1_7_PLUS_5",
+        palletRuleCode: "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
       }),
     ),
-    "YEG1 1.7 CBM plus 5 pallets rule · Basis 1.700 CBM · Rounding up",
+    "Package carton · YEG1 footprint volume plus 4 pallets rule · Basis 2.040 CBM · Rounding up",
   );
   assert.equal(
     ruleSummary(
       destinationRecord({
         calculationBasisCbm: null,
         packageType: "WOODEN_CRATE",
-        palletRuleCode: "ADDRESS_WOODEN_CRATE_PIECE_COUNT",
+        palletRuleCode: "WOODEN_CRATE_PIECE_COUNT",
         roundingMode: "PIECE_COUNT",
       }),
     ),
-    "Package wooden crate · Private/commercial wooden crate piece-count rule · Rounding by piece count",
+    "Package wooden crate · Wooden crate piece-count rule · Rounding by piece count",
   );
 });
 
@@ -352,7 +363,7 @@ function destinationRecord(
 ): ContainerDetailDestinationResponse {
   return {
     calculatedPallets: 4,
-    calculationBasisCbm: "1.800",
+    calculationBasisCbm: "2.640",
     containerId: "container-1",
     createdAt: "2026-06-27T00:00:00.000Z",
     destinationCode: "YYZ",
@@ -363,7 +374,8 @@ function destinationRecord(
     manualPallets: null,
     note: null,
     packageType: "CARTON",
-    palletRuleCode: "ADDRESS_CARTON_VOLUME_1_8",
+    palletPolicySnapshot: null,
+    palletRuleCode: "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
     roundingMode: "CEIL",
     totalCartons: 40,
     totalVolumeCbm: "5.250",

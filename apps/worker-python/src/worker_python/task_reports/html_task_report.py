@@ -40,6 +40,25 @@ class TaskDestinationSummary:
     calculatedPallets: int
 
 
+RULE_LABELS = {
+    "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7": "Low-height footprint volume",
+    "YEG1_FOOTPRINT_HEIGHT_PLUS_4": "YEG1 footprint volume plus four pallets",
+    "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2": "Other-destination footprint volume",
+    "WOODEN_CRATE_PIECE_COUNT": "Wooden crate piece count",
+    "OVERSIZE_PIECE_COUNT": "Oversize piece count",
+    "MIXED_PALLET_CALCULATION": "Mixed pallet calculation",
+}
+PACKAGE_LABELS = {
+    "CARTON": "Carton",
+    "WOODEN_CRATE": "Wooden crate",
+}
+ROUNDING_LABELS = {
+    "CEIL": "Round up",
+    "PIECE_COUNT": "Piece count",
+    "MIXED": "Mixed",
+}
+
+
 @dataclass(frozen=True)
 class TaskReportRecord:
     originalFilename: str
@@ -301,13 +320,17 @@ def _destination_list(summaries: tuple[TaskDestinationSummary, ...]) -> str:
 def _rule_text(summary: TaskDestinationSummary) -> str:
     parts: list[str] = []
     if summary.palletRuleCode:
-        parts.append(f"rule {summary.palletRuleCode}")
+        rule_label = RULE_LABELS.get(summary.palletRuleCode, "Review required")
+        parts.append(f"rule {rule_label}")
     if summary.packageType:
-        parts.append(f"package {summary.packageType}")
+        package_label = PACKAGE_LABELS.get(summary.packageType, "Review required")
+        parts.append(f"package {package_label}")
     if summary.calculationBasisCbm is not None:
         parts.append(f"basis {summary.calculationBasisCbm:.3f} cbm")
     if summary.roundingMode:
-        parts.append(f"rounding {summary.roundingMode}")
+        parts.append(
+            f"rounding {ROUNDING_LABELS.get(summary.roundingMode, 'Review required')}"
+        )
 
     return f" ({', '.join(parts)})" if parts else ""
 

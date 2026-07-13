@@ -54,23 +54,16 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000}
       STORAGE_ROOT: /workspace/storage
       WORKER_PYTHON_DIR: /workspace/apps/worker-python
+      UV_NO_SYNC: "1"
       REPORT_TEMPLATE_PATH: /workspace/samples/templates/卸柜报告-En.xlsx
       JWT_SECRET: ${JWT_SECRET:-replace-with-long-random-secret}
       JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-34560000}
     volumes:
       - ../../storage:/workspace/storage
-      - bestar_pnpm_store:/root/.local/share/pnpm/store
-      - bestar_node_modules:/workspace/node_modules
-      - bestar_api_node_modules:/workspace/apps/api/node_modules
-      - bestar_web_node_modules:/workspace/apps/web/node_modules
-      - bestar_worker_venv:/workspace/apps/worker-python/.venv
     command: >
-      sh -lc "corepack enable &&
-      pnpm install --frozen-lockfile=false --ignore-scripts &&
-      pnpm --filter api prisma generate &&
-      pnpm --filter api prisma migrate deploy &&
-      pnpm --filter api build &&
-      node apps/api/dist/src/main.js"
+      sh -lc "cd apps/api &&
+      ./node_modules/.bin/prisma migrate deploy &&
+      node dist/src/main.js"
     expose:
       - "4000"
     healthcheck:
@@ -102,17 +95,9 @@ services:
       API_BASE_URL: ${WEB_SERVER_API_BASE_URL:-http://api:4000/api}
       API_PROXY_BASE_URL: ${WEB_API_PROXY_BASE_URL:-http://api:4000/api}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
-    volumes:
-      - bestar_pnpm_store:/root/.local/share/pnpm/store
-      - bestar_node_modules:/workspace/node_modules
-      - bestar_api_node_modules:/workspace/apps/api/node_modules
-      - bestar_web_node_modules:/workspace/apps/web/node_modules
-      - bestar_web_next:/workspace/apps/web/.next
     command: >
-      sh -lc "corepack enable &&
-      pnpm install --frozen-lockfile=false --ignore-scripts &&
-      pnpm --filter web build &&
-      pnpm --filter web exec next start --hostname 0.0.0.0 --port 3000"
+      sh -lc "cd apps/web &&
+      ./node_modules/.bin/next start --hostname 0.0.0.0 --port 3000"
     expose:
       - "3000"
     healthcheck:
@@ -143,13 +128,13 @@ services:
       STORAGE_ROOT: /workspace/storage
       TZ: ${TZ:-America/Edmonton}
       OPERATIONAL_TIME_ZONE: ${OPERATIONAL_TIME_ZONE:-America/Edmonton}
+      UV_NO_SYNC: "1"
       DATABASE_URL: postgresql://${POSTGRES_USER:-bestar}:${POSTGRES_PASSWORD:-bestar_dev_password}@postgres:5432/${POSTGRES_DB:-bestar_unloading}?schema=public
       REDIS_URL: redis://redis:6379
     volumes:
       - ../../storage:/workspace/storage
-      - bestar_worker_venv:/workspace/apps/worker-python/.venv
     command: >
-      sh -lc "uv sync --frozen && tail -f /dev/null"
+      tail -f /dev/null
     healthcheck:
       test: ["CMD-SHELL", "test -x .venv/bin/unloading-worker"]
       interval: 30s
@@ -164,8 +149,10 @@ services:
     depends_on:
       web:
         condition: service_healthy
+        restart: true
       api:
         condition: service_healthy
+        restart: true
     ports:
       - "${HTTP_PORT:-80}:80"
     volumes:
@@ -182,7 +169,7 @@ services:
       context: ../..
       dockerfile: infra/docker/web-e2e.Dockerfile
     image: bestar_web_e2e_local:latest
-    working_dir: /workspace
+    working_dir: /workspace/apps/web
     depends_on:
       nginx:
         condition: service_healthy
@@ -197,9 +184,3 @@ services:
 
 volumes:
   bestar_postgres_data:
-  bestar_pnpm_store:
-  bestar_node_modules:
-  bestar_api_node_modules:
-  bestar_web_node_modules:
-  bestar_web_next:
-  bestar_worker_venv:

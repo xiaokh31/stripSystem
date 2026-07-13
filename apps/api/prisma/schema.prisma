@@ -408,6 +408,7 @@ model ContainerDestination {
   palletRuleCode       String?               @map("pallet_rule_code")
   calculationBasisCbm  Decimal?              @map("calculation_basis_cbm") @db.Decimal(12, 3)
   roundingMode         String?               @map("rounding_mode")
+  palletPolicySnapshot Json?                 @map("pallet_policy_snapshot")
   note                 String?
   warnings             Json?
   errors               Json?

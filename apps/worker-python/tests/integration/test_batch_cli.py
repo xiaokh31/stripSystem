@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -90,33 +91,68 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
         for plan in payload["pallet_result"]["plans"]
     }
     expected = {
-        ("YYC4", None): ("VOLUME_1_7", 1.7, "CEIL", 3),
-        ("YYC6", None): ("VOLUME_1_7", 1.7, "CEIL", 1),
-        ("YEG2", None): ("VOLUME_1_7", 1.7, "CEIL", 8),
-        ("YVR2", None): ("VOLUME_2_2", 2.2, "CEIL", 2),
-        ("YVR3", None): ("VOLUME_2_2", 2.2, "CEIL", 3),
-        ("YVR4", None): ("VOLUME_2_2", 2.2, "CEIL", 1),
-        ("YEG1", None): ("YEG1_VOLUME_1_7_PLUS_5", 1.7, "CEIL", 7),
+        ("YYC4", "CARTON"): (
+            "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+            2.04,
+            "CEIL",
+            2,
+        ),
+        ("YYC6", "CARTON"): (
+            "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+            2.04,
+            "CEIL",
+            1,
+        ),
+        ("YEG2", "CARTON"): (
+            "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+            2.04,
+            "CEIL",
+            7,
+        ),
+        ("YVR2", "CARTON"): (
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
+            "CEIL",
+            2,
+        ),
+        ("YVR3", "CARTON"): (
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
+            "CEIL",
+            2,
+        ),
+        ("YVR4", "CARTON"): (
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
+            "CEIL",
+            1,
+        ),
+        ("YEG1", "CARTON"): (
+            "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
+            2.04,
+            "CEIL",
+            6,
+        ),
         ("UPS", "CARTON"): (
-            "ADDRESS_CARTON_VOLUME_1_8",
-            1.8,
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
             "CEIL",
             3,
         ),
         ("Private Address / ADDR-CARTON", "CARTON"): (
-            "ADDRESS_CARTON_VOLUME_1_8",
-            1.8,
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
             "CEIL",
-            3,
+            2,
         ),
         ("Private Address / ADDR-UNKNOWN", "CARTON"): (
-            "ADDRESS_CARTON_VOLUME_1_8",
-            1.8,
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
             "CEIL",
-            3,
+            2,
         ),
         ("Commercial Address / ADDR-WOOD", "WOODEN_CRATE"): (
-            "ADDRESS_WOODEN_CRATE_PIECE_COUNT",
+            "WOODEN_CRATE_PIECE_COUNT",
             None,
             "PIECE_COUNT",
             7,
@@ -129,7 +165,7 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
         if basis is None:
             assert plan["calculationBasisCbm"] is None
         else:
-            assert plan["calculationBasisCbm"] == pytest.approx(basis)
+            assert Decimal(plan["calculationBasisCbm"]) == Decimal(str(basis))
         assert plan["roundingMode"] == rounding_mode
         assert plan["finalPallets"] == final_pallets
         assert len(plan["palletIds"]) == final_pallets
@@ -170,11 +206,11 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
     task_report_html = next((tmp_path / "storage" / "task_reports").glob("task-report-*.html")).read_text(
         encoding="utf-8"
     )
-    assert "rule YEG1_VOLUME_1_7_PLUS_5" in task_report_html
-    assert "rule ADDRESS_WOODEN_CRATE_PIECE_COUNT" in task_report_html
-    assert "rounding PIECE_COUNT" in task_report_html
+    assert "rule YEG1 footprint volume plus four pallets" in task_report_html
+    assert "rule Wooden crate piece count" in task_report_html
+    assert "rounding Piece count" in task_report_html
     assert "Private or commercial address package type was not recognized" not in task_report_html
-    assert "package CARTON" in task_report_html
+    assert "package Carton" in task_report_html
 
 
 def test_unloading_worker_batch_cli_prints_summary(tmp_path: Path) -> None:
@@ -228,6 +264,43 @@ def test_unloading_worker_parse_file_cli_outputs_parser_only_json() -> None:
     assert payload["pallet_result"]["plans"]
     assert payload["report_result"] is None
     assert payload["label_result"] is None
+
+
+def test_unloading_worker_parse_file_cli_retains_api_pallet_policy() -> None:
+    runner = CliRunner()
+    policy = {
+        "policyVersion": "pallet-footprint-v1",
+        "settingsRevision": "settings-revision-test",
+        "palletLengthM": "1.0",
+        "palletWidthM": "1.1",
+        "lowHeightM": "1.7",
+        "otherHeightM": "2.2",
+        "yeg1ExtraPallets": 4,
+    }
+
+    result = runner.invoke(
+        app,
+        [
+            "parse-file",
+            "--input-file",
+            str(REAL_FIXTURE),
+            "--pallet-policy-json",
+            json.dumps(policy),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["pallet_policy"] == policy
+    assert payload["pallet_result"]["plans"]
+    assert all(
+        isinstance(plan["palletCapacityCbm"], str)
+        for plan in payload["pallet_result"]["plans"]
+    )
+    assert all(
+        plan["policySnapshot"]["palletWidthM"] == "1.1"
+        for plan in payload["pallet_result"]["plans"]
+    )
 
 
 def test_unloading_worker_write_report_cli_generates_excel_only(tmp_path: Path) -> None:

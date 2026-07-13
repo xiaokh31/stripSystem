@@ -5,6 +5,7 @@ const categoryKeys: Record<string, MessageKey> = {
   Deployment: "Deployment",
   "Generated files": "Generated files",
   "Operational profile": "Operational profile",
+  "Pallet calculation": "Pallet calculation",
   "Warehouse rules": "Warehouse rules",
 };
 
@@ -17,6 +18,8 @@ const fieldLabelKeys: Record<string, MessageKey> = {
   labelWidthMm: "Label width mm",
   manualCorrectionPolicy: "Manual correction policy",
   operationalTimeZone: "Operational time zone",
+  palletLengthM: "Pallet length m",
+  palletWidthM: "Pallet width m",
   qrTargetSizeMm: "QR target size mm",
   reportTemplateName: "Report template",
   runtimeMode: "Runtime mode",
@@ -38,6 +41,8 @@ const fieldDescriptionKeys: Record<string, MessageKey> = {
   manualCorrectionPolicy:
     "How office corrections are tracked after parser output.",
   operationalTimeZone: "IANA time zone used for local warehouse timestamps.",
+  palletLengthM: "Pallet footprint length in meters used by the pallet policy.",
+  palletWidthM: "Pallet footprint width in meters used by the pallet policy.",
   qrTargetSizeMm: "Target QR print box size in millimeters.",
   reportTemplateName: "Company unloading report template name.",
   runtimeMode: "Expected local and production runtime mode.",

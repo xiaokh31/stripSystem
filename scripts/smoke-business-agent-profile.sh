@@ -7,6 +7,9 @@ launcher="${project_root}/scripts/run-business-agent.sh"
 rules="${project_root}/.codex/execpolicy.rules"
 inner_smoke="${project_root}/scripts/business-agent-capability-smoke-inner.sh"
 canonical_profile="${project_root}/.codex/business-agent.config.toml"
+task_runner="${project_root}/scripts/run-business-task.sh"
+terminal_schema="${project_root}/.codex/business-task-terminal.schema.json"
+supervisor_test="${project_root}/scripts/test-business-task-supervisor.sh"
 
 if [[ $# -gt 1 || ( $# -eq 1 && "${1}" != '--policy-only' ) ]]; then
   printf 'Usage: %s [--policy-only]\n' "$0" >&2
@@ -31,6 +34,16 @@ if [[ "${1:-}" != '--policy-only' ]]; then
     exit 1
   fi
 
+  if [[ ! -x "${task_runner}" || ! -x "${supervisor_test}" ]]; then
+    printf 'Business-task supervisor scripts are not executable.\n' >&2
+    exit 1
+  fi
+
+  if ! jq empty "${terminal_schema}" >/dev/null 2>&1; then
+    printf 'Business-task terminal schema is missing or invalid.\n' >&2
+    exit 1
+  fi
+
   "${launcher}" --version >/dev/null
 
   if "${launcher}" --sandbox read-only --version >/dev/null 2>&1; then
@@ -40,6 +53,11 @@ if [[ "${1:-}" != '--policy-only' ]]; then
 
   if "${launcher}" -C/private/tmp --version >/dev/null 2>&1; then
     printf 'Business-agent launcher accepted a workspace override.\n' >&2
+    exit 1
+  fi
+
+  if "${launcher}" exec --help >/dev/null 2>&1; then
+    printf 'Business-agent launcher accepted an unsupervised exec invocation.\n' >&2
     exit 1
   fi
 
@@ -61,6 +79,7 @@ if [[ "${1:-}" != '--policy-only' ]]; then
   trap - EXIT
 
   "${inner_smoke}" "${project_root}"
+  "${supervisor_test}"
 fi
 
 assert_forbidden() {

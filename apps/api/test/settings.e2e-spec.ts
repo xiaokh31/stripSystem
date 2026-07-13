@@ -20,12 +20,21 @@ interface OperationalSettingsBody {
   fields: Array<{ key: string; value: string }>;
 }
 
+interface PalletPolicyBody {
+  palletLengthM: string;
+  palletWidthM: string;
+  lowHeightCapacityCbm: string;
+  otherDestinationCapacityCbm: string;
+  settingsRevision: string;
+}
+
 interface OperationalSettingsMutationBody {
   audit: {
     actorUserId: string;
     action: string;
     changedKeys: string[];
   };
+  palletPolicy: PalletPolicyBody;
   settings: OperationalSettingsBody;
 }
 
@@ -70,20 +79,51 @@ describe('Settings API (e2e)', () => {
           ]),
         );
       });
+
+    await request(app.getHttpServer())
+      .get('/api/settings/pallet-policy')
+      .set('Authorization', officeAuthHeader())
+      .expect(200)
+      .expect((response) => {
+        expect(response.body as PalletPolicyBody).toMatchObject({
+          palletLengthM: '1.0',
+          palletWidthM: '1.2',
+          lowHeightCapacityCbm: '2.04',
+          otherDestinationCapacityCbm: '2.64',
+        });
+      });
   });
 
   it('allows ADMIN to update operational settings', async () => {
     await request(app.getHttpServer())
       .patch('/api/settings/operational')
       .set('Authorization', adminAuthHeader())
-      .send({ values: { deliveryPhase: 'Production', siteName: 'Bestar CCA' } })
+      .send({
+        values: {
+          deliveryPhase: 'Production',
+          palletLengthM: '1.1',
+          palletWidthM: '1.2',
+          siteName: 'Bestar CCA',
+        },
+      })
       .expect(200)
       .expect((response) => {
         const body = response.body as OperationalSettingsMutationBody;
         expect(body.audit).toEqual({
           actorUserId: 'auth-admin',
           action: 'settings.update',
-          changedKeys: ['deliveryPhase', 'siteName'],
+          changedKeys: [
+            'deliveryPhase',
+            'palletLengthM',
+            'palletWidthM',
+            'siteName',
+          ],
+        });
+        expect(body.palletPolicy).toMatchObject({
+          palletLengthM: '1.1',
+          palletWidthM: '1.2',
+          lowHeightCapacityCbm: '2.244',
+          otherDestinationCapacityCbm: '2.904',
         });
         expect(
           body.settings.fields.find((field) => field.key === 'deliveryPhase'),
@@ -99,6 +139,60 @@ describe('Settings API (e2e)', () => {
       .expect(403)
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
+      });
+
+    await request(app.getHttpServer())
+      .patch('/api/settings/operational')
+      .set('Authorization', adminAuthHeader())
+      .send({ values: { palletWidthM: '1.1', palletLengthM: '0' } })
+      .expect(400)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe(
+          'PALLET_DIMENSION_INVALID',
+        );
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/settings/pallet-policy')
+      .set('Authorization', adminAuthHeader())
+      .expect(200)
+      .expect((response) => {
+        expect(response.body as PalletPolicyBody).toMatchObject({
+          palletLengthM: '1.0',
+          palletWidthM: '1.2',
+        });
+      });
+
+    for (const invalidValue of [
+      '',
+      'not-a-number',
+      '-1',
+      'NaN',
+      'Infinity',
+      '0.099',
+      '3.001',
+      '1.0000',
+      1.2,
+    ]) {
+      await request(app.getHttpServer())
+        .patch('/api/settings/operational')
+        .set('Authorization', adminAuthHeader())
+        .send({ values: { palletLengthM: invalidValue } })
+        .expect(400)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe(
+            'PALLET_DIMENSION_INVALID',
+          );
+        });
+    }
+
+    await request(app.getHttpServer())
+      .patch('/api/settings/operational')
+      .set('Authorization', adminAuthHeader())
+      .send({ values: { lowHeightM: '9.9' } })
+      .expect(400)
+      .expect((response) => {
+        expect((response.body as ErrorBody).code).toBe('UNKNOWN_SETTING_KEY');
       });
 
     await request(app.getHttpServer())

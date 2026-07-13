@@ -18,7 +18,7 @@ from worker_python.batch import (
 )
 from worker_python.imports import compute_sha256
 from worker_python.labels import generate_pallet_label_pdf, generate_print_calibration_pdf
-from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
+from worker_python.pallets import PalletConfig, calculate_pallets, inputs_from_parsed_result
 from worker_python.parser import FormatType, detect_excel_format
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
@@ -309,6 +309,11 @@ def parse_file(
         readable=True,
         help="Single .xlsx unloading file to parse without generating reports or labels.",
     ),
+    pallet_policy_json: str | None = typer.Option(
+        None,
+        "--pallet-policy-json",
+        help="API-resolved pallet policy snapshot for this parse; retained with the worker payload.",
+    ),
 ) -> None:
     generated_at = operational_now()
     source_path = input_file.resolve()
@@ -316,6 +321,16 @@ def parse_file(
     detection = None
     parsed_result = None
     pallet_result = None
+    pallet_policy: dict[str, object] | None = None
+
+    if pallet_policy_json:
+        try:
+            candidate = json.loads(pallet_policy_json)
+        except json.JSONDecodeError as exc:
+            raise typer.BadParameter("must be valid pallet policy JSON") from exc
+        if not isinstance(candidate, dict):
+            raise typer.BadParameter("must be a pallet policy object")
+        pallet_policy = candidate
 
     try:
         detection = detect_excel_format(source_path)
@@ -325,9 +340,10 @@ def parse_file(
         else:
             parsed_result = _parse_detected_file(source_path, detection)
             pallet_result = calculate_pallets(
-                inputs_from_destination_summaries(parsed_result.destinationSummaries),
+                inputs_from_parsed_result(parsed_result),
                 container_no=parsed_result.containerNo,
                 pallet_id_namespace=sha256[:12] if sha256 else None,
+                config=PalletConfig.from_policy(pallet_policy) if pallet_policy else PalletConfig(),
             )
             task_record = record_from_parsed_result(
                 original_file=source_path,
@@ -347,6 +363,7 @@ def parse_file(
                     task_status=task_record.parseStatus,
                     warnings=task_record.warnings,
                     errors=task_record.errors,
+                    pallet_policy=pallet_policy,
                 ),
                 ensure_ascii=False,
                 sort_keys=True,
@@ -366,6 +383,7 @@ def parse_file(
                     task_status=task_record.parseStatus,
                     warnings=task_record.warnings,
                     errors=task_record.errors,
+                    pallet_policy=pallet_policy,
                     exception=exc,
                 ),
                 ensure_ascii=False,
@@ -385,6 +403,7 @@ def _parse_payload(
     task_status: str,
     warnings: object,
     errors: object,
+    pallet_policy: dict[str, object] | None = None,
     exception: Exception | None = None,
 ) -> dict[str, object]:
     return {
@@ -398,6 +417,7 @@ def _parse_payload(
         "detection": _json_ready(detection),
         "parsed_result": _json_ready(parsed_result),
         "pallet_result": _json_ready(pallet_result),
+        "pallet_policy": pallet_policy,
         "report_result": None,
         "label_result": None,
         "task_status": task_status,

@@ -1,350 +1,272 @@
-from __future__ import annotations
-
+import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from worker_python.imports import ImportRegistry
 from worker_python.pallets import (
     PalletCalculationInput,
+    PalletConfig,
     calculate_pallets,
-    inputs_from_destination_summaries,
 )
-from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
 
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-FIXTURE_DIR = REPO_ROOT / "samples" / "unloading-plans"
-UNLOADING_PLAN_FIXTURE = FIXTURE_DIR / "CAAU8011090 UNLOADING PLAN.xlsx"
-ZERO_VOLUME_FIXTURE = FIXTURE_DIR / "Unloading Plan SMCU1012780.xlsx"
-BESTAR_FIXTURE = FIXTURE_DIR / "137675 JXJU3246131  PO#3404  BESTAR.xlsx"
-
-
-@pytest.mark.parametrize(
-    ("destination_code", "volume", "cartons", "expected", "rule_code", "divisor"),
-    [
-        ("YYC4", 3.39, 1, 2, "VOLUME_1_7", 1.7),
-        ("YYC4", 3.41, 1, 3, "VOLUME_1_7", 1.7),
-        ("YYC6", 1.70, 1, 1, "VOLUME_1_7", 1.7),
-        ("YEG2", 13.236, 1, 8, "VOLUME_1_7", 1.7),
-        ("YVR2", 4.39, 1, 2, "VOLUME_2_2", 2.2),
-        ("YVR3", 4.41, 1, 3, "VOLUME_2_2", 2.2),
-        ("YVR4", 0.5, 1, 1, "VOLUME_2_2", 2.2),
-    ],
-)
-def test_pallet_calculator_uses_destination_divisor_rules(
-    destination_code: str,
-    volume: float,
-    cartons: int,
-    expected: int,
-    rule_code: str,
-    divisor: float,
-) -> None:
+def calculate(
+    destination: str | None,
+    volume: str,
+    cartons: object = 10,
+    package: str | None = None,
+    **extra: object,
+):
     result = calculate_pallets(
         (
             PalletCalculationInput(
-                destinationCode=destination_code,
-                totalCartons=cartons,
-                totalVolumeCbm=volume,
-                lineCount=1,
+                destination,
+                cartons,  # type: ignore[arg-type]
+                Decimal(volume),
+                1,
+                package,
+                **extra,  # type: ignore[arg-type]
             ),
         )
     )
+    assert result.errors == ()
+    return result.plans[0]
 
-    plan = result.plans[0]
-    assert plan.ruleCode == rule_code
-    assert plan.volumeDivisorCbm == pytest.approx(divisor)
-    assert plan.calculationBasisCbm == pytest.approx(divisor)
-    assert plan.roundingMode == "CEIL"
+
+@pytest.mark.parametrize(
+    ("destination", "volume", "expected", "rule", "capacity"),
+    [
+        ("YYC4", "2.04", 1, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YYC4", "2.05", 2, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YYC4", "4.08", 2, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YYC4", "4.09", 3, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YYC6", "2.04", 1, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YEG2", "13.236", 7, "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7", "2.04"),
+        ("YVR2", "2.64", 1, "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2", "2.64"),
+        ("YVR3", "2.65", 2, "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2", "2.64"),
+        ("YVR4", "5.29", 3, "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2", "2.64"),
+        ("UPS", "5.40", 3, "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2", "2.64"),
+        (
+            "Private Address",
+            "3.61",
+            2,
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            "2.64",
+        ),
+    ],
+)
+def test_footprint_height_capacity_matrix(
+    destination: str,
+    volume: str,
+    expected: int,
+    rule: str,
+    capacity: str,
+) -> None:
+    plan = calculate(destination, volume)
     assert plan.calculatedPallets == expected
     assert plan.finalPallets == expected
-    assert len(plan.palletIds) == expected
-
-
-def test_pallet_calculator_adds_yeg1_extra_pallets() -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode="YEG1",
-                totalCartons=1,
-                totalVolumeCbm=3.4,
-                lineCount=1,
-            ),
-        )
-    )
-
-    plan = result.plans[0]
-    assert plan.ruleCode == "YEG1_VOLUME_1_7_PLUS_5"
-    assert plan.calculatedPallets == 7
-
-
-def test_pallet_calculator_adds_yeg1_extra_pallets_after_zero_volume_minimum() -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode="YEG1",
-                totalCartons=6,
-                totalVolumeCbm=0,
-                lineCount=1,
-            ),
-        )
-    )
-
-    plan = result.plans[0]
-    assert plan.totalVolumeCbm == pytest.approx(0.01)
-    assert plan.calculatedPallets == 6
-    assert any(warning.code == "ZERO_VOLUME_WITH_CARTONS" for warning in result.warnings)
+    assert plan.ruleCode == rule
+    assert plan.palletCapacityCbm == Decimal(capacity)
+    assert plan.policySnapshot["capacityCbm"] == capacity
 
 
 @pytest.mark.parametrize(
-    ("volume", "expected"),
+    "destination",
     [
-        (3.59, 2),
-        (3.61, 3),
+        "PUROLATOR",
+        "PURLATOR",
+        "PURO",
+        "P/A",
+        "GOODCANG",
+        "GOOD CANG",
+        "Private Address / WB-1",
+        "Commercial Address / WB-2",
+        "Business Address / WB-3",
+        "私人地址 / WB-4",
+        "商業地址 / WB-5",
     ],
 )
-def test_pallet_calculator_uses_address_carton_volume_rule(volume: float, expected: int) -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode="Private Address / TEST",
-                packageType="CARTON",
-                totalCartons=12,
-                totalVolumeCbm=volume,
-                lineCount=1,
-            ),
-        )
-    )
+def test_other_destination_aliases_use_exact_boundaries(destination: str) -> None:
+    plan = calculate(destination, "2.64")
+    assert plan.destinationGroup == "OTHER_DESTINATION_2_2"
+    assert plan.finalPallets == 1
+    assert "NEED_CONFIRM_DESTINATION_TYPE" not in {
+        warning.code for warning in plan.warnings
+    }
 
-    plan = result.plans[0]
-    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
+
+@pytest.mark.parametrize("destination", ["NOTUPS", "YEG10", "PRIVATEER"])
+def test_destination_codes_do_not_match_loose_substrings(destination: str) -> None:
+    plan = calculate(destination, "1")
+    assert "NEED_CONFIRM_DESTINATION_TYPE" in {
+        warning.code for warning in plan.warnings
+    }
+
+
+def test_yeg1_plus_four_and_zero_volume_warning() -> None:
+    assert calculate("YEG1", "4.08").calculatedPallets == 6
+    plan = calculate("YEG1", "0", cartons=3)
+    assert plan.calculatedPallets == 5
+    assert {issue.code for issue in plan.warnings} == {"ZERO_VOLUME_WITH_CARTONS"}
+    assert plan.policySnapshot["appliedExtraPallets"] == 4
+
+
+def test_piece_count_precedence_and_unreliable_count_warnings() -> None:
+    wooden = calculate("YVR2", "9", cartons=7, package="WOODEN_CRATE")
+    assert wooden.ruleCode == "WOODEN_CRATE_PIECE_COUNT"
+    assert wooden.finalPallets == 7
+    assert wooden.packageType == "WOODEN_CRATE"
+
+    oversize = calculate("OTHER", "5.60", cartons=2)
+    assert (oversize.ruleCode, oversize.finalPallets) == (
+        "OVERSIZE_PIECE_COUNT",
+        2,
+    )
+    assert oversize.packageType == "CARTON"
+
+    missing = calculate("OTHER", "5.60", cartons=0)
+    assert missing.finalPallets == 3
+    assert "OVERSIZE_PIECE_COUNT_REQUIRED" in {
+        issue.code for issue in missing.warnings
+    }
+
+    wooden_missing = calculate(
+        "OTHER",
+        "5.60",
+        cartons=7,
+        package="WOODEN_CRATE",
+        actualCartons=0,
+    )
+    assert wooden_missing.finalPallets == 3
+    assert "WOODEN_CRATE_PIECE_COUNT_REQUIRED" in {
+        issue.code for issue in wooden_missing.warnings
+    }
+
+
+def test_audited_piece_count_precedes_parser_count_without_reclassifying_package() -> None:
+    plan = calculate("OTHER", "5.60", cartons=10, actualCartons=2)
+    assert plan.ruleCode == "OVERSIZE_PIECE_COUNT"
+    assert plan.calculatedPallets == 2
     assert plan.packageType == "CARTON"
-    assert plan.volumeDivisorCbm == pytest.approx(1.8)
-    assert plan.calculatedPallets == expected
+    bucket = plan.policySnapshot["calculationBuckets"][0]  # type: ignore[index]
+    assert bucket["pieceCountSources"] == ["ACTUAL_CARTONS"]  # type: ignore[index]
 
 
-def test_pallet_calculator_uses_address_wooden_crate_piece_count() -> None:
+def test_normal_carton_lines_aggregate_before_volume_ceiling() -> None:
     result = calculate_pallets(
         (
-            PalletCalculationInput(
-                destinationCode="Commercial Address / TEST",
-                packageType="WOODEN_CRATE",
-                totalCartons=7,
-                totalVolumeCbm=3.0,
-                lineCount=1,
-            ),
+            PalletCalculationInput("YVR2", 10, Decimal("0.90"), 1),
+            PalletCalculationInput("YVR2", 10, Decimal("0.90"), 1),
         )
     )
-
-    plan = result.plans[0]
-    assert plan.ruleCode == "ADDRESS_WOODEN_CRATE_PIECE_COUNT"
-    assert plan.packageType == "WOODEN_CRATE"
-    assert plan.volumeDivisorCbm is None
-    assert plan.calculationBasisCbm is None
-    assert plan.roundingMode == "PIECE_COUNT"
-    assert plan.calculatedPallets == 7
-
-
-def test_pallet_calculator_keeps_mixed_address_packages_in_separate_rule_buckets() -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode="Private Address / MIXED",
-                packageType="CARTON",
-                totalCartons=10,
-                totalVolumeCbm=3.59,
-                lineCount=1,
-            ),
-            PalletCalculationInput(
-                destinationCode="Private Address / MIXED",
-                packageType="WOODEN_CRATE",
-                totalCartons=7,
-                totalVolumeCbm=0.1,
-                lineCount=1,
-            ),
-        )
-    )
-
-    assert [plan.ruleCode for plan in result.plans] == [
-        "ADDRESS_CARTON_VOLUME_1_8",
-        "ADDRESS_WOODEN_CRATE_PIECE_COUNT",
-    ]
-    assert [plan.calculatedPallets for plan in result.plans] == [2, 7]
-    assert result.totalFinalPallets == 9
-
-
-def test_pallet_calculator_defaults_missing_address_package_to_carton_without_warning() -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode="Private Address / UNKNOWN",
-                packageType=None,
-                totalCartons=10,
-                totalVolumeCbm=3.61,
-                lineCount=1,
-            ),
-        )
-    )
-
-    plan = result.plans[0]
-    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
-    assert plan.packageType == "CARTON"
-    assert plan.calculatedPallets == 3
-    assert not any(warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED" for warning in result.warnings)
-
-
-@pytest.mark.parametrize("destination_code", ["UPS", "PUROLATOR", "PURO", "P/A"])
-def test_pallet_calculator_defaults_courier_destinations_to_carton(
-    destination_code: str,
-) -> None:
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode=destination_code,
-                packageType=None,
-                totalCartons=57,
-                totalVolumeCbm=5.4,
-                lineCount=1,
-            ),
-        )
-    )
-
-    plan = result.plans[0]
-    assert plan.destinationType == "PARCEL_PRIVATE"
-    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
-    assert plan.packageType == "CARTON"
-    assert plan.volumeDivisorCbm == pytest.approx(1.8)
-    assert plan.calculatedPallets == 3
-    assert plan.finalPallets == 3
-
-
-def test_pallet_calculator_uses_destination_rules_for_real_fba_warehouse(tmp_path: Path) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
-
-    result = calculate_pallets(inputs, container_no=parsed.containerNo)
-
-    plan = _plan(result, "YEG2")
-    assert plan.ruleCode == "VOLUME_1_7"
-    assert plan.volumeDivisorCbm == pytest.approx(1.7)
-    assert plan.calculatedPallets == 8
-    assert plan.finalPallets == 8
-    assert len(plan.palletIds) == 8
-    assert len(set(plan.palletIds)) == 8
-
-
-def test_pallet_calculator_defaults_real_private_address_to_carton(tmp_path: Path) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
-
-    result = calculate_pallets(inputs, container_no=parsed.containerNo)
-
-    plan = _plan(result, "Private Address / SZCA2604054725")
-    assert plan.ruleCode == "ADDRESS_CARTON_VOLUME_1_8"
-    assert plan.packageType == "CARTON"
-    assert plan.calculatedPallets == 4
-    assert not any(warning.code == "PACKAGE_TYPE_CONFIRMATION_REQUIRED" for warning in result.warnings)
-
-
-def test_pallet_calculator_floors_small_positive_volume_to_one_pallet(
-    tmp_path: Path,
-) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
-
-    result = calculate_pallets(inputs, container_no=parsed.containerNo)
-
-    plan = _plan(result, "YVR2")
-    assert plan.totalCartons == 8
-    assert plan.totalVolumeCbm == pytest.approx(0.442)
-    assert plan.calculatedPallets == 1
-
-
-def test_pallet_calculator_treats_parser_normalized_zero_volume_as_minimum_volume(
-    tmp_path: Path,
-) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(ZERO_VOLUME_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    zero_volume_line = next(line for line in parsed.lines if line.rowNumber == 13)
-
-    result = calculate_pallets(
-        (
-            PalletCalculationInput(
-                destinationCode=zero_volume_line.destinationCode,
-                totalCartons=zero_volume_line.cartons or 0,
-                totalVolumeCbm=zero_volume_line.volumeCbm or 0,
-                lineCount=1,
-            ),
-        ),
-        container_no=parsed.containerNo,
-    )
-
+    assert len(result.plans) == 1
     assert result.plans[0].calculatedPallets == 1
-    assert result.plans[0].totalVolumeCbm == pytest.approx(0.01)
-    assert not any(warning.code == "ZERO_VOLUME_WITH_CARTONS" for warning in result.warnings)
+    assert result.plans[0].ruleCode == "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2"
 
 
-def test_pallet_calculator_warns_when_destination_type_is_unknown(tmp_path: Path) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
-
-    result = calculate_pallets(inputs, container_no=parsed.containerNo)
-
-    plan = _plan(result, "贵司卡尔加里仓")
-    assert plan.destinationType == "UNKNOWN"
-    assert plan.calculatedPallets == 1
-    assert any(
-        warning.code == "NEED_CONFIRM_DESTINATION_TYPE"
-        and warning.destinationCode == "贵司卡尔加里仓"
-        for warning in result.warnings
-    )
-
-
-def test_pallet_calculator_supports_manual_pallet_override_from_real_summary(
-    tmp_path: Path,
-) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(UNLOADING_PLAN_FIXTURE)
-    parsed = parse_unloading_plan_cn(imported.stored_path)
-    yeg2_summary = next(summary for summary in parsed.destinationSummaries if summary.destinationCode == "YEG2")
-
+def test_mixed_normal_oversize_and_wooden_buckets_aggregate_after_classification() -> None:
     result = calculate_pallets(
         (
+            PalletCalculationInput("OTHER", 10, Decimal("0.90"), 1, "CARTON"),
+            PalletCalculationInput("OTHER", 2, Decimal("5.60"), 1, "CARTON"),
             PalletCalculationInput(
-                destinationCode=yeg2_summary.destinationCode,
-                totalCartons=yeg2_summary.totalCartons,
-                totalVolumeCbm=yeg2_summary.totalVolumeCbm,
-                lineCount=yeg2_summary.lineCount,
-                manualPallets=9,
+                "OTHER",
+                3,
+                Decimal("9.00"),
+                1,
+                "WOODEN_CRATE",
             ),
-        ),
-        container_no=parsed.containerNo,
+        )
     )
-
-    plan = result.plans[0]
-    assert plan.calculatedPallets == 8
-    assert plan.manualPallets == 9
-    assert plan.finalPallets == 9
-    assert len(plan.palletIds) == 9
-
-
-def test_pallet_calculator_preserves_bestar_missing_destination_warning(
-    tmp_path: Path,
-) -> None:
-    imported = ImportRegistry(tmp_path / "original_files").import_file(BESTAR_FIXTURE)
-    parsed = parse_bestar_receiving(imported.stored_path)
-    inputs = inputs_from_destination_summaries(parsed.destinationSummaries)
-
-    result = calculate_pallets(inputs, container_no=parsed.containerNo)
-
-    assert result.plans[0].destinationCode is None
-    assert result.plans[0].calculatedPallets == 1
-    warning_codes = {warning.code for warning in result.warnings}
-    assert warning_codes >= {"NEED_CONFIRM_DESTINATION_TYPE", "ZERO_VOLUME_WITH_CARTONS"}
+    plans = {plan.packageType: plan for plan in result.plans}
+    assert plans["CARTON"].calculatedPallets == 3
+    assert plans["CARTON"].ruleCode == "MIXED_PALLET_CALCULATION"
+    assert len(plans["CARTON"].policySnapshot["calculationBuckets"]) == 2  # type: ignore[arg-type]
+    assert plans["WOODEN_CRATE"].calculatedPallets == 3
+    assert result.totalCalculatedPallets == 6
 
 
-def _plan(result, destination_code: str):  # noqa: ANN001, ANN202
-    return next(plan for plan in result.plans if plan.destinationCode == destination_code)
+def test_manual_override_snapshot_and_custom_width_are_exact() -> None:
+    plan = calculate("YYC4", "2.04", manualPallets=4)
+    assert plan.finalPallets == 4
+    assert len(plan.palletIds) == 4
+    assert plan.policySnapshot["manualPallets"] == 4
+
+    custom = calculate_pallets(
+        (PalletCalculationInput("YYC4", 10, Decimal("2.05"), 1),),
+        config=PalletConfig(pallet_width_m=Decimal("1.1")),
+    ).plans[0]
+    assert custom.palletCapacityCbm == Decimal("1.870")
+    assert custom.calculatedPallets == 2
+    assert custom.policySnapshot["palletWidthM"] == "1.1"
+
+
+def test_zero_manual_override_is_ignored_and_warned() -> None:
+    plan = calculate("YYC4", "2.05", manualPallets=0)
+    assert plan.calculatedPallets == 2
+    assert plan.manualPallets is None
+    assert plan.finalPallets == 2
+    assert "INVALID_MANUAL_PALLETS" in {
+        warning.code for warning in plan.warnings
+    }
+
+
+def test_unmatched_and_missing_destinations_do_not_become_zero() -> None:
+    unmatched = calculate("Unlisted destination", "1", 1)
+    assert "NEED_CONFIRM_DESTINATION_TYPE" in {
+        warning.code for warning in unmatched.warnings
+    }
+    assert unmatched.finalPallets == 1
+
+    missing = calculate(None, "1", 1)
+    assert missing.finalPallets == 1
+    assert "MISSING_DESTINATION" in {warning.code for warning in missing.warnings}
+
+
+def test_invalid_policy_returns_explicit_error() -> None:
+    result = calculate_pallets(
+        (PalletCalculationInput("YYC4", 1, Decimal("1"), 1),),
+        config=PalletConfig(pallet_width_m=Decimal("0")),
+    )
+    assert result.plans == ()
+    assert [error.code for error in result.errors] == ["INVALID_CONFIG"]
+
+
+def test_cross_language_contract_fixture_matches_complete_policy_snapshots() -> None:
+    fixture_path = (
+        Path(__file__).resolve().parents[4]
+        / "samples"
+        / "contracts"
+        / "pallet-calculation-v2.json"
+    )
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    for contract_case in fixture["cases"]:
+        policy = {**fixture["policy"], **contract_case.get("policyOverrides", {})}
+        input_data = contract_case["input"]
+        result = calculate_pallets(
+            (
+                PalletCalculationInput(
+                    destinationCode=input_data["destinationCode"],
+                    totalCartons=input_data["cartons"],
+                    totalVolumeCbm=Decimal(input_data["volumeCbm"]),
+                    lineCount=1,
+                    packageType=input_data["packageType"],
+                    manualPallets=input_data["manualPallets"],
+                ),
+            ),
+            config=PalletConfig.from_policy(policy),
+        )
+        assert result.errors == (), contract_case["name"]
+        plan = result.plans[0]
+        actual = {
+            "ruleCode": plan.ruleCode,
+            "capacityCbm": plan.policySnapshot["capacityCbm"],
+            "roundingMode": plan.roundingMode,
+            "calculatedPallets": plan.calculatedPallets,
+            "finalPallets": plan.finalPallets,
+            "warningCodes": [warning.code for warning in plan.warnings],
+            "policySnapshot": plan.policySnapshot,
+        }
+        assert actual == contract_case["expected"], contract_case["name"]

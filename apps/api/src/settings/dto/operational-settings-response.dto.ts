@@ -30,8 +30,24 @@ export interface OperationalSettingsResponseDto {
   updatedAt: string | null;
 }
 
+export interface PalletPolicySnapshotDto {
+  policyVersion: string;
+  settingsRevision: string;
+  palletLengthM: string;
+  palletWidthM: string;
+  lowHeightM: string;
+  otherHeightM: string;
+  lowHeightCapacityCbm: string;
+  otherDestinationCapacityCbm: string;
+  yeg1ExtraPallets: number;
+  lowHeightDestinationCodes: string[];
+  otherDestinationAliases: string[];
+  destinationAliasVersion: string;
+}
+
 export interface OperationalSettingsMutationResponseDto {
   settings: OperationalSettingsResponseDto;
+  palletPolicy: PalletPolicySnapshotDto;
   audit: {
     actorUserId: string;
     action: 'settings.update';

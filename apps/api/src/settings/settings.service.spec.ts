@@ -1,11 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PalletPolicyResolver } from './pallet-policy.resolver';
 import { SettingsService } from './settings.service';
 
 describe('SettingsService', () => {
   it('returns default operational settings when no overrides exist', async () => {
     const prisma = createPrismaMock();
-    const service = new SettingsService(asPrismaService(prisma));
+    const service = createService(prisma);
 
     const settings = await service.getOperationalSettings();
 
@@ -45,11 +46,26 @@ describe('SettingsService', () => {
       editable: true,
     });
     expect(settings.updatedAt).toBeNull();
+    expect(await service.getPalletPolicy()).toMatchObject({
+      palletLengthM: '1.0',
+      palletWidthM: '1.2',
+      lowHeightCapacityCbm: '2.04',
+      otherDestinationCapacityCbm: '2.64',
+      yeg1ExtraPallets: 4,
+      otherDestinationAliases: expect.arrayContaining([
+        'PURLATOR',
+        'GOODCANG',
+        'PRIVATE ADDRESS',
+        'BUSINESS',
+        '私人地址',
+        '商業地址',
+      ]),
+    });
   });
 
   it('persists updated settings with the current actor id', async () => {
     const prisma = createPrismaMock();
-    const service = new SettingsService(asPrismaService(prisma));
+    const service = createService(prisma);
 
     const response = await service.updateOperationalSettings(
       { values: { deliveryPhase: 'Production', qrTargetSizeMm: '30' } },
@@ -69,10 +85,16 @@ describe('SettingsService', () => {
       action: 'settings.update',
       changedKeys: ['deliveryPhase', 'qrTargetSizeMm'],
     });
+    expect(response.palletPolicy).toMatchObject({
+      palletLengthM: '1.0',
+      palletWidthM: '1.2',
+      lowHeightCapacityCbm: '2.04',
+      otherDestinationCapacityCbm: '2.64',
+    });
   });
 
   it('rejects unknown setting keys', async () => {
-    const service = new SettingsService(asPrismaService(createPrismaMock()));
+    const service = createService(createPrismaMock());
 
     await expect(
       service.updateOperationalSettings(
@@ -83,7 +105,7 @@ describe('SettingsService', () => {
   });
 
   it('rejects invalid number values', async () => {
-    const service = new SettingsService(asPrismaService(createPrismaMock()));
+    const service = createService(createPrismaMock());
 
     await expect(
       service.updateOperationalSettings(
@@ -94,7 +116,7 @@ describe('SettingsService', () => {
   });
 
   it('rejects attempts to edit fixed label dimensions', async () => {
-    const service = new SettingsService(asPrismaService(createPrismaMock()));
+    const service = createService(createPrismaMock());
 
     await expect(
       service.updateOperationalSettings(
@@ -103,7 +125,90 @@ describe('SettingsService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it.each([
+    ['blank', ''],
+    ['non-numeric', 'not-a-number'],
+    ['zero', '0'],
+    ['negative', '-1'],
+    ['NaN', 'NaN'],
+    ['Infinity', 'Infinity'],
+    ['below the physical range', '0.099'],
+    ['above the physical range', '3.001'],
+    ['more than three decimal places', '1.0000'],
+    ['non-string', 1.2],
+  ])(
+    'rejects %s pallet dimensions with the stable error code',
+    async (_, value) => {
+      const service = createService(createPrismaMock());
+
+      await expect(
+        service.updateOperationalSettings(
+          { values: { palletLengthM: value } } as never,
+          actor(),
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'PALLET_DIMENSION_INVALID' }),
+      });
+    },
+  );
+
+  it.each(['lowHeightM', 'otherHeightM', 'yeg1ExtraPallets'])(
+    'does not expose fixed policy metadata as editable setting %s',
+    async (key) => {
+      const service = createService(createPrismaMock());
+
+      await expect(
+        service.updateOperationalSettings(
+          { values: { [key]: '9.9' } },
+          actor(),
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'UNKNOWN_SETTING_KEY' }),
+      });
+    },
+  );
+
+  it('validates pallet dimensions atomically and changes the policy revision', async () => {
+    const prisma = createPrismaMock();
+    const service = createService(prisma);
+    const before = await service.getPalletPolicy();
+
+    await service.updateOperationalSettings(
+      { values: { palletLengthM: '1.1', palletWidthM: '1.2' } },
+      actor(),
+    );
+    const after = await service.getPalletPolicy();
+    expect(after).toMatchObject({
+      palletLengthM: '1.1',
+      palletWidthM: '1.2',
+      lowHeightCapacityCbm: '2.244',
+      otherDestinationCapacityCbm: '2.904',
+    });
+    expect(after.settingsRevision).not.toBe(before.settingsRevision);
+
+    await expect(
+      service.updateOperationalSettings(
+        { values: { palletWidthM: '1.3', palletLengthM: '0' } },
+        actor(),
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'PALLET_DIMENSION_INVALID' }),
+    });
+    expect(prisma.operationalSetting.upsert).toHaveBeenCalledTimes(2);
+    expect((await service.getPalletPolicy()).palletWidthM).toBe('1.2');
+  });
 });
+
+function createService(
+  prisma: ReturnType<typeof createPrismaMock>,
+): SettingsService {
+  const prismaService = asPrismaService(prisma);
+  return new SettingsService(
+    prismaService,
+    new PalletPolicyResolver(prismaService),
+  );
+}
 
 function createPrismaMock() {
   const records: SettingRecord[] = [];

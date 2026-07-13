@@ -4,13 +4,18 @@ import json
 import re
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime
+from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from worker_python.imports import ImportRegistry, ImportResult, compute_sha256
 from worker_python.labels import LabelGenerationResult, generate_pallet_label_pdf
-from worker_python.pallets import PalletCalculationResult, calculate_pallets, inputs_from_destination_summaries
+from worker_python.pallets import (
+    PalletCalculationResult,
+    calculate_pallets,
+    inputs_from_parsed_result,
+)
 from worker_python.parser import (
     DetectionResult,
     FormatType,
@@ -162,7 +167,7 @@ def _process_file(
         else:
             parsed_result = _parse_detected_file(imported.stored_path, detection)
             pallet_result = calculate_pallets(
-                inputs_from_destination_summaries(parsed_result.destinationSummaries),
+                inputs_from_parsed_result(parsed_result),
                 container_no=parsed_result.containerNo,
                 pallet_id_namespace=sha256[:12] if sha256 else None,
             )
@@ -348,6 +353,8 @@ def _json_ready(value: Any) -> Any:
         return value.value
     if isinstance(value, (datetime, date)):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
     return value
 
 

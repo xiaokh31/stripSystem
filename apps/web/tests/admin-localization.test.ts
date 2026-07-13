@@ -50,4 +50,20 @@ test("operational settings labels derive from stable field keys and option value
     operationalSettingFieldLabel("unknownSetting", "zh-CN"),
     "设置 unknownSetting",
   );
+  assert.equal(
+    operationalSettingCategoryLabel("Pallet calculation", "zh-CN"),
+    "托盘计算",
+  );
+  assert.equal(
+    operationalSettingFieldLabel("palletLengthM", "en"),
+    "Pallet length m",
+  );
+  assert.equal(
+    operationalSettingFieldLabel("palletWidthM", "zh-CN"),
+    "托盘宽度（米）",
+  );
+  assert.equal(
+    operationalSettingFieldDescription("palletLengthM", "zh-CN"),
+    "用于托盘规则的托盘底面长度，单位为米。",
+  );
 });

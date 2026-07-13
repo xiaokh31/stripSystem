@@ -6,7 +6,9 @@ import {
   OperationalSettingInputType,
   OperationalSettingsMutationResponseDto,
   OperationalSettingsResponseDto,
+  PalletPolicySnapshotDto,
 } from './dto/operational-settings-response.dto';
+import { PalletPolicyResolver } from './pallet-policy.resolver';
 import { UpdateOperationalSettingsDto } from './dto/update-operational-settings.dto';
 
 interface SettingDefinition {
@@ -30,6 +32,24 @@ interface OperationalSettingRecord {
 }
 
 export const OPERATIONAL_SETTING_DEFINITIONS: SettingDefinition[] = [
+  setting(
+    'palletLengthM',
+    'Pallet calculation',
+    'Pallet length m',
+    'Pallet footprint length in meters used by the pallet policy.',
+    'number',
+    '1.0',
+    { min: 0.1, max: 3 },
+  ),
+  setting(
+    'palletWidthM',
+    'Pallet calculation',
+    'Pallet width m',
+    'Pallet footprint width in meters used by the pallet policy.',
+    'number',
+    '1.2',
+    { min: 0.1, max: 3 },
+  ),
   setting(
     'siteName',
     'Operational profile',
@@ -195,7 +215,10 @@ export const OPERATIONAL_SETTING_DEFINITIONS: SettingDefinition[] = [
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly palletPolicyResolver: PalletPolicyResolver,
+  ) {}
 
   async getOperationalSettings(): Promise<OperationalSettingsResponseDto> {
     const records = (await this.prisma.operationalSetting.findMany({
@@ -205,6 +228,10 @@ export class SettingsService {
     })) as OperationalSettingRecord[];
 
     return this.toResponse(records);
+  }
+
+  async getPalletPolicy(): Promise<PalletPolicySnapshotDto> {
+    return this.palletPolicyResolver.resolve();
   }
 
   async updateOperationalSettings(
@@ -227,28 +254,30 @@ export class SettingsService {
         definition,
       ]),
     );
-    const changedKeys: string[] = [];
+    const validatedEntries = entries.map(([key, rawValue]) => {
+      const definition = definitions.get(key);
+      if (!definition) {
+        throw new BadRequestException({
+          code: 'UNKNOWN_SETTING_KEY',
+          message: `Setting ${key} is not supported.`,
+          details: { key },
+        });
+      }
+      if (!definition.editable) {
+        throw new BadRequestException({
+          code: 'SETTING_NOT_EDITABLE',
+          message: `Setting ${key} is not editable.`,
+          details: { key },
+        });
+      }
+
+      const value = this.validateValue(definition, rawValue);
+      return { key, value };
+    });
+    const changedKeys = validatedEntries.map(({ key }) => key);
 
     await this.prisma.$transaction(
-      entries.map(([key, rawValue]) => {
-        const definition = definitions.get(key);
-        if (!definition) {
-          throw new BadRequestException({
-            code: 'UNKNOWN_SETTING_KEY',
-            message: `Setting ${key} is not supported.`,
-            details: { key },
-          });
-        }
-        if (!definition.editable) {
-          throw new BadRequestException({
-            code: 'SETTING_NOT_EDITABLE',
-            message: `Setting ${key} is not editable.`,
-            details: { key },
-          });
-        }
-
-        const value = this.validateValue(definition, rawValue);
-        changedKeys.push(key);
+      validatedEntries.map(({ key, value }) => {
         return this.prisma.operationalSetting.upsert({
           where: { key },
           update: {
@@ -264,8 +293,14 @@ export class SettingsService {
       }),
     );
 
+    const [settings, palletPolicy] = await Promise.all([
+      this.getOperationalSettings(),
+      this.getPalletPolicy(),
+    ]);
+
     return {
-      settings: await this.getOperationalSettings(),
+      settings,
+      palletPolicy,
       audit: {
         actorUserId: actor.id,
         action: 'settings.update',
@@ -320,7 +355,12 @@ export class SettingsService {
     definition: SettingDefinition,
     rawValue: unknown,
   ): string {
+    const isPalletDimension =
+      definition.key === 'palletLengthM' || definition.key === 'palletWidthM';
     if (typeof rawValue !== 'string') {
+      if (isPalletDimension) {
+        throw this.palletDimensionError(definition.key, rawValue);
+      }
       throw new BadRequestException({
         code: 'SETTING_VALUE_INVALID',
         message: `Setting ${definition.key} must be a string value.`,
@@ -330,6 +370,9 @@ export class SettingsService {
 
     const value = rawValue.trim();
     if (value.length === 0) {
+      if (isPalletDimension) {
+        throw this.palletDimensionError(definition.key, value);
+      }
       throw new BadRequestException({
         code: 'SETTING_VALUE_REQUIRED',
         message: `Setting ${definition.key} cannot be blank.`,
@@ -338,6 +381,9 @@ export class SettingsService {
     }
 
     if (definition.inputType === 'number') {
+      if (isPalletDimension) {
+        return this.validatePalletDimension(definition, value);
+      }
       const numeric = Number(value);
       if (!Number.isFinite(numeric)) {
         throw new BadRequestException({
@@ -374,6 +420,37 @@ export class SettingsService {
     }
 
     return value;
+  }
+
+  private validatePalletDimension(
+    definition: SettingDefinition,
+    value: string,
+  ): string {
+    if (!/^\d+(?:\.\d{1,3})?$/.test(value)) {
+      throw this.palletDimensionError(definition.key, value);
+    }
+    const [whole, fraction = ''] = value.split('.');
+    const scaled =
+      BigInt(whole) * 1000n + BigInt((fraction + '000').slice(0, 3));
+    const min = BigInt(Math.round((definition.min ?? 0) * 1000));
+    const max = BigInt(Math.round((definition.max ?? 0) * 1000));
+    if (scaled === 0n || scaled < min || scaled > max) {
+      throw this.palletDimensionError(definition.key, value);
+    }
+    const normalizedFraction = fraction.replace(/0+$/, '');
+    return normalizedFraction ? `${whole}.${normalizedFraction}` : `${whole}.0`;
+  }
+
+  private palletDimensionError(
+    key: string,
+    value: unknown,
+  ): BadRequestException {
+    return new BadRequestException({
+      code: 'PALLET_DIMENSION_INVALID',
+      message:
+        'Pallet dimensions must be positive decimal meter values within the supported physical range.',
+      details: { key, min: 0.1, max: 3, value },
+    });
   }
 }
 

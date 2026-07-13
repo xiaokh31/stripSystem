@@ -68,6 +68,7 @@ export interface ContainerDestinationCorrectionResponseDto {
     palletRuleCode: string | null;
     calculationBasisCbm: string | null;
     roundingMode: string | null;
+    palletPolicySnapshot: unknown;
     note: string | null;
     updatedAt: string;
   };
@@ -88,6 +89,7 @@ export interface ContainerDetailDestinationResponseDto {
   palletRuleCode: string | null;
   calculationBasisCbm: string | null;
   roundingMode: string | null;
+  palletPolicySnapshot: unknown;
   note: string | null;
   warnings: unknown;
   errors: unknown;

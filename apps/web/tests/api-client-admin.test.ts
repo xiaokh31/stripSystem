@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createUser,
   getOperationalSettings,
+  getPalletPolicy,
   listPermissions,
   listRoles,
   listUsers,
@@ -215,16 +216,35 @@ test("admin API client reads and updates operational settings", async () => {
     ],
     updatedAt: null,
   };
+  const palletPolicy = {
+    policyVersion: "pallet-footprint-v1",
+    settingsRevision: "policy-revision",
+    palletLengthM: "1.0",
+    palletWidthM: "1.2",
+    lowHeightM: "1.7",
+    otherHeightM: "2.2",
+    lowHeightCapacityCbm: "2.04",
+    otherDestinationCapacityCbm: "2.64",
+    yeg1ExtraPallets: 4,
+    lowHeightDestinationCodes: ["YYC4", "YYC6", "YEG1", "YEG2"],
+    otherDestinationAliases: ["YVR2", "UPS"],
+    destinationAliasVersion: "destination-aliases-v1",
+  };
   const fetcher: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
     requests.push({
       body: init?.body ? (JSON.parse(String(init.body)) as unknown) : null,
       method: init?.method ?? "GET",
-      url: input instanceof Request ? input.url : String(input),
+      url,
     });
+    if (url.endsWith("/settings/pallet-policy")) {
+      return jsonResponse(palletPolicy);
+    }
     return jsonResponse(
       init?.method === "PATCH"
         ? {
             settings,
+            palletPolicy,
             audit: {
               actorUserId: "admin-1",
               action: "settings.update",
@@ -237,16 +257,23 @@ test("admin API client reads and updates operational settings", async () => {
   const options = { baseUrl: "http://api.local/api", fetcher };
 
   await getOperationalSettings(options);
-  await updateOperationalSettings(
+  await getPalletPolicy(options);
+  const mutation = await updateOperationalSettings(
     { values: { deliveryPhase: "Production" } },
     options,
   );
+  assert.deepEqual(mutation.palletPolicy, palletPolicy);
 
   assert.deepEqual(requests, [
     {
       body: null,
       method: "GET",
       url: "http://api.local/api/settings/operational",
+    },
+    {
+      body: null,
+      method: "GET",
+      url: "http://api.local/api/settings/pallet-policy",
     },
     {
       body: { values: { deliveryPhase: "Production" } },

@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { PalletPolicySnapshotDto } from '../settings/dto/operational-settings-response.dto';
 
 const execFileAsync = promisify(execFile);
 const WORKER_PARSE_TIMEOUT_MS = 120_000;
@@ -59,6 +60,11 @@ export interface WorkerPalletPlan {
   volumeDivisorCbm?: number | null;
   calculationBasisCbm?: number | null;
   roundingMode?: string | null;
+  destinationGroup?: string | null;
+  heightLimitM?: string | number | null;
+  palletCapacityCbm?: string | number | null;
+  calculationMode?: string | null;
+  policySnapshot?: Record<string, unknown> | null;
   totalCartons?: number | null;
   totalVolumeCbm?: number | null;
   calculatedPallets?: number | null;
@@ -86,6 +92,7 @@ export interface WorkerParsePayload {
   detection?: Record<string, unknown> | null;
   parsed_result?: WorkerParsedResult | null;
   pallet_result?: WorkerPalletResult | null;
+  pallet_policy?: Record<string, unknown> | null;
   report_result?: null;
   label_result?: null;
   task_status?: string;
@@ -105,11 +112,17 @@ export class WorkerParserService {
     );
   }
 
-  async parseFile(inputFile: string): Promise<WorkerParsePayload> {
+  async parseFile(
+    inputFile: string,
+    palletPolicy?: PalletPolicySnapshotDto,
+  ): Promise<WorkerParsePayload> {
     try {
       const { stdout } = await execFileAsync(
         'uv',
-        ['run', 'unloading-worker', 'parse-file', '--input-file', inputFile],
+        [
+          'run', 'unloading-worker', 'parse-file', '--input-file', inputFile,
+          ...(palletPolicy ? ['--pallet-policy-json', JSON.stringify(palletPolicy)] : []),
+        ],
         {
           cwd: this.workerPythonDir,
           encoding: 'utf8',

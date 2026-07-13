@@ -360,12 +360,28 @@ export interface OperationalSettingsResponse {
   updatedAt: string | null;
 }
 
+export interface PalletPolicySnapshotResponse {
+  policyVersion: string;
+  settingsRevision: string;
+  palletLengthM: string;
+  palletWidthM: string;
+  lowHeightM: string;
+  otherHeightM: string;
+  lowHeightCapacityCbm: string;
+  otherDestinationCapacityCbm: string;
+  yeg1ExtraPallets: number;
+  lowHeightDestinationCodes: string[];
+  otherDestinationAliases: string[];
+  destinationAliasVersion: string;
+}
+
 export interface UpdateOperationalSettingsRequest {
   values: Record<string, string>;
 }
 
 export interface OperationalSettingsMutationResponse {
   settings: OperationalSettingsResponse;
+  palletPolicy: PalletPolicySnapshotResponse;
   audit: {
     actorUserId: string;
     action: "settings.update";
@@ -873,6 +889,7 @@ export interface ContainerDestinationResponse {
   palletRuleCode: string | null;
   calculationBasisCbm: string | null;
   roundingMode: string | null;
+  palletPolicySnapshot: unknown;
   note: string | null;
   warnings: unknown;
   errors: unknown;
@@ -913,6 +930,7 @@ export interface ContainerDetailDestinationResponse {
   palletRuleCode: string | null;
   calculationBasisCbm: string | null;
   roundingMode: string | null;
+  palletPolicySnapshot: unknown;
   note: string | null;
   warnings: unknown;
   errors: unknown;
@@ -1048,6 +1066,7 @@ export interface ContainerDestinationCorrectionResponse {
     palletRuleCode: string | null;
     calculationBasisCbm: string | null;
     roundingMode: string | null;
+    palletPolicySnapshot: unknown;
     note: string | null;
     updatedAt: string;
   };
@@ -1663,6 +1682,14 @@ export function getOperationalSettings(
 ): Promise<OperationalSettingsResponse> {
   return createApiClient(options).get<OperationalSettingsResponse>(
     "/settings/operational",
+  );
+}
+
+export function getPalletPolicy(
+  options: ApiClientOptions = {},
+): Promise<PalletPolicySnapshotResponse> {
+  return createApiClient(options).get<PalletPolicySnapshotResponse>(
+    "/settings/pallet-policy",
   );
 }
 

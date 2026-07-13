@@ -26,7 +26,8 @@ persistence, health checks, and operator access.
 Docker Compose is the only local development runtime for the API, web, worker,
 dependency installation, Prisma, lint, typecheck, tests, and builds. The
 Compose images copy the current source tree at build time and install
-dependencies into named volumes; do not run host
+dependencies plus production build outputs into immutable image layers from
+the committed frozen lockfiles; do not run host
 `pnpm install`, `npm install`, `npx`, `jest`, `next`, `prisma`, `uv sync`, or
 `uv run pytest`, and do not create host `node_modules` to repair a check.
 
@@ -37,6 +38,50 @@ makes the local runtime match the Docker deployment image.
 ```bash
 docker compose -f infra/docker/compose.local.yml up -d --build api web worker-python
 ```
+
+BuildKit caches the dependency layers independently from application source:
+
+- source-only changes reuse the pnpm/uv dependency layers;
+- `package.json`, `pnpm-lock.yaml`, `pyproject.toml`, or `uv.lock` changes
+  invalidate the matching dependency layer;
+- container restart and recreation run baked artifacts directly and do not run
+  `pnpm install`, `uv sync`, Prisma generate, or application builds;
+- API startup runs committed migrations before starting the compiled server.
+
+Use the operation that matches the change:
+
+```bash
+# Source changed: rebuild only the affected image and recreate that service.
+docker compose -f infra/docker/compose.local.yml up -d --build api
+
+# No source, manifest, lockfile, image, or Compose config changed: restart only.
+docker compose -f infra/docker/compose.local.yml restart api
+
+# A manifest or lockfile changed: rebuild the affected dependency layer.
+docker compose -f infra/docker/compose.local.yml build --progress=plain api
+docker compose -f infra/docker/compose.local.yml up -d --no-build api
+```
+
+Replace `api` with `web` or `worker-python` as appropriate. A first cold build
+must download its base image and dependencies. On later builds, inspect the
+plain BuildKit output and confirm the applicable frozen install step reports
+`CACHED`:
+
+```bash
+docker compose -f infra/docker/compose.local.yml build --progress=plain api web worker-python
+docker compose -f infra/docker/compose.local.yml --profile e2e build --progress=plain e2e-web
+```
+
+Inspect the cache contract without changing the worktree:
+
+```bash
+scripts/verify-docker-cache-contract.sh --static
+scripts/verify-docker-cache-contract.sh --source-probe
+scripts/verify-docker-cache-contract.sh --manifest-probe
+```
+
+The source and manifest probes build disposable copied contexts, use
+cache-only outputs, and remove their temporary directories on exit.
 
 Use host commands only for Docker Compose orchestration, Git/file inspection,
 or an explicitly assigned Android, iOS, or Windows native-platform task. Test
@@ -124,13 +169,10 @@ runtime artifacts must persist. Do not delete `storage/`; it contains:
 PostgreSQL data is stored in the Docker named volume
 `bestar_postgres_data`.
 
-Node dependency folders, pnpm store, and the worker Python `.venv` are also
-stored in Docker named volumes. This keeps the local compose runtime from
-deleting or rewriting host machine dependency directories.
-
-The web service also stores its runtime `.next` build output in a Docker named
-volume. This keeps a host-side `pnpm --filter web build` from overwriting the
-static chunks used by the running Docker web process.
+Node dependency folders, pnpm store, the worker Python `.venv`, and Web `.next`
+are baked into their service images. Compose does not mount dependency or build
+output volumes over them, so recreating a service starts the exact artifacts
+that were validated during image build.
 
 ## Start Full Stack
 
@@ -147,9 +189,12 @@ Expected services:
 - `bestar_worker_python_local`
 - `bestar_nginx_local`
 
-The API service runs Prisma generate and migrations before starting. The web
-service waits for API health before starting. nginx waits for web and API
-health.
+Prisma Client generation and API/Web builds happen during image build. At
+runtime the API runs committed migrations and then starts the compiled server;
+the Web starts the baked Next.js production output directly. The web service
+waits for API health before starting. nginx waits for web and API health and is
+restarted when either upstream is recreated so it resolves the current
+container address.
 
 ## Local URLs
 
@@ -242,7 +287,7 @@ scripts/healthcheck.sh
 ## Docker Development Checks
 
 Run all application checks inside the already-running Compose services. These
-commands use the same dependency volumes and service configuration as the
+commands use the same baked dependency layers and service configuration as the
 local production rehearsal.
 
 API lint, typecheck, unit, and E2E checks:
@@ -250,7 +295,7 @@ API lint, typecheck, unit, and E2E checks:
 ```bash
 docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api lint
 docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api typecheck
-docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test -- --runInBand
+docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test --runInBand
 docker compose -f infra/docker/compose.local.yml exec -T api pnpm --filter api test:e2e
 ```
 
@@ -311,6 +356,23 @@ docker compose -f infra/docker/compose.local.yml down
 
 Do not use `docker compose down -v` unless PostgreSQL data has been backed up
 and data loss is intentional.
+
+Older checkouts may leave obsolete dependency volumes on the local Docker
+host. They are no longer mounted. After confirming no older checkout uses
+them, an operator may remove only these exact legacy volumes:
+
+```bash
+docker volume rm \
+  docker_bestar_pnpm_store \
+  docker_bestar_node_modules \
+  docker_bestar_api_node_modules \
+  docker_bestar_web_node_modules \
+  docker_bestar_web_next \
+  docker_bestar_worker_venv
+```
+
+Never include `docker_bestar_postgres_data` in dependency cleanup. Do not run
+the legacy-volume cleanup as part of normal startup or automated validation.
 
 ## Backup
 
@@ -377,18 +439,26 @@ Install or validate the local profile once after checking out the repository:
 scripts/install-business-agent-profile.sh
 ```
 
-Start an interactive task from the fixed project root:
+Execute one complete Task through the programmatic supervisor:
 
 ```bash
-scripts/run-business-agent.sh "Execute the specified task and follow AGENTS.md."
+./scripts/run-business-agent.sh task \
+  'prompts/tasks/<task-file>.md'
 ```
 
-For a non-interactive Codex invocation, keep the same launcher and pass the
-Codex subcommand after it:
+Run this from a normal terminal after leaving the old Codex session. The supervisor starts a fresh Session, requires structured
+turn results, and automatically resumes the same Task after `CONTINUE`, malformed output, premature in-progress output, or a
+recoverable Codex process failure. Only a valid terminal state stops the process. It also prevents concurrent supervised Tasks and
+stores run evidence under `.codex/business-agent-runs/`.
 
-```bash
-scripts/run-business-agent.sh exec "Run the requested project task."
-```
+Raw `exec`, manual `resume`, and direct launcher prompts are intentionally rejected. Running `./scripts/run-business-agent.sh`
+without a subcommand still opens an unsupervised interactive TUI, but that mode is only for discussion, inspection, or diagnosis,
+not complete Task execution. Do not run a second bare `codex` command afterward.
+
+Use one fresh supervised process for each Task. The supervisor may call `codex exec resume` internally only for that same Task; do
+not manually resume a different Task or a long-lived multi-task conversation. A new Session sees the shared worktree and must
+continue existing uncommitted changes after inspecting them. See `docs/runbooks/business-agent-execution.md` for the exact start,
+automatic continuation, recovery, status, and external-verification workflow.
 
 The launcher always applies `business-agent`, `--sandbox danger-full-access`,
 `--ask-for-approval never`, and the repository root. This is required because
@@ -397,10 +467,9 @@ on a `:workspace` sandbox only turns a denied operation into an immediate
 failure and does not grant the missing capability. Do not replace the launcher
 with a direct `codex` invocation when this profile is required.
 
-After this profile changes, exit the existing agent session, run
-`scripts/install-business-agent-profile.sh --replace`, and start a new session
-through the launcher. Resuming a session created under another sandbox or
-approval policy keeps that session's original runtime policy.
+After this profile changes, exit the existing Agent Session, run
+`scripts/install-business-agent-profile.sh --replace`, and start a new supervised Task. Resuming a Session created under another
+sandbox, approval policy, or Task keeps the wrong runtime context and is not allowed.
 
 The canonical profile is `.codex/business-agent.config.toml`; the installed
 copy is `$CODEX_HOME/business-agent.config.toml`. The installer refuses to

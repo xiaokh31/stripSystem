@@ -1,5 +1,10 @@
 策划案/
 samples/
+!samples/
+samples/*
+!samples/contracts/
+samples/contracts/*
+!samples/contracts/pallet-calculation-v2.json
 docs/
 !docs/
 docs/*
@@ -30,9 +35,11 @@ docs/runbooks/*
 !docs/runbooks/native-scan-app-release.md
 !docs/runbooks/work-hours-settlement-regression.md
 !docs/runbooks/monitoring-alerting-siem.md
+!docs/runbooks/business-agent-execution.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html
+!docs/reports/docker-cache-verification-2026-07-13.md
 
 # macOS
 .DS_Store
@@ -87,6 +94,10 @@ storage/unloading_summary/*
 .vscode/settings.json
 .idea/
 
+# Codex business-task runtime state
+.codex/business-agent-runs/
+.codex/business-agent-task.lock/
+
 # prompts/tasks auth planning artifacts.
 prompts/tasks/*
 !prompts/tasks/P1-09Auth Schema + Migration.md
@@ -124,6 +135,7 @@ prompts/tasks/*
 !prompts/tasks/UNLOAD-INVENTORY*.md
 !prompts/tasks/AGENT-AUTONOMY*.md
 !prompts/tasks/DOCKER-DEV*.md
+!prompts/tasks/DOCKER-CACHE*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

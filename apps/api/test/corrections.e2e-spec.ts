@@ -270,15 +270,32 @@ describe('CorrectionsController (e2e)', () => {
       destinations: [
         expect.objectContaining({
           destinationCode: 'YEG1',
-          calculatedPallets: 6,
+          calculatedPallets: 5,
           manualPallets: 4,
           finalPallets: 4,
+          palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
+          palletPolicySnapshot: expect.objectContaining({
+            ruleVersion: 'pallet-footprint-height-v2',
+            capacityCbm: '2.04',
+            appliedExtraPallets: 4,
+            calculatedPallets: 5,
+            manualPallets: 4,
+            finalPallets: 4,
+          }),
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
           calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
+          palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
+          palletPolicySnapshot: expect.objectContaining({
+            ruleVersion: 'pallet-footprint-height-v2',
+            capacityCbm: '2.64',
+            calculatedPallets: 1,
+            manualPallets: 2,
+            finalPallets: 2,
+          }),
         }),
       ],
     });
@@ -437,6 +454,9 @@ describe('CorrectionsController (e2e)', () => {
       $transaction: jest.fn((callback) => callback(mock)),
       $queryRaw: jest.fn().mockResolvedValue([]),
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
+      operationalSetting: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       importFile: {
         findUnique: jest.fn().mockResolvedValue(null),
       },

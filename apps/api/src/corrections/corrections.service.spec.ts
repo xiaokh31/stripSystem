@@ -12,6 +12,7 @@ describe('CorrectionsService', () => {
   };
   let prisma: any;
   let palletInventorySync: any;
+  let palletPolicyResolver: any;
   let service: CorrectionsService;
 
   beforeEach(() => {
@@ -26,9 +27,45 @@ describe('CorrectionsService', () => {
         }),
       ),
     };
+    palletPolicyResolver = {
+      resolve: jest.fn(() =>
+        Promise.resolve({
+          policyVersion: 'pallet-footprint-v1',
+          settingsRevision: 'test-settings-revision',
+          palletLengthM: '1.0',
+          palletWidthM: '1.2',
+          lowHeightM: '1.7',
+          otherHeightM: '2.2',
+          lowHeightCapacityCbm: '2.04',
+          otherDestinationCapacityCbm: '2.64',
+          yeg1ExtraPallets: 4,
+          lowHeightDestinationCodes: ['YYC4', 'YYC6', 'YEG1', 'YEG2'],
+          otherDestinationAliases: [
+            'YVR2',
+            'YVR3',
+            'YVR4',
+            'UPS',
+            'PUROLATOR',
+            'PURLATOR',
+            'PURO',
+            'P/A',
+            'GOODCANG',
+            'GOOD CANG',
+            'PRIVATE',
+            'PRIVATE ADDRESS',
+            'COMMERCIAL',
+            'COMMERCIAL ADDRESS',
+            'BUSINESS',
+            'BUSINESS ADDRESS',
+          ],
+          destinationAliasVersion: 'destination-aliases-v1',
+        }),
+      ),
+    };
     service = new CorrectionsService(
       prisma as PrismaService,
       palletInventorySync,
+      palletPolicyResolver,
     );
   });
 
@@ -177,9 +214,9 @@ describe('CorrectionsService', () => {
       packageType: 'UNKNOWN',
       cartons: 7,
       volume: '3.610',
-      calculatedPallets: 3,
-      finalPallets: 3,
-      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculatedPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
       calculationBasisCbm: '1.800',
       roundingMode: 'CEIL',
       warnings: [
@@ -207,7 +244,7 @@ describe('CorrectionsService', () => {
       packageType: 'WOODEN_CRATE',
       calculatedPallets: 7,
       finalPallets: 7,
-      palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+      palletRuleCode: 'WOODEN_CRATE_PIECE_COUNT',
       calculationBasisCbm: null,
       roundingMode: 'PIECE_COUNT',
     });
@@ -219,6 +256,7 @@ describe('CorrectionsService', () => {
       'roundingMode',
       'warnings',
       'finalPallets',
+      'palletPolicySnapshot',
     ]);
     expect(result.corrections).toEqual(
       expect.arrayContaining([
@@ -239,9 +277,14 @@ describe('CorrectionsService', () => {
         calculatedPallets: 7,
         finalPallets: 7,
         packageType: 'WOODEN_CRATE',
-        palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+        palletRuleCode: 'WOODEN_CRATE_PIECE_COUNT',
         calculationBasisCbm: null,
         roundingMode: 'PIECE_COUNT',
+        palletPolicySnapshot: expect.objectContaining({
+          capacityCbm: '2.64',
+          ruleVersion: 'pallet-footprint-height-v2',
+          finalPallets: 7,
+        }),
         warnings: [],
       }),
     });
@@ -258,8 +301,8 @@ describe('CorrectionsService', () => {
       calculatedPallets: 3,
       manualPallets: 2,
       finalPallets: 2,
-      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
-      calculationBasisCbm: '1.800',
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
+      calculationBasisCbm: '2.640',
       roundingMode: 'CEIL',
       warnings: [
         {
@@ -285,7 +328,7 @@ describe('CorrectionsService', () => {
       calculatedPallets: 7,
       manualPallets: 2,
       finalPallets: 2,
-      palletRuleCode: 'ADDRESS_WOODEN_CRATE_PIECE_COUNT',
+      palletRuleCode: 'WOODEN_CRATE_PIECE_COUNT',
       roundingMode: 'PIECE_COUNT',
     });
     expect(result.corrections.map((record) => record.fieldName)).not.toContain(
@@ -327,14 +370,23 @@ describe('CorrectionsService', () => {
 
     expect(result.containerDestination).toMatchObject({
       packageType: 'CARTON',
-      calculatedPallets: 3,
-      finalPallets: 3,
-      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
+      calculatedPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
       roundingMode: 'CEIL',
+      palletPolicySnapshot: expect.objectContaining({
+        capacityCbm: '2.64',
+        settingsRevision: 'test-settings-revision',
+      }),
     });
     expect(result.corrections.map((record) => record.fieldName)).toEqual([
       'cartons',
+      'calculatedPallets',
+      'palletRuleCode',
+      'calculationBasisCbm',
       'warnings',
+      'finalPallets',
+      'palletPolicySnapshot',
     ]);
     expect(prisma.containerDestination.update).toHaveBeenCalledWith({
       where: { id: 'destination-1' },
@@ -375,8 +427,8 @@ describe('CorrectionsService', () => {
       packageType: 'CARTON',
       calculatedPallets: 3,
       finalPallets: 3,
-      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
-      calculationBasisCbm: '1.800',
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
+      calculationBasisCbm: '2.64',
       roundingMode: 'CEIL',
     });
     expect(result.corrections.map((record) => record.fieldName)).toEqual([
@@ -386,6 +438,7 @@ describe('CorrectionsService', () => {
       'calculationBasisCbm',
       'roundingMode',
       'finalPallets',
+      'palletPolicySnapshot',
     ]);
   });
 
@@ -398,7 +451,7 @@ describe('CorrectionsService', () => {
       volume: '0.000',
       calculatedPallets: 0,
       finalPallets: 0,
-      palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+      palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
       calculationBasisCbm: '1.700',
       roundingMode: 'CEIL',
       warnings: [],
@@ -414,15 +467,17 @@ describe('CorrectionsService', () => {
 
     expect(result.containerDestination).toMatchObject({
       cartons: 6,
-      calculatedPallets: 6,
-      finalPallets: 6,
-      palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+      calculatedPallets: 5,
+      finalPallets: 5,
+      palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
     });
     expect(result.corrections.map((record) => record.fieldName)).toEqual([
       'cartons',
       'calculatedPallets',
+      'calculationBasisCbm',
       'warnings',
       'finalPallets',
+      'palletPolicySnapshot',
     ]);
     expect(result.corrections).toEqual(
       expect.arrayContaining([
@@ -447,7 +502,7 @@ describe('CorrectionsService', () => {
       volume: '3.390',
       calculatedPallets: 2,
       finalPallets: 2,
-      palletRuleCode: 'VOLUME_1_7',
+      palletRuleCode: 'FOOTPRINT_HEIGHT_VOLUME_LOW_1_7',
       calculationBasisCbm: '1.700',
       roundingMode: 'CEIL',
       warnings: [],
@@ -463,14 +518,15 @@ describe('CorrectionsService', () => {
 
     expect(result.containerDestination).toMatchObject({
       volume: '3.410',
-      calculatedPallets: 3,
-      finalPallets: 3,
-      palletRuleCode: 'VOLUME_1_7',
+      calculatedPallets: 2,
+      finalPallets: 2,
+      palletRuleCode: 'FOOTPRINT_HEIGHT_VOLUME_LOW_1_7',
+      calculationBasisCbm: '2.04',
     });
     expect(result.corrections.map((record) => record.fieldName)).toEqual([
       'volume',
-      'calculatedPallets',
-      'finalPallets',
+      'calculationBasisCbm',
+      'palletPolicySnapshot',
     ]);
   });
 
@@ -587,10 +643,10 @@ describe('CorrectionsService', () => {
           packageType: 'CARTON',
           totalCartons: 36,
           totalVolumeCbm: '0.000',
-          calculatedPallets: 6,
+          calculatedPallets: 5,
           manualPallets: 4,
           finalPallets: 4,
-          palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+          palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
         }),
         expect.objectContaining({
           destinationCode: 'YVR2',
@@ -600,7 +656,7 @@ describe('CorrectionsService', () => {
           calculatedPallets: 1,
           manualPallets: 2,
           finalPallets: 2,
-          palletRuleCode: 'VOLUME_2_2',
+          palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
         }),
       ],
     });
@@ -624,10 +680,14 @@ describe('CorrectionsService', () => {
         destinationCode: 'YEG1',
         packageType: 'CARTON',
         cartons: 36,
-        calculatedPallets: 6,
+        calculatedPallets: 5,
         manualPallets: 4,
         finalPallets: 4,
-        palletRuleCode: 'YEG1_VOLUME_1_7_PLUS_5',
+        palletRuleCode: 'YEG1_FOOTPRINT_HEIGHT_PLUS_4',
+        palletPolicySnapshot: expect.objectContaining({
+          manualPallets: 4,
+          finalPallets: 4,
+        }),
       }),
     });
     expect(prisma.containerDestination.create).toHaveBeenNthCalledWith(2, {
@@ -640,7 +700,7 @@ describe('CorrectionsService', () => {
         calculatedPallets: 1,
         manualPallets: 2,
         finalPallets: 2,
-        palletRuleCode: 'VOLUME_2_2',
+        palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
       }),
     });
     expect(prisma.correctionFeedback.create).toHaveBeenCalledTimes(3);
@@ -804,7 +864,7 @@ describe('CorrectionsService', () => {
       calculatedPallets: 1,
       manualPallets: 2,
       finalPallets: 2,
-      palletRuleCode: 'UNKNOWN_DESTINATION_VOLUME_1_7',
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
     });
     expect(result.corrections).toHaveLength(1);
     expect(result.corrections[0]).toMatchObject({
@@ -854,18 +914,25 @@ describe('CorrectionsService', () => {
       packageType: 'CARTON',
       cartons: 10,
       volume: '3.610',
-      calculatedPallets: 3,
+      calculatedPallets: 2,
       manualPallets: null,
-      finalPallets: 3,
-      palletRuleCode: 'ADDRESS_CARTON_VOLUME_1_8',
-      calculationBasisCbm: '1.800',
+      finalPallets: 2,
+      palletRuleCode: 'OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2',
+      calculationBasisCbm: '2.64',
       roundingMode: 'CEIL',
+      palletPolicySnapshot: expect.objectContaining({
+        capacityCbm: '2.64',
+        ruleVersion: 'pallet-footprint-height-v2',
+      }),
     });
     expect(prisma.containerDestination.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         packageType: 'CARTON',
-        calculatedPallets: 3,
-        finalPallets: 3,
+        calculatedPallets: 2,
+        finalPallets: 2,
+        palletPolicySnapshot: expect.objectContaining({
+          settingsRevision: 'test-settings-revision',
+        }),
         warnings: [],
       }),
     });

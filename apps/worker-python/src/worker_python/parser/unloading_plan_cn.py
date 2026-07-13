@@ -374,7 +374,7 @@ def _destination_summaries(lines: list[ParsedLine]) -> list[DestinationSummary]:
 
     for line in lines:
         destination = line.destinationCode or ""
-        package_type = line.packageType if _uses_address_pallet_rule(destination) else None
+        package_type = line.packageType or PACKAGE_CARTON
         key = (destination, package_type)
         if key not in grouped:
             grouped[key] = {

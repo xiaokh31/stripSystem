@@ -5,6 +5,7 @@ import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 import {
   OperationalSettingsMutationResponseDto,
   OperationalSettingsResponseDto,
+  PalletPolicySnapshotDto,
 } from './dto/operational-settings-response.dto';
 import { UpdateOperationalSettingsDto } from './dto/update-operational-settings.dto';
 import { SettingsService } from './settings.service';
@@ -17,6 +18,12 @@ export class SettingsController {
   @RequirePermissions(...ROUTE_PERMISSIONS.settings.read)
   getOperationalSettings(): Promise<OperationalSettingsResponseDto> {
     return this.settingsService.getOperationalSettings();
+  }
+
+  @Get('pallet-policy')
+  @RequirePermissions(...ROUTE_PERMISSIONS.settings.read)
+  getPalletPolicy(): Promise<PalletPolicySnapshotDto> {
+    return this.settingsService.getPalletPolicy();
   }
 
   @Patch('operational')

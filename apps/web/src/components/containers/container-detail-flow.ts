@@ -265,7 +265,11 @@ const issueMessagesByCode: Record<string, MessageKey> = {
   MISSING_WAYBILL_FOR_ADDRESS_DESTINATION:
     "Commercial or private address destination requires a waybill number.",
   NEED_CONFIRM_DESTINATION_TYPE:
-    "Destination type was not recognized; pallet rule needs confirmation.",
+    "i18n.containers.warning.destinationReview",
+  OVERSIZE_PIECE_COUNT_REQUIRED:
+    "i18n.containers.warning.oversizePieceCountRequired",
+  WOODEN_CRATE_PIECE_COUNT_REQUIRED:
+    "i18n.containers.warning.woodenCratePieceCountRequired",
 };
 
 const issueMessagesBySource: Record<string, MessageKey> = {
@@ -276,9 +280,19 @@ const palletRuleLabels: Record<string, MessageKey> = {
   ADDRESS_CARTON_VOLUME_1_8: "Private/commercial carton volume rule",
   ADDRESS_WOODEN_CRATE_PIECE_COUNT:
     "Private/commercial wooden crate piece-count rule",
+  FOOTPRINT_HEIGHT_VOLUME_LOW_1_7:
+    "i18n.containers.palletRule.lowHeightVolume",
+  MIXED_PALLET_CALCULATION: "i18n.containers.palletRule.mixed",
+  OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2:
+    "i18n.containers.palletRule.otherDestinationVolume",
+  OVERSIZE_PIECE_COUNT: "i18n.containers.palletRule.oversizePieceCount",
   UNKNOWN_DESTINATION_VOLUME_1_7: "Unknown destination 1.7 CBM review rule",
   VOLUME_1_7: "1.7 CBM volume rule",
   VOLUME_2_2: "2.2 CBM volume rule",
+  WOODEN_CRATE_PIECE_COUNT:
+    "i18n.containers.palletRule.woodenCratePieceCount",
+  YEG1_FOOTPRINT_HEIGHT_PLUS_4:
+    "i18n.containers.palletRule.yeg1PlusFour",
   YEG1_VOLUME_1_7_PLUS_5: "YEG1 1.7 CBM plus 5 pallets rule",
 };
 
@@ -289,6 +303,7 @@ const packageTypeLabels: Record<string, MessageKey> = {
 
 const roundingModeLabels: Record<string, MessageKey> = {
   CEIL: "i18n.containers.rounding.up",
+  MIXED: "i18n.containers.rounding.mixed",
   PIECE_COUNT: "i18n.containers.rounding.byPieceCount",
 };
 
@@ -361,7 +376,21 @@ function displayPackageType(
   if (destination.palletRuleCode === "ADDRESS_WOODEN_CRATE_PIECE_COUNT") {
     return translator.t(packageTypeLabels.WOODEN_CRATE);
   }
+  if (destination.palletRuleCode === "WOODEN_CRATE_PIECE_COUNT") {
+    return translator.t(packageTypeLabels.WOODEN_CRATE);
+  }
   if (destination.palletRuleCode === "ADDRESS_CARTON_VOLUME_1_8") {
+    return translator.t(packageTypeLabels.CARTON);
+  }
+  if (
+    destination.palletRuleCode &&
+    [
+      "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+      "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
+      "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+      "OVERSIZE_PIECE_COUNT",
+    ].includes(destination.palletRuleCode)
+  ) {
     return translator.t(packageTypeLabels.CARTON);
   }
   return null;

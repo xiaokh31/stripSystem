@@ -1,4 +1,6 @@
 .git
+.agents
+.codex
 .DS_Store
 .env
 .env.*
@@ -18,6 +20,9 @@ node_modules
 storage
 backups
 audit-exports
+docs/*
+!docs/fixtures.md
+prompts
 apps/mobile-scan-app/android/.gradle
 apps/mobile-scan-app/android/.cxx
 apps/mobile-scan-app/android/build

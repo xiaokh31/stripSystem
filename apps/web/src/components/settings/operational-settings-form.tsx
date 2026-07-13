@@ -5,6 +5,7 @@ import {
   ApiClientError,
   type OperationalSettingFieldResponse,
   type OperationalSettingsResponse,
+  type PalletPolicySnapshotResponse,
   updateOperationalSettings,
 } from "@/lib/api-client";
 import { useI18n } from "@/components/i18n/i18n-provider";
@@ -22,19 +23,25 @@ import { useClientHydrated } from "@/lib/use-client-hydrated";
 export function OperationalSettingsForm({
   canEdit,
   initialSettings,
+  palletPolicy,
 }: {
   canEdit: boolean;
   initialSettings: OperationalSettingsResponse;
+  palletPolicy: PalletPolicySnapshotResponse;
 }) {
   const { format, locale, t } = useI18n();
   const isHydrated = useClientHydrated();
   const [settings, setSettings] = useState(initialSettings);
+  const [policy, setPolicy] = useState(palletPolicy);
   const [draft, setDraft] = useState(() => valuesFromFields(initialSettings.fields));
   const [notice, setNotice] = useState<SaveNotice | null>(null);
   const [isPending, startTransition] = useTransition();
+  const palletFields = settings.fields.filter(
+    (field) => field.key === "palletLengthM" || field.key === "palletWidthM",
+  );
   const groupedFields = useMemo(
-    () => groupFields(settings.fields),
-    [settings.fields],
+    () => groupFields(settings.fields.filter((field) => !palletFields.includes(field))),
+    [palletFields, settings.fields],
   );
 
   function updateDraft(key: string, value: string) {
@@ -74,6 +81,7 @@ export function OperationalSettingsForm({
           values: editableValuesFromDraft(settings.fields, draft),
         });
         setSettings(response.settings);
+        setPolicy(response.palletPolicy);
         setDraft(valuesFromFields(response.settings.fields));
         setNotice({
           message: format("i18n.settings.updatedFields", {
@@ -146,6 +154,63 @@ export function OperationalSettingsForm({
 
       {notice ? <SaveNoticePanel notice={notice} /> : null}
 
+      <section
+        className="mt-5 border border-teal-200 bg-teal-50 p-4"
+        data-testid="pallet-calculation-section"
+      >
+        <h3 className="text-sm font-semibold text-zinc-950">
+          {t("i18n.settings.palletCalculation.title")}
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
+          {t("i18n.settings.palletCalculation.description")}
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {palletFields.map((field) => (
+            <SettingInput
+              canEdit={canEdit}
+              field={field}
+              isHydrated={isHydrated}
+              key={field.key}
+              onChange={updateDraft}
+              value={draft[field.key] ?? field.value}
+            />
+          ))}
+        </div>
+        <dl className="mt-4 grid gap-3 border-t border-teal-200 pt-4 text-sm sm:grid-cols-2">
+          <div className="min-w-0">
+            <dt className="font-medium text-zinc-700">
+              {format("i18n.settings.palletCalculation.capacity", {
+                height: policy.lowHeightM,
+              })}
+            </dt>
+            <dd
+              className="mt-1 text-lg font-semibold text-zinc-950"
+              data-testid="pallet-low-height-capacity"
+            >
+              {policy.lowHeightCapacityCbm} {t("i18n.settings.unitCbm")}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="font-medium text-zinc-700">
+              {format("i18n.settings.palletCalculation.capacity", {
+                height: policy.otherHeightM,
+              })}
+            </dt>
+            <dd
+              className="mt-1 text-lg font-semibold text-zinc-950"
+              data-testid="pallet-other-height-capacity"
+            >
+              {policy.otherDestinationCapacityCbm} {t("i18n.settings.unitCbm")}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-4 max-w-4xl text-sm leading-6 text-zinc-700">
+          {format("i18n.settings.palletCalculation.fixedRule", {
+            count: policy.yeg1ExtraPallets,
+          })}
+        </p>
+      </section>
+
       <div className="mt-5 grid gap-5">
         {groupedFields.map((section) => (
           <section
@@ -187,13 +252,15 @@ function SettingInput({
   onChange: (key: string, value: string) => void;
   value: string;
 }) {
-  const { format, locale } = useI18n();
+  const { format, locale, t } = useI18n();
   const disabled = !canEdit || !isHydrated || !field.editable;
+  const isPalletDimension =
+    field.key === "palletLengthM" || field.key === "palletWidthM";
   const commonClassName =
     "mt-2 min-h-11 w-full border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-teal-700 disabled:bg-zinc-100 disabled:text-zinc-500";
 
   return (
-    <label className="grid gap-1 text-sm text-zinc-700">
+    <label className="grid min-w-0 gap-1 text-sm text-zinc-700">
       <span className="font-semibold text-zinc-950">
         {operationalSettingFieldLabel(field.key, locale)}
       </span>
@@ -221,15 +288,33 @@ function SettingInput({
           value={value}
         />
       ) : (
-        <input
-          className={commonClassName}
-          disabled={disabled}
-          max={field.max}
-          min={field.min}
-          onChange={(event) => onChange(field.key, event.target.value)}
-          type={field.inputType === "number" ? "number" : "text"}
-          value={value}
-        />
+        <div
+          className="relative min-w-0"
+          data-testid={isPalletDimension ? "pallet-dimension-control" : undefined}
+        >
+          <input
+            className={`${commonClassName} ${isPalletDimension ? "pr-12" : ""}`}
+            data-testid={
+              field.key === "palletLengthM"
+                ? "pallet-length-input"
+                : field.key === "palletWidthM"
+                  ? "pallet-width-input"
+                  : undefined
+            }
+            disabled={disabled}
+            max={field.max}
+            min={field.min}
+            onChange={(event) => onChange(field.key, event.target.value)}
+            step={isPalletDimension ? "0.001" : undefined}
+            type={field.inputType === "number" ? "number" : "text"}
+            value={value}
+          />
+          {isPalletDimension ? (
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-zinc-500">
+              {t("i18n.settings.unitMeter")}
+            </span>
+          ) : null}
+        </div>
       )}
       <span className="text-xs text-zinc-500">
         {format("i18n.settings.defaultValue", {
@@ -329,9 +414,11 @@ function toSaveNotice(error: unknown, locale: Locale): SaveNotice {
 }
 
 function settingsSaveErrorMessageKey(code: string): MessageKey {
-  return code === "FORBIDDEN"
-    ? "Permission denied"
-    : "Operational settings could not be saved.";
+  if (code === "FORBIDDEN") return "Permission denied";
+  if (code === "PALLET_DIMENSION_INVALID") {
+    return "i18n.settings.palletCalculation.dimensionInvalid";
+  }
+  return "Operational settings could not be saved.";
 }
 
 interface SaveNotice {

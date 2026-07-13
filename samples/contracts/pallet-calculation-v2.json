@@ -1,0 +1,275 @@
+{
+  "policy": {
+    "policyVersion": "pallet-footprint-v1",
+    "settingsRevision": "contract-default-revision",
+    "palletLengthM": "1.0",
+    "palletWidthM": "1.2",
+    "lowHeightM": "1.7",
+    "otherHeightM": "2.2",
+    "lowHeightCapacityCbm": "2.04",
+    "otherDestinationCapacityCbm": "2.64",
+    "yeg1ExtraPallets": 4,
+    "lowHeightDestinationCodes": ["YYC4", "YYC6", "YEG1", "YEG2"],
+    "otherDestinationAliases": [
+      "YVR2",
+      "YVR3",
+      "YVR4",
+      "UPS",
+      "PUROLATOR",
+      "PURLATOR",
+      "PURO",
+      "P/A",
+      "GOODCANG",
+      "GOOD CANG",
+      "PRIVATE",
+      "PRIVATE ADDRESS",
+      "COMMERCIAL",
+      "COMMERCIAL ADDRESS",
+      "BUSINESS",
+      "BUSINESS ADDRESS",
+      "私人",
+      "私人地址",
+      "商业",
+      "商业地址",
+      "商業",
+      "商業地址"
+    ],
+    "destinationAliasVersion": "destination-aliases-v1"
+  },
+  "cases": [
+    {
+      "name": "low-height-volume-boundary",
+      "input": {
+        "destinationCode": "YYC4",
+        "packageType": "CARTON",
+        "cartons": 10,
+        "volumeCbm": "2.05",
+        "manualPallets": null,
+        "pieceCountSource": "PARSER_NORMALIZED_CARTONS"
+      },
+      "expected": {
+        "ruleCode": "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+        "capacityCbm": "2.04",
+        "roundingMode": "CEIL",
+        "calculatedPallets": 2,
+        "finalPallets": 2,
+        "warningCodes": [],
+        "policySnapshot": {
+          "policyVersion": "pallet-footprint-v1",
+          "ruleVersion": "pallet-footprint-height-v2",
+          "settingsRevision": "contract-default-revision",
+          "destinationAliasVersion": "destination-aliases-v1",
+          "palletLengthM": "1.0",
+          "palletWidthM": "1.2",
+          "destinationHeightM": "1.7",
+          "destinationGroup": "LOW_HEIGHT_1_7",
+          "capacityCbm": "2.04",
+          "packageType": "CARTON",
+          "ruleCode": "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+          "calculationMode": "VOLUME",
+          "roundingMode": "CEIL",
+          "yeg1ExtraPallets": 4,
+          "appliedExtraPallets": 0,
+          "calculatedPallets": 2,
+          "manualPallets": null,
+          "finalPallets": 2,
+          "warningCodes": [],
+          "calculationBuckets": [
+            {
+              "sourceLineNumbers": [],
+              "totalCartons": 10,
+              "totalVolumeCbm": "2.05",
+              "reliablePieceCount": 10,
+              "pieceCountSources": ["PARSER_NORMALIZED_CARTONS"],
+              "capacityCbm": "2.04",
+              "ruleCode": "FOOTPRINT_HEIGHT_VOLUME_LOW_1_7",
+              "calculationMode": "VOLUME",
+              "roundingMode": "CEIL",
+              "basePallets": 2,
+              "extraPallets": 0,
+              "calculatedPallets": 2,
+              "warningCodes": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "yeg1-zero-volume-plus-four",
+      "input": {
+        "destinationCode": "YEG1",
+        "packageType": "CARTON",
+        "cartons": 3,
+        "volumeCbm": "0",
+        "manualPallets": null,
+        "pieceCountSource": "PARSER_NORMALIZED_CARTONS"
+      },
+      "expected": {
+        "ruleCode": "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
+        "capacityCbm": "2.04",
+        "roundingMode": "CEIL",
+        "calculatedPallets": 5,
+        "finalPallets": 5,
+        "warningCodes": ["ZERO_VOLUME_WITH_CARTONS"],
+        "policySnapshot": {
+          "policyVersion": "pallet-footprint-v1",
+          "ruleVersion": "pallet-footprint-height-v2",
+          "settingsRevision": "contract-default-revision",
+          "destinationAliasVersion": "destination-aliases-v1",
+          "palletLengthM": "1.0",
+          "palletWidthM": "1.2",
+          "destinationHeightM": "1.7",
+          "destinationGroup": "YEG1_1_7_PLUS_4",
+          "capacityCbm": "2.04",
+          "packageType": "CARTON",
+          "ruleCode": "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
+          "calculationMode": "VOLUME",
+          "roundingMode": "CEIL",
+          "yeg1ExtraPallets": 4,
+          "appliedExtraPallets": 4,
+          "calculatedPallets": 5,
+          "manualPallets": null,
+          "finalPallets": 5,
+          "warningCodes": ["ZERO_VOLUME_WITH_CARTONS"],
+          "calculationBuckets": [
+            {
+              "sourceLineNumbers": [],
+              "totalCartons": 3,
+              "totalVolumeCbm": "0.01",
+              "reliablePieceCount": 3,
+              "pieceCountSources": ["PARSER_NORMALIZED_CARTONS"],
+              "capacityCbm": "2.04",
+              "ruleCode": "YEG1_FOOTPRINT_HEIGHT_PLUS_4",
+              "calculationMode": "VOLUME",
+              "roundingMode": "CEIL",
+              "basePallets": 1,
+              "extraPallets": 4,
+              "calculatedPallets": 5,
+              "warningCodes": ["ZERO_VOLUME_WITH_CARTONS"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "wooden-crate-with-manual-override",
+      "input": {
+        "destinationCode": "YVR2",
+        "packageType": "WOODEN_CRATE",
+        "cartons": 7,
+        "volumeCbm": "9",
+        "manualPallets": 4,
+        "pieceCountSource": "PARSER_NORMALIZED_CARTONS"
+      },
+      "expected": {
+        "ruleCode": "WOODEN_CRATE_PIECE_COUNT",
+        "capacityCbm": "2.64",
+        "roundingMode": "PIECE_COUNT",
+        "calculatedPallets": 7,
+        "finalPallets": 4,
+        "warningCodes": [],
+        "policySnapshot": {
+          "policyVersion": "pallet-footprint-v1",
+          "ruleVersion": "pallet-footprint-height-v2",
+          "settingsRevision": "contract-default-revision",
+          "destinationAliasVersion": "destination-aliases-v1",
+          "palletLengthM": "1.0",
+          "palletWidthM": "1.2",
+          "destinationHeightM": "2.2",
+          "destinationGroup": "OTHER_DESTINATION_2_2",
+          "capacityCbm": "2.64",
+          "packageType": "WOODEN_CRATE",
+          "ruleCode": "WOODEN_CRATE_PIECE_COUNT",
+          "calculationMode": "PIECE_COUNT",
+          "roundingMode": "PIECE_COUNT",
+          "yeg1ExtraPallets": 4,
+          "appliedExtraPallets": 0,
+          "calculatedPallets": 7,
+          "manualPallets": 4,
+          "finalPallets": 4,
+          "warningCodes": [],
+          "calculationBuckets": [
+            {
+              "sourceLineNumbers": [],
+              "totalCartons": 7,
+              "totalVolumeCbm": "9",
+              "reliablePieceCount": 7,
+              "pieceCountSources": ["PARSER_NORMALIZED_CARTONS"],
+              "capacityCbm": "2.64",
+              "ruleCode": "WOODEN_CRATE_PIECE_COUNT",
+              "calculationMode": "PIECE_COUNT",
+              "roundingMode": "PIECE_COUNT",
+              "basePallets": 7,
+              "extraPallets": 0,
+              "calculatedPallets": 7,
+              "warningCodes": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "custom-width-oversize-piece-count",
+      "policyOverrides": {
+        "settingsRevision": "contract-custom-width-revision",
+        "palletWidthM": "1.1",
+        "lowHeightCapacityCbm": "1.87",
+        "otherDestinationCapacityCbm": "2.42"
+      },
+      "input": {
+        "destinationCode": "Unlisted destination",
+        "packageType": "CARTON",
+        "cartons": 2,
+        "volumeCbm": "5.60",
+        "manualPallets": null,
+        "pieceCountSource": "PARSER_NORMALIZED_CARTONS"
+      },
+      "expected": {
+        "ruleCode": "OVERSIZE_PIECE_COUNT",
+        "capacityCbm": "2.42",
+        "roundingMode": "PIECE_COUNT",
+        "calculatedPallets": 2,
+        "finalPallets": 2,
+        "warningCodes": ["NEED_CONFIRM_DESTINATION_TYPE"],
+        "policySnapshot": {
+          "policyVersion": "pallet-footprint-v1",
+          "ruleVersion": "pallet-footprint-height-v2",
+          "settingsRevision": "contract-custom-width-revision",
+          "destinationAliasVersion": "destination-aliases-v1",
+          "palletLengthM": "1.0",
+          "palletWidthM": "1.1",
+          "destinationHeightM": "2.2",
+          "destinationGroup": "OTHER_DESTINATION_2_2",
+          "capacityCbm": "2.42",
+          "packageType": "CARTON",
+          "ruleCode": "OVERSIZE_PIECE_COUNT",
+          "calculationMode": "OVERSIZE_PIECE_COUNT",
+          "roundingMode": "PIECE_COUNT",
+          "yeg1ExtraPallets": 4,
+          "appliedExtraPallets": 0,
+          "calculatedPallets": 2,
+          "manualPallets": null,
+          "finalPallets": 2,
+          "warningCodes": ["NEED_CONFIRM_DESTINATION_TYPE"],
+          "calculationBuckets": [
+            {
+              "sourceLineNumbers": [],
+              "totalCartons": 2,
+              "totalVolumeCbm": "5.6",
+              "reliablePieceCount": 2,
+              "pieceCountSources": ["PARSER_NORMALIZED_CARTONS"],
+              "capacityCbm": "2.42",
+              "ruleCode": "OVERSIZE_PIECE_COUNT",
+              "calculationMode": "OVERSIZE_PIECE_COUNT",
+              "roundingMode": "PIECE_COUNT",
+              "basePallets": 2,
+              "extraPallets": 0,
+              "calculatedPallets": 2,
+              "warningCodes": ["NEED_CONFIRM_DESTINATION_TYPE"]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

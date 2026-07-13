@@ -50,6 +50,7 @@ import { AuthenticatedUser } from '../auth/auth-user';
 import { effectiveContainerStatus } from '../common/container-lifecycle';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
 
 type FileFormatValue = (typeof FileFormat)[keyof typeof FileFormat];
 type NullableJsonInput =
@@ -132,6 +133,7 @@ interface ContainerDestinationRecord {
   palletRuleCode: string | null;
   calculationBasisCbm: { toString(): string } | number | string | null;
   roundingMode: string | null;
+  palletPolicySnapshot?: unknown;
   note: string | null;
   warnings: unknown;
   errors: unknown;
@@ -196,6 +198,7 @@ export class ImportsService {
     private readonly prisma: PrismaService,
     configService: ConfigService,
     private readonly workerParser: WorkerParserService,
+    private readonly palletPolicyResolver: PalletPolicyResolver,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
@@ -435,7 +438,10 @@ export class ImportsService {
 
     let payload: WorkerParsePayload;
     try {
-      payload = await this.workerParser.parseFile(record.storedPath);
+      payload = await this.workerParser.parseFile(
+        record.storedPath,
+        await this.palletPolicyResolver.resolve(),
+      );
     } catch (error) {
       await this.markParseInvocationFailed(record, error);
       throw error;
@@ -1215,6 +1221,9 @@ export class ImportsService {
           plan?.calculationBasisCbm ?? plan?.volumeDivisorCbm,
         ),
         roundingMode: this.stringOrNull(plan?.roundingMode),
+        palletPolicySnapshot: this.nullableJsonValue(
+          plan?.policySnapshot ?? null,
+        ),
         note: null,
         warnings: this.nullableJsonValue(plan?.warnings ?? []),
         errors: this.nullableJsonValue([]),
@@ -1518,6 +1527,7 @@ export class ImportsService {
       palletRuleCode: record.palletRuleCode,
       calculationBasisCbm: this.nullableStringValue(record.calculationBasisCbm),
       roundingMode: record.roundingMode,
+      palletPolicySnapshot: record.palletPolicySnapshot ?? null,
       note: record.note,
       warnings: record.warnings,
       errors: record.errors,

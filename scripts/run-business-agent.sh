@@ -6,6 +6,7 @@ project_root="$(cd -- "${script_dir}/.." && pwd)"
 codex_home="${CODEX_HOME:-${HOME}/.codex}"
 profile_path="${codex_home}/business-agent.config.toml"
 canonical_profile_path="${project_root}/.codex/business-agent.config.toml"
+task_runner="${project_root}/scripts/run-business-task.sh"
 
 if [[ ! -f "${profile_path}" ]]; then
   printf 'Business-agent profile is not installed. Run scripts/install-business-agent-profile.sh first.\n' >&2
@@ -25,6 +26,27 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+if [[ "${1:-}" == 'task' ]]; then
+  shift
+  exec "${task_runner}" "$@"
+fi
+
+if [[ "${BUSINESS_AGENT_SUPERVISOR_INTERNAL:-}" == '1' ]]; then
+  if [[ "${1:-}" != 'exec' ]]; then
+    printf 'The supervisor internal launcher only accepts the Codex exec subcommand.\n' >&2
+    exit 2
+  fi
+elif [[ $# -eq 0 ]]; then
+  printf 'Opening an unsupervised diagnostic TUI. Use scripts/run-business-agent.sh task <task-file> for complete Task execution.\n' >&2
+elif [[ $# -eq 1 && ( "${1}" == '--version' || "${1}" == '-V' || "${1}" == '--help' || "${1}" == '-h' ) ]]; then
+  :
+else
+  printf 'Unsupervised prompts, exec, and resume are disabled. Use scripts/run-business-agent.sh task <task-file>.\n' >&2
+  exit 2
+fi
+
+unset BUSINESS_AGENT_SUPERVISOR_INTERNAL
 
 exec codex \
   --strict-config \
