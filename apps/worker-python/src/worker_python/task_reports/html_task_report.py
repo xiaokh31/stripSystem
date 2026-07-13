@@ -30,9 +30,16 @@ class TaskIssue:
 @dataclass(frozen=True)
 class TaskDestinationSummary:
     destinationCode: str | None
+    destinationGroup: str | None
     packageType: str | None
     palletRuleCode: str | None
     calculationBasisCbm: float | None
+    calculationMode: str | None
+    palletLengthM: float | None
+    palletWidthM: float | None
+    heightLimitM: float | None
+    palletCapacityCbm: float | None
+    appliedExtraPallets: int | None
     roundingMode: str | None
     totalCartons: int
     totalVolumeCbm: float
@@ -56,6 +63,18 @@ ROUNDING_LABELS = {
     "CEIL": "Round up",
     "PIECE_COUNT": "Piece count",
     "MIXED": "Mixed",
+}
+DESTINATION_GROUP_LABELS = {
+    "LOW_HEIGHT_1_7": "Low-height destination",
+    "YEG1_1_7_PLUS_4": "YEG1 low-height plus four",
+    "OTHER_DESTINATION_2_2": "Other destination",
+    "MISSING_DESTINATION": "Missing destination review",
+}
+CALCULATION_MODE_LABELS = {
+    "VOLUME": "Volume capacity",
+    "PIECE_COUNT": "Piece count",
+    "OVERSIZE_PIECE_COUNT": "Oversize piece count",
+    "MIXED": "Mixed buckets",
 }
 
 
@@ -208,9 +227,18 @@ def _summaries_from(parsed_result: Any, pallet_result: Any | None) -> list[TaskD
         summaries.append(
             TaskDestinationSummary(
                 destinationCode=destination_code,
+                destinationGroup=getattr(plan, "destinationGroup", None),
                 packageType=getattr(plan, "packageType", package_type),
                 palletRuleCode=getattr(plan, "ruleCode", None),
                 calculationBasisCbm=getattr(plan, "calculationBasisCbm", None),
+                calculationMode=getattr(plan, "calculationMode", None),
+                palletLengthM=_snapshot_number(plan, "palletLengthM"),
+                palletWidthM=_snapshot_number(plan, "palletWidthM"),
+                heightLimitM=_optional_number(getattr(plan, "heightLimitM", None)),
+                palletCapacityCbm=_optional_number(
+                    getattr(plan, "palletCapacityCbm", None)
+                ),
+                appliedExtraPallets=_snapshot_integer(plan, "appliedExtraPallets"),
                 roundingMode=getattr(plan, "roundingMode", None),
                 totalCartons=int(getattr(summary, "totalCartons", 0) or 0),
                 totalVolumeCbm=float(getattr(summary, "totalVolumeCbm", 0) or 0),
@@ -319,6 +347,11 @@ def _destination_list(summaries: tuple[TaskDestinationSummary, ...]) -> str:
 
 def _rule_text(summary: TaskDestinationSummary) -> str:
     parts: list[str] = []
+    if summary.destinationGroup:
+        group_label = DESTINATION_GROUP_LABELS.get(
+            summary.destinationGroup, "Review required"
+        )
+        parts.append(f"group {group_label}")
     if summary.palletRuleCode:
         rule_label = RULE_LABELS.get(summary.palletRuleCode, "Review required")
         parts.append(f"rule {rule_label}")
@@ -327,12 +360,56 @@ def _rule_text(summary: TaskDestinationSummary) -> str:
         parts.append(f"package {package_label}")
     if summary.calculationBasisCbm is not None:
         parts.append(f"basis {summary.calculationBasisCbm:.3f} cbm")
+    if summary.calculationMode:
+        parts.append(
+            "mode "
+            + CALCULATION_MODE_LABELS.get(
+                summary.calculationMode, "Review required"
+            )
+        )
+    if summary.palletLengthM is not None and summary.palletWidthM is not None:
+        parts.append(
+            f"footprint {summary.palletLengthM:.3f} m × "
+            f"{summary.palletWidthM:.3f} m"
+        )
+    if summary.heightLimitM is not None:
+        parts.append(f"height {summary.heightLimitM:.3f} m")
+    if summary.palletCapacityCbm is not None:
+        parts.append(f"capacity {summary.palletCapacityCbm:.3f} cbm")
+    if summary.appliedExtraPallets:
+        parts.append(f"extra {summary.appliedExtraPallets} pallets")
     if summary.roundingMode:
         parts.append(
             f"rounding {ROUNDING_LABELS.get(summary.roundingMode, 'Review required')}"
         )
 
     return f" ({', '.join(parts)})" if parts else ""
+
+
+def _snapshot_number(plan: Any, key: str) -> float | None:
+    snapshot = getattr(plan, "policySnapshot", None)
+    if not isinstance(snapshot, dict):
+        return None
+    return _optional_number(snapshot.get(key))
+
+
+def _snapshot_integer(plan: Any, key: str) -> int | None:
+    snapshot = getattr(plan, "policySnapshot", None)
+    if not isinstance(snapshot, dict) or snapshot.get(key) is None:
+        return None
+    try:
+        return int(snapshot[key])
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _issue_list(issues: tuple[TaskIssue, ...]) -> str:

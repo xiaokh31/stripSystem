@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 from typer.testing import CliRunner
 
 from worker_python.batch import run_batch
@@ -157,6 +157,24 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
             "PIECE_COUNT",
             7,
         ),
+        ("Other Oversize", "CARTON"): (
+            "OVERSIZE_PIECE_COUNT",
+            None,
+            "PIECE_COUNT",
+            2,
+        ),
+        ("Mixed Cargo", "CARTON"): (
+            "OTHER_DESTINATION_FOOTPRINT_HEIGHT_2_2",
+            2.64,
+            "CEIL",
+            1,
+        ),
+        ("Mixed Cargo", "WOODEN_CRATE"): (
+            "WOODEN_CRATE_PIECE_COUNT",
+            None,
+            "PIECE_COUNT",
+            3,
+        ),
     }
 
     for key, (rule_code, basis, rounding_mode, final_pallets) in expected.items():
@@ -172,7 +190,7 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
 
     warning_codes = {warning["code"] for warning in payload["warnings"]}
     assert "PACKAGE_TYPE_CONFIRMATION_REQUIRED" not in warning_codes
-    assert "DESTINATION_RANGE_EXCEEDED" in warning_codes
+    assert "DESTINATION_RANGE_EXCEEDED" not in warning_codes
 
     label_result = payload["label_result"]
     pallet_result = payload["pallet_result"]
@@ -189,17 +207,27 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
 
     workbook = load_workbook(payload["report_result"]["outputPath"], data_only=False)
     try:
-        worksheet = workbook["Sheet1"]
-        written_plans = payload["pallet_result"]["plans"][:8]
-        for row, plan in zip((4, 6, 8, 10, 12, 14, 16, 18), written_plans):
+        report_rows = [
+            (sheet, row)
+            for sheet in workbook.worksheets
+            for row in (4, 6, 8, 10, 12, 14, 16, 18)
+        ]
+        for (worksheet, row), plan in zip(
+            report_rows, payload["pallet_result"]["plans"]
+        ):
             assert worksheet[f"N{row}"].value == plan["destinationCode"]
             assert worksheet[f"O{row}"].value == plan["finalPallets"]
             assert worksheet[f"P{row}"].value == plan["totalCartons"]
         report_destinations = {
             worksheet[f"N{row}"].value: worksheet[f"O{row}"].value
-            for row in (4, 6, 8, 10, 12, 14, 16, 18)
+            for worksheet, row in report_rows
+            if worksheet[f"N{row}"].value
         }
         assert report_destinations["UPS"] == 3
+        assert sum(
+            int(worksheet[f"O{row}"].value or 0)
+            for worksheet, row in report_rows
+        ) == pallet_result["totalFinalPallets"]
     finally:
         workbook.close()
 
@@ -421,30 +449,19 @@ def test_unloading_worker_write_print_calibration_cli_generates_pdf(
     assert calibration["outputPath"].endswith("print-calibration.pdf")
     assert calibration["pageWidthMm"] == 150
     assert calibration["pageHeightMm"] == 100
-    assert calibration["qrBoxMm"] == 28
+    assert calibration["qrBoxMm"] == 25
     assert Path(calibration["outputPath"]).is_file()
 
 
 def _write_detailed_rule_workbook(path: Path) -> None:
-    workbook = Workbook()
-    worksheet = workbook.active
-    worksheet.title = "Rules"
-    worksheet["A1"] = "柜号"
-    worksheet["B1"] = "TSTU1234567"
-    worksheet.append(())
-    worksheet.append(
-        (
-            "运单号",
-            "FBA NO.",
-            "PO#",
-            "箱数/件数",
-            "重量",
-            "体积",
-            "派送目的地",
-            "派送方式",
-            "备注",
-        )
-    )
+    workbook = load_workbook(REAL_FIXTURE)
+    worksheet = workbook["Sheet1"]
+    for row in worksheet.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and "CAAU8011090" in cell.value:
+                cell.value = cell.value.replace("CAAU8011090", "TSTU1234567")
+    if worksheet.max_row > 6:
+        worksheet.delete_rows(7, worksheet.max_row - 6)
     rows = (
         ("WB-YYC4", "", "", 10, 100, 3.41, "YYC4", "LTL", ""),
         ("WB-YYC6", "", "", 10, 100, 1.70, "YYC6", "LTL", ""),
@@ -457,6 +474,9 @@ def _write_detailed_rule_workbook(path: Path) -> None:
         ("ADDR-CARTON", "", "", 12, 100, 3.61, "Private Address", "LTL", "carton"),
         ("ADDR-UNKNOWN", "", "", 10, 100, 3.61, "Private Address", "LTL", ""),
         ("ADDR-WOOD", "", "", 7, 100, 9.00, "Commercial Address", "LTL", "wooden crate"),
+        ("OVERSIZE-TWO", "", "", 2, 100, 5.60, "Other Oversize", "LTL", ""),
+        ("MIXED-CARTON", "", "", 10, 100, 1.00, "Mixed Cargo", "LTL", "carton"),
+        ("MIXED-WOOD", "", "", 3, 100, 9.00, "Mixed Cargo", "LTL", "wooden crate"),
     )
     for row in rows:
         worksheet.append(row)

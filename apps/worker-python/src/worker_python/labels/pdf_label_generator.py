@@ -149,7 +149,7 @@ def generate_print_calibration_pdf(
         outputPath=output_path,
         pageWidthMm=150,
         pageHeightMm=100,
-        qrBoxMm=28,
+        qrBoxMm=25,
         instruction=instruction,
     )
 

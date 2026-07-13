@@ -89,17 +89,6 @@ def write_excel_report(
             )
         )
 
-    if len(plans) > len(DESTINATION_ROWS):
-        warnings.append(
-            ExcelReportIssue(
-                code="DESTINATION_RANGE_EXCEEDED",
-                message=(
-                    f"Template supports {len(DESTINATION_ROWS)} destination rows; "
-                    f"{len(plans) - len(DESTINATION_ROWS)} destination(s) were not written."
-                ),
-            )
-        )
-
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{_safe_filename(container_no)}卸柜报告-En.xlsx"
     manifest_path = output_dir / REPORT_MANIFEST_FILENAME
@@ -107,16 +96,27 @@ def write_excel_report(
     # Preserve every untouched rich-text template cell when saving the report.
     workbook = load_workbook(template_path, rich_text=True)
     try:
-        worksheet = workbook[SHEET_NAME]
-        _write_header(
-            worksheet,
-            report_datetime=report_datetime,
-            container_no=container_no,
-            company=company,
+        worksheets = _report_worksheets(workbook, len(plans))
+        for page_index, worksheet in enumerate(worksheets):
+            page_plans = plans[
+                page_index * len(DESTINATION_ROWS) :
+                (page_index + 1) * len(DESTINATION_ROWS)
+            ]
+            _write_header(
+                worksheet,
+                report_datetime=report_datetime,
+                container_no=container_no,
+                company=company,
+            )
+            _write_destination_rows(worksheet, page_plans, warnings)
+            worksheet[TOTAL_CARTONS_CELL] = sum(
+                int(getattr(plan, "totalCartons", 0) or 0)
+                for plan in page_plans
+            )
+        total_cartons = sum(
+            int(getattr(plan, "totalCartons", 0) or 0) for plan in plans
         )
-        _write_destination_rows(worksheet, plans, warnings)
-        total_cartons = sum(int(getattr(plan, "totalCartons", 0) or 0) for plan in plans)
-        worksheet[TOTAL_CARTONS_CELL] = total_cartons
+        worksheets[0][TOTAL_CARTONS_CELL] = total_cartons
         workbook.save(output_path)
     finally:
         workbook.close()
@@ -136,7 +136,7 @@ def write_excel_report(
         manifestPath=manifest_path,
         warnings=tuple(warnings),
         errors=tuple(errors),
-        writtenDestinationCount=min(len(plans), len(DESTINATION_ROWS)),
+        writtenDestinationCount=len(plans),
         totalDestinationCount=len(plans),
         totalCartons=total_cartons,
     )
@@ -153,6 +153,24 @@ def _write_header(
     worksheet[TIME_VALUE_CELL] = report_datetime.strftime("%H:%M")
     worksheet[CONTAINER_VALUE_CELL] = container_no
     worksheet[COMPANY_VALUE_CELL] = company
+
+
+def _report_worksheets(workbook: Any, plan_count: int) -> list[Any]:
+    page_count = max(1, (plan_count + len(DESTINATION_ROWS) - 1) // len(DESTINATION_ROWS))
+    first_sheet = workbook[SHEET_NAME]
+    if page_count == 1:
+        return [first_sheet]
+
+    for worksheet in list(workbook.worksheets):
+        if worksheet is not first_sheet:
+            workbook.remove(worksheet)
+
+    worksheets = [first_sheet]
+    for page_number in range(2, page_count + 1):
+        copied = workbook.copy_worksheet(first_sheet)
+        copied.title = f"Sheet{page_number}"
+        worksheets.append(copied)
+    return worksheets
 
 
 def _write_destination_rows(

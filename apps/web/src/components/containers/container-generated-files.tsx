@@ -143,8 +143,8 @@ export function ContainerGeneratedFiles({
         file: null,
         message:
           action === "report"
-            ? "Excel report generated. File history refreshed."
-            : "Label PDF generated. File history refreshed.",
+            ? t("Excel report generated. File history refreshed.")
+            : t("Label PDF generated. File history refreshed."),
         status: "success",
       });
       router.refresh();

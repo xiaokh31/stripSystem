@@ -13,6 +13,7 @@ RUN --mount=type=cache,id=bestar-pnpm-e2e-store-v1,target=/root/.local/share/pnp
   pnpm install --filter web... --frozen-lockfile --ignore-scripts
 
 COPY apps/web apps/web
+COPY samples /workspace/samples
 
 WORKDIR /workspace/apps/web
 

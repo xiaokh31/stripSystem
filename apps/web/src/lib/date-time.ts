@@ -36,16 +36,10 @@ function operationalDateTimeFormatter(): Intl.DateTimeFormat {
 }
 
 function resolveOperationalTimeZone(): string {
-  const configured =
-    process.env.NEXT_PUBLIC_OPERATIONAL_TIME_ZONE || process.env.TZ;
+  const configured = process.env.NEXT_PUBLIC_OPERATIONAL_TIME_ZONE;
 
   if (configured && isValidTimeZone(configured)) {
     return configured;
-  }
-
-  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (local && isValidTimeZone(local)) {
-    return local;
   }
 
   return DEFAULT_OPERATIONAL_TIME_ZONE;

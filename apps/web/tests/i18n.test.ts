@@ -318,6 +318,15 @@ test("AST localization gate rejects raw visible copy even when the catalog conta
       name: "raw state error",
       source: 'const save = () => setError("Save failed");',
     },
+    {
+      expected: [
+        { context: "message", value: "Labels generated" },
+        { context: "message", value: "Report generated" },
+      ],
+      name: "raw conditional state message",
+      source:
+        'const save = (kind) => setState({ message: kind === "report" ? "Report generated" : "Labels generated" });',
+    },
   ];
 
   for (const fixture of fixtures) {
@@ -502,7 +511,7 @@ function visibleLiteralContext(node: ts.Node): string | null {
     property &&
     ts.isIdentifier(property.name) &&
     TRANSLATABLE_PROPERTY_NAMES.has(property.name.text) &&
-    isMessagePropertyInSetter(property)
+    isMessagePropertyInSetter(node, property)
   ) {
     return property.name.text;
   }
@@ -603,17 +612,36 @@ function isDirectTranslatableAttributeLiteral(
   return current.parent === attribute;
 }
 
-function isMessagePropertyInSetter(property: ts.PropertyAssignment): boolean {
+function isMessagePropertyInSetter(
+  node: ts.Node,
+  property: ts.PropertyAssignment,
+): boolean {
   if (!ts.isObjectLiteralExpression(property.parent)) {
     return false;
+  }
+
+  let current = node;
+  while (current.parent && current.parent !== property) {
+    if (
+      ts.isConditionalExpression(current.parent) &&
+      current.parent.condition === current
+    ) {
+      return false;
+    }
+    current = current.parent;
   }
 
   const call = property.parent.parent;
   return (
     ts.isCallExpression(call) &&
     call.arguments.includes(property.parent) &&
-    isUserMessageCall(call.expression)
+    (isUserMessageCall(call.expression) || isReactStateSetter(call.expression))
   );
+}
+
+function isReactStateSetter(expression: ts.Expression): boolean {
+  const name = calleeName(expression);
+  return /^set[A-Z]/.test(name);
 }
 
 function isDirectMessageCallArgument(

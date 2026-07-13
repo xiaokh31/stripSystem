@@ -38,7 +38,7 @@ def test_excel_report_writer_generates_openable_report_from_real_parsed_result(
     assert result.outputPath.is_file()
     assert parsed.containerNo in result.outputPath.name
     assert result.totalCartons == 896
-    assert result.writtenDestinationCount == 8
+    assert result.writtenDestinationCount == 9
 
     workbook = load_workbook(result.outputPath, data_only=False)
     worksheet = workbook["Sheet1"]
@@ -52,6 +52,15 @@ def test_excel_report_writer_generates_openable_report_from_real_parsed_result(
     assert worksheet["O10"].value == 7
     assert worksheet["P10"].value == 130
     assert worksheet["P20"].value == 896
+    overflow = workbook["Sheet2"]
+    assert overflow["N4"].value == "贵司卡尔加里仓"
+    assert overflow["O4"].value == 1
+    assert overflow["P4"].value == 22
+    assert sum(
+        int(sheet[f"O{row}"].value or 0)
+        for sheet in (worksheet, overflow)
+        for row in (4, 6, 8, 10, 12, 14, 16, 18)
+    ) == pallet_result.totalFinalPallets
     workbook.close()
 
 
@@ -142,7 +151,7 @@ def test_excel_report_writer_overwrites_same_container_report(
     assert manifest["records"][0]["generated_at"] == "2026-06-25T09:31:00"
 
 
-def test_excel_report_writer_warns_when_destinations_exceed_template_range(
+def test_excel_report_writer_adds_overflow_sheets_for_every_destination(
     tmp_path: Path,
 ) -> None:
     parsed, pallet_result = _parsed_and_pallets(OVERFLOW_FIXTURE, tmp_path)
@@ -154,10 +163,27 @@ def test_excel_report_writer_warns_when_destinations_exceed_template_range(
         report_datetime=datetime(2026, 6, 25, 9, 30),
     )
 
-    assert result.totalDestinationCount > result.writtenDestinationCount
-    assert result.writtenDestinationCount == 8
-    assert any(warning.code == "DESTINATION_RANGE_EXCEEDED" for warning in result.warnings)
+    assert result.totalDestinationCount == result.writtenDestinationCount
+    assert result.writtenDestinationCount > 8
+    assert not any(
+        warning.code == "DESTINATION_RANGE_EXCEEDED"
+        for warning in result.warnings
+    )
     assert result.outputPath.is_file()
+    workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
+    try:
+        written_pallets = sum(
+            int(sheet[f"O{row}"].value or 0)
+            for sheet in workbook.worksheets
+            for row in (4, 6, 8, 10, 12, 14, 16, 18)
+        )
+        assert written_pallets == pallet_result.totalFinalPallets
+        assert isinstance(workbook["Sheet2"]["C21"].value, CellRichText)
+        assert "C21:I25" in {
+            str(item) for item in workbook["Sheet2"].merged_cells.ranges
+        }
+    finally:
+        workbook.close()
 
 
 def test_excel_report_writer_marks_missing_bestar_destination_for_manual_entry(

@@ -108,9 +108,9 @@
 1. UNLOAD-REPORT-01Palletizing Standards Rich Text Print Clipping Regression.md
    - 新增现场 P0 报表回归。模板 `C21:I25` 的 11pt/10pt rich text runs 在 openpyxl 默认 load/save 后被扁平化为单一 11pt 字体，导致 Standards 显示和打印不全；必须保留 rich text，完成 package-level、真实 Worker/API 下载、Docker LibreOffice PDF/PNG 逐图浏览和 Microsoft Excel Print Preview/Print to PDF 验收。
 2. UNLOAD-PALLET-09Footprint Height Capacity and Oversize Piece Calculation.md
-   - 已完成。Worker/API 已统一使用 `length * width * height` 精确容量，落实低限高/YEG1/OTHER 分组、YEG1 `+4`、Goodcang/Purolator/Purlator/地址 aliases、木箱与可靠超大件一件一托、混合货型分桶和 manual final override；新增不可变 `pallet_policy_snapshot` additive migration，legacy null snapshot 不重算。Python/TypeScript 共用完整 snapshot fixture；Docker Worker 124、API unit 220 / E2E 92、Web 188 项测试通过。
+   - 已完成。Worker/API 已统一使用 `length * width * height` 精确容量，落实低限高/YEG1/OTHER 分组、YEG1 `+4`、Goodcang/Purolator/Purlator/地址 aliases、木箱与可靠超大件一件一托、混合货型分桶和 manual final override；新增不可变 `pallet_policy_snapshot` additive migration，legacy null snapshot 不重算。Python/TypeScript 共用完整 snapshot fixture；Docker Worker 124、API unit 220 / E2E 92、Web 189 项测试通过。
 4. UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md
-   - 前置 08/09 已完成，现可执行。用真实结构 Excel 完成 Settings、导入、修正、报告、标签、库存、扫码、重复扫码、历史数据和严格中英文全链路回归；必须运行 Docker Chromium 并逐张检查双语/主题/响应式截图。
+   - 仓库实现和当前环境自动化已完成。真实结构 Excel 已贯穿 Settings、导入、修正、报告、61 页标签、库存、扫码、重复扫码与历史不可变证明；Docker Chromium focused 1/1 和既有 18 项覆盖通过，en/zh-CN × light/dark × Settings/柜子详情 × 390/768/1366/1920 共 32 张截图已逐张检查。默认设置恢复为 1.0/1.2，QR 目标统一为 25mm。仅保留外部验收：业务提供真实木箱/超大件/混合/商业地址样本，以及目标打印机实体尺寸和扫码签字。
 5. WEB-DASHBOARD-06Dock Lane Strip English Layout Visual E2E Regression.md
    - 新增现场 P0 回归。English `Dock lane strip` 的 lifecycle lane 仍错位；必须修复 `LifecycleDockStrip`，并在 Docker Chromium 中完成 en/zh、light/dark、390/768/1366/1920、125%/200% zoom 的截图、bounding-box、overflow 和人工逐图浏览门禁。未提供真实 E2E 视觉证据不得关闭。
 6. UNLOAD-INVENTORY-02Unloaded Inventory Web Refresh and Regression.md
@@ -155,7 +155,7 @@ Deferred，按现场反馈再执行：
 - Temporary unloader directory：完成。
 - Monthly unloading summary：完成；UNLOAD-WAGE-12 已修复空白导出回归。
 - Container unloaded / delivered-to-destination status split：完成。
-- Detailed pallet calculation rules：UNLOAD-PALLET-08/09 已完成唯一可配置 policy、托盘底面积乘固定限高、YEG1 `+4`、OTHER 分类、木箱/可靠超大件按件数和不可变结果快照；默认纸箱、隐藏 package selector、destination correction 保存和 UPS 非零修复均保留。UNLOAD-PALLET-10 的真实生成物、扫码和 Docker Chromium 全链路关闭门禁仍待执行。
+- Detailed pallet calculation rules：UNLOAD-PALLET-08/09/10 已完成唯一可配置 policy、托盘底面积乘固定限高、YEG1 `+4`、OTHER 分类、木箱/可靠超大件按件数、不可变结果快照、真实结构生成物、库存/重复扫码和 Docker Chromium 双语四档 viewport 关闭门禁；默认纸箱、隐藏 package selector、destination correction 保存和 UPS 非零修复均保留。外部仍待真实木箱/超大件/混合/商业地址 pilot fixture 与目标打印机签字。
 - API generated Prisma lint ignore：完成。
 - Monitoring / SIEM export / backup-disk alerts：完成到本地生产可落地范围。
 - P1 async queue teardown + Docker concurrency regression：完成。

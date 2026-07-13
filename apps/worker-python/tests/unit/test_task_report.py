@@ -70,7 +70,13 @@ def test_task_report_displays_warnings_errors_and_totals_from_real_results(
     assert "CAAU8011090" in html
     assert "896" in html
     assert "rule Low-height footprint volume" in html
+    assert "group Low-height destination" in html
     assert "basis 2.040 cbm" in html
+    assert "mode Volume capacity" in html
+    assert "footprint 1.000 m × 1.200 m" in html
+    assert "height 1.700 m" in html
+    assert "capacity 2.040 cbm" in html
+    assert "extra 4 pallets" in html
     assert "rounding Round up" in html
     assert "package Carton" in html
     assert "Private or commercial address package type was not recognized" not in html

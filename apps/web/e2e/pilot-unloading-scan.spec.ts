@@ -3,24 +3,13 @@ import {
   test,
   type APIRequestContext,
   type APIResponse,
-  type TestInfo,
 } from "@playwright/test";
-import { execFile } from "node:child_process";
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { authHeaders, loginThroughApi } from "./helpers";
-
-const execFileAsync = promisify(execFile);
-
-const SOURCE_CONTAINER_NO = "CAAU8011090";
-const SOURCE_WORKBOOK = path.resolve(
-  __dirname,
-  "../../..",
-  "samples/unloading-plans/CAAU8011090 UNLOADING PLAN.xlsx",
-);
-const WORKER_DIR = path.resolve(__dirname, "../../worker-python");
-
+import {
+  createDerivedRealWorkbook,
+  uniquePolicyContainerNo,
+} from "./real-workbook-fixture";
 interface PalletListResponse {
   items: PalletResponse[];
 }
@@ -48,8 +37,8 @@ test("pilot full-stack import, report, label, and scan flow", async ({
 
   const accessToken = await loginThroughApi(page, request);
   const headers = authHeaders(accessToken);
-  const containerNo = uniqueContainerNo();
-  const workbookPath = await createDerivedWorkbook(testInfo, containerNo);
+  const containerNo = uniquePolicyContainerNo();
+  const workbookPath = await createDerivedRealWorkbook(testInfo, containerNo);
 
   await page.goto("/imports/new");
   await expect(
@@ -58,11 +47,12 @@ test("pilot full-stack import, report, label, and scan flow", async ({
 
   await page.locator("#import-files").setInputFiles(workbookPath);
   await expect(page.getByText(path.basename(workbookPath))).toBeVisible();
-  await page.getByRole("button", { name: "Upload file" }).click();
+  await page.getByRole("button", { name: /^Upload \d+ file\(s\)$/ }).click();
 
-  const importLink = page.locator('a[href^="/imports/"]').first();
+  const importLink = page.locator('p:has-text("Import ID:") a[href^="/imports/"]');
   await expect(importLink).toBeVisible({ timeout: 45_000 });
   await importLink.click();
+  await expect(page).toHaveURL(/\/imports\/(?!new(?:[/?#]|$))[^/?#]+$/);
 
   await expect(page.getByRole("heading", { name: path.basename(workbookPath) }))
     .toBeVisible({ timeout: 20_000 });
@@ -141,50 +131,6 @@ test("pilot full-stack import, report, label, and scan flow", async ({
   expect(loadedPallets.items).toHaveLength(1);
   expect(loadedPallets.items[0]?.id).toBe(pallet.id);
 });
-
-async function createDerivedWorkbook(
-  testInfo: TestInfo,
-  containerNo: string,
-): Promise<string> {
-  const workbookPath = testInfo.outputPath(`${containerNo} UNLOADING PLAN.xlsx`);
-  await mkdir(path.dirname(workbookPath), { recursive: true });
-
-  await execFileAsync(
-    "uv",
-    [
-      "run",
-      "python",
-      "-c",
-      [
-        "from openpyxl import load_workbook",
-        "import datetime",
-        "import sys",
-        "source, output, old, new = sys.argv[1:]",
-        "workbook = load_workbook(source)",
-        "hits = 0",
-        "for sheet in workbook.worksheets:",
-        "    for row in sheet.iter_rows():",
-        "        for cell in row:",
-        "            if isinstance(cell.value, str) and old in cell.value:",
-        "                cell.value = cell.value.replace(old, new)",
-        "                hits += 1",
-        "if hits == 0:",
-        "    raise SystemExit(f'container number {old} was not found in source workbook')",
-        "workbook.properties.title = f'{new} UNLOADING PLAN smoke'",
-        "workbook.properties.subject = 'Playwright full-stack pilot smoke'",
-        "workbook.properties.modified = datetime.datetime.utcnow()",
-        "workbook.save(output)",
-      ].join("\n"),
-      SOURCE_WORKBOOK,
-      workbookPath,
-      SOURCE_CONTAINER_NO,
-      containerNo,
-    ],
-    { cwd: WORKER_DIR, timeout: 30_000 },
-  );
-
-  return workbookPath;
-}
 
 async function firstGeneratedPallet(
   request: APIRequestContext,
@@ -275,9 +221,4 @@ function lastPathSegment(url: string): string {
     throw new Error(`Could not read path id from ${url}`);
   }
   return value;
-}
-
-function uniqueContainerNo(): string {
-  const timestampDigits = String(Date.now() % 10_000_000).padStart(7, "0");
-  return `TSMU${timestampDigits}`;
 }

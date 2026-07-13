@@ -127,3 +127,62 @@ test counts, screenshots, trace/console status, and final restored settings.
 List changed files, migrations, effective policy, formula matrix, real fixtures, generated artifacts, Docker commands/results,
 E2E screenshots, i18n results, historical-data proof, restored settings and known limitations. Update index/report only after all
 gates pass.
+
+## 2026-07-13 执行结果
+
+### 状态
+
+- 仓库实现和当前环境自动化验收已完成；无 schema 变更、无新增 migration。
+- 保留外部 pilot limitation：现有真实样本没有业务确认的木箱、可靠超大件、混合货型和商业地址组合，不能把
+  deterministic derived fixture 或 E2E 边界记录宣称为真实生产样本。
+- 仍需目标打印机完成 150mm x 100mm、25mm x 25mm QR 实体测量和扫码签字。
+
+### 有效策略与公式矩阵
+
+- 默认设置已恢复并由数据库确认：`palletLengthM=1.0`、`palletWidthM=1.2`、
+  `qrTargetSizeMm=25`；默认容量为 `1.0 * 1.2 * 1.7 = 2.04 CBM` 和
+  `1.0 * 1.2 * 2.2 = 2.64 CBM`。
+- Settings E2E 将宽度改为 `1.1m` 后，当前 policy 容量变为 `1.87/2.42 CBM`，revision 和
+  `updatedById` 改变；teardown 通过 Settings API 恢复默认值。
+- YYC4/YYC6/YEG2 使用 1.7m 体积容量；YEG1 使用同一容量并仅对普通体积桶 `+4`；YVR、UPS、
+  Purolator/Purlator、Goodcang、私人/商业地址和未匹配非空 OTHER 使用 2.2m 容量并对需确认分类保留告警。
+- 明确木箱与可靠超大件按件数一件一托；混合行先按普通/木箱/超大件分桶再相加；manual override 只改变
+  `finalPallets`，报告、标签和库存消费持久化 final 结果。
+
+### Fixture、历史安全与生成物
+
+- 浏览器通过 nginx 导入真实 `samples/unloading-plans/CAAU8011090 UNLOADING PLAN.xlsx` 的结构派生副本；
+  保留 fixed warehouse、Purolator、私人地址、普通目的仓和 raw JSON 证据。Worker integration 从同一真实结构
+  派生 deterministic 木箱、超大件和混合行，E2E API 边界记录明确标注为非生产 fixture 证据。
+- 默认策略历史柜 `TSPU9528246` 生成 41 个托盘并扫码 1 次；修改 Settings 后，其 destination snapshots、
+  generated file rows/hashes、pallet IDs/status、inventory 及 loaded-pallet event 逐项深比较不变。
+- 新策略柜 `TSPU9528247` 在修正和边界记录后持久化 61 个 final pallets，生成并下载：
+  - `unloading-report.xlsx`，SHA-256
+    `45fd7fe6f6d9e8dcfcd403896181ecc9cfc3dcba1bf54360d0a712f5a9863697`，3 个 worksheet，
+    pallet total 为 61，`Palletizing Standards` 保留多个 rich-text runs；
+  - `pallet-labels.pdf`，SHA-256
+    `79091870ba3c6f5031aea3bfc8909a23aa91c4cc52cebd6a202a59b744552765`，61 页，
+    每页 150mm x 100mm，61 个唯一 pallet ID/QR payload，QR CSS/校准目标为 25mm x 25mm。
+- 柜子完成卸柜后第一次扫码使 remaining 仅减 1，重复扫码返回 duplicate 且 inventory、loaded event 数量不变。
+
+### Docker 与浏览器证据
+
+- `docker compose -f infra/docker/compose.local.yml up -d --build`：通过，API/Web/Worker/nginx/PostgreSQL/Redis
+  全部 healthy。
+- Worker：124/124；API lint/typecheck、unit 220/220、E2E 15 suites/92 tests、build：通过；Web
+  lint/typecheck、unit 189/189、production build：通过。
+- Prisma：22 migrations，database up to date；`scripts/healthcheck.sh` 与 `git diff --check`：通过。
+- focused Docker Chromium：1/1，最终四档 viewport 版本 2.1 分钟通过；Settings、导入、解析、修正、报告、
+  标签、inventory、scan、duplicate、历史安全、teardown、console/page-error assertions 全部通过。
+- 既有 dashboard/settings/core/locale/pilot Chromium 覆盖 18 项；production build 在运行中替换 `.next` 曾造成
+  stale chunk 500，重建 Web/nginx 后受影响 5/5 隔离复跑通过，其余 13 项通过。
+- `test-results/unload-pallet-10-*.png` 共 32 张：Settings/柜子详情 × en/zh-CN × light/dark ×
+  390/768/1366/1920；已逐张检查，无混合语言、raw rule key、强制 package selector、页面横向溢出、组件裁切或
+  hydration error。
+
+### 外部验收
+
+1. 业务提供真实/脱敏且明确标注木箱、可靠超大件、混合货型和商业地址的 workbook 后，补跑
+   `UNLOAD-PALLET-04` pilot sign-off，不得用当前 synthetic boundary 代替。
+2. 在目标打印机关闭自动缩放，以 100% 打印校准页和标签，测量 150mm x 100mm 外框与 25mm x 25mm QR，
+   再用现场 PDA/扫码枪记录可扫性签字。

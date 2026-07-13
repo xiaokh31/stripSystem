@@ -154,6 +154,7 @@ test("lifecycle dock strip keeps English and Chinese lanes aligned", async ({
 
   await page.setViewportSize({ height: 768, width: 1366 });
   await page.goto("/");
+  await switchToEnglish(page);
   for (const theme of ["Light theme", "Dark theme"] as const) {
     await page.getByRole("button", { name: theme }).click();
     await expect(page.locator("html")).toHaveAttribute(
@@ -167,6 +168,7 @@ test("lifecycle dock strip keeps English and Chinese lanes aligned", async ({
       await page.locator(".lifecycle-dock-strip").screenshot({
         path: `test-results/dashboard-lifecycle-en-${theme.startsWith("Light") ? "light" : "dark"}-1366x768-${scale}x.png`,
       });
+      await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
       await session.detach();
     }
   }

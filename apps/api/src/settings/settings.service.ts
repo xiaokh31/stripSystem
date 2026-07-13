@@ -179,7 +179,7 @@ export const OPERATIONAL_SETTING_DEFINITIONS: SettingDefinition[] = [
     'QR target size mm',
     'Target QR print box size in millimeters.',
     'number',
-    '28',
+    '25',
     { min: 20, max: 40 },
   ),
   setting(

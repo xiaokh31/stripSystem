@@ -166,8 +166,8 @@ def test_label_template_uses_large_readable_fields_and_wraps_long_destination() 
     assert "font-size: 50pt;" in template
     assert "font-size: 44pt;" in template
     assert "position: absolute;" in template
-    assert "width: 28mm;" in template
-    assert "height: 28mm;" in template
+    assert "width: 25mm;" in template
+    assert "height: 25mm;" in template
     assert "right: 34mm;" in template
     assert "right: 0;" in template
     assert "label.destination_font_size" in template
@@ -264,7 +264,7 @@ def test_pdf_label_generator_shrinks_long_destination_without_moving_qr(
     assert height == pytest.approx(_mm_points(100), abs=0.01)
 
 
-def test_print_calibration_pdf_is_150mm_by_100mm_with_28mm_qr_box(
+def test_print_calibration_pdf_is_150mm_by_100mm_with_25mm_qr_box(
     tmp_path: Path,
 ) -> None:
     result = generate_print_calibration_pdf(output_dir=tmp_path / "labels")
@@ -273,7 +273,7 @@ def test_print_calibration_pdf_is_150mm_by_100mm_with_28mm_qr_box(
     assert result.outputPath.is_file()
     assert result.pageWidthMm == 150
     assert result.pageHeightMm == 100
-    assert result.qrBoxMm == 28
+    assert result.qrBoxMm == 25
     assert "Disable automatic print scaling" in result.instruction
 
     text = result.outputPath.read_bytes().decode("latin1", errors="ignore")
@@ -287,11 +287,11 @@ def test_print_calibration_template_documents_scaling_and_measurements() -> None
     template = PRINT_CALIBRATION_TEMPLATE.read_text(encoding="utf-8")
 
     assert "size: 150mm 100mm;" in template
-    assert "width: 28mm;" in template
-    assert "height: 28mm;" in template
+    assert "width: 25mm;" in template
+    assert "height: 25mm;" in template
     assert "Disable fit-to-page, shrink-to-fit, and auto scaling." in template
     assert "Printed outer border must measure 150mm x 100mm." in template
-    assert "Printed QR check box must measure 28mm x 28mm." in template
+    assert "Printed QR check box must measure 25mm x 25mm." in template
 
 
 def test_pdf_label_generator_returns_error_when_no_pallet_ids(tmp_path: Path) -> None:

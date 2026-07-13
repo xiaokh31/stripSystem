@@ -812,9 +812,11 @@
           UNLOAD-PALLET-08 已完成可配置托盘长宽、唯一 policy snapshot、Settings
           审计/RBAC 和双语响应式验收；UNLOAD-PALLET-09 已完成新 policy 精确计算、
           混合货型、木箱/超大件按件数、不可变结果快照和 Python/TypeScript parity。
-          UNLOAD-PALLET-10 仍需完成真实生成物和 full-stack 回归，因此托盘计算尚不能
-          标为当前需求 100%。UNLOAD-PALLET-04 的真实 pilot
-          workbook 验证仍待业务提供样本。规则继续按向上取整执行，不使用四舍五入。
+          UNLOAD-PALLET-10 已完成真实结构导入、生成物、历史安全、库存/重复扫码和
+          Docker Chromium 双语四档 viewport 关闭门禁，当前仓库实现与自动化达到 100%。
+          UNLOAD-PALLET-04 的真实木箱/超大件/混合/商业地址 pilot workbook 验证仍待业务
+          提供样本；目标打印机的 150mm x 100mm 与 25mm QR 实体测量也保留为外部签字。
+          规则继续按向上取整执行，不使用四舍五入。
         </p>
         <table>
           <thead>
@@ -881,21 +883,21 @@
               <td><span class="badge complete">Done</span></td>
               <td>Settings + API policy</td>
               <td>已完成：Settings 可审计保存默认 1.0m / 1.2m 长宽，API 返回唯一 SHA-256 revision policy snapshot 和后端精确计算的 2.04 / 2.64 CBM 容量；1.7m / 2.2m 限高、YEG1 +4、目的仓组和 alias version 保持只读。保存响应立即返回最新 policy，所有无效尺寸统一为 `PALLET_DIMENSION_INVALID` 且原子拒绝。snapshot 已传入 Worker，Decimal 在 JSON 边界保留为字符串；新增 Settings 文案完整纳入 en/zh-CN catalog。</td>
-              <td>验收证据：Settings API unit 19/19、Settings API E2E 3/3、Web 188/188、Worker policy CLI 2/2、Docker Chromium Settings 3/3；English/中文 × light/dark × 390/768/1366/1920 共 16 张截图已逐项抽查并通过无溢出、单语和 WCAG 4.5 对比度断言。ADMIN 可编辑、OFFICE 只读，测试后数据库已还原 1.0 / 1.2，Docker full-stack healthcheck 通过。UNLOAD-PALLET-09 已消费该唯一 contract；08 不触发历史数据批量重算。</td>
+              <td>验收证据：Settings API unit 19/19、Settings API E2E 3/3、Web 189/189、Worker policy CLI 2/2、Docker Chromium Settings 3/3；English/中文 × light/dark × 390/768/1366/1920 共 16 张截图已逐项抽查并通过无溢出、单语和 WCAG 4.5 对比度断言。ADMIN 可编辑、OFFICE 只读，测试后数据库已还原 1.0 / 1.2，Docker full-stack healthcheck 通过。UNLOAD-PALLET-09/10 已消费该唯一 contract；08 不触发历史数据批量重算。</td>
             </tr>
             <tr>
               <td>UNLOAD-PALLET-09 Footprint Height Capacity and Oversize Piece Calculation</td>
               <td><span class="badge complete">Done</span></td>
               <td>Worker + API + persistence</td>
               <td>已完成：Worker/API 统一使用 `length * width * height` 和精确十进制；默认低限高/OTHER 容量为 2.04/2.64 CBM，YEG1 仅体积模式 +4，courier / Goodcang / 私人及商业地址归 OTHER，未匹配非空目的仓按 OTHER 计算并告警。明确木箱和可靠超大件一件一托，普通/木箱/超大件按源行分桶后聚合，manual override 控制 final 和 pallet ID 数量。</td>
-              <td>新增 additive `pallet_policy_snapshot` JSONB migration；新结果保存 policy/rule version、settings revision、尺寸、限高、容量、分桶、件数来源、warning 和 calculated/manual/final，legacy null snapshot 不回填不重算。共享 fixture 验证 Python/TypeScript 完整 snapshot 一致。Docker 验收：Worker 124/124、API unit 220/220、API E2E 92/92、Web 188/188，migration up to date，lint/typecheck 通过。下一步仅执行 UNLOAD-PALLET-10 真实 full-stack 生成物与视觉关闭门禁。</td>
+              <td>新增 additive `pallet_policy_snapshot` JSONB migration；新结果保存 policy/rule version、settings revision、尺寸、限高、容量、分桶、件数来源、warning 和 calculated/manual/final，legacy null snapshot 不回填不重算。共享 fixture 验证 Python/TypeScript 完整 snapshot 一致。Docker 验收：Worker 124/124、API unit 220/220、API E2E 92/92、Web 189/189，migration up to date，lint/typecheck 通过。UNLOAD-PALLET-10 已完成真实 full-stack 生成物与视觉关闭门禁。</td>
             </tr>
             <tr>
               <td>UNLOAD-PALLET-10 Pallet Policy Full-Stack Artifact and i18n Regression</td>
-              <td><span class="badge partial">Ready</span></td>
+              <td><span class="badge complete">Code Complete</span></td>
               <td>Full-stack exit gate</td>
-              <td>任务已制定：覆盖 Settings、真实结构 Excel 导入、修正、报告、标签、库存、扫码、重复扫码、历史数据以及严格单语 i18n 和响应式视觉验证。</td>
-              <td>08/09 前置已完成；下一步用 Docker full stack 和真实 Chromium E2E 关闭，逐张浏览 en/zh、light/dark、desktop/mobile 截图，并确认测试结束恢复默认设置。</td>
+              <td>已完成：真实结构 Excel 贯穿 Settings、导入、修正、报告、61 页标签、库存、扫码、重复扫码和历史不可变证明；报告 pallet total、标签页数、唯一 pallet ID/QR 均与 persisted finalPallets 一致。默认托盘 1.0m × 1.2m、容量 2.04/2.64 CBM，QR 目标统一为 25mm；测试 teardown 已通过 API 恢复共享设置。</td>
+              <td>Docker Worker 124/124、API unit 220/220 + E2E 92/92、Web 189/189、build、22 migrations、health 和 diff 均通过。focused Chromium 1/1；既有浏览器覆盖 18 项通过。Settings/柜子详情 × en/zh-CN × light/dark × 390/768/1366/1920 共 32 张截图已逐张检查。外部仅待真实木箱/超大件/混合/商业地址 pilot fixture 与目标打印机实体尺寸/扫码签字。</td>
             </tr>
           </tbody>
         </table>
@@ -1333,9 +1335,9 @@
             </tr>
             <tr>
               <td>托盘计算</td>
-              <td><span class="badge partial">Full-Stack Gate Pending</span></td>
-              <td>90%</td>
-              <td>UNLOAD-PALLET-08/09 已完成可配置 1.0m * 1.2m 底面积、唯一 policy contract、底面积乘固定限高容量、YEG1 +4、OTHER 分类、木箱/可靠超大件按件数、混合分桶、manual override、审计和不可变结果快照。仅 UNLOAD-PALLET-10 的真实生成物、扫码和 full-stack i18n/视觉关闭门禁待执行。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100% repository / automation</td>
+              <td>UNLOAD-PALLET-08/09/10 已完成可配置 1.0m * 1.2m 底面积、唯一 policy contract、底面积乘固定限高容量、YEG1 +4、OTHER 分类、木箱/可靠超大件按件数、混合分桶、manual override、审计、不可变结果快照、真实结构生成物、库存/重复扫码和 full-stack i18n/视觉关闭门禁。外部 pilot 样本与目标打印机签字不作为 synthetic 自动化结果冒充。</td>
             </tr>
             <tr>
               <td>公司模板拆柜报告</td>
@@ -1638,7 +1640,7 @@
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>
           <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>
-          <li>UNLOAD-PALLET-08/09 已完成；下一步执行 UNLOAD-PALLET-10，并用真实包含私人/商业地址的 Excel 验证新规则全链路：默认 1.0m * 1.2m 尺寸、1.7m / 2.2m 固定限高、YEG1 +4、courier / Goodcang / OTHER、普通纸箱、明确木箱和超大件都应显示正确 policy/rule metadata；托数按向上取整。</li>
+          <li>UNLOAD-PALLET-08/09/10 仓库实现和自动化已完成；下一步仅在业务提供的真实/脱敏样本中签字确认商业地址、明确木箱、可靠超大件和混合货型，并保留 policy/rule metadata 与向上取整证据，不得用 deterministic boundary fixture 代替生产样本。</li>
           <li>保持 API lint 配置排除 `src/generated/**`，把 Prisma generated client 视为生成产物，不作为人工代码 lint gate。</li>
           <li>现场用真实打印机验证 150mm x 100mm 标签和 QR 可扫性。</li>
           <li>P4-PRINT-03 当前不复跑 local print agent 原型：继续 PDF/manual printing，pilot checklist 记录打印机、驱动、PDF viewer、失败率和尺寸测量；有重复失败证据后再重新开 agent 任务。</li>

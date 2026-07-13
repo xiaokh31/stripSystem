@@ -16,6 +16,22 @@ test.beforeEach(async ({ page, request }) => {
   await loginThroughApi(page, request);
 });
 
+test("office shell hydrates without runtime page errors", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/settings");
+  await expect(
+    page.getByRole("heading", {
+      exact: true,
+      level: 1,
+      name: "Operational settings",
+    }),
+  ).toBeVisible();
+
+  expect(pageErrors).toEqual([]);
+});
+
 for (const item of pages) {
   test(`${item.path} renders without page errors`, async ({ page }) => {
     await page.goto(item.path);
