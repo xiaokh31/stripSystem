@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-13
+- 2026-07-14
 
 依据：
 - docs/reports/project-completion-status.html
@@ -12,9 +12,14 @@
 - docs/runbooks/native-scan-app-testing.md
 - docs/runbooks/native-scan-app-release.md
 
+状态判定规则：
+- 当前是否正在执行以及受监督终态，以 `.codex/business-agent-runs/*/state.json` 为准。
+- 功能完成证据和外部验收项，以 `docs/reports/project-completion-status.html` 为准。
+- 本文件下方的历史执行记录仅用于追溯；不得因为历史标题或旧“下一步”文字重复执行已经完成的 Task。
+
 结论：
 - P0-P3 Web/API/Worker 核心业务闭环已完成。
-- 新增 P0 现场回归 `UNLOAD-REPORT-01`：生成拆柜报告时 `Palletizing Standards` rich text 被扁平化，导致 Excel 显示和打印裁切；必须保留模板 runs，并完成真实 API 下载和打印视觉验证。
+- P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
 - 新增 P0 托盘规则升级 `UNLOAD-PALLET-08` 至 `10`：旧的 1.7/1.8/2.2 直接 CBM 除数将替换为“可配置托盘长宽 * 固定目的仓限高”的容量模型；默认尺寸为 `1.0m * 1.2m`，YEG1 从 `+5` 改为 `+4`，courier / Goodcang / 私人及商业地址归入 2.2m 其他目的仓，明确木箱和可判定超大件按一件一托。UNLOAD-PALLET-05 至 `07` 的默认纸箱、修正保存和 UPS 非零修复仍须保留。
@@ -31,8 +36,11 @@
 - AUTH-SESSION-01 已完成：默认浏览器登录会话改为 400 天，JWT `exp`、登录响应 `expiresIn` 和 Web cookie `Max-Age` 保持一致；保留 `JWT_EXPIRES_IN_SECONDS` 覆盖、logout 清 cookie、禁用用户/权限变化后端实时校验、过期 cookie middleware 跳转和 auth/session i18n。
 - 人工消库存任务组已完成：INVENTORY-ADJUST-01 到 03 已交付独立库存调整语义，未将托盘伪装成扫码 `LOADED`；Docker full-stack scan/report/audit/i18n 回归已通过。
 - Product Planning Agent 标准已更新：以后每个新增需求和拆分任务都必须包含严格 i18n 管理要求，API 返回 stable code/enum/labelKey/raw data，Web 通过 locale catalog/status-label helpers 显示单语文案。
+- WEB-DASHBOARD-05/06 已完成：`LifecycleDockStrip` 使用稳定七轨 responsive grid 和 lane row layout；Docker
+  Chromium 已通过 en/zh-CN、light/dark、390/768/1366/1920、真实 125%/200% zoom、几何/字体/交互断言，
+  并逐张浏览 44 张最终截图。
 
-已执行但仍有未关闭项：
+历史执行记录（其中多数已经关闭，实际状态以本文件“当前执行队列”和完成度报告为准）：
 1. P6-MOBILE-09Native Camera Module Wiring.md
    - Android/iOS source wiring 已完成；Windows native project 尚未生成验收。
 2. P6-MOBILE-10Secure Token Storage.md
@@ -104,45 +112,68 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前仓库可继续执行的优先项：
-1. UNLOAD-REPORT-01Palletizing Standards Rich Text Print Clipping Regression.md
-   - 新增现场 P0 报表回归。模板 `C21:I25` 的 11pt/10pt rich text runs 在 openpyxl 默认 load/save 后被扁平化为单一 11pt 字体，导致 Standards 显示和打印不全；必须保留 rich text，完成 package-level、真实 Worker/API 下载、Docker LibreOffice PDF/PNG 逐图浏览和 Microsoft Excel Print Preview/Print to PDF 验收。
-2. UNLOAD-PALLET-09Footprint Height Capacity and Oversize Piece Calculation.md
-   - 已完成。Worker/API 已统一使用 `length * width * height` 精确容量，落实低限高/YEG1/OTHER 分组、YEG1 `+4`、Goodcang/Purolator/Purlator/地址 aliases、木箱与可靠超大件一件一托、混合货型分桶和 manual final override；新增不可变 `pallet_policy_snapshot` additive migration，legacy null snapshot 不重算。Python/TypeScript 共用完整 snapshot fixture；Docker Worker 124、API unit 220 / E2E 92、Web 189 项测试通过。
-4. UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md
-   - 仓库实现和当前环境自动化已完成。真实结构 Excel 已贯穿 Settings、导入、修正、报告、61 页标签、库存、扫码、重复扫码与历史不可变证明；Docker Chromium focused 1/1 和既有 18 项覆盖通过，en/zh-CN × light/dark × Settings/柜子详情 × 390/768/1366/1920 共 32 张截图已逐张检查。默认设置恢复为 1.0/1.2，QR 目标统一为 25mm。仅保留外部验收：业务提供真实木箱/超大件/混合/商业地址样本，以及目标打印机实体尺寸和扫码签字。
-5. WEB-DASHBOARD-06Dock Lane Strip English Layout Visual E2E Regression.md
-   - 新增现场 P0 回归。English `Dock lane strip` 的 lifecycle lane 仍错位；必须修复 `LifecycleDockStrip`，并在 Docker Chromium 中完成 en/zh、light/dark、390/768/1366/1920、125%/200% zoom 的截图、bounding-box、overflow 和人工逐图浏览门禁。未提供真实 E2E 视觉证据不得关闭。
-6. UNLOAD-INVENTORY-02Unloaded Inventory Web Refresh and Regression.md
-   - 完成拆柜后刷新柜子详情、目的仓库存、Dashboard 和库存报告，验证 active total、loaded、adjusted、remaining 一致以及 scan、duplicate、manual depletion 回归。
-7. UNLOAD-WAGE-13Auto Collapse Completed Container Wage Section.md
-   - 未完成默认展开；成功标记已拆完后自动收起，后续 loading/loaded 仍按 completedAt 默认收起，可手动展开并显示紧凑完成或复核摘要。
-8. WEB-DASHBOARD-05Bilingual Typography and Layout Regression.md
-   - 移除 Dashboard 对 condensed font 的隐式依赖，修复中英文字体拉伸和 English 长文案错位，覆盖 light/dark、四类视口、200% zoom 与 bounding-box/截图回归。
-9. NATIVE-AUTH-01Revocable Persistent Native Session.md
-   - Native secure store 当前能跨重启保存 JWT，但仍会在默认约 400 天后过期；新增可轮换、可撤销的长期 Native refresh session，实现不主动退出时静默续期，同时保留账号禁用、权限更新和设备撤销能力。
-10. NATIVE-UX-06Android App Header Title Clipping Regression.md
-   - 部分完成。共享 native header 已让品牌区占用可收缩剩余宽度并最多两行显示，Settings 保持 44px 触控区。2026-07-11 MI 8 SE Release 真机浅色 English 已验证 `BESTAR SCAN` 完整显示，UI hierarchy 标题 bounds 为 `[55,181][871,231]`，Settings accessibility control bounds 为 `[904,146][1025,267]`，无裁剪或重叠。mobile lint/typecheck 与 46 项 unit tests 通过。中文、font scale 1.3/2.0、dark、iOS/Windows 对照尚未采集，故不得标记全矩阵完成。
-11. CROSS-UX-QA-01Persistent Session Theme Locale Regression.md
-   - 部分完成。2026-07-11 API lint/typecheck/unit 与非沙箱 E2E（15 suites / 91 tests）、Web lint/typecheck/unit/build、native lint/typecheck/unit 已通过。WEB-I18N-04/05/06 已完成共享首屏、业务模块显式翻译和完整 Web locale x theme/role 无闪烁 gate；NATIVE-AUTH-01 可撤销 refresh session，以及 Android/iOS/Windows 实机矩阵仍待完成。
-12. NATIVE-UX-05System Adaptive Color Theme.md
-   - 在 Android 系统设置采集 light 与运行中切换证据；再在 iOS/Windows 完成系统主题切换、native scanner/chrome、locale x theme 证据。
-13. NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md
-   - 在同一 Android/iOS release 实机各记录五次冷启动中位数和 Login/Bay Board/Scan/Offline/Settings 双语证据；在 Windows 11 完成 RNW/MSIX/设备 smoke 后关闭跨平台 gate。
-14. P6-MOBILE-13Windows MSIX Release Completion.md
-   - 在 Windows 11 构建机生成 RNW project、打包 MSIX 并完成 Windows 设备 smoke，关闭完整三端 release gate。
-15. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
-   - 已改为新 policy 口径；等待业务提供真实/脱敏私人、商业或其他目的仓 Excel，并在 UNLOAD-PALLET-08/09 后验证默认纸箱、明确木箱、可靠件数和超大件规则。
-16. P5-PILOT-01Windows Target Deployment Verification.md
-   - 在目标 Windows 11 主机完成 Docker full-stack、真实业务 smoke、备份恢复和告警验收。
+当前执行队列（2026-07-14 复核）：
+
+### A. 当前开发机立即执行
+
+`WEB-DASHBOARD-06` 已通过并用同一证据关闭 `WEB-DASHBOARD-05`；`WEB-OPS-01` 已完成具名 2048px
+workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁。不要为这些任务重复开会话。
+
+1. `WEB-OPS-02Container Detail Destination First Section Order.md`
+   - 柜子详情按真实 DOM 顺序调整为“目的仓 -> 拆柜工资 -> 目的仓库存”，保留状态、权限和交互行为。
+2. `WEB-OPS-03Dedicated Inventory Workspace and Destination Depletion.md`
+   - 新增顶层 `/inventory` 菜单页，复用现有审计 API，为指定柜子的指定目的仓执行人工消库存。
+3. `WEB-OPS-04Efficient Live Operational Clock.md`
+   - 页眉运营时间动态刷新；使用隔离 clock leaf、单 timer、formatter cache、hidden/narrow pause 和 cleanup，
+     并提交 CPU/render/heap 评估证据。
+4. `WEB-OPS-05I18n Visual and Performance Exit Gate.md`
+   - 对 01-04 执行完整 en/zh-CN、light/dark、role、390-2880px、zoom、库存 mutation 和时钟性能关闭门禁。
+5. `NATIVE-AUTH-01Revocable Persistent Native Session.md`
+   - API/Native 主体实现已存在，但仍缺 refresh replay/revoke E2E、Native 单飞 refresh/请求重试回归。
+     先完成全部当前环境可自动化项目；三端 secure-store/access-expiry 实机项允许保留外部验收。
+
+### B. 获得真实数据或设备后执行
+
+6. `UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md`
+   - 仅在业务提供真实/脱敏私人、商业或其他目的仓 workbook 后执行，验证默认纸箱、明确木箱、可靠件数、
+     超大件和混合货型；不得用 synthetic fixture 冒充 pilot 数据。
+7. `UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md` 外部关闭项
+   - 仓库代码和自动化已经完成，不要重复执行全量开发。复用 04 的真实样本，并在目标打印机/PDA 上完成
+     150mm x 100mm、25mm QR 实测和扫码签字后更新为 Done。
+8. `UNLOAD-REPORT-01Palletizing Standards Rich Text Print Clipping Regression.md` 外部关闭项
+   - 仓库代码和自动化已经完成，不要重复开发。在办公室 Windows/Microsoft Excel 完成 Print Preview 与
+     Print to PDF，确认每页 `when stored.` 未裁切后更新为 Done。
+
+Android/iOS 的 theme、header、冷启动和双语扫码证据可以在此阶段提前采集，但 `NATIVE-UX-04/05/06`
+都要求三端结论；Windows MSIX 尚未生成时不要启动只能再次返回 External Verification Pending 的关闭会话。
+
+### C. Windows 11 构建机执行
+
+9. `P6-MOBILE-13Windows MSIX Release Completion.md`
+   - 生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并完成 Windows 设备 smoke。
+   - `P6-MOBILE-09/10/11/12` 剩余项全部是该 Windows gate 的组成部分，不要分别重复开启四个 Task。
+10. `NATIVE-UX-05System Adaptive Color Theme.md`
+   - 复用 Android/iOS 证据，并在 Windows 补 light/dark、高对比、native chrome/scanner 和 locale x theme。
+11. `NATIVE-UX-06Android App Header Title Clipping Regression.md`
+   - 在完整三端 theme matrix 上关闭 en/zh-CN、font scale 1.0/1.3/2.0、小屏和标题无裁切门禁。
+12. `NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md`
+   - 合并三端设备证据，完成 release 冷启动中位数、双语页面和核心扫码退出门禁。
+13. `CROSS-UX-QA-01Persistent Session Theme Locale Regression.md`
+    - 只有 NATIVE-AUTH-01、NATIVE-UX-05/06 和 Windows MSIX gate 具备证据后执行最终三端
+      session/theme/locale/header 组合回归；同时吸收 NATIVE-UX-04 的 Windows 证据。
+
+### D. 上线前最后执行
+
+14. `P5-PILOT-01Windows Target Deployment Verification.md`
+    - 在目标 Windows 11 主机完成 Docker full stack、生产 secrets、真实账号、真实 Excel、报告/标签打印、
+      PDA/扫码枪、备份恢复、告警/SIEM schedule 和业务签字。该任务必须最后关闭。
 
 Pilot 前必须验收：
-1. P6-MOBILE-13Windows MSIX Release Completion.md
-   - 只能在 Windows 11 + Visual Studio 2022 + Windows SDK + MSIX packaging tools 构建机关闭：生成 Windows RNW project、验收 camera/secure-token modules、打包 MSIX 并完成 Windows device smoke。
-2. UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md
-   - 在 UNLOAD-PALLET-08/09 后，用真实/脱敏私人、商业或其他目的仓 Excel 验证默认纸箱、明确木箱、可靠件数、超大件模式和新 policy metadata。
-3. P5-PILOT-01Windows Target Deployment Verification.md
-   - 在目标 Windows 11 主机完成 Docker full-stack、secrets、账号、真实业务 smoke、备份恢复和告警验收。
+1. `UNLOAD-REPORT-01`：Windows/Microsoft Excel Print Preview 与 Print to PDF 无裁切签字。
+2. `UNLOAD-PALLET-04` / `UNLOAD-PALLET-10`：真实业务 workbook、目标打印机实体尺寸和 PDA/扫码枪签字。
+3. `P6-MOBILE-13` / `NATIVE-UX-04` / `CROSS-UX-QA-01`：Windows RNW/MSIX、三端启动性能、secure store、
+   session/theme/locale/device smoke。
+4. `P5-PILOT-01`：目标 Windows 11 主机的 full stack、secrets、账号、真实业务、备份恢复和告警验收。
 
 Deferred，按现场反馈再执行：
 1. P4-PRINT-03Local Print Agent Decision + Prototype.md
@@ -169,11 +200,17 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile，再使用 `scripts/run-business-agent.sh task '<task-file>'` 启动一个受监督进程；不要使用直接 prompt、原始 `exec`、手工 `resume` 或旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. 立即执行 UNLOAD-REPORT-01；只有 rich text/package、真实下载、Docker 打印视觉和 Microsoft Excel Print Preview/Print to PDF 全部通过后才能关闭。
-3. 托盘规则严格按 `UNLOAD-PALLET-08 -> 09 -> 10` 顺序执行；08 已完成唯一 Settings/policy contract、审计、RBAC、Worker snapshot handoff 和双语 Settings UI，09 已完成精确计算、混合货型、不可变 snapshot 持久化和 Python/TypeScript parity。下一步执行 10 的真实 full-stack、生成物和 i18n 关闭验证。已有 UNLOAD-PALLET-04 已同步改为新 policy 口径，其真实/脱敏样本证据交给 10；样本暂缺时保留 pilot limitation。不得建立第二套配置或公式。
-4. 继续执行 WEB-DASHBOARD-06；只有 Docker Playwright 全矩阵、截图逐张浏览和几何断言全部通过后，才能关闭该任务。
-5. 用 WEB-DASHBOARD-06 的证据完成 WEB-DASHBOARD-05 剩余的双语布局验收。
-6. 库存线继续执行 UNLOAD-INVENTORY-02；其后可并行 UNLOAD-WAGE-13。
-7. API/Auth 可并行 NATIVE-AUTH-01；Native UI 继续补 NATIVE-UX-05/06 实机证据。
-8. 将 NATIVE-UX-04、05、06 和 P6-MOBILE-13 的 Windows 实机证据合并验证。
-9. 现在可并行准备真实/脱敏私人、商业和其他目的仓样本；09 完成后执行已更新的 UNLOAD-PALLET-04，并将 fixture 交给 10。上线前执行 P5-PILOT-01。
+2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-02`。
+3. 严格按 `WEB-OPS-02 -> WEB-OPS-03 -> WEB-OPS-04 -> WEB-OPS-05` 继续柜子详情层级、库存专页、
+   动态运营时间和最终 i18n/视觉/性能门禁；不得跳过 05。
+4. 完成 Web OPS 后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
+5. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时
+   不启动三端关闭会话。
+6. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+   `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
+7. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
+   不要重复开发。
+8. Windows 11 构建机按 `P6-MOBILE-13 -> NATIVE-UX-05 -> NATIVE-UX-06 -> NATIVE-UX-04 ->
+   CROSS-UX-QA-01` 执行；09/10/11/12 的 Windows 剩余项由 13 统一关闭。
+9. 所有上述功能、外部打印、真实样本和三端设备 gate 结束后，最后执行 `P5-PILOT-01`。
+10. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。

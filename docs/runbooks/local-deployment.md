@@ -321,6 +321,59 @@ use `prisma migrate reset` against the local persistent database. For a fully
 isolated test process, use `docker compose ... run --rm -T <service> <command>`
 instead of introducing a host dependency environment.
 
+## Dashboard Lifecycle Visual Regression
+
+Run the Dashboard locale/theme smoke first and the lifecycle matrix last, because
+Playwright clears its output directory at the beginning of each invocation. Supply a
+real local administrator account only through environment variables; never add the
+credentials to this runbook, screenshots, or reports.
+
+```bash
+export E2E_ADMIN_EMAIL='<local-admin-email>'
+export E2E_ADMIN_PASSWORD='<local-admin-password>'
+docker compose -f infra/docker/compose.local.yml up -d --build
+docker compose -f infra/docker/compose.local.yml --profile e2e build e2e-web
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web locale-switch.spec.ts --project=chromium
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web dashboard.spec.ts --project=chromium
+```
+
+The profile-gated `e2e-web` image pins the Playwright browser version and reaches the
+full stack through `http://nginx`. It mounts the final screenshots and trace output at
+`test-results/web-dashboard-06/` and the HTML report at
+`playwright-report/index.html`. The lifecycle spec covers `en`/`zh-CN`, light/dark,
+390/768/1366/1920 viewports, narrow-strip end scrolling, and real Chromium 125%/200%
+browser zoom. Review every generated image at original resolution before closing a
+visual regression.
+
+## Unloading Report Print Regression
+
+Run the complete `Palletizing Standards` rich-text and print regression from the
+repository root. The command builds the full stack plus profile-gated Playwright
+and LibreOffice images, uses the real CAAU unloading-plan fixture through both
+the Worker and API download paths, checks generated-file audit metadata and the
+template SHA-256, and exports reviewable PDF/PNG artifacts:
+
+```bash
+REPORT_VISUAL_RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)" scripts/verify-unload-report-01.sh
+```
+
+Artifacts are written to `test-results/unload-report-01/<run-id>/`. The visual
+gate requires every populated worksheet to produce exactly one A4 landscape PDF
+page, plus one full-page PNG and one `Palletizing Standards` crop per page. The
+report keeps the established eight primary destination rows, then uses the eight
+white writable rows in the same business table before creating another worksheet.
+The real CAAU fixture has nine destinations, so all nine must remain on one
+populated worksheet and the ninth must be present in white row `N5`; inputs above
+sixteen destinations may use subsequent worksheets without data loss. The same
+gate also generates clearly synthetic boundary workbooks: sixteen destinations
+with a multiline value in the last white row must stay on one page, while the
+seventeenth destination must appear on a second worksheet and second page. Every
+PDF page is checked independently for the complete Standards text. Review every
+PNG at original resolution, then use the API-downloaded workbook for the final
+Microsoft Excel Print Preview / Print to PDF check on Windows.
+
 Then verify authentication through nginx:
 
 ```bash

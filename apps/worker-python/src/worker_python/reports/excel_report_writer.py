@@ -230,6 +230,12 @@ def _apply_destination_row_layout(
 
 
 def _estimated_excel_line_count(value: str, column_width: float) -> int:
+    return sum(
+        _estimated_wrapped_line_count(line, column_width) for line in value.split("\n")
+    )
+
+
+def _estimated_wrapped_line_count(value: str, column_width: float) -> int:
     max_width = max(column_width - 1, MIN_REPORT_ROW_WIDTH)
     line_count = 1
     current_width = 0.0

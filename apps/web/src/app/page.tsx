@@ -94,7 +94,10 @@ export default async function Home({
   const monthValue = dashboard?.month ?? filters.month ?? "";
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8 2xl:px-10">
+    <main
+      className="office-main-content flex flex-1 flex-col gap-4 py-5"
+      data-dashboard-page="true"
+    >
       <InventorySyncRefreshListener />
       <OpsHeader
         dashboard={dashboard}
@@ -276,7 +279,7 @@ function DashboardContent({
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+      <section className="grid min-w-0 gap-4">
         <WorkQueueSection items={dashboard.workQueue.items} locale={locale} />
         <LifecycleSection dashboard={dashboard} locale={locale} />
       </section>

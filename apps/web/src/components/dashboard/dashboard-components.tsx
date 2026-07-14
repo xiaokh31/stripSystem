@@ -264,33 +264,53 @@ export function LifecycleDockStrip({
   return (
     <div
       aria-label={ariaLabel ?? t("Dock lane strip")}
-      className="lifecycle-dock-strip overflow-x-auto border border-[var(--line-soft)] bg-[var(--panel-surface)]"
+      className="lifecycle-dock-strip max-w-full overflow-x-auto overscroll-x-contain border border-[var(--line-soft)] bg-[var(--panel-surface)]"
     >
-      <div className="grid min-w-[980px] grid-flow-col auto-cols-fr">
+      <div
+        className="grid w-full"
+        data-testid="lifecycle-dock-track"
+        style={{
+          gridTemplateColumns: `repeat(${lanes.length}, minmax(9rem, 1fr))`,
+          minWidth: `max(100%, ${lanes.length * 9}rem)`,
+        }}
+      >
         {lanes.map((lane, index) => {
           const percent = safeTotal > 0 ? (lane.count / safeTotal) * 100 : 0;
 
           return (
             <Link
-              className="group relative grid min-h-40 h-full grid-rows-[minmax(4.5rem,1fr)_0.75rem_1rem] gap-3 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)]"
+              className="group relative grid h-full min-h-40 grid-rows-[minmax(5.25rem,1fr)_0.75rem_1rem] gap-3 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)] focus-visible:z-10"
+              data-lane-code={lane.code}
               href={lane.href}
               key={lane.code}
             >
-              <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-data text-xs font-semibold text-zinc-500">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <p className="mt-2 text-sm font-semibold leading-5 text-[var(--ink)]">
-                    {lane.label}
-                  </p>
-                </div>
-                <StatusPill
-                  label={String(lane.count)}
-                  tone={lane.tone ?? "neutral"}
-                />
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_minmax(3rem,auto)] gap-x-2 gap-y-2">
+                <p
+                  className="font-data min-w-0 text-xs font-semibold text-zinc-500"
+                  data-testid="lifecycle-lane-index"
+                >
+                  {String(index + 1).padStart(2, "0")}
+                </p>
+                <span
+                  className="font-data min-w-0 justify-self-end"
+                  data-testid="lifecycle-lane-count"
+                >
+                  <StatusPill
+                    label={String(lane.count)}
+                    tone={lane.tone ?? "neutral"}
+                  />
+                </span>
+                <p
+                  className="col-span-2 min-w-0 break-words text-sm font-semibold leading-5 text-[var(--ink)]"
+                  data-testid="lifecycle-lane-label"
+                >
+                  {lane.label}
+                </p>
               </div>
-              <div className="h-3 self-end border border-[var(--line-soft)] bg-white">
+              <div
+                className="h-3 self-end border border-[var(--line-soft)] bg-white"
+                data-testid="lifecycle-lane-progress"
+              >
                 <div
                   className={[
                     "h-full transition-[width] group-hover:brightness-95",
@@ -299,7 +319,10 @@ export function LifecycleDockStrip({
                   style={{ width: `${percent}%` }}
                 />
               </div>
-              <p className="font-data text-xs leading-4 text-zinc-500">
+              <p
+                className="font-data text-xs leading-4 text-zinc-500"
+                data-testid="lifecycle-lane-ratio"
+              >
                 {lane.count}/{safeTotal}
               </p>
             </Link>

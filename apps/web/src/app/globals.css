@@ -52,6 +52,7 @@
   --panel-muted: var(--surface-muted);
   --focus-ring: var(--focus);
   --surface-action-foreground: #253238;
+  --office-main-content-max-width: 2048px;
   --background: var(--manifest-paper);
   --foreground: var(--ink);
   color-scheme: light;
@@ -444,9 +445,35 @@ html:root option {
   color: var(--text);
 }
 
+.office-main-content {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--office-main-content-max-width);
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.office-main-content > *,
+.office-main-content > .grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .office-main-content {
+    padding-inline: 1.5rem;
+  }
+}
+
 @media (min-width: 1024px) {
-  .max-w-7xl {
-    max-width: min(100%, 1920px);
+  .office-main-content {
+    padding-inline: 2rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .office-main-content {
+    padding-inline: 2.5rem;
   }
 }
 
@@ -480,6 +507,12 @@ a {
     "Liberation Mono",
     monospace;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-height: 600px) {
+  body:has(main[data-dashboard-page]) header {
+    position: static;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

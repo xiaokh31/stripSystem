@@ -136,6 +136,7 @@ prompts/tasks/*
 !prompts/tasks/AGENT-AUTONOMY*.md
 !prompts/tasks/DOCKER-DEV*.md
 !prompts/tasks/DOCKER-CACHE*.md
+!prompts/tasks/WEB-OPS*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

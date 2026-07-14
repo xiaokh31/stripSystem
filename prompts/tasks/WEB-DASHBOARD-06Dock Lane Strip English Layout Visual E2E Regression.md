@@ -183,3 +183,62 @@ dashboard locale/theme smoke，确保不是只让新增测试通过。
 6. i18n 检查结果。
 7. 已知限制；没有则明确写“无已知 Dock Lane Strip 布局限制”。
 8. 更新本任务索引和 `docs/reports/project-completion-status.html`；只有全部门禁通过后才标记 Done。
+
+## 执行结果（2026-07-14）
+
+状态：Done。
+
+### 根因与修复
+
+- 修复前首页把 `LifecycleDockStrip` 放在桌面双列的半宽 panel 中，同时 track 使用
+  `grid-flow-col auto-cols-fr` 和固定最小宽度；1366x768 English 截图只能显示前四个 lane，长标签与
+  可用轨道宽度、header flex 收缩共同造成错位和裁切风险。
+- lifecycle panel 现在占满一行；track 使用七个可解释的 `minmax(9rem, 1fr)` responsive columns，
+  strip 自身在 390/768 内横向滚动，页面不横向溢出。
+- 每个 lane 改为稳定 grid rows，序号/数量、自然换行标题、进度条和比例各自占固定结构行；count 不压缩，
+  数字继续使用 monospace/tabular numbers。未缩短翻译、未显示 raw code、未使用 transform、ellipsis 或
+  overflow-hidden 伪修复。
+- Dashboard 在 200% zoom 的短视觉视口中不再让 sticky header 遮住 lifecycle label；此规则由
+  `main[data-dashboard-page]` 限定，不影响其他页面。
+- link 的整块点击区域、hover、`:focus-visible`、Enter 导航、href 和 aria-label 语义均保留。
+
+### E2E、截图与人工视觉结论
+
+- 最终矩阵：`en`/`zh-CN` × light/dark × 390x844、768x1024、1366x768、1920x1080，共 32 个组合；
+  每个组合保存 panel 和 full-page，390/768 另保存滚动末端截图。
+- English 1366x768 另以 Manifest V3 测试扩展调用 `chrome.tabs.setZoom` 验证真实 125%/200% browser
+  zoom；截图使用 Chromium DevTools 原生 viewport capture，避免 Playwright 在 native zoom 下的错误裁切。
+- 自动断言覆盖 lane top/bottom、所有内容包围盒、label/count 与相邻 lane 不相交、bar/ratio 对齐、标签无
+  scroll clipping、desktop/mobile overflow、真实 zoom、字体 family/stretch/spacing/transform、数字字体、
+  console/pageerror/hydration、hover/focus/Enter、语言切换与 refresh。
+- 最终 44 张截图位于
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-dashboard-06/after/`；Playwright HTML report 位于
+  `/Volumes/xfl/logistics/stripSystem/playwright-report/index.html`。
+- 修复前 1366x768 English light 的 panel/full-page 证据位于
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-dashboard-06/before/`；panel 明确只容纳前四个 lane。
+- 46 张 before/after 图片均以原始分辨率实际浏览。结论：lane 等高，标题完整，count 不覆盖，bar/ratio
+  对齐；desktop 无 strip 溢出，390/768 只在 strip 内滚动并能完整看到最后一个 lane；125%/200% 的
+  `Delivered to destination` 完整可读且未被 header 或相邻内容覆盖。
+
+### i18n 结果
+
+- 七个状态继续通过现有 typed translator/status helper 生成；未修改业务 catalog 文案。
+- English 仅显示 English，中文仅显示中文；中文 `已生成面单` 与 English `Labels generated` 保持正确映射。
+- `zh-CN -> en -> refresh` 后 `<html lang="en">`、单语标签和布局均保持，catalog parity/typecheck 通过。
+
+### Docker 验证
+
+- Web production image build（包含 Next.js compile/typecheck/build）：通过。
+- Web lint、typecheck：通过；unit tests：189/189 通过。
+- 专用 E2E image ESLint、TypeScript `--noEmit`：通过。
+- `dashboard.spec.ts --project=chromium`：4/4 通过；最终截图运行 1.1 分钟。
+- `locale-switch.spec.ts --project=chromium`：1/1 通过，1.7 分钟。
+- focused lifecycle regression：1/1 通过；最终 native zoom 截图运行 58.3 秒。
+- `scripts/healthcheck.sh`：PostgreSQL、API、Web、Next.js assets、storage 全部通过。
+- `git diff --check`：通过。
+
+### 已知限制与手工复核
+
+- 无已知 Dock Lane Strip 布局限制。
+- 手工复核可打开上述 HTML report，或按 locale/theme/viewport/zoom 文件名逐张查看 `after/`；390/768
+  应向右滚动至 `Delivered to destination`，1366x768 应分别用真实 125% 和 200% zoom 查看末端 lanes。

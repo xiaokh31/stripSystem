@@ -92,7 +92,7 @@ export default async function ContainerDetailPage({
   ];
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -436,7 +436,7 @@ function ContainerDetailError({
   const { format, t } = createTranslator(locale);
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
       <section
         className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm"
         role="alert"

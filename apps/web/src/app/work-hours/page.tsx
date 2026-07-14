@@ -152,7 +152,7 @@ function WorkHoursPageShell({
   const { t } = createTranslator(locale);
 
   return (
-    <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -297,8 +297,8 @@ function AttendanceImportTable({
         </div>
         <p className="text-xs font-medium text-zinc-500">{limitText}</p>
       </div>
-      <div className="mt-5">
-        <table className="w-full table-fixed border-collapse text-left text-sm">
+      <div className="mt-5 max-w-full overflow-x-auto">
+        <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
               <th className="w-[28%] px-3 py-3 font-semibold">{t("File")}</th>
@@ -416,9 +416,9 @@ function AttendanceDetail({
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="grid gap-4">
-        <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 gap-4">
+        <section className="min-w-0 border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-zinc-950">
@@ -451,7 +451,7 @@ function AttendanceDetail({
         </section>
       </div>
 
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-zinc-950">
           {t("Generated files")}
         </h2>
@@ -502,8 +502,8 @@ function AttendanceRowsTable({
   }
 
   return (
-    <div className="mt-5">
-      <table className="w-full table-fixed border-collapse text-left text-sm">
+    <div className="mt-5 max-w-full overflow-x-auto">
+      <table className="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
         <thead>
           <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <th className="w-[10%] px-3 py-3 font-semibold">{t("Date")}</th>

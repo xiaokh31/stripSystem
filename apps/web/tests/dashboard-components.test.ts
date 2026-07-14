@@ -128,6 +128,13 @@ test("lifecycle dock strip renders status lanes with counts and links", () => {
   );
 
   assert.match(html, /lifecycle-dock-strip/);
+  assert.match(html, /data-lane-code="UNLOADED"/);
+  assert.match(html, /data-testid="lifecycle-dock-track"/);
+  assert.match(html, /data-testid="lifecycle-lane-label"/);
+  assert.match(html, /data-testid="lifecycle-lane-index"/);
+  assert.match(html, /data-testid="lifecycle-lane-count"/);
+  assert.match(html, /data-testid="lifecycle-lane-progress"/);
+  assert.match(html, /data-testid="lifecycle-lane-ratio"/);
   assert.match(html, /href="\/unloading-summary"/);
   assert.match(html, /Delivered to destination/);
   assert.match(html, />1\/3</);

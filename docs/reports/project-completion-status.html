@@ -1266,10 +1266,10 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-01 Palletizing Standards Rich Text Print Clipping Regression</td>
-              <td><span class="badge risk">Open</span></td>
-              <td>Field Report / Print Regression</td>
-              <td>已确认模板 `C21:I25` 使用 11pt 标题和 10pt Arial/宋体正文 rich text runs；当前 openpyxl 默认 load/save 将其扁平化为单一 11pt 字体，导致生成报告在 Excel 和打印中显示不全。merge、row/column dimensions、A4 landscape、78% scale 和 margins 并未丢失，因此不得用盲目改打印比例代替 rich-text 保真修复。</td>
-              <td>业务 Agent 必须保留模板 rich runs，完成 package-level、真实 Worker/API 下载、Docker LibreOffice PDF/PNG 逐图视觉检查及 Microsoft Excel Print Preview/Print to PDF。缺任一打印证据不得标记 Done。</td>
+              <td><span class="badge partial">Code Complete / Excel Print Verification Pending</span></td>
+              <td>Rich Text / White-Row Capacity / Docker Print Complete</td>
+              <td>业务决定 A 已落实：报告保留既有 8 个主目的仓槽位，随后使用业务表格白色行 5/7/9/11/13/15/17/19，超过 16 才创建后续 worksheet；长文字与显式换行自适应行高，不进入合计或 `C21:I25`。真实 CAAU 的 9 个目的仓全部写入，Worker 和 API 下载均为 1 个 populated worksheet/1 张 A4 landscape 页面，第 9 个目的仓位于 `N5`。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓则为 2 worksheets/2 pages。`rich_text=True` 保留完整 `<r>/<rPr>`、11pt/10pt Arial/宋体、bold、换行和末尾 `when stored.`；merge、Standards rows/columns、dimension、78% page setup、margins 与模板等价。generated-file status/SHA/size/storage/audit actor、上传原件和历史 artifact/DB 记录不变检查通过；模板 SHA 前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。Docker Worker 127、API E2E 92、Web 189、专用 Chromium 1 项、full-stack health 和 12 张原始分辨率全页/crop 逐图检查通过；证据位于 `test-results/unload-report-01/20260714T050519Z/`。</td>
+              <td>在办公室 Windows/Microsoft Excel 中打开真实 API 下载的 `source/api-downloaded-report.xlsx`，不手动改缩放，完成 Print Preview 与 Microsoft Print to PDF，逐页确认 Standards 最后一行未裁切；通过后可标记 Done。</td>
             </tr>
             <tr>
               <td>UNLOAD-WAGE-13 Auto Collapse Completed Container Wage Section</td>
@@ -1280,17 +1280,24 @@
             </tr>
             <tr>
               <td>WEB-DASHBOARD-05 Bilingual Typography and Layout Regression</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>System Font and Responsive Component Pass Complete</td>
-              <td>Dashboard/Shell 普通控制字体已从 condensed fallback 改为 system UI sans stack，`.font-data` 保留 monospace/tabular numbers；普通 Dashboard 标签和状态 pill 不再强制 uppercase，panel、metric、status、progress 与 Shell header 增加可收缩和自然换行约束。2026-07-12 Docker Web lint、typecheck、API health 和 git diff --check 通过。</td>
-              <td>现场确认 English `Dock lane strip` 仍错位。立即执行 WEB-DASHBOARD-06；修复实际 `LifecycleDockStrip`，并补 Docker Playwright 390/768/1366/1920、en/zh light/dark、125%/200% zoom、截图逐张浏览和 bounding-box/computed-style 回归后关闭。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Typography and Dock Lane Visual Regression Complete</td>
+              <td>System UI sans 与 `.font-data` monospace/tabular numbers contract 保持；WEB-DASHBOARD-06 的同一 Docker Chromium 证据已补齐 en/zh-CN、light/dark、390/768/1366/1920、真实 125%/200% zoom、computed font、catalog parity、单语切换与 refresh 回归。</td>
+              <td>已关闭；44 张最终截图全部逐张浏览，无需为 WEB-DASHBOARD-05 再开执行会话。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-06 Dock Lane Strip English Layout Visual E2E Regression</td>
-              <td><span class="badge risk">Open</span></td>
-              <td>Field Regression / Visual Browser Gate Required</td>
-              <td>English 下 lifecycle Dock Lane Strip 的长标签导致 lane 标题、数量、进度条或比例文本错位。任务要求修复首页实际使用的 `LifecycleDockStrip`，不得通过缩短翻译、raw code、隐藏 overflow 或缩小字体规避。</td>
-              <td>业务 Agent 必须在 Docker Chromium 中完成 en/zh、light/dark、四类 viewport、125%/200% zoom 的几何断言、截图和逐张人工视觉浏览；没有真实浏览器证据不得标记 Done。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Lifecycle Dock Strip / Docker Chromium Complete</td>
+              <td>`LifecycleDockStrip` 已改为七个 `minmax(9rem, 1fr)` responsive tracks 和稳定 lane rows，panel 桌面全宽、窄屏仅 strip 内滚动；长标题自然换行，count、bar、ratio 保持所属 lane 对齐，link hover/focus/Enter/aria 语义保留。Docker Web lint/typecheck、189 unit tests、production build、dashboard 4/4 与 locale smoke 1/1 通过。</td>
+              <td>最终 44 张 after、2 张 before 截图及 HTML report 可从宿主工作区审阅；几何、字体、单语、console/pageerror、125%/200% native zoom 门禁全部通过。无已知 Dock Lane Strip 布局限制。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-01 Wide 2048 Office Workspace</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Shared 2048px Workspace / Docker Chromium Complete</td>
+              <td>Authenticated office main 已统一迁移到 <code>--office-main-content-max-width: 2048px</code> 与 <code>.office-main-content</code>；通用 <code>.max-w-7xl</code> override 和散落的 1600/1800/1920px office cap 已清理。390/768 无 document overflow，1366/1920 填满 rail 后可用空间，2560/2880 实测 main 均为 2048px 且居中；Inventory 与 Work Hours 宽表只在自身容器滚动。Docker production build、lint、typecheck、191 unit tests、focused Chromium 1/1 与 full-stack healthcheck 通过。</td>
+              <td>22 张 en/zh-CN、light/dark、390-2880px、真实 200% zoom、login/mobile compact 与关键业务页截图及 geometry JSON 位于 <code>test-results/web-ops-01/</code>，已逐张检查且无已知布局限制；下一任务为 WEB-OPS-02。</td>
             </tr>
             <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
@@ -1412,8 +1419,8 @@
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 已完成后台视觉方向和 i18n/API governance brief；WEB-DASHBOARD-01 已完成真实 dashboard 汇总 API；WEB-DASHBOARD-02 已完成后台 Shell visual system；WEB-DASHBOARD-03 已完成 `/` 运营中控台首页 UI；WEB-DASHBOARD-04 已完成 dashboard QA/i18n/Playwright/full-stack role smoke。</td>
-              <td>Dashboard redesign 与人工库存消减回归均已关闭；后续仅按现场反馈新增具体 bugfix。</td>
+              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 已完成所有 authenticated office routes 的具名 2048px workspace 和全宽度 Docker Chromium 回归。</td>
+              <td>Dashboard redesign、lifecycle English layout 与 2048px office workspace 均已关闭；后续按任务索引进入 WEB-OPS-02。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>

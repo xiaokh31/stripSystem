@@ -7,7 +7,13 @@ export default defineConfig({
     timeout: 10_000,
   },
   fullyParallel: false,
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: [
+    ["list"],
+    [
+      "html",
+      { open: "never", outputFolder: "playwright-report" },
+    ],
+  ],
   testDir: "./e2e",
   timeout: 60_000,
   use: {

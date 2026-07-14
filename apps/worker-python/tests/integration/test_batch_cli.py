@@ -9,10 +9,12 @@ from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText
 from typer.testing import CliRunner
 
 from worker_python.batch import run_batch
 from worker_python.cli import app
+from worker_python.reports.cell_map import DESTINATION_ROWS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -61,6 +63,16 @@ def test_batch_runner_generates_phase0_outputs_and_reports_failed_files(
     assert REAL_FIXTURE.name in html
     assert failed_file.name in html
     assert "Unable to read Excel workbook" in html
+
+    generated_report = next(result.reportDir.glob("*.xlsx"))
+    workbook = load_workbook(generated_report, data_only=False, rich_text=True)
+    try:
+        standards = workbook["Sheet1"]["C21"].value
+        assert isinstance(standards, CellRichText)
+        assert str(standards).endswith("when stored.")
+        assert len(standards) > 1
+    finally:
+        workbook.close()
 
 
 def test_batch_runner_preserves_detailed_pallet_rule_outputs(
@@ -208,9 +220,10 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
     workbook = load_workbook(payload["report_result"]["outputPath"], data_only=False)
     try:
         report_rows = [
-            (sheet, row)
+            (sheet, row_cells.row)
             for sheet in workbook.worksheets
-            for row in (4, 6, 8, 10, 12, 14, 16, 18)
+            if sheet.calculate_dimension() not in {"A1", "A1:A1"}
+            for row_cells in DESTINATION_ROWS
         ]
         for (worksheet, row), plan in zip(
             report_rows, payload["pallet_result"]["plans"]

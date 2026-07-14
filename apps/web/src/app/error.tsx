@@ -12,7 +12,7 @@ export default function Error({
   const { t } = useI18n();
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
+    <main className="office-main-content flex flex-1 flex-col py-6">
       <section className="border border-red-200 bg-red-50 p-5 text-red-950 shadow-sm">
         <p className="text-sm font-semibold uppercase">{t("Page error")}</p>
         <h1 className="mt-2 text-xl font-semibold">

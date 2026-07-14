@@ -193,3 +193,37 @@ git diff --check
 8. i18n 检查结果。
 9. 已知限制；无则明确写“无已知 Palletizing Standards 显示或打印裁切问题”。
 10. 更新任务索引和 `docs/reports/project-completion-status.html`；全部门禁通过前保持 Open/Partial。
+
+## 2026-07-13 执行结果
+
+- 状态：`Blocked / Business Decision Required`。rich-text 修复和除整本单页外的自动化均已完成，但当前真实 fixture 与既有 overflow 业务规则无法同时满足本 Task 的严格单页要求；不得标记 Code Complete 或仅剩 Excel 验收。
+- 根因与修复：openpyxl 默认加载会把未写入的模板 rich text 扁平化；report writer 使用 `load_workbook(..., rich_text=True)`，对模板中所有 rich-text cell 保真，不硬编码 `C21`，不修改尺寸、字体、缩放或模板正文。
+- Package 回归：生成文件保留 `<r>/<rPr>`；normalized run text/style 与模板等价，包含 11pt 标题、10pt Arial/宋体正文、bold、显式换行和末尾 `when stored.`。`B1:P25`、`C21:I25` merge、rows 21-25、columns C-I、A4 landscape、78% scale、fitToPage、margins 与 print area 均保持一致；header/destination/total 写入后仍保真。
+- 模板 SHA-256：修复前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。
+- 真实链路：`CAAU8011090 UNLOADING PLAN.xlsx` 已经 Worker batch 生成；full-stack Chromium E2E 使用仅改变柜号的真实结构副本完成登录、上传、解析、生成、列举和 API 下载，并核对 generated-file status、MIME、SHA-256、size、storage path 与 audit actor。API 下载文件的每个 populated worksheet 均与模板做完整 run property 和版式等价比较；本次上传原件 SHA、所有既有 original/report artifact SHA 和历史 generated-file DB 记录均保持不变。
+- Docker 打印：模板为 1 populated worksheet/1 A4 landscape 页；当前真实 fixture 有 9 个目的仓，而模板只有 8 个 destination slots，HEAD 中已验收的 no-data-loss overflow 规则因此生成 2 populated worksheets/2 页。严格视觉脚本会完成 PDF/PNG 输出后返回 `UNLOAD-REPORT-01 single-page acceptance failed`，没有把“每 worksheet 一页”偷换成整本单页通过。
+- 视觉结论：以原始分辨率逐张检查模板 1 张全页+crop、Worker 2 页全页+crop、API 下载 2 页全页+crop，共 10 张；每张标题、1.8M、2.0M、YEG1/YYC6、完整第 3 条和末尾 `when stored.` 均清晰可见，无跨页、越界或裁切。
+- 最终 artifact：`/Volumes/xfl/logistics/stripSystem/test-results/unload-report-01/20260713T250000Z/`；真实 API 下载 workbook 为 `source/api-downloaded-report.xlsx`，PDF 位于 `pdf/`，全页和 Standards crop 位于 `png/`，storage/DB/template 不变证据位于该目录的 verification/snapshot 文件。
+- 自动化：Worker focused unit/integration 16 passed、Worker full suite 124 passed、API typecheck、API E2E 15 suites/92 tests、Web lint/typecheck/189 unit tests/production build、专用 Chromium 1 passed；一键 Docker 的 Worker/API/package/storage/audit/渲染子门禁通过，最终严格整本单页门禁按预期以 2 worksheets/2 pages 返回非零。
+- i18n：未新增 Web 用户可见文案、双语拼接、raw code 或翻译绕过；新增内容仅为测试、内部脚本和文档。
+- 已知限制：无已知 Palletizing Standards 显示或打印裁切问题。真实 CAAU 整本为 2 页，违反本 Task “报告变成两页不得关闭”；需要不可推断的业务决定：A）保留 no-data-loss overflow，并把验收修订为每个 worksheet 单页；或 B）授权重新设计模板/报表数据布局以实现整本单页。作出决定并完成对应仓库工作后，才执行 Microsoft Excel Print Preview/Print to PDF。
+
+## 2026-07-13 业务决定 A
+
+- 业务方已明确选择 A：保留 no-data-loss overflow，验收语义修订为“每个 populated worksheet 各占一张 A4 landscape 页面”；当单个 worksheet 容量耗尽时允许生成后续 worksheet，不得丢弃目的仓。
+- 目的仓超过当前映射行时，必须先使用拆柜报告业务表格中现有的白色可写单元格；只有这些可写位置也用尽后才创建后续 worksheet。不得写入标题、合计、`Palletizing Standards` 或其他非业务输入区域。
+- 目的仓显示必须自适应行高并保留换行，长目的仓文字不得被裁切、覆盖相邻业务数据或侵入 `C21:I25` Standards 区域。
+- 真实 `CAAU8011090 UNLOADING PLAN.xlsx` 的所有目的仓必须完整写入；Docker LibreOffice 和后续 Microsoft Excel 验收按“每个 populated worksheet 单页”检查，不再要求整个多 worksheet workbook 只能有一页。
+
+## 2026-07-13 决定 A 实施结果
+
+- 状态：`Code Complete / Excel Print Verification Pending`。仓库实现、当前环境自动化和逐图检查全部完成，仅剩办公室 Windows/Microsoft Excel 外部打印验收。
+- 容量与分页：集中 cell map 保留既有偶数行 4/6/8/10/12/14/16/18，再使用白色业务行 5/7/9/11/13/15/17/19；第 17 个目的仓才创建 `Sheet2`，不写标题、合计或 `C21:I25`。真实 CAAU 的第 9 个目的仓 `贵司卡尔加里仓` 写入 `N5/O5/P5`，全部 9 个目的仓位于一个 populated worksheet。
+- 长文字：目的仓继续保留 `wrap_text`，显式换行参与行数估算，主槽位和白色槽位均自适应行高；测试覆盖长英文地址和 `YYC4\nDoor A`。
+- rich text/package：每个 populated worksheet 的 Standards run sequence 与模板等价，保留 `<r>/<rPr>`、11pt 标题、10pt Arial/宋体正文、bold、显式换行和末尾 `when stored.`；`B1:P25`、`C21:I25`、rows 21-25、columns C-I、A4 landscape、78% scale、fitToPage、margins 和 print area 不回归。
+- 模板 SHA-256：修复前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。
+- 真实链路：Worker batch 与 full-stack Chromium 完成真实结构 CAAU 上传、解析、生成、列举和 API 下载；generated-file status/MIME/SHA/size/storage/audit actor、上传原件 SHA、既有 original/report artifact 和历史 generated-file DB 记录不变检查全部通过。
+- 自动化：Worker focused 19 passed、Worker full 127 passed；API typecheck 与 15 suites/92 E2E passed；Web lint/typecheck 与 189 tests passed；API/Web production build、full-stack health、Compose config、脚本语法、package/视觉门禁和 `git diff --check` passed。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓为 2 worksheets/2 pages。i18n 未新增用户可见文案，Web localization tests 包含在 189 项中。
+- 视觉工件：`/Volumes/xfl/logistics/stripSystem/test-results/unload-report-01/20260714T050519Z/`。模板、Worker 报告、API 下载和 16 目的仓边界工件各为 1 个 populated worksheet/1 张 A4 landscape PDF，17 目的仓溢出工件为 2 worksheets/2 pages；6 张全页和 6 张 Standards crop 已按原始分辨率逐张查看，长目的仓、合计、标题、1.8M、2.0M、YEG1/YYC6、完整第 3 条和末尾 `when stored.` 均清晰，无裁切、越界或跨 worksheet 拆页。真实 API 下载文件为 `source/api-downloaded-report.xlsx`。
+- 外部验收：在办公室 Windows/Microsoft Excel 中打开上述 API 下载文件，保持 workbook 自带 print settings，不手动缩放，完成 Print Preview 和 Microsoft Print to PDF，并逐页核对 `when stored.`。通过前不得标记 Done。
+- 已知限制：无已知 Palletizing Standards 显示或打印裁切问题；仅 Microsoft Excel 外部打印验收待完成。

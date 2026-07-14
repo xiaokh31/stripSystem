@@ -180,7 +180,18 @@ services:
       E2E_ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-}
     volumes:
       - ../../test-results:/workspace/apps/web/test-results
+      - ../../playwright-report:/workspace/apps/web/playwright-report
     profiles: ["e2e"]
+
+  report-visual-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/report-visual-test.Dockerfile
+    image: bestar_report_visual_test_local:latest
+    working_dir: /workspace
+    volumes:
+      - ../../test-results:/workspace/test-results
+    profiles: ["report-visual"]
 
 volumes:
   bestar_postgres_data:

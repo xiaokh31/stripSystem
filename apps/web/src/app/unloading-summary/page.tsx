@@ -164,7 +164,7 @@ function UnloadingSummaryPageShell({
   const { t } = createTranslator(locale);
 
   return (
-    <main className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
