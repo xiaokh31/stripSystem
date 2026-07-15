@@ -91,10 +91,11 @@ export class InventoryReportsService {
     query: InventoryQueryDto,
   ): Promise<ContainerDetailSummaryResponseDto> {
     const container = await this.findContainerOrThrow(id);
+    const destinations = this.filteredDestinations(container, query, true);
     return {
-      ...this.toContainerSummary(container, query),
-      destinations: this.filteredDestinations(container, query).map(
-        (destination) => this.toDestinationSummary(destination, query),
+      ...this.toContainerSummary(container, query, destinations),
+      destinations: destinations.map((destination) =>
+        this.toDestinationSummary(destination, query),
       ),
     };
   }
@@ -151,6 +152,7 @@ export class InventoryReportsService {
   private filteredDestinations(
     container: ContainerRecord,
     query: InventoryQueryDto,
+    includeHistorical = false,
   ): ContainerDestinationRecord[] {
     return (container.destinations ?? [])
       .filter((destination) => this.matchesDestination(destination, query))
@@ -158,15 +160,18 @@ export class InventoryReportsService {
         const stats = this.stats(destination.pallets ?? [], query.status);
         return query.status
           ? stats.totalPallets > 0
-          : stats.activeTotalPallets > 0;
+          : includeHistorical
+            ? stats.totalPallets > 0
+            : stats.activeTotalPallets > 0;
       });
   }
 
   private toContainerSummary(
     container: ContainerRecord,
     query: InventoryQueryDto,
+    destinations = this.filteredDestinations(container, query),
   ): ContainerSummaryItemDto {
-    const stats = this.filteredDestinations(container, query).reduce(
+    const stats = destinations.reduce(
       (total, destination) =>
         this.addStats(
           total,

@@ -2,7 +2,10 @@
 
 FROM mcr.microsoft.com/playwright:v1.61.1-noble
 
-RUN corepack enable \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends postgresql-client \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
   && corepack prepare pnpm@11.9.0 --activate
 WORKDIR /workspace
 

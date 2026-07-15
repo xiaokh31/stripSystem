@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-14
+- 2026-07-15
 
 依据：
 - docs/reports/project-completion-status.html
@@ -11,6 +11,7 @@
 - docs/adr/0002-printing-strategy.md
 - docs/runbooks/native-scan-app-testing.md
 - docs/runbooks/native-scan-app-release.md
+- docs/reports/business-agent-execution-time-analysis-2026-07-15.html
 
 状态判定规则：
 - 当前是否正在执行以及受监督终态，以 `.codex/business-agent-runs/*/state.json` 为准。
@@ -39,6 +40,12 @@
 - WEB-DASHBOARD-05/06 已完成：`LifecycleDockStrip` 使用稳定七轨 responsive grid 和 lane row layout；Docker
   Chromium 已通过 en/zh-CN、light/dark、390/768/1366/1920、真实 125%/200% zoom、几何/字体/交互断言，
   并逐张浏览 44 张最终截图。
+- 新增柜子/库存运营优化 WEB-OPS-06 至 09：两个页面共享可访问的柜号模糊联想；柜子索引增加创建时间和
+  时间/柜号/状态六种稳定排序；库存页增加 5/10/20/50 服务端分页、同口径排序、global totals 和内容驱动高度；
+  最终以不超过 36 张高信号截图完成双语、主题、RBAC、库存事务和视觉关闭门禁。
+- Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
+  重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
+  `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
 
 历史执行记录（其中多数已经关闭，实际状态以本文件“当前执行队列”和完成度报告为准）：
 1. P6-MOBILE-09Native Camera Module Wiring.md
@@ -112,29 +119,37 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-14 复核）：
+当前执行队列（2026-07-15 复核）：
 
 ### A. 当前开发机立即执行
 
 `WEB-DASHBOARD-06` 已通过并用同一证据关闭 `WEB-DASHBOARD-05`；`WEB-OPS-01` 已完成具名 2048px
 workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁；`WEB-OPS-02` 已完成柜子详情
-destination-first DOM/视觉顺序与权限/交互/双语视觉回归。不要为这些任务重复开会话；下一任务是 `WEB-OPS-03`。
+destination-first DOM/视觉顺序与权限/交互/双语视觉回归；`WEB-OPS-03` 已完成 canonical `/inventory`、
+指定柜子/目的仓人工消库存、跨标签后端刷新、RBAC 和全宽度视觉回归；`WEB-OPS-04` 已完成隔离动态运营时钟、
+单 timer、formatter cache、hidden/narrow pause 与 CDP/heap 评估；`WEB-OPS-05` 已完成 01-04 的最终 i18n、
+视觉、RBAC、库存事务与性能关闭门禁；`WEB-OPS-06` 已完成共享 database-backed 柜号联想、独立权限边界、
+稳定 identity 与可访问 combobox；`WEB-OPS-07` 已完成独立柜子索引 contract、持久化创建时间、全部柜子口径与
+createdAt/containerNo/status 六种稳定排序。不要为这些任务重复开会话；下一任务改为 `WEB-OPS-08`。
 
-1. `WEB-OPS-02Container Detail Destination First Section Order.md`
-   - 已完成。柜子详情真实 DOM/视觉/heading 顺序为“状态操作 -> 目的仓 -> 拆柜工资 -> 目的仓库存 -> 生成文件”；
-     工资完成态折叠、未保存 draft、worker selector、库存调整/历史、read/adjust/no-read 三权限分支均通过。
-     Docker Web build/lint/typecheck、193 unit、focused Chromium 1/1、24 张双语/主题/宽度/200% zoom 截图、
-     full-stack healthcheck 与 `git diff --check` 通过。
-2. `WEB-OPS-03Dedicated Inventory Workspace and Destination Depletion.md`
-   - 新增顶层 `/inventory` 菜单页，复用现有审计 API，为指定柜子的指定目的仓执行人工消库存。
-3. `WEB-OPS-04Efficient Live Operational Clock.md`
-   - 页眉运营时间动态刷新；使用隔离 clock leaf、单 timer、formatter cache、hidden/narrow pause 和 cleanup，
-     并提交 CPU/render/heap 评估证据。
-4. `WEB-OPS-05I18n Visual and Performance Exit Gate.md`
-   - 对 01-04 执行完整 en/zh-CN、light/dark、role、390-2880px、zoom、库存 mutation 和时钟性能关闭门禁。
+1. `WEB-OPS-06Shared Container Fuzzy Search and Suggestion Contract.md`
+   - 已完成。database-backed exact/prefix/contains 联想只查询 id/container_no，由 `containers.read` 与
+     `inventory.read` 两个 endpoint 独立授权；共享可访问 combobox 覆盖 250ms debounce、stale response、
+     键盘/鼠标、typed i18n、柜子详情直达及库存稳定 containerId。Docker API/Web 门禁、Chromium 40 张
+     双语/主题/responsive/200% zoom 证据、healthcheck 和精确 fixture 清理均通过。
+2. `WEB-OPS-07Container Index Created Time and Stable Sorting.md`
+   - 已完成。柜子索引改用 `containers.read` 专用单查询聚合 contract，显示既有 `Container.createdAt`，包含无 pallet、
+     全 loaded、全 adjusted/cancelled 与历史柜子；createdAt/containerNo/status 六种稳定顺序、effective status、URL
+     保持、typed 双语、390/1366/1920 和真实 200% zoom 均通过。无 schema/migration 或外部验收项。
+3. `WEB-OPS-08Inventory Pagination Sorting and Adaptive Workspace.md`
+   - 左侧柜子汇总实现默认 10、可选 5/10/20/50 的服务端分页和同口径排序；global metrics 不随当前页变化；
+     selected/destination 区域按内容自然占高，不再被左表 stretch。
+4. `WEB-OPS-09Container Inventory I18n Accessibility Visual Exit Gate.md`
+   - 一次关闭 06-08 的 i18n、combobox accessibility、RBAC、库存事务、分页/排序和 responsive layout；采用受影响页面
+     pairwise matrix，最终截图建议不超过 36 张，并强制报告 wall/build/E2E 重试成本。
 5. `NATIVE-AUTH-01Revocable Persistent Native Session.md`
    - API/Native 主体实现已存在，但仍缺 refresh replay/revoke E2E、Native 单飞 refresh/请求重试回归。
-     先完成全部当前环境可自动化项目；三端 secure-store/access-expiry 实机项允许保留外部验收。
+     WEB-OPS-09 完成后再执行当前环境可自动化项目；三端 secure-store/access-expiry 实机项允许保留外部验收。
 
 ### B. 获得真实数据或设备后执行
 
@@ -204,10 +219,10 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile，再使用 `scripts/run-business-agent.sh task '<task-file>'` 启动一个受监督进程；不要使用直接 prompt、原始 `exec`、手工 `resume` 或旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-03`。
-3. 严格按 `WEB-OPS-03 -> WEB-OPS-04 -> WEB-OPS-05` 继续库存专页、
-   动态运营时间和最终 i18n/视觉/性能门禁；不得跳过 05。
-4. 完成 Web OPS 后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
+2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-08`。
+3. 按 `WEB-OPS-08 -> WEB-OPS-09` 顺序执行；每个任务新建一个 supervisor session，
+   不得跳过 09 的严格 i18n/RBAC/库存事务门禁，也不得恢复 236 张无差别截图矩阵。
+4. WEB-OPS-09 关闭后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
 5. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时
    不启动三端关闭会话。
 6. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭

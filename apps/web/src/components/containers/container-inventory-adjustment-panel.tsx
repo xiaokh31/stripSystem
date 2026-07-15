@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/i18n/i18n-provider";
+import { publishInventorySyncRefresh } from "@/components/inventory/inventory-sync-refresh";
 import {
   ApiClientError,
   createInventoryAdjustment,
@@ -22,6 +23,7 @@ import type { MessageKey } from "@/lib/i18n/catalog";
 import {
   buildManualInventoryDepletionRequest,
   emptyManualInventoryDepletionDraft,
+  expectedManualInventoryRemaining,
   inventoryAdjustmentReasonOptions,
   manualInventoryAdjustmentErrorMessage,
   type ManualInventoryDepletionDraft,
@@ -145,6 +147,7 @@ export function ContainerInventoryAdjustmentPanel({
       );
       setActiveAdjustment(null);
       setActionState({ message, status: "success" });
+      publishInventorySyncRefresh();
       router.refresh();
     } catch (error) {
       const errorCode = error instanceof ApiClientError ? error.code : null;
@@ -163,7 +166,7 @@ export function ContainerInventoryAdjustmentPanel({
   }
 
   return (
-    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
@@ -218,6 +221,7 @@ export function ContainerInventoryAdjustmentPanel({
       {activeAdjustment ? (
         <ManualInventoryDepletionDialog
           activeAdjustment={activeAdjustment}
+          containerNo={inventorySummary?.containerNo ?? ""}
           onClose={() => setActiveAdjustment(null)}
           onDraftChange={updateDraft}
           onSubmit={() => void submitAdjustment()}
@@ -246,14 +250,21 @@ function DestinationInventoryRow({
   const { locale, t } = useI18n();
 
   return (
-    <article className="py-4 first:pt-0 last:pb-0">
-      <div className="grid gap-4 xl:grid-cols-[minmax(180px,1.1fr)_repeat(4,minmax(100px,0.45fr))_minmax(180px,0.8fr)]">
+    <article
+      className="py-4 first:pt-0 last:pb-0"
+      data-container-destination-id={summary.containerDestinationId}
+    >
+      <div className="grid min-w-0 gap-4 min-[2400px]:grid-cols-[minmax(180px,1.1fr)_repeat(5,minmax(84px,0.42fr))_minmax(180px,0.8fr)]">
         <div>
           <h3 className="break-words text-sm font-semibold text-zinc-950">
             {summary.destinationCode}
           </h3>
           <p className="mt-1 text-xs text-zinc-500">
             {destinationTypeLabel(summary.destinationType, locale)}
+          </p>
+          <p className="mt-2 break-all font-mono text-[11px] text-zinc-500">
+            <span className="font-sans font-semibold">{t("Destination record")}:</span>{" "}
+            <span data-i18n-ignore="true">{summary.containerDestinationId}</span>
           </p>
         </div>
         <Metric label={t("Active pallets")} value={summary.activeTotalPallets} />
@@ -262,14 +273,15 @@ function DestinationInventoryRow({
           label={palletStatusLabel("ADJUSTED_OUT", locale)}
           value={summary.adjustedOutPallets}
         />
+        <Metric label={t("Cancelled")} value={summary.cancelledPallets} />
         <Metric
           label={t("Remaining pallets")}
           value={summary.remainingPallets}
         />
-        <div className="flex items-end xl:justify-end">
+        <div className="flex items-end min-[2400px]:justify-end">
           {canAdjust && summary.remainingPallets > 0 ? (
             <button
-              className="inline-flex min-h-10 w-full items-center justify-center border border-amber-700 bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800 xl:w-auto"
+              className="inline-flex min-h-10 w-full items-center justify-center border border-amber-700 bg-amber-700 px-3 text-sm font-semibold text-white hover:bg-amber-800 min-[2400px]:w-auto"
               onClick={() => onAdjust(summary)}
               type="button"
             >
@@ -296,7 +308,7 @@ function DestinationInventoryRow({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <dl className="border-t border-zinc-100 pt-2 xl:border-t-0 xl:pt-0">
+    <dl className="border-t border-zinc-100 pt-2 min-[2400px]:border-t-0 min-[2400px]:pt-0">
       <dt className="text-xs font-semibold uppercase text-zinc-500">{label}</dt>
       <dd className="mt-1 text-lg font-semibold tabular-nums text-zinc-950">
         {value}
@@ -376,12 +388,14 @@ function AdjustmentHistory({
 
 function ManualInventoryDepletionDialog({
   activeAdjustment,
+  containerNo,
   onClose,
   onDraftChange,
   onSubmit,
   reasonOptions,
 }: {
   activeAdjustment: ActiveAdjustment;
+  containerNo: string;
   onClose: () => void;
   onDraftChange: <K extends keyof ManualInventoryDepletionDraft>(
     key: K,
@@ -393,11 +407,67 @@ function ManualInventoryDepletionDialog({
   const { t } = useI18n();
   const { draft, state, summary } = activeAdjustment;
   const isSaving = state.status === "saving";
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  const isSavingRef = useRef(isSaving);
+  const expectedRemaining = expectedManualInventoryRemaining(
+    summary.remainingPallets,
+    draft.count,
+  );
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    isSavingRef.current = isSaving;
+  }, [isSaving, onClose]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isSavingRef.current) {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+        ),
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
 
   return (
     <div
+      aria-describedby="manual-inventory-depletion-description"
+      aria-labelledby="manual-inventory-depletion-title"
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-end bg-zinc-950/40 p-0 sm:items-center sm:justify-center sm:p-6"
+      ref={dialogRef}
       role="dialog"
     >
       <form
@@ -412,8 +482,11 @@ function ManualInventoryDepletionDialog({
             <p className="text-sm font-semibold uppercase text-amber-800">
               {t("Manual inventory depletion")}
             </p>
-            <h3 className="mt-1 text-xl font-semibold text-zinc-950">
-              {summary.destinationCode}
+            <h3
+              className="mt-1 text-xl font-semibold text-zinc-950"
+              id="manual-inventory-depletion-title"
+            >
+              {containerNo} · {summary.destinationCode}
             </h3>
           </div>
           <button
@@ -421,19 +494,37 @@ function ManualInventoryDepletionDialog({
             className="min-h-10 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
             disabled={isSaving}
             onClick={onClose}
+            ref={closeButtonRef}
             type="button"
           >
             {t("Close")}
           </button>
         </div>
 
-        <p className="mt-4 border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950">
+        <p
+          className="mt-4 border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"
+          id="manual-inventory-depletion-description"
+        >
           {t(
             "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.",
           )}
         </p>
 
         <div className="mt-5 grid gap-4">
+          <dl className="grid grid-cols-2 gap-3 border-b border-zinc-100 pb-4 text-sm">
+            <div>
+              <dt className="text-zinc-500">{t("Container No.")}</dt>
+              <dd className="mt-1 break-all font-semibold text-zinc-950">
+                {containerNo}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-zinc-500">{t("Destination")}</dt>
+              <dd className="mt-1 break-words font-semibold text-zinc-950">
+                {summary.destinationCode}
+              </dd>
+            </div>
+          </dl>
           <label className="grid gap-2 text-sm font-medium text-zinc-700">
             {t("Current remaining inventory")}
             <input
@@ -454,6 +545,14 @@ function ManualInventoryDepletionDialog({
               onChange={(event) => onDraftChange("count", event.target.value)}
               type="number"
               value={draft.count}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-zinc-700">
+            {t("Expected remaining inventory")}
+            <input
+              className="min-h-11 border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold tabular-nums text-zinc-950"
+              readOnly
+              value={expectedRemaining ?? t("Enter a valid depletion count")}
             />
           </label>
           <label className="grid gap-2 text-sm font-medium text-zinc-700">

@@ -111,6 +111,16 @@ test("typed translation templates resolve dynamic business parameters", () => {
     format("i18n.settings.unknownField", { key: "customRate" }),
     "设置 customRate",
   );
+  assert.equal(
+    format("i18n.inventory.selectContainer", { container: "WEBOPS03-1" }),
+    "选择柜子 WEBOPS03-1",
+  );
+  assert.equal(
+    createTranslator("en").format("i18n.inventory.selectContainer", {
+      container: "WEBOPS03-1",
+    }),
+    "Select container WEBOPS03-1",
+  );
 });
 
 test("explicit translator rejects missing keys outside production and uses a localized production fallback", () => {
@@ -259,7 +269,7 @@ test("shared entry boundaries use the explicit translation contract", () => {
 test("localized component key boundaries retain their MessageKey contracts", () => {
   const boundaries: Array<{ file: string; snippets: string[] }> = [
     {
-      file: "src/app/reports/inventory/page.tsx",
+      file: "src/app/inventory/page.tsx",
       snippets: ["fallback: MessageKey", "return t(knownKey ?? fallback);"],
     },
     {
@@ -282,10 +292,18 @@ test("localized component key boundaries retain their MessageKey contracts", () 
       assert.ok(source.includes(snippet), `${boundary.file} must contain ${snippet}`);
     }
   }
+
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(process.cwd(), "src/app/inventory/page.tsx"), "utf8"),
+    /\{error\.code\}/,
+  );
 });
 
 test("rendered web modules import an explicit translator", () => {
-  const exemptFiles = new Set(["src/app/admin/page.tsx"]);
+  const exemptFiles = new Set([
+    "src/app/admin/page.tsx",
+    "src/app/reports/inventory/page.tsx",
+  ]);
   const files = renderedSourceFiles();
   const missingTranslator = files
     .map((file) => path.relative(process.cwd(), file))
@@ -407,7 +425,7 @@ const TRANSLATABLE_SETTER_NAMES = new Set([
 ]);
 
 const LOCALIZED_COMPONENT_PROP_BOUNDARIES = new Set([
-  "src/app/reports/inventory/page.tsx:ApiErrorPanel.fallback",
+  "src/app/inventory/page.tsx:ApiErrorPanel.fallback",
   "src/app/unloading-summary/page.tsx:ApiErrorPanel.title",
   "src/app/unloading-wage/page.tsx:ApiErrorPanel.title",
   "src/app/work-hours/page.tsx:ApiErrorPanel.title",

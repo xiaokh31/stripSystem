@@ -178,9 +178,14 @@ services:
       E2E_BASE_URL: http://nginx
       E2E_ADMIN_EMAIL: ${E2E_ADMIN_EMAIL:-}
       E2E_ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-bestar_unloading}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bestar_dev_password}
+      POSTGRES_USER: ${POSTGRES_USER:-bestar}
     volumes:
       - ../../test-results:/workspace/apps/web/test-results
       - ../../playwright-report:/workspace/apps/web/playwright-report
+      - ../../storage:/workspace/storage
     profiles: ["e2e"]
 
   report-visual-test:

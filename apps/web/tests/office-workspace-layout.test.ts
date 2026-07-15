@@ -15,7 +15,7 @@ const officeMainSources = [
   "src/app/containers/[id]/page.tsx",
   "src/app/containers/[id]/corrections/page.tsx",
   "src/app/reports/page.tsx",
-  "src/app/reports/inventory/page.tsx",
+  "src/app/inventory/page.tsx",
   "src/app/load-jobs/page.tsx",
   "src/app/load-jobs/history/page.tsx",
   "src/app/work-hours/page.tsx",
@@ -88,6 +88,41 @@ test("login and web mobile scan routes remain outside the office workspace", () 
   for (const sourcePath of compactPageSources.slice(1)) {
     assert.match(readSource(sourcePath), /max-w-4xl/);
   }
+});
+
+test("inventory workspace stacks below desktop without widening the viewport", () => {
+  const page = readSource("src/app/inventory/page.tsx");
+  const globals = readSource("src/app/globals.css");
+
+  assert.match(page, /className="inventory-operation-grid grid gap-4"/);
+  assert.match(page, /className="grid min-w-0 grid-cols-1 gap-4"/);
+  assert.match(
+    globals,
+    /\.inventory-operation-grid\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
+  );
+  assert.match(
+    globals,
+    /@media\s*\(min-width:\s*1280px\)\s*{[\s\S]*?\.inventory-operation-grid\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.08fr\)\s+minmax\(0,\s*0\.92fr\);/,
+  );
+  assert.match(
+    globals,
+    /\.inventory-operation-grid\s*>\s*\*\s*{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/,
+  );
+});
+
+test("office shell owns the single inventory sync listener", () => {
+  assert.match(
+    readSource("src/components/layout/office-shell.tsx"),
+    /<InventorySyncRefreshListener\s*\/>/,
+  );
+  assert.doesNotMatch(
+    readSource("src/app/page.tsx"),
+    /InventorySyncRefreshListener/,
+  );
+  assert.doesNotMatch(
+    readSource("src/components/reports/inventory-refresh-controls.tsx"),
+    /InventorySyncRefreshListener/,
+  );
 });
 
 function readSource(relativePath: string): string {

@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
 import {
   formatInventoryRefreshTime,
   normalizeInventoryPollingIntervalMs,
@@ -44,7 +43,6 @@ export function InventoryRefreshControls({
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <InventorySyncRefreshListener />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">

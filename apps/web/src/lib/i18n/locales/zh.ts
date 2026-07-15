@@ -96,6 +96,18 @@ export const zhMessages = {
   "Container could not be loaded.": "无法加载柜子。",
   "Container detail": "柜子详情",
   "Container index": "柜子索引",
+  "Created time": "创建时间",
+  Ascending: "升序",
+  Descending: "降序",
+  "Loading container index": "正在加载柜子索引",
+  "Search and sort": "搜索并排序",
+  "Sort ascending": "按升序排列",
+  "Sort descending": "按降序排列",
+  "Sort direction": "排序方向",
+  "Sort field": "排序字段",
+  "Status and pallet counts are calculated by the API from persisted container and pallet records.":
+    "状态和托盘数量由 API 根据持久化的柜子与托盘记录计算。",
+  "Try again": "重试",
   "Container load failed": "柜子加载失败",
   "Container number": "柜号",
   "Container number is required.": "柜号必填。",
@@ -1345,14 +1357,19 @@ export const zhMessages = {
   "Confirm manual inventory depletion": "确认人工消库存",
   "Current remaining inventory": "当前剩余库存",
   "Depletion count": "消库存数量",
+  "Destination record": "目的仓记录",
   "Destination inventory could not be loaded. Refresh and try again.":
     "无法加载目的仓库存，请刷新后重试。",
   "Enter a whole number from 1 to the current remaining inventory.":
     "请输入 1 到当前剩余库存之间的整数。",
+  "Enter a valid depletion count": "请输入有效的消库存数量",
+  "Expected remaining inventory": "预计剩余库存",
   "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.":
     "我确认这些托盘应从剩余库存中移除，且不得计入已装车。",
   "Inventory adjustment enabled": "可人工消库存",
+  "Inventory access is required": "需要库存访问权限",
   "Inventory read-only": "库存只读",
+  "Inventory workspace": "库存工作区",
   "Manual inventory depletion": "人工消库存",
   "Manual inventory depletion count": "人工消库存数量",
   "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
@@ -1370,6 +1387,20 @@ export const zhMessages = {
     "没有可用于目的仓库存复核的已生成托盘。",
   "No manual inventory depletion history.": "暂无人工消库存历史。",
   "No remaining pallets": "没有剩余托盘",
+  "Container selection": "柜子选择",
+  "Select an exact container": "请选择一个准确柜子",
+  "Select a container and manage destination inventory":
+    "选择柜子并管理目的仓库存",
+  "Select container": "选择柜子",
+  "Selected container": "已选柜子",
+  "Selected container inventory could not be loaded": "无法加载所选柜子的库存",
+  "Choose a container from the table to review its destination inventory and adjustment history.":
+    "请从柜子表选择一个柜子，以查看其目的仓库存和调整历史。",
+  "Sign in to review inventory": "登录后查看库存",
+  "The inventory workspace loads only after the API confirms your account and inventory access.":
+    "API 确认当前账号及库存访问权限后，才会加载库存工作区。",
+  "Your account cannot open the inventory workspace. Ask an administrator for inventory access.":
+    "当前账号无法打开库存工作区，请联系管理员授予库存访问权限。",
   "Required when Other is selected": "选择其他时必填",
   Saving: "正在保存",
   "Saving manual inventory depletion.": "正在保存人工消库存。",
@@ -1378,6 +1409,7 @@ export const zhMessages = {
   "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.":
     "此操作会从剩余库存中移除托盘。它不会创建装车扫码，也不会将托盘计入已装车。",
   "i18n.imports.delete.blockers": "该导入无法删除，因为它正被以下记录使用：{blockers}。",
+  "i18n.inventory.selectContainer": "选择柜子 {container}",
   "i18n.imports.delete.blocker.loadJobs": "{count} 个装车任务",
   "i18n.imports.delete.blocker.operationalPallets": "{count} 个运营托盘",
   "i18n.imports.delete.blocker.payContainers": "{count} 个工资柜单位",
@@ -1736,6 +1768,17 @@ export const zhMessages = {
   "i18n.inventorySync.actualPallets": "实际托盘",
   "i18n.inventorySync.createdPallets": "新建托盘",
   "i18n.inventorySync.reusedPallets": "沿用标签",
+  "Search container index": "搜索柜号索引",
+  "Enter a container number": "输入柜号",
+  "Loading container suggestions": "正在加载柜号建议",
+  "No matching containers": "没有匹配的柜子",
+  "Container suggestions could not be loaded. Keep typing to try again.":
+    "无法加载柜号建议，请继续输入重试。",
+  "Container suggestions are unavailable for this account.":
+    "此账号无法使用柜号建议。",
+  "Use the up and down arrow keys to review container suggestions.":
+    "使用上、下方向键浏览柜号建议。",
+  "i18n.containerCombobox.resultCount": "匹配到 {count} 个柜子",
   "Collapse unloading wage section": "收起拆柜工资信息",
   "Expand unloading wage section": "展开拆柜工资信息",
 } satisfies Record<MessageKey, string>;

@@ -1201,6 +1201,35 @@ export interface ContainerSummaryListResponse {
   items: ContainerSummaryItemResponse[];
 }
 
+export type ContainerIndexSortField = "createdAt" | "containerNo" | "status";
+export type ContainerIndexSortDirection = "asc" | "desc";
+
+export interface ContainerIndexFilters {
+  containerNo?: string;
+  direction: ContainerIndexSortDirection;
+  sort: ContainerIndexSortField;
+}
+
+export interface ContainerIndexItemResponse extends PalletStatsResponse {
+  containerId: string;
+  containerNo: string;
+  createdAt: string;
+  status: string;
+}
+
+export interface ContainerIndexListResponse {
+  items: ContainerIndexItemResponse[];
+}
+
+export interface ContainerSuggestionResponse {
+  containerId: string;
+  containerNo: string;
+}
+
+export interface ContainerSuggestionListResponse {
+  items: ContainerSuggestionResponse[];
+}
+
 export interface DestinationInventoryItemResponse extends PalletStatsResponse {
   destinationCode: string;
 }
@@ -2157,6 +2186,37 @@ export function getContainerInventorySummary(
 ): Promise<ContainerSummaryListResponse> {
   return createApiClient(options).get<ContainerSummaryListResponse>(
     `/reports/container-summary${toInventoryQueryString(filters)}`,
+  );
+}
+
+export function listContainers(
+  filters: ContainerIndexFilters,
+  options: ApiClientOptions = {},
+): Promise<ContainerIndexListResponse> {
+  const params = new URLSearchParams({
+    direction: filters.direction,
+    sort: filters.sort,
+  });
+  if (filters.containerNo) params.set("containerNo", filters.containerNo);
+  return createApiClient(options).get<ContainerIndexListResponse>(
+    `/containers?${params.toString()}`,
+  );
+}
+
+export function listContainerSuggestions(
+  query: string,
+  surface: "containers" | "inventory",
+  requestOptions: Pick<ApiRequestOptions, "signal"> = {},
+  options: ApiClientOptions = {},
+): Promise<ContainerSuggestionListResponse> {
+  const params = new URLSearchParams({ limit: "10", query: query.trim() });
+  const path =
+    surface === "containers"
+      ? "/containers/suggestions"
+      : "/inventory/container-suggestions";
+  return createApiClient(options).get<ContainerSuggestionListResponse>(
+    `${path}?${params.toString()}`,
+    requestOptions,
   );
 }
 

@@ -112,3 +112,44 @@ git diff --check
 - 列出测试数量、role/locale/theme/viewport/zoom 矩阵、截图绝对路径和人工查看结论。
 - 列出库存 mutation 前后、audit、clock 性能/内存、2048px geometry 证据。
 - 已知限制没有则明确写“无已知 WEB-OPS 关闭门禁限制”。
+
+## 执行结果（2026-07-15）
+
+状态：**Done**。
+
+### Standards / Spec 最终复核
+
+- Standards：Docker-only 开发、真实 full stack、RBAC、后端库存 source of truth、审计事件、typed i18n、
+  无首帧延迟翻译、固定时钟 timer/listener 和测试 fixture 精确清理均符合仓库规范；没有数据库 schema 变更，
+  因此不需要 migration。
+- Spec：WEB-OPS-01 至 04 与 WEB-DASHBOARD-05/06 在同一最终门禁中兼容通过；6 个 route、双 locale、
+  双 theme、6 个 viewport、desktop 125%/200% 真缩放及 ADMIN、可调整 OFFICE、只读、无库存权限分支均覆盖。
+- 修复两个门禁基础设施问题：浏览器 zoom worker 不再序列化 Playwright `expect`；local deployment runbook
+  记录 live Web 容器内执行 production build 后必须重建 Web/nginx，避免旧 manifest 引发 chunk 404。
+  未发现需要修改产品业务实现的缺陷。
+
+### 自动化与视觉证据
+
+- API：lint、typecheck、26 suites / 221 unit tests、15 suites / 92 E2E tests 通过。
+- Web：lint、typecheck、204 unit tests、production build 通过。
+- Chromium：既有 Dashboard/locale/container/inventory/layout focused suites 8/8、clock 2/2、最终 exit gate
+  1/1 通过。
+- `scripts/healthcheck.sh` 与 `git diff --check` 通过；最终数据库/存储复核中 WEBOPS05 container、user、
+  role、generated file、inventory adjustment 和 storage 文件残留均为 0。
+- 最终证据位于绝对路径
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-ops-05/`：236 张 PNG 与 3 份 JSON。Agent 已使用图片
+  查看工具按原始分辨率逐张检查 236/236，未发现重叠、截断、双语同屏、raw code、错误 focus 或层级问题。
+- 168 条 geometry 记录中 2560/2880 office main 均精确为 2048px，最大 document overflow 为 0；
+  browser error、page error、hydration error 和 server error 均为 0。
+
+### 库存、审计与时钟证据
+
+- 隔离库存 fixture 从 active/remaining `5/5` 依次变为 `4/4`、`3/3`，adjusted `0 -> 1 -> 2`，
+  loaded 始终为 `0`；同一 pallet 并发调整只接受一次，响应为 `201/409`。
+- 两条 audit history 均含真实 actor、reason、note、eventId，事件从 `LABEL_PRINTED` 转为
+  `ADJUSTED_OUT`；fixture、账号、角色与 storage 均由安全清理路径移除。
+- 两个连续 60 秒动态窗口各产生精确 60 次 clock leaf update；active timer `1`、listener `2`、
+  non-clock header mutation `0`，static/hidden/390/768 不持续 tick，documents/nodes 稳定。dynamic heap
+  从首窗口 `+155,588 B` 收敛到第二窗口 `+1,924 B`，最终 sample heap 为 `4,733,988 B`。
+
+已知限制：**无已知 WEB-OPS 关闭门禁限制**。

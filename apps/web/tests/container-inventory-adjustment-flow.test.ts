@@ -3,9 +3,16 @@ import assert from "node:assert/strict";
 import {
   buildManualInventoryDepletionRequest,
   emptyManualInventoryDepletionDraft,
+  expectedManualInventoryRemaining,
   inventoryAdjustmentReasonOptions,
   manualInventoryAdjustmentErrorMessage,
 } from "../src/components/containers/container-inventory-adjustment-flow";
+
+test("manual inventory depletion preview is bounded and never becomes inventory truth", () => {
+  assert.equal(expectedManualInventoryRemaining(3, "1"), 2);
+  assert.equal(expectedManualInventoryRemaining(3, "4"), null);
+  assert.equal(expectedManualInventoryRemaining(3, "invalid"), null);
+});
 
 test("manual inventory depletion request uses API count, reason, and trimmed note", () => {
   const result = buildManualInventoryDepletionRequest(

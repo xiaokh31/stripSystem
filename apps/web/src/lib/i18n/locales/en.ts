@@ -98,6 +98,18 @@ export const enMessages = {
   "Container could not be loaded.": "Container could not be loaded.",
   "Container detail": "Container detail",
   "Container index": "Container index",
+  "Created time": "Created time",
+  Ascending: "Ascending",
+  Descending: "Descending",
+  "Loading container index": "Loading container index",
+  "Search and sort": "Search and sort",
+  "Sort ascending": "Sort ascending",
+  "Sort descending": "Sort descending",
+  "Sort direction": "Sort direction",
+  "Sort field": "Sort field",
+  "Status and pallet counts are calculated by the API from persisted container and pallet records.":
+    "Status and pallet counts are calculated by the API from persisted container and pallet records.",
+  "Try again": "Try again",
   "Container load failed": "Container load failed",
   "Container number": "Container number",
   "Container number is required.": "Container number is required.",
@@ -1436,14 +1448,19 @@ export const enMessages = {
   "Confirm manual inventory depletion": "Confirm manual inventory depletion",
   "Current remaining inventory": "Current remaining inventory",
   "Depletion count": "Depletion count",
+  "Destination record": "Destination record",
   "Destination inventory could not be loaded. Refresh and try again.":
     "Destination inventory could not be loaded. Refresh and try again.",
   "Enter a whole number from 1 to the current remaining inventory.":
     "Enter a whole number from 1 to the current remaining inventory.",
+  "Enter a valid depletion count": "Enter a valid depletion count",
+  "Expected remaining inventory": "Expected remaining inventory",
   "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.":
     "I confirm these pallets must be removed from remaining inventory and must not be counted as loaded.",
   "Inventory adjustment enabled": "Inventory adjustment enabled",
+  "Inventory access is required": "Inventory access is required",
   "Inventory read-only": "Inventory read-only",
+  "Inventory workspace": "Inventory workspace",
   "Manual inventory depletion": "Manual inventory depletion",
   "Manual inventory depletion count": "Manual inventory depletion count",
   "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
@@ -1462,6 +1479,21 @@ export const enMessages = {
   "No manual inventory depletion history.":
     "No manual inventory depletion history.",
   "No remaining pallets": "No remaining pallets",
+  "Container selection": "Container selection",
+  "Select an exact container": "Select an exact container",
+  "Select a container and manage destination inventory":
+    "Select a container and manage destination inventory",
+  "Select container": "Select container",
+  "Selected container": "Selected container",
+  "Selected container inventory could not be loaded":
+    "Selected container inventory could not be loaded",
+  "Choose a container from the table to review its destination inventory and adjustment history.":
+    "Choose a container from the table to review its destination inventory and adjustment history.",
+  "Sign in to review inventory": "Sign in to review inventory",
+  "The inventory workspace loads only after the API confirms your account and inventory access.":
+    "The inventory workspace loads only after the API confirms your account and inventory access.",
+  "Your account cannot open the inventory workspace. Ask an administrator for inventory access.":
+    "Your account cannot open the inventory workspace. Ask an administrator for inventory access.",
   "Required when Other is selected": "Required when Other is selected",
   Saving: "Saving",
   "Saving manual inventory depletion.": "Saving manual inventory depletion.",
@@ -1471,6 +1503,7 @@ export const enMessages = {
   "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.":
     "This action removes pallets from remaining inventory. It does not create a loading scan and does not count pallets as loaded.",
   "i18n.imports.delete.blockers": "This import cannot be deleted because it is used by: {blockers}.",
+  "i18n.inventory.selectContainer": "Select container {container}",
   "i18n.imports.delete.blocker.loadJobs": "{count} load job(s)",
   "i18n.imports.delete.blocker.operationalPallets": "{count} operational pallet(s)",
   "i18n.imports.delete.blocker.payContainers": "{count} pay container(s)",
@@ -1854,6 +1887,17 @@ export const enMessages = {
   "i18n.inventorySync.actualPallets": "Actual pallets",
   "i18n.inventorySync.createdPallets": "New pallets",
   "i18n.inventorySync.reusedPallets": "Existing labels",
+  "Search container index": "Search container index",
+  "Enter a container number": "Enter a container number",
+  "Loading container suggestions": "Loading container suggestions",
+  "No matching containers": "No matching containers",
+  "Container suggestions could not be loaded. Keep typing to try again.":
+    "Container suggestions could not be loaded. Keep typing to try again.",
+  "Container suggestions are unavailable for this account.":
+    "Container suggestions are unavailable for this account.",
+  "Use the up and down arrow keys to review container suggestions.":
+    "Use the up and down arrow keys to review container suggestions.",
+  "i18n.containerCombobox.resultCount": "{count} matching container(s)",
   "Collapse unloading wage section": "Collapse unloading wage section",
   "Expand unloading wage section": "Expand unloading wage section",
 } as const;

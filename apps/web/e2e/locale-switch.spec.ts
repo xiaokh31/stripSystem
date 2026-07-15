@@ -142,11 +142,11 @@ test("core pages switch locale, persist refresh, and keep status labels single-l
       zhText: fixture.loadedContainerNo,
     },
     {
-      enText: "Inventory report",
-      path: "/reports/inventory",
+      enText: "Select a container and manage destination inventory",
+      path: "/inventory",
       requiredEnglish: ["Delivered to destination"],
       requiredChinese: ["已送库"],
-      zhText: "库存报告",
+      zhText: "选择柜子并管理目的仓库存",
     },
     {
       enText: "Warehouse reports",
@@ -492,21 +492,21 @@ async function expectLocaleThemeAndClientNavigation(page: Page): Promise<void> {
   await page.goto("/", { waitUntil: "networkidle" });
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  const inventoryLink = page.locator('a[href="/reports/inventory"]:visible').first();
+  const inventoryLink = page.locator('a[href="/inventory"]:visible').first();
   await expect(inventoryLink).toBeVisible();
   await inventoryLink.click();
-  await expect(page).toHaveURL(/\/reports\/inventory/);
-  await expect(await visibleTextLocator(page, "库存报告")).toBeVisible();
+  await expect(page).toHaveURL(/\/inventory/);
+  await expect(await visibleTextLocator(page, "库存工作区")).toBeVisible();
 
   await page.getByRole("button", { name: "浅色主题" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(await visibleTextLocator(page, "库存报告")).toBeVisible();
+  await expect(await visibleTextLocator(page, "库存工作区")).toBeVisible();
 
   await switchToEnglish(page);
-  await expect(await visibleTextLocator(page, "Inventory report")).toBeVisible();
+  await expect(await visibleTextLocator(page, "Inventory workspace")).toBeVisible();
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

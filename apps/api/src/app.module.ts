@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { AsyncJobsModule } from './async-jobs/async-jobs.module';
 import { appConfig } from './config/app.config';
 import { CorrectionsModule } from './corrections/corrections.module';
+import { ContainerSuggestionsModule } from './container-suggestions/container-suggestions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
 import { ImportsModule } from './imports/imports.module';
@@ -36,6 +37,7 @@ import { UsersModule } from './users/users.module';
     DashboardModule,
     ImportsModule,
     InventoryAdjustmentsModule,
+    ContainerSuggestionsModule,
     CorrectionsModule,
     ReportsModule,
     LabelsModule,

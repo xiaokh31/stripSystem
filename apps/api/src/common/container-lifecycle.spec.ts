@@ -2,6 +2,7 @@ import { ContainerStatus, PalletStatus } from '../generated/prisma/enums';
 import {
   containerStatusFromInventoryCounts,
   effectiveContainerStatus,
+  effectiveContainerStatusFromAggregate,
   isContainerGenerationLocked,
 } from './container-lifecycle';
 
@@ -41,6 +42,23 @@ describe('container lifecycle status', () => {
     expect(
       containerStatusFromInventoryCounts(2, 1, ContainerStatus.UNLOADED),
     ).toBe(ContainerStatus.LOADING_IN_PROGRESS);
+  });
+
+  it('gives row records and aggregate queries the same loadedAt lifecycle semantics', () => {
+    expect(
+      effectiveContainerStatus(ContainerStatus.UNLOADED, [
+        {
+          pallets: [{ status: PalletStatus.PLANNED, loadedAt: new Date() }],
+        },
+      ]),
+    ).toBe(ContainerStatus.LOADED);
+    expect(
+      effectiveContainerStatusFromAggregate(ContainerStatus.UNLOADED, {
+        activePalletCount: 1,
+        hasLoadingSignal: false,
+        loadedPalletCount: 1,
+      }),
+    ).toBe(ContainerStatus.LOADED);
   });
 
   it('excludes manually depleted pallets from active loading inventory', () => {

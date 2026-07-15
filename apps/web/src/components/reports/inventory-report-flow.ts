@@ -64,15 +64,25 @@ export function normalizeInventoryFilters(
   };
 }
 
-export function inventoryReportHref(filters: InventoryReportFilters): string {
+export function normalizeInventorySelection(
+  searchParams: InventorySearchParams,
+): string | undefined {
+  return firstSearchValue(searchParams.containerId)?.trim() || undefined;
+}
+
+export function inventoryWorkspaceHref(
+  filters: InventoryReportFilters,
+  containerId?: string,
+): string {
   const params = new URLSearchParams();
 
   appendFilter(params, "containerNo", filters.containerNo);
   appendFilter(params, "destinationCode", filters.destinationCode);
   appendFilter(params, "status", filters.status);
+  appendFilter(params, "containerId", containerId);
 
   const query = params.toString();
-  return query ? `/reports/inventory?${query}` : "/reports/inventory";
+  return query ? `/inventory?${query}` : "/inventory";
 }
 
 export function activeInventoryFilterCount(
@@ -145,7 +155,7 @@ function firstSearchValue(value: string | string[] | undefined): string | undefi
 
 function appendFilter(
   params: URLSearchParams,
-  key: keyof InventoryReportFilters,
+  key: keyof InventoryReportFilters | "containerId",
   value: string | undefined,
 ) {
   const trimmed = value?.trim();

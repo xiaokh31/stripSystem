@@ -30,6 +30,7 @@ const officeRoutes = [
   "/imports",
   "/imports/new",
   "/containers",
+  "/inventory",
   "/reports",
   "/reports/inventory",
   "/load-jobs",
@@ -57,10 +58,10 @@ const criticalPages = [
     path: "CONTAINER_DETAIL",
   },
   {
-    en: "Pallet inventory by container and destination",
+    en: "Select a container and manage destination inventory",
     screenshot: "inventory",
-    zh: "按柜子和目的仓查看托盘库存",
-    path: "/reports/inventory",
+    zh: "选择柜子并管理目的仓库存",
+    path: "/inventory",
   },
   {
     en: "Warehouse reports",

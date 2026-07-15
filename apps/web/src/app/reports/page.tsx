@@ -34,7 +34,7 @@ export default async function ReportsPage() {
         <div className="grid gap-3">
           {showInventory ? (
             <ReportLink
-              href="/reports/inventory"
+              href="/inventory"
               openLabel={t("Open report")}
               title={t("Inventory report")}
             />

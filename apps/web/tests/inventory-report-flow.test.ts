@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import {
   activeInventoryFilterCount,
   formatInventoryRefreshTime,
-  inventoryReportHref,
+  inventoryWorkspaceHref,
   normalizeInventoryFilters,
+  normalizeInventorySelection,
   normalizeInventoryPollingIntervalMs,
   PALLET_STATUS_OPTIONS,
   sumPalletStats,
@@ -24,15 +25,49 @@ test("inventory filters trim values and drop blanks", () => {
   );
 });
 
-test("inventory report href preserves API filter names", () => {
+test("inventory workspace href preserves API filters and exact container selection", () => {
   assert.equal(
-    inventoryReportHref({
-      containerNo: "CSNU8877228",
-      destinationCode: "YEG1",
-      status: "LABEL_PRINTED",
-    }),
-    "/reports/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
+    inventoryWorkspaceHref(
+      {
+        containerNo: "CSNU8877228",
+        destinationCode: "YEG1",
+        status: "LABEL_PRINTED",
+      },
+      "container_cuid_123",
+    ),
+    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container_cuid_123",
   );
+});
+
+test("inventory exact suggestion selection stores canonical container text with stable identity", () => {
+  assert.equal(
+    inventoryWorkspaceHref(
+      {
+        containerNo: "CSNU8877228",
+        destinationCode: "YEG1",
+        status: "LABEL_PRINTED",
+      },
+      "container-id-1",
+    ),
+    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container-id-1",
+  );
+  assert.equal(
+    inventoryWorkspaceHref(
+      { containerNo: "CSNU8", destinationCode: "YEG1" },
+      undefined,
+    ),
+    "/inventory?containerNo=CSNU8&destinationCode=YEG1",
+  );
+});
+
+test("inventory selection uses the first trimmed stable container id", () => {
+  assert.equal(
+    normalizeInventorySelection({
+      containerId: [" container_cuid_123 ", "container_cuid_456"],
+    }),
+    "container_cuid_123",
+  );
+  assert.equal(normalizeInventorySelection({ containerId: "   " }), undefined);
 });
 
 test("inventory pallet status options keep loaded filter available", () => {
@@ -43,10 +78,6 @@ test("inventory pallet status options keep loaded filter available", () => {
   assert.equal(optionValues.includes("LOADED"), true);
   assert.equal(optionValues.includes("ADJUSTED_OUT"), true);
   assert.equal(optionValues.includes("UNLOADED"), false);
-  assert.equal(
-    inventoryReportHref({ status: "LOADED" }),
-    "/reports/inventory?status=LOADED",
-  );
 });
 
 test("active filter count ignores blank optional filters", () => {

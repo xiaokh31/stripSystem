@@ -118,7 +118,7 @@ test("lifecycle dock strip renders status lanes with counts and links", () => {
         {
           code: "LOADED",
           count: 1,
-          href: "/reports/inventory?status=LOADED",
+          href: "/inventory?status=LOADED",
           label: "Delivered to destination",
           tone: "warning",
         },

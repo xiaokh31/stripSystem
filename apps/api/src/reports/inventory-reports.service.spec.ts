@@ -157,6 +157,27 @@ describe('InventoryReportsService', () => {
     ]);
   });
 
+  it('keeps fully adjusted destinations in container detail for audit review', async () => {
+    containers[0].destinations[0].pallets.forEach((pallet) => {
+      pallet.status = 'ADJUSTED_OUT';
+    });
+
+    const summary = await service.containerDetailSummary('container-1', {});
+
+    expect(summary.destinations[0]).toEqual({
+      containerDestinationId: 'destination-1',
+      destinationCode: 'YYZ',
+      destinationType: 'AMAZON_FBA',
+      totalPallets: 3,
+      activeTotalPallets: 0,
+      loadedPallets: 0,
+      adjustedOutPallets: 3,
+      cancelledPallets: 0,
+      remainingPallets: 0,
+    });
+    expect(summary.adjustedOutPallets).toBe(3);
+  });
+
   it('supports destination and pallet status filters', async () => {
     const summary = await service.containerSummary({
       destinationCode: 'YYZ',

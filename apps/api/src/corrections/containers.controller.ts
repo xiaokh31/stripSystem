@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ContainerIndexService } from './container-index.service';
 import { CorrectionsService } from './corrections.service';
 import {
   ContainerCorrectionResponseDto,
@@ -9,13 +18,28 @@ import {
 import { CreateContainerDestinationDto } from './dto/create-container-destination.dto';
 import { CreateManualContainerDto } from './dto/create-manual-container.dto';
 import { UpdateContainerDto } from './dto/update-container.dto';
+import {
+  ContainerIndexListResponseDto,
+  ContainerIndexQueryDto,
+} from './dto/container-index.dto';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 
 @Controller('containers')
 export class ContainersController {
-  constructor(private readonly correctionsService: CorrectionsService) {}
+  constructor(
+    private readonly correctionsService: CorrectionsService,
+    private readonly containerIndexService: ContainerIndexService,
+  ) {}
+
+  @Get()
+  @RequirePermissions(...ROUTE_PERMISSIONS.containers.read)
+  listContainers(
+    @Query() query: ContainerIndexQueryDto,
+  ): Promise<ContainerIndexListResponseDto> {
+    return this.containerIndexService.list(query);
+  }
 
   @Post('manual')
   @RequirePermissions(...ROUTE_PERMISSIONS.containers.createManual)

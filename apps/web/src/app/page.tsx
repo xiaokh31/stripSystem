@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
 import {
   DashboardPanel,
   ExceptionList,
@@ -98,7 +97,6 @@ export default async function Home({
       className="office-main-content flex flex-1 flex-col gap-4 py-5"
       data-dashboard-page="true"
     >
-      <InventorySyncRefreshListener />
       <OpsHeader
         dashboard={dashboard}
         filters={filters}
@@ -393,7 +391,7 @@ function InventorySection({
   if (!inventory) {
     return (
       <UnavailablePanel
-        href="/reports/inventory"
+        href="/inventory"
         message={dashboardUnavailableMessage("inventory", locale)}
         locale={locale}
         title={t("Inventory pressure", locale)}
@@ -405,7 +403,7 @@ function InventorySection({
     <DashboardPanel
       actions={
         <LinkButton
-          href="/reports/inventory"
+          href="/inventory"
           label={t("Open inventory", locale)}
           tone="neutral"
         />
@@ -415,19 +413,19 @@ function InventorySection({
     >
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
-          href="/reports/inventory"
+          href="/inventory"
           label={t("Active pallets", locale)}
           tone="info"
           value={inventory.activeTotalPallets}
         />
         <MetricTile
-          href="/reports/inventory?status=LOADED"
+          href="/inventory?status=LOADED"
           label={t("Loaded pallets", locale)}
           tone="success"
           value={inventory.loadedPallets}
         />
         <MetricTile
-          href="/reports/inventory"
+          href="/inventory"
           label={t("Remaining pallets", locale)}
           tone={inventory.remainingPallets > 0 ? "warning" : "success"}
           value={inventory.remainingPallets}
@@ -482,7 +480,7 @@ function InventorySection({
           ))
         ) : (
           <EmptyAction
-            href="/reports/inventory"
+            href="/inventory"
             label={t("No destination inventory pressure", locale)}
             linkLabel={t("Open inventory", locale)}
           />
@@ -943,7 +941,7 @@ function workflowShortcuts(
 
   if (hasPermission(user, INVENTORY_READ_PERMISSION)) {
     shortcuts.push({
-      href: "/reports/inventory",
+      href: "/inventory",
       label: t("Open inventory", locale),
       tone: "neutral",
     });

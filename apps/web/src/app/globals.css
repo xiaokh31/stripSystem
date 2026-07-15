@@ -459,6 +459,21 @@ html:root option {
   max-width: 100%;
 }
 
+.inventory-operation-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-operation-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 1280px) {
+  .inventory-operation-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  }
+}
+
 @media (min-width: 640px) {
   .office-main-content {
     padding-inline: 1.5rem;

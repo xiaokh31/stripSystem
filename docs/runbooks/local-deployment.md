@@ -347,6 +347,90 @@ full stack through `http://nginx`. It mounts the final screenshots and trace out
 browser zoom. Review every generated image at original resolution before closing a
 visual regression.
 
+## Inventory Workspace Regression
+
+Run the dedicated inventory workflow after the full stack and E2E image are built:
+
+```bash
+export E2E_ADMIN_EMAIL='<local-admin-email>'
+export E2E_ADMIN_PASSWORD='<local-admin-password>'
+docker compose -f infra/docker/compose.local.yml up -d --build api web nginx
+docker compose -f infra/docker/compose.local.yml --profile e2e build e2e-web
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web web-ops-inventory.spec.ts --project=chromium
+```
+
+The spec creates a uniquely prefixed container, destination, pallets, and permission
+actors. It verifies a real destination-scoped inventory adjustment, audit events,
+cross-tab refresh, read-only and forbidden access, responsive layouts, and real 200%
+browser zoom. Its `finally` cleanup deletes only those exact database IDs and generated
+storage paths. Review all 24 PNG files and the mutation evidence JSON in
+`test-results/web-ops-03/`; verify no `WEBOPS03-` database/storage fixture remains.
+
+## Shared Container Suggestion Regression
+
+Run the focused WEB-OPS-06 contract after rebuilding the API, Web, nginx, and E2E
+images. Supply a disposable local administrator only through environment variables;
+do not put credentials in source, screenshots, or the report.
+
+```bash
+export E2E_ADMIN_EMAIL='<local-admin-email>'
+export E2E_ADMIN_PASSWORD='<local-admin-password>'
+docker compose -f infra/docker/compose.local.yml up -d --build api web nginx
+docker compose -f infra/docker/compose.local.yml --profile e2e build e2e-web
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web web-ops-container-search.spec.ts --project=chromium
+```
+
+The spec creates only uniquely prefixed containers and verifies deterministic
+exact/prefix/contains ranking through both suggestion endpoints, their minimal
+`containerId`/`containerNo` response shape, latest-query-wins race handling,
+error recovery, no-match state, keyboard and mouse selection, and removal of stale
+inventory identity after editing. It covers `/containers` and `/inventory` in
+en/zh-CN, light/dark, 390/768/1366/1920 viewports plus real Chromium 200% zoom.
+Review all 40 PNG files in `test-results/web-ops-06/` at original resolution. The
+spec resolves its exact unique container-number set to IDs and cleans those IDs in
+`finally`; before closure, confirm no container number containing the current spec's
+generated `W06<run-suffix>` and no disposable E2E administrator remain.
+
+## WEB-OPS Exit Gate
+
+Run the focused suites before the final exit gate. Playwright clears its configured
+output directory at the beginning of each invocation, so `web-ops-exit-gate.spec.ts`
+must be the last invocation when its screenshots and JSON evidence need to remain in
+`test-results/web-ops-05/`. Use a different Playwright `--output` directory for the
+clock performance run because that spec writes its retained measurements directly to
+`test-results/web-ops-04/clock-performance.json`.
+
+If `pnpm --filter web build` is executed with `docker compose exec` while `next start`
+is running, recreate `web` and `nginx` from the already-built image before browser
+testing. A running Next process holds its build manifest in memory while the command
+rewrites `.next`; testing that mixed runtime can otherwise return 404 for a new
+`layout-*.js` chunk even though compilation succeeded.
+
+```bash
+docker compose -f infra/docker/compose.local.yml exec -T web pnpm --filter web build
+docker compose -f infra/docker/compose.local.yml up -d --force-recreate web nginx
+docker compose -f infra/docker/compose.local.yml --profile e2e build e2e-web
+
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web dashboard.spec.ts locale-switch.spec.ts \
+  web-ops-container-detail.spec.ts web-ops-inventory.spec.ts \
+  web-ops-layout.spec.ts --project=chromium
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web web-ops-clock.spec.ts --project=chromium \
+  --output=/tmp/web-ops-clock-playwright-output
+docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
+  e2e-web web-ops-exit-gate.spec.ts --project=chromium
+```
+
+The final exit gate uses a uniquely prefixed container, destination, five pallets,
+OFFICE/read-only/no-inventory actors, exact SQL cleanup, and generated-file cleanup.
+It retains the full route/locale/theme/viewport/zoom/role screenshot matrix plus
+geometry, browser-diagnostic, and inventory-mutation JSON evidence. Credentials must
+only be supplied through environment variables or a dedicated one-time local seed;
+never write them to screenshots or reports.
+
 ## Unloading Report Print Regression
 
 Run the complete `Palletizing Standards` rich-text and print regression from the

@@ -13,6 +13,12 @@ export interface ContainerDestinationLifecycleRecord {
 export type ContainerStatusValue =
   (typeof ContainerStatus)[keyof typeof ContainerStatus];
 
+export interface ContainerLifecycleAggregate {
+  activePalletCount: number;
+  hasLoadingSignal: boolean;
+  loadedPalletCount: number;
+}
+
 const generationLockedStatuses = new Set<string>([
   ContainerStatus.UNLOADED,
   ContainerStatus.LOADING_IN_PROGRESS,
@@ -54,40 +60,43 @@ export function effectiveContainerStatus(
   status: string,
   destinations: ContainerDestinationLifecycleRecord[],
 ): string {
-  if (loadingAuthoritativeStatuses.has(status)) {
-    return status;
-  }
-
   const pallets = destinations.flatMap(
     (destination) => destination.pallets ?? [],
   );
-  if (pallets.length === 0) {
-    return status;
-  }
-
   const activePallets = pallets.filter(
     (pallet) =>
       pallet.status !== PalletStatus.CANCELLED &&
       pallet.status !== PalletStatus.ADJUSTED_OUT,
   );
-  if (activePallets.length === 0) {
-    return status;
-  }
-
   const loadedCount = activePallets.filter(
     (pallet) =>
       pallet.status === PalletStatus.LOADED || Boolean(pallet.loadedAt),
   ).length;
-  if (loadedCount >= activePallets.length) {
-    return ContainerStatus.LOADED;
-  }
-  if (
-    loadedCount > 0 ||
-    activePallets.some(
+
+  return effectiveContainerStatusFromAggregate(status, {
+    activePalletCount: activePallets.length,
+    hasLoadingSignal: activePallets.some(
       (pallet) =>
         pallet.status === PalletStatus.LOADING || Boolean(pallet.loadJobId),
-    )
-  ) {
+    ),
+    loadedPalletCount: loadedCount,
+  });
+}
+
+export function effectiveContainerStatusFromAggregate(
+  status: string,
+  aggregate: ContainerLifecycleAggregate,
+): string {
+  if (loadingAuthoritativeStatuses.has(status)) {
+    return status;
+  }
+  if (aggregate.activePalletCount <= 0) {
+    return status;
+  }
+  if (aggregate.loadedPalletCount >= aggregate.activePalletCount) {
+    return ContainerStatus.LOADED;
+  }
+  if (aggregate.loadedPalletCount > 0 || aggregate.hasLoadingSignal) {
     return ContainerStatus.LOADING_IN_PROGRESS;
   }
 

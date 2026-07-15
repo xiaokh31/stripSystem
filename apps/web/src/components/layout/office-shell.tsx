@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { StatusPill } from "@/components/dashboard";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
+import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
+import { OperationalClock } from "@/components/layout/operational-clock";
 import { ThemeControl } from "@/components/layout/theme-control";
 import type { AuthUserResponse } from "@/lib/api-client";
-import { formatOperationalDateTime, OPERATIONAL_TIME_ZONE_LABEL } from "@/lib/date-time";
+import { OPERATIONAL_TIME_ZONE_LABEL } from "@/lib/date-time";
 import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import type { ThemePreference } from "@/lib/theme";
 import { healthStatusLabel, roleDisplayLabel } from "@/lib/i18n/status-labels";
@@ -43,6 +45,11 @@ const navItems: PermissionAwareNavItem[] = [
     href: "/containers",
     label: "Containers",
     requiredPermissions: ["containers.read"],
+  },
+  {
+    href: "/inventory",
+    label: "Inventory",
+    requiredPermissions: [INVENTORY_READ_PERMISSION],
   },
   {
     href: "/load-jobs",
@@ -95,6 +102,7 @@ export function OfficeShell({
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      {currentUser ? <InventorySyncRefreshListener /> : null}
       {currentUser ? (
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-black/20 bg-[var(--dock-steel)] text-white lg:flex">
           <div className="border-b border-white/10 px-4 py-5">
@@ -176,6 +184,7 @@ function OperationalStatus({
   const { t } = createTranslator(locale);
   const apiTone = health.apiStatus === "ok" ? "success" : "warning";
   const databaseTone = health.databaseStatus === "up" ? "success" : "danger";
+  const initialClockIso = new Date().toISOString();
 
   return (
     <div className="hidden flex-wrap items-center gap-2 xl:flex">
@@ -183,9 +192,7 @@ function OperationalStatus({
         <p className="font-semibold text-zinc-300">
           {t("Operational time")}
         </p>
-        <p className="font-data mt-1" data-i18n-ignore="true">
-          {formatOperationalDateTime(new Date())}
-        </p>
+        <OperationalClock initialIso={initialClockIso} />
       </div>
       <div className="border border-white/10 bg-white/5 px-3 py-2 text-xs">
         <p className="font-semibold text-zinc-300">{t("Time zone")}</p>

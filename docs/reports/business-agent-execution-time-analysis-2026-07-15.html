@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Business Agent 执行时间分析 | 2026-07-15</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f4f6f7;
+        --surface: #ffffff;
+        --surface-alt: #eef2f3;
+        --ink: #182024;
+        --muted: #5b686e;
+        --line: #ccd5d8;
+        --teal: #087f78;
+        --teal-soft: #dff3f0;
+        --amber: #9a5b00;
+        --amber-soft: #fff1d2;
+        --red: #a33a31;
+        --red-soft: #fbe6e3;
+        --blue: #245d8b;
+        --blue-soft: #e3edf7;
+        --max: 1480px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      header {
+        border-bottom: 1px solid #24363c;
+        background: #13252b;
+        color: #f8fbfb;
+      }
+
+      .header-inner,
+      main {
+        width: min(calc(100% - 32px), var(--max));
+        margin: 0 auto;
+      }
+
+      .header-inner {
+        padding: 42px 0 34px;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: #79d7cf;
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 920px;
+        margin-bottom: 12px;
+        font-size: 46px;
+        line-height: 1.12;
+      }
+
+      .lede {
+        max-width: 940px;
+        margin-bottom: 0;
+        color: #c7d4d7;
+        font-size: 16px;
+      }
+
+      main {
+        padding: 28px 0 64px;
+      }
+
+      section {
+        margin-bottom: 26px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        padding: 24px;
+      }
+
+      h2 {
+        margin-bottom: 14px;
+        font-size: 23px;
+        line-height: 1.25;
+      }
+
+      h3 {
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+
+      .meta,
+      .small {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        border: 1px solid var(--line);
+        background: var(--line);
+      }
+
+      .metric {
+        min-width: 0;
+        background: var(--surface);
+        padding: 18px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--teal);
+        font-size: 27px;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .finding-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .finding {
+        border-left: 4px solid var(--blue);
+        background: var(--surface-alt);
+        padding: 16px 18px;
+      }
+
+      .finding.warn {
+        border-left-color: var(--amber);
+        background: var(--amber-soft);
+      }
+
+      .finding.risk {
+        border-left-color: var(--red);
+        background: var(--red-soft);
+      }
+
+      .finding.good {
+        border-left-color: var(--teal);
+        background: var(--teal-soft);
+      }
+
+      .finding p:last-child,
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+
+      .callout {
+        margin: 16px 0;
+        border-left: 4px solid var(--amber);
+        background: var(--amber-soft);
+        padding: 14px 16px;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+      }
+
+      table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+        background: var(--surface);
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--surface-alt);
+        color: #334047;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .status {
+        display: inline-block;
+        border: 1px solid var(--line);
+        padding: 2px 7px;
+        background: var(--surface-alt);
+        font-size: 11px;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+
+      .status.done {
+        border-color: #98cec8;
+        background: var(--teal-soft);
+        color: #075b56;
+      }
+
+      .status.external {
+        border-color: #e7c06f;
+        background: var(--amber-soft);
+        color: #704300;
+      }
+
+      .status.blocked,
+      .status.stale {
+        border-color: #dfaaa5;
+        background: var(--red-soft);
+        color: #7a2822;
+      }
+
+      .bar-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: minmax(180px, 280px) minmax(220px, 1fr) 92px;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .bar-track {
+        height: 13px;
+        border: 1px solid #b8c4c8;
+        background: #e8edef;
+      }
+
+      .bar-fill {
+        height: 100%;
+        background: var(--teal);
+      }
+
+      .bar-value {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+      }
+
+      code {
+        background: #e9eef0;
+        padding: 2px 5px;
+        color: #27353b;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      ol,
+      ul {
+        margin: 10px 0 0;
+        padding-left: 22px;
+      }
+
+      li + li {
+        margin-top: 7px;
+      }
+
+      .decision {
+        display: grid;
+        grid-template-columns: 160px minmax(0, 1fr);
+        gap: 10px 18px;
+        border-top: 1px solid var(--line);
+        padding: 12px 0;
+      }
+
+      .decision:first-of-type {
+        border-top: 0;
+      }
+
+      .decision strong {
+        color: #314047;
+      }
+
+      footer {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 920px) {
+        .metric-grid,
+        .finding-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .bar-row {
+          grid-template-columns: 1fr;
+          gap: 5px;
+        }
+
+        .bar-value {
+          text-align: left;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .header-inner,
+        main {
+          width: min(calc(100% - 20px), var(--max));
+        }
+
+        .header-inner {
+          padding: 30px 0 26px;
+        }
+
+        h1 {
+          font-size: 34px;
+        }
+
+        section {
+          padding: 18px;
+        }
+
+        .metric-grid,
+        .finding-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .decision {
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        header {
+          background: #fff;
+          color: #000;
+        }
+
+        .lede,
+        .eyebrow {
+          color: #333;
+        }
+
+        section {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <p class="eyebrow">Bestar Engineering Operations</p>
+        <h1>Business Agent 执行时间分析</h1>
+        <p class="lede">
+          基于 <code>.codex/business-agent-runs</code> 的实际 supervisor artifacts，解释任务时间花在哪里、哪些数字可精确复核，
+          以及后续任务如何在不降低测试、i18n、RBAC 和库存审计标准的前提下减少重复验证。
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section aria-labelledby="scope-title">
+        <h2 id="scope-title">结论先行</h2>
+        <div class="metric-grid">
+          <div class="metric">
+            <strong>11:26:29</strong>
+            <span>10 次有终态的受监督运行总 wall time</span>
+          </div>
+          <div class="metric">
+            <strong>7:06:06</strong>
+            <span>最近 6 个 Web 任务的有效运行时间</span>
+          </div>
+          <div class="metric">
+            <strong>1:05:48</strong>
+            <span>最近 6 个 Web 任务 wall time 中位数</span>
+          </div>
+          <div class="metric">
+            <strong>12:30</strong>
+            <span>WEB-OPS-05 一次中断后遗留运行的额外成本</span>
+          </div>
+          <div class="metric">
+            <strong>668</strong>
+            <span>最近 6 个 Web 任务已完成 command executions</span>
+          </div>
+          <div class="metric">
+            <strong>350</strong>
+            <span>最近 Web 视觉任务明确记录的最终截图数</span>
+          </div>
+          <div class="metric">
+            <strong>284.0M</strong>
+            <span>最近 6 个 Web 任务累计 input tokens</span>
+          </div>
+          <div class="metric">
+            <strong>96.3%</strong>
+            <span>其中 cached input tokens 比例</span>
+          </div>
+        </div>
+
+        <div class="callout">
+          <h3>核心判断</h3>
+          <p>
+            长耗时不是“Agent 停着不动”，也不是 Jest 或依赖安装主导。主要成本是：任务要求的全量质量门禁、实现过程中的
+            Docker/E2E 重建与重试、成倍扩张的视觉矩阵和逐图检查，以及长上下文在大量工具调用之间被模型反复处理。
+            Docker 缓存已经解决无源码变化时的依赖重装，但源码变化仍会触发应用 build。
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="where-title">
+        <h2 id="where-title">时间主要花在哪里</h2>
+        <div class="finding-grid">
+          <article class="finding warn">
+            <h3>1. 重复 build 与 E2E 调试循环</h3>
+            <p>
+              最近 6 个 Web 运行中，原始 command 字符串至少有 <strong>75</strong> 组包含 Compose build 或
+              <code>up --build</code>，有 <strong>113</strong> 组包含 E2E container、Playwright 或
+              <code>test:e2e</code>。这些是命令组次数，不是最后报告中的通过用例数。
+            </p>
+          </article>
+          <article class="finding warn">
+            <h3>2. 视觉矩阵和人工逐图检查</h3>
+            <p>
+              WEB-OPS-05 单独生成并检查 <strong>236</strong> 张 PNG。第 1 轮完成自动化并检查 100 张；第 2 轮继续检查
+              136 张，再更新 Task/索引/报告和执行清理。第 2 轮本身耗时 25 分 21 秒。
+            </p>
+          </article>
+          <article class="finding">
+            <h3>3. 模型上下文被反复处理</h3>
+            <p>
+              最近 6 个 Web 任务累计 284.0M input tokens，其中 273.4M 命中 cache；仍产生 468,778 output tokens 和
+              145,172 reasoning tokens。一个 supervisor turn 可以包含 174 次命令，并不等于一次模型推理。
+            </p>
+          </article>
+          <article class="finding risk">
+            <h3>4. 连接重试与重复运行</h3>
+            <p>
+              最近 6 个 Web 任务记录 15 个 transport reconnect/fallback 事件，WEB-OPS-05 的有效运行占 13 个；此前还有
+              一次运行执行 24 个命令、持续 12 分 30 秒后未写终态，随后从新 supervisor run 重新接管。
+            </p>
+          </article>
+          <article class="finding good">
+            <h3>5. 依赖缓存不是当前主问题</h3>
+            <p>
+              DOCKER-CACHE-01 实测无源码变化 warm build 为 5.88 秒、服务 recreate 为 15.07 秒。临时源码变化 probe 为
+              114.51 秒，说明依赖层已缓存，但 Next/API/E2E 的应用源码和 build layer 仍会因代码修改重跑。
+            </p>
+          </article>
+          <article class="finding">
+            <h3>6. 任务本身是“实现 + 完整关闭”</h3>
+            <p>
+              任务不只写代码，还要求 lint、typecheck、unit、API E2E、production build、Chromium、RBAC、双语、主题、多个
+              viewport/zoom、真实 fixture、数据清理、截图检查、Task/索引/完成度报告更新。这些都计入同一个 wall time。
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="recent-title">
+        <h2 id="recent-title">最近 Web 任务：原始执行强度</h2>
+        <p class="meta">
+          “Build 命令组”和“E2E 命令组”由已完成 command 的命令字符串匹配得出；一个命令组可能包含多个 Compose 子命令。
+          “非零”包含真正失败，也包含预期无匹配、故障探针等诊断性退出，不能直接等同缺陷数。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th class="num">Wall time</th>
+                <th class="num">Commands</th>
+                <th class="num">File changes</th>
+                <th class="num">非零命令</th>
+                <th class="num">Build 命令组</th>
+                <th class="num">E2E 命令组</th>
+                <th class="num">最终截图</th>
+                <th>已知长步骤</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>WEB-DASHBOARD-06</td>
+                <td class="num">1:59:57</td>
+                <td class="num">174</td>
+                <td class="num">22</td>
+                <td class="num">23</td>
+                <td class="num">20</td>
+                <td class="num">48</td>
+                <td class="num">44</td>
+                <td>多轮 Dock Lane、浏览器真 zoom、before/after E2E 与逐图复核</td>
+              </tr>
+              <tr>
+                <td>WEB-OPS-01</td>
+                <td class="num">1:02:10</td>
+                <td class="num">121</td>
+                <td class="num">20</td>
+                <td class="num">17</td>
+                <td class="num">15</td>
+                <td class="num">15</td>
+                <td class="num">22</td>
+                <td>最终 focused Chromium 1.3 分钟，另有宽屏/200% zoom 迭代</td>
+              </tr>
+              <tr>
+                <td>WEB-OPS-02</td>
+                <td class="num">0:22:11</td>
+                <td class="num">52</td>
+                <td class="num">8</td>
+                <td class="num">10</td>
+                <td class="num">6</td>
+                <td class="num">5</td>
+                <td class="num">24</td>
+                <td>本组最快：范围集中，复用了已有库存/工资组件和测试</td>
+              </tr>
+              <tr>
+                <td>WEB-OPS-03</td>
+                <td class="num">1:07:00</td>
+                <td class="num">133</td>
+                <td class="num">44</td>
+                <td class="num">18</td>
+                <td class="num">19</td>
+                <td class="num">13</td>
+                <td class="num">24</td>
+                <td>API/Web 全套、临时权限账号、真实 mutation/audit、跨标签和清理</td>
+              </tr>
+              <tr>
+                <td>WEB-OPS-04</td>
+                <td class="num">1:04:36</td>
+                <td class="num">87</td>
+                <td class="num">18</td>
+                <td class="num">20</td>
+                <td class="num">13</td>
+                <td class="num">15</td>
+                <td class="num">0</td>
+                <td>最终性能 E2E 约 6.3 分钟，含两个连续 60 秒动态窗口</td>
+              </tr>
+              <tr>
+                <td>WEB-OPS-05</td>
+                <td class="num">1:30:12</td>
+                <td class="num">101</td>
+                <td class="num">18</td>
+                <td class="num">9</td>
+                <td class="num">2</td>
+                <td class="num">17</td>
+                <td class="num">236</td>
+                <td>clock 6.2 分钟 + exit gate 4.4 分钟 + 236 张原图逐张检查</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="wall-title">
+        <h2 id="wall-title">每次 supervisor 运行的 wall time</h2>
+        <div class="bar-list" aria-label="Supervisor run wall time comparison">
+          <div class="bar-row">
+            <span>DOCKER-CACHE-01</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 36.1%"></div></div>
+            <span class="bar-value">0:43:16</span>
+          </div>
+          <div class="bar-row">
+            <span>UNLOAD-PALLET-10</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 99.3%"></div></div>
+            <span class="bar-value">1:59:03</span>
+          </div>
+          <div class="bar-row">
+            <span>UNLOAD-REPORT-01 / run 1</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 46.3%"></div></div>
+            <span class="bar-value">0:55:34</span>
+          </div>
+          <div class="bar-row">
+            <span>UNLOAD-REPORT-01 / run 2</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 35.4%"></div></div>
+            <span class="bar-value">0:42:30</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-DASHBOARD-06</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+            <span class="bar-value">1:59:57</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-01</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 51.8%"></div></div>
+            <span class="bar-value">1:02:10</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-02</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 18.5%"></div></div>
+            <span class="bar-value">0:22:11</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-03</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 55.9%"></div></div>
+            <span class="bar-value">1:07:00</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-04</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 53.9%"></div></div>
+            <span class="bar-value">1:04:36</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-05 / abandoned</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 10.4%; background: var(--red)"></div></div>
+            <span class="bar-value">0:12:30</span>
+          </div>
+          <div class="bar-row">
+            <span>WEB-OPS-05 / terminal</span>
+            <div class="bar-track"><div class="bar-fill" style="width: 75.2%"></div></div>
+            <span class="bar-value">1:30:12</span>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="all-runs-title">
+        <h2 id="all-runs-title">完整运行明细</h2>
+        <p class="meta">
+          时间由 run directory UTC timestamp 到 <code>state.json.updated_at</code> 计算。中断的 WEB-OPS-05 没有终态更新时间，
+          使用最后一个 events file mtime，标记为近似下限。Token 是 Codex <code>turn.completed.usage</code> 的累计值。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Run / Task</th>
+                <th>Status</th>
+                <th class="num">Wall</th>
+                <th class="num">Cmd</th>
+                <th class="num">Changes</th>
+                <th class="num">非零</th>
+                <th class="num">Input</th>
+                <th class="num">Cache</th>
+                <th class="num">Output</th>
+                <th class="num">Reasoning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>20260713T080447Z / DOCKER-CACHE-01</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">0:43:16</td>
+                <td class="num">110</td>
+                <td class="num">16</td>
+                <td class="num">11</td>
+                <td class="num">22.10M</td>
+                <td class="num">97.7%</td>
+                <td class="num">54.3K</td>
+                <td class="num">20.0K</td>
+              </tr>
+              <tr>
+                <td>20260713T085346Z / UNLOAD-PALLET-10</td>
+                <td><span class="status external">EXTERNAL</span></td>
+                <td class="num">1:59:03</td>
+                <td class="num">205</td>
+                <td class="num">29</td>
+                <td class="num">30</td>
+                <td class="num">75.12M</td>
+                <td class="num">97.3%</td>
+                <td class="num">119.6K</td>
+                <td class="num">38.0K</td>
+              </tr>
+              <tr>
+                <td>20260713T163805Z / UNLOAD-REPORT-01</td>
+                <td><span class="status blocked">BLOCKED</span></td>
+                <td class="num">0:55:34</td>
+                <td class="num">62</td>
+                <td class="num">20</td>
+                <td class="num">10</td>
+                <td class="num">35.05M</td>
+                <td class="num">96.1%</td>
+                <td class="num">74.0K</td>
+                <td class="num">22.9K</td>
+              </tr>
+              <tr>
+                <td>20260714T043316Z / UNLOAD-REPORT-01</td>
+                <td><span class="status external">EXTERNAL</span></td>
+                <td class="num">0:42:30</td>
+                <td class="num">75</td>
+                <td class="num">20</td>
+                <td class="num">11</td>
+                <td class="num">27.84M</td>
+                <td class="num">95.6%</td>
+                <td class="num">61.8K</td>
+                <td class="num">18.3K</td>
+              </tr>
+              <tr>
+                <td>20260714T053534Z / WEB-DASHBOARD-06</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">1:59:57</td>
+                <td class="num">174</td>
+                <td class="num">22</td>
+                <td class="num">23</td>
+                <td class="num">52.35M</td>
+                <td class="num">94.4%</td>
+                <td class="num">105.6K</td>
+                <td class="num">38.4K</td>
+              </tr>
+              <tr>
+                <td>20260714T074331Z / WEB-OPS-01</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">1:02:10</td>
+                <td class="num">121</td>
+                <td class="num">20</td>
+                <td class="num">17</td>
+                <td class="num">35.96M</td>
+                <td class="num">97.1%</td>
+                <td class="num">65.6K</td>
+                <td class="num">19.5K</td>
+              </tr>
+              <tr>
+                <td>20260714T161714Z / WEB-OPS-02</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">0:22:11</td>
+                <td class="num">52</td>
+                <td class="num">8</td>
+                <td class="num">10</td>
+                <td class="num">12.66M</td>
+                <td class="num">96.6%</td>
+                <td class="num">29.9K</td>
+                <td class="num">8.7K</td>
+              </tr>
+              <tr>
+                <td>20260715T032909Z / WEB-OPS-03</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">1:07:00</td>
+                <td class="num">133</td>
+                <td class="num">44</td>
+                <td class="num">18</td>
+                <td class="num">46.61M</td>
+                <td class="num">97.1%</td>
+                <td class="num">85.5K</td>
+                <td class="num">24.2K</td>
+              </tr>
+              <tr>
+                <td>20260715T044101Z / WEB-OPS-04</td>
+                <td><span class="status done">DONE</span></td>
+                <td class="num">1:04:36</td>
+                <td class="num">87</td>
+                <td class="num">18</td>
+                <td class="num">20</td>
+                <td class="num">47.27M</td>
+                <td class="num">99.0%</td>
+                <td class="num">75.4K</td>
+                <td class="num">25.5K</td>
+              </tr>
+              <tr>
+                <td>20260715T055234Z / WEB-OPS-05</td>
+                <td><span class="status stale">STALE RUN</span></td>
+                <td class="num">~0:12:30</td>
+                <td class="num">24</td>
+                <td class="num">3</td>
+                <td class="num">5</td>
+                <td class="num">n/a</td>
+                <td class="num">n/a</td>
+                <td class="num">n/a</td>
+                <td class="num">n/a</td>
+              </tr>
+              <tr>
+                <td>20260715T061320Z / WEB-OPS-05</td>
+                <td><span class="status done">DONE / 2 turns</span></td>
+                <td class="num">1:30:12</td>
+                <td class="num">101</td>
+                <td class="num">18</td>
+                <td class="num">9</td>
+                <td class="num">89.11M</td>
+                <td class="num">95.2%</td>
+                <td class="num">106.8K</td>
+                <td class="num">28.8K</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="precision-title">
+        <h2 id="precision-title">哪些是精确数据，哪些只能推断</h2>
+        <div class="decision">
+          <strong>可以精确复核</strong>
+          <span>
+            Task/run 开始与终态时间、commands/file changes 数、exit code、transport errors、turn 数、token usage、最终结果中列出的
+            tests 和 screenshot 数量。
+          </span>
+        </div>
+        <div class="decision">
+          <strong>当前无法精确分摊</strong>
+          <span>
+            每条命令到底运行多少秒、模型每次推理等待多少秒、人工查看每张图多少秒。现有 events JSONL 没有事件时间戳或
+            command duration，supervisor 只记录 turn 起止。
+          </span>
+        </div>
+        <div class="decision">
+          <strong>有证据的推断</strong>
+          <span>
+            反复出现的 build/E2E command groups、最终任务报告中的显式测试时长、逐图检查点和高 token 累积共同证明，验证重试、
+            视觉检查与模型工具循环是主要耗时来源。
+          </span>
+        </div>
+        <div class="decision">
+          <strong>模型配置边界</strong>
+          <span>
+            审计时全局配置为 <code>gpt-5.6-sol</code> + <code>model_reasoning_effort = "high"</code>。run artifact 没有保存
+            当时的 model/effort，因此不能把历史运行全部精确归因于 xhigh；但高推理模型会放大长上下文和大量工具回合的时间。
+          </span>
+        </div>
+      </section>
+
+      <section aria-labelledby="action-title">
+        <h2 id="action-title">针对性改进</h2>
+        <ol>
+          <li>
+            新需求拆为 WEB-OPS-06/07/08 三个垂直任务，再用 WEB-OPS-09 一次关闭。每个功能任务先 focused test，源码稳定后只做
+            一次 full suite/build，避免每个小改动重复全栈重建。
+          </li>
+          <li>
+            WEB-OPS-09 使用受影响页面的 pairwise locale/theme/viewport/role 组合，最终截图建议不超过 36 张；自动几何、DOM、
+            i18n 和行为断言继续完整，不再用 236 张笛卡尔积截图替代测试。
+          </li>
+          <li>
+            最终任务结果除 `1/1 passed` 外，必须报告 wall time、build-bearing command groups、E2E attempts 和重试根因，直接暴露过程成本。
+          </li>
+          <li>
+            保持现有 Docker dependency cache。无源码变化复用镜像；源码变化后先在运行容器做 focused checks，再在最终阶段重建 production/E2E image。
+          </li>
+          <li>
+            常规 UI、i18n 和已有模式扩展使用 Sol high 即可；xhigh 只用于跨模块架构、难复现并发或复杂生成物诊断。切换前应先记录任务基线，
+            否则无法证明模型调整带来的收益。
+          </li>
+          <li>
+            后续应给 supervisor events 增加 ISO timestamp、command start/end/duration、category、build cache result、E2E attempt 和 screenshot review count。
+            在此之前，任何“某类耗时占 37%”之类的精确比例都没有数据基础。
+          </li>
+        </ol>
+
+        <div class="callout">
+          <h3>新需求执行顺序</h3>
+          <p>
+            <code>WEB-OPS-06</code> 共享模糊搜索 -> <code>WEB-OPS-07</code> 柜子创建时间与稳定排序 ->
+            <code>WEB-OPS-08</code> 库存分页/排序/自适应布局 -> <code>WEB-OPS-09</code> i18n、可访问性、视觉与业务关闭门禁。
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="source-title">
+        <h2 id="source-title">数据来源与复核方法</h2>
+        <ul>
+          <li><code>.codex/business-agent-runs/*/state.json</code>：任务、终态、turn、更新时间。</li>
+          <li><code>.codex/business-agent-runs/*/turn-*-events.jsonl</code>：命令、文件变更、exit code、错误和 token usage。</li>
+          <li><code>.codex/business-agent-runs/*/turn-*-result.json</code>：最终 tests、截图、剩余工作和任务结论。</li>
+          <li><code>docs/reports/docker-cache-verification-2026-07-13.md</code>：cold/warm/source-change build 实测。</li>
+          <li><code>.codex/business-agent.config.toml</code>、<code>scripts/run-business-task.sh</code>：supervisor/profile 行为。</li>
+        </ul>
+        <p class="small">
+          快照截止：2026-07-15 01:43:32 America/Edmonton。报告不包含 secrets、测试账号密码或业务数据内容。
+        </p>
+      </section>
+
+      <footer>
+        Generated from local supervised-run artifacts. Static report; no external JavaScript or network resources.
+      </footer>
+    </main>
+  </body>
+</html>

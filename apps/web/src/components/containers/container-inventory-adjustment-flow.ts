@@ -93,6 +93,22 @@ export function buildManualInventoryDepletionRequest(
   };
 }
 
+export function expectedManualInventoryRemaining(
+  remainingPallets: number,
+  countDraft: string,
+): number | null {
+  const count = Number(countDraft);
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 1 ||
+    count > remainingPallets
+  ) {
+    return null;
+  }
+
+  return remainingPallets - count;
+}
+
 export function manualInventoryAdjustmentErrorMessage(
   errorCode: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,

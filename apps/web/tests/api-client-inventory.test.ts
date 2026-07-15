@@ -9,8 +9,30 @@ import {
   getPublicApiBaseUrl,
   getContainerInventorySummary,
   getDestinationInventory,
+  listContainers,
+  listContainerSuggestions,
   listInventoryAdjustments,
 } from "../src/lib/api-client";
+
+test("container index client uses the containers.read list contract and stable sort query", async () => {
+  const requests: string[] = [];
+  const fetcher: typeof fetch = async (input) => {
+    requests.push(input instanceof Request ? input.url : String(input));
+    return new Response(JSON.stringify({ items: [] }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+
+  await listContainers(
+    { containerNo: "AB 12", direction: "asc", sort: "status" },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+
+  assert.deepEqual(requests, [
+    "http://api.local/api/containers?direction=asc&sort=status&containerNo=AB+12",
+  ]);
+});
 
 test("inventory API client sends filters to report endpoints", async () => {
   const requests: string[] = [];
@@ -40,6 +62,39 @@ test("inventory API client sends filters to report endpoints", async () => {
     "http://api.local/api/reports/container-summary?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
     "http://api.local/api/reports/inventory?status=LOADED",
   ]);
+});
+
+test("shared container suggestion client uses each permission-specific endpoint and forwards cancellation", async () => {
+  const requests: Array<{ signal: AbortSignal | null | undefined; url: string }> = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    requests.push({
+      signal: init?.signal,
+      url: input instanceof Request ? input.url : String(input),
+    });
+    return new Response(JSON.stringify({ items: [] }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+  const controller = new AbortController();
+  const options = { baseUrl: "http://api.local/api", fetcher };
+
+  await listContainerSuggestions(
+    " csnu ",
+    "containers",
+    { signal: controller.signal },
+    options,
+  );
+  await listContainerSuggestions("8877", "inventory", {}, options);
+
+  assert.equal(requests[0]?.signal, controller.signal);
+  assert.deepEqual(
+    requests.map(({ url }) => url),
+    [
+      "http://api.local/api/containers/suggestions?limit=10&query=csnu",
+      "http://api.local/api/inventory/container-suggestions?limit=10&query=8877",
+    ],
+  );
 });
 
 test("inventory adjustment API client uses destination-scoped API routes", async () => {

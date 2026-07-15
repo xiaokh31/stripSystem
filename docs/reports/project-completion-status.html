@@ -208,7 +208,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-11</p>
+        <p class="small">Generated: 2026-07-15</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -1307,6 +1307,41 @@
               <td>24 张 en/zh-CN、light/dark、390/768/1366/1920/2560 和真实 200% zoom 截图位于 <code>test-results/web-ops-02/</code>；长柜号、长目的仓、English 按钮、折叠摘要、单语/hydration 和页面 overflow 门禁通过。下一任务为 WEB-OPS-03。</td>
             </tr>
             <tr>
+              <td>WEB-OPS-03 Dedicated Inventory Workspace and Destination Depletion</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Canonical Inventory Workspace / Audited Depletion / Docker Chromium Complete</td>
+              <td>新增顶层 <code>/inventory</code> 菜单与高密度工作区，Dashboard、Reports 和快捷入口统一指向 canonical route；旧 <code>/reports/inventory</code> 永久重定向并保留 filters/selection。页面以稳定 containerId 选择柜子，显示 destinationId、后端库存计数和调整历史，并复用既有 permissioned adjustment API/组件完成理由必填的人工消库存；成功后通过全局 inventory sync listener 刷新库存页、Dashboard 和柜子详情。现有 container detail summary 保留完全 ADJUSTED_OUT 的历史目的仓，全局 active aggregate 语义、endpoint、schema 和 migration 均未改变。真实夹具从 active/remaining 3/3 变为 2/2，adjusted 0→1，loaded 保持 0；audit actor、reason、note、pallet eventId 和 LABEL_PRINTED→ADJUSTED_OUT 均已验证。</td>
+              <td>Docker API lint/typecheck、221 unit、92 E2E；Web lint/typecheck、197 unit、production build；focused Chromium 1/1、full-stack healthcheck 和 git diff check 通过。24 张 en/zh-CN、light/dark、390/768/1366/1920/2560、真实 200% zoom 截图与 mutation JSON 位于 <code>test-results/web-ops-03/</code>；精确清理后 WEBOPS03 container/user/role/storage 残留均为 0。下一任务为 WEB-OPS-04。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-04 Efficient Live Operational Clock</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Isolated Live Clock / Fixed Runtime State / Docker Chromium Complete</td>
+              <td>Server OfficeShell 仅输出初始 ISO，最小 Client clock leaf 以单个 self-correcting timeout 每秒读取 Date.now() 并对齐真实秒边界；module-level Intl formatter cache 保留 America/Edmonton 动态 MDT/MST。visibilitychange、1280px breakpoint 与 unmount 均停止/清理 timer 和 listener；time 提供 dateTime、无 aria-live、无业务 API polling。主题、路由、en/zh-CN reload 后仍只有一个 clock，首帧无 hydration 或混语错误。</td>
+              <td>Docker Web lint/typecheck、204 unit、production build、Chromium 2/2（6.3 分钟）、healthcheck 与 diff check 通过。两段连续 60 秒窗口各 60 次 leaf update，timer 1、listener 2、non-clock header mutation 0；GC heap 从 warm-up +161,348 B 收敛至第二窗口 +1,912 B，nodes/documents 恒定。hidden/390/768 各 60 秒零 tick，完整报告见 <code>docs/reports/web-ops-04-operational-clock-performance.md</code>；WEB-OPS-05 最终门禁亦已关闭。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-05 I18n Visual and Performance Exit Gate</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WEB-OPS 01-05 / I18n / RBAC / Inventory Transaction / Performance Exit Gate Complete</td>
+              <td>WEB-OPS-01 至 04 与 WEB-DASHBOARD-05/06 已在同一 Docker full-stack 门禁中兼容通过。API lint/typecheck、26 suites / 221 unit、15 suites / 92 E2E；Web lint/typecheck、204 unit、production build；既有 focused Chromium 8/8、clock 2/2、最终 exit gate 1/1、healthcheck 与 diff check 均通过。6 route × en/zh-CN × light/dark × 390/768/1366/1920/2560/2880、desktop 125%/200% 真缩放以及 ADMIN/OFFICE/read-only/no-inventory 权限矩阵完成。236 张 PNG 已用图片工具按原始分辨率逐张检查，168 条 geometry 证明宽屏 main 精确 2048px、document overflow 为 0；browser/page/hydration/server error 为 0。库存 remaining 5→4→3、adjusted 0→1→2、loaded 恒为 0，并发同 pallet 为 201/409，真实 actor/reason/note/eventId audit 通过。两段 60 秒时钟窗口各 60 次 leaf update，timer 1、listener 2、non-clock header mutation 0，第二窗口 heap 增量仅 1,924 B。最终 WEBOPS05 container/user/role/generated file/adjustment/storage 残留均为 0；证据位于 <code>test-results/web-ops-05/</code>，无 schema/migration 变更，无已知 WEB-OPS 关闭门禁限制。</td>
+              <td>WEB-OPS-01 至 05 的退出门禁已关闭；后续新增优化按任务索引执行，WEB-OPS-06 已完成，下一任务为 WEB-OPS-07。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-06 Shared Container Fuzzy Search and Suggestion Contract</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Database-backed Suggestions / Independent RBAC / Accessible Shared Combobox Complete</td>
+              <td>新增共享数据库查询 service 与 <code>/api/containers/suggestions</code>（<code>containers.read</code>）、<code>/api/inventory/container-suggestions</code>（<code>inventory.read</code>）两个独立权限 contract。只读取 container id/no，执行 escaped case-insensitive substring candidate query，并按 exact、prefix、contains、containerNo、id 稳定排序；默认 10、上限 20、空白 query 零数据库调用。Web 两页共享 250ms debounce、abort/sequence latest-wins、键盘/鼠标、loading/empty/localized error 和标准 combobox/listbox 语义；Escape/Tab/点击外关闭会取消 pending work，late response 不会重开。柜子页稳定 id 直达详情，库存页 URL 保存 id 且编辑立即清除旧 identity，no-JS/free-text 路径保留。API lint/typecheck、28 suites / 225 unit、focused E2E 2/2；Web lint/typecheck、213 unit、production build、Chromium 1/1；Prisma 22 migrations、healthcheck 和 diff check 通过。</td>
+              <td>40 张 en/zh-CN、light/dark、390/768/1366/1920 和真实 200% zoom PNG 位于 <code>test-results/web-ops-06/</code>，原分辨率复核无混语、遮挡或 overflow；精确清理后临时 user/container 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-06-container-suggestion-verification.md</code>。下一任务为 WEB-OPS-07，本会话不启动。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-07 Container Index Created Time and Stable Sorting</td>
+              <td><span class="badge done">Done</span></td>
+              <td>All-container Index / Persisted Created Time / Stable Lifecycle Sorting Complete</td>
+              <td>新增只要求 <code>containers.read</code> 的 <code>GET /api/containers</code>，以单条参数化 PostgreSQL LEFT JOIN/GROUP BY 查询返回全部真实柜子、ISO createdAt、effective status 和 raw pallet counts；无 N+1，不依赖 active inventory，也不向 Web 发送 pallet rows。createdAt/containerNo/status 与 asc/desc 均有稳定 comparator/tie-break，默认 createdAt desc，非法 API query 返回 400、非法 Web URL 回退默认。页面显示 locale/timezone 创建时间，search/sort/direction 写入 URL，并在刷新、详情返回、语言和主题切换后保持；typed 双语、tooltip/aria-label、aria-current、aria-sort 和表格局部滚动完成。API lint/typecheck、31 suites / 237 unit、focused E2E 2 suites / 5 tests、build；Web lint/typecheck、218 unit、production build、Chromium 1/1、healthcheck 和 diff check 通过。</td>
+              <td>真实 fixture 覆盖 active、全 loaded、全 adjusted、全 cancelled、无 pallet 五种柜子并证明六种排序。5 张 en/zh-CN、light/dark、390/1366/1920 与真实 200% zoom PNG 位于 <code>test-results/web-ops-07/</code>，原分辨率复核无混语、重叠或页面级 overflow；fixture container/admin 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-07-container-index-verification.md</code>。下一任务为 WEB-OPS-08，本会话不启动。</td>
+            </tr>
+            <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
               <td><span class="badge partial">Partial</span></td>
               <td>API and Native Source Implementation Present; Device Gate Pending</td>
@@ -1426,8 +1461,8 @@
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 已完成所有 authenticated office routes 的具名 2048px workspace，WEB-OPS-02 已完成柜子详情 destination-first DOM/权限/交互和全宽度 Docker Chromium 回归。</td>
-              <td>Dashboard redesign、lifecycle English layout、2048px office workspace 与柜子详情 destination-first 层级均已关闭；后续按任务索引进入 WEB-OPS-03。</td>
+              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 已补齐两个独立 RBAC endpoint 共用的数据库柜号模糊联想与稳定 identity combobox。</td>
+              <td>Dashboard redesign 与 WEB-OPS-01 至 06 已关闭；后续按任务索引执行 WEB-OPS-07 至 09，不重复启动已完成任务。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>

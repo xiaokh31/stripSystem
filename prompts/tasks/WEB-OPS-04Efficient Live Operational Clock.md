@@ -108,3 +108,18 @@ git diff --check
 - 列出 timer 生命周期、render 边界、formatter cache、hidden/narrow pause 证据。
 - 列出 CDP/heap 测量摘要、双语/主题/route E2E 和已知限制。
 - 更新任务索引、完成度报告和性能评估文档。
+
+## 完成证据（2026-07-14）
+
+- `OfficeShell` 保持 Server Component，动态值仅进入 `OperationalClock` Client leaf；初始 ISO 同时驱动 SSR 与 hydration，
+  `<time dateTime>` 可机器读取，未添加 clock-level hydration suppression 或 `aria-live`。
+- 单个 self-correcting timeout 每 tick 读取 `Date.now()`；`visibilitychange`、1280px media query 和 timer 均成对 cleanup，
+  unmount cleanup 不触发 callback 或 state update；formatter 采用 module-level lazy cache。
+- Docker Web lint、typecheck、204/204 unit、production build 通过。Chromium functional/performance spec 2/2 通过（6.3 分钟）：
+  静态基线 timer 0；两个连续 60 秒动态窗口各 60 次 leaf update、timer 1、listener 2、non-clock header mutation 0；
+  hidden、390px、768px 各 60 秒均为 0 tick，恢复只即时校时一次。
+- CDP GC heap：动态窗口 1 为 `+161,348 B` warm-up，窗口 2 为 `+1,912 B`；nodes/documents 恒为 2354/2，
+  没有随 tick 增长的 timer/listener/DOM/shell mutation。完整方法、CPU 数据和限制见
+  `docs/reports/web-ops-04-operational-clock-performance.md`。
+- en/zh-CN、light/dark、route/reload 保持单一 clock 与固定 Edmonton timezone；2.2 秒 tick 请求观察没有业务 API polling，
+  无 hydration/console/page error。下一任务为 `WEB-OPS-05I18n Visual and Performance Exit Gate.md`，本次未启动。
