@@ -217,17 +217,24 @@ export default async function ContainerDetailPage({
         </section>
       ) : null}
 
+      <ContainerStatusControl
+        containerId={state.container.id}
+        currentStatus={state.container.status}
+      />
+
+      <ContainerDestinationCorrections
+        containerId={state.container.id}
+        containerStatus={state.container.status}
+        destinations={state.container.destinations}
+        key={destinationIdsVersion(state.container.destinations)}
+      />
+
       <ContainerUnloadingWagePanel
         canEdit={canEditUnloadingWage}
         container={state.container}
         key={unloadingWageVersion(state.container)}
         workerOptions={workerDirectory.items}
         workerOptionsError={workerDirectory.error}
-      />
-
-      <ContainerStatusControl
-        containerId={state.container.id}
-        currentStatus={state.container.status}
       />
 
       {inventoryAdjustmentState ? (
@@ -259,13 +266,6 @@ export default async function ContainerDetailPage({
           initialFiles={state.files}
         />
       )}
-
-      <ContainerDestinationCorrections
-        containerId={state.container.id}
-        containerStatus={state.container.status}
-        destinations={state.container.destinations}
-        key={destinationIdsVersion(state.container.destinations)}
-      />
     </main>
   );
 }

@@ -1300,6 +1300,13 @@
               <td>22 张 en/zh-CN、light/dark、390-2880px、真实 200% zoom、login/mobile compact 与关键业务页截图及 geometry JSON 位于 <code>test-results/web-ops-01/</code>，已逐张检查且无已知布局限制；下一任务为 WEB-OPS-02。</td>
             </tr>
             <tr>
+              <td>WEB-OPS-02 Container Detail Destination-First Section Order</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Destination-first DOM / Permissions / Docker Chromium Complete</td>
+              <td>柜子详情真实 DOM、heading、视觉和键盘 source order 已调整为“状态操作 → 目的仓 → 拆柜工资 → 目的仓库存 → 报告和面单”，未使用 CSS order。工资完成态自动收缩、手动展开、worker selector 和未保存 draft 保留；库存一次确认式 adjustment、API refresh、审计历史以及 adjust/read-only/no-read 三权限分支通过。loader 调用点保持单一，库存 summary/history 继续并发，未改 API、数据库或 source of truth。Docker production/显式 build、lint、typecheck、193 unit、focused Chromium 1/1 与 full-stack healthcheck 通过。</td>
+              <td>24 张 en/zh-CN、light/dark、390/768/1366/1920/2560 和真实 200% zoom 截图位于 <code>test-results/web-ops-02/</code>；长柜号、长目的仓、English 按钮、折叠摘要、单语/hydration 和页面 overflow 门禁通过。下一任务为 WEB-OPS-03。</td>
+            </tr>
+            <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
               <td><span class="badge partial">Partial</span></td>
               <td>API and Native Source Implementation Present; Device Gate Pending</td>
@@ -1419,8 +1426,8 @@
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 已完成所有 authenticated office routes 的具名 2048px workspace 和全宽度 Docker Chromium 回归。</td>
-              <td>Dashboard redesign、lifecycle English layout 与 2048px office workspace 均已关闭；后续按任务索引进入 WEB-OPS-02。</td>
+              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 已完成所有 authenticated office routes 的具名 2048px workspace，WEB-OPS-02 已完成柜子详情 destination-first DOM/权限/交互和全宽度 Docker Chromium 回归。</td>
+              <td>Dashboard redesign、lifecycle English layout、2048px office workspace 与柜子详情 destination-first 层级均已关闭；后续按任务索引进入 WEB-OPS-03。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>

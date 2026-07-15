@@ -117,10 +117,14 @@
 ### A. 当前开发机立即执行
 
 `WEB-DASHBOARD-06` 已通过并用同一证据关闭 `WEB-DASHBOARD-05`；`WEB-OPS-01` 已完成具名 2048px
-workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁。不要为这些任务重复开会话。
+workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁；`WEB-OPS-02` 已完成柜子详情
+destination-first DOM/视觉顺序与权限/交互/双语视觉回归。不要为这些任务重复开会话；下一任务是 `WEB-OPS-03`。
 
 1. `WEB-OPS-02Container Detail Destination First Section Order.md`
-   - 柜子详情按真实 DOM 顺序调整为“目的仓 -> 拆柜工资 -> 目的仓库存”，保留状态、权限和交互行为。
+   - 已完成。柜子详情真实 DOM/视觉/heading 顺序为“状态操作 -> 目的仓 -> 拆柜工资 -> 目的仓库存 -> 生成文件”；
+     工资完成态折叠、未保存 draft、worker selector、库存调整/历史、read/adjust/no-read 三权限分支均通过。
+     Docker Web build/lint/typecheck、193 unit、focused Chromium 1/1、24 张双语/主题/宽度/200% zoom 截图、
+     full-stack healthcheck 与 `git diff --check` 通过。
 2. `WEB-OPS-03Dedicated Inventory Workspace and Destination Depletion.md`
    - 新增顶层 `/inventory` 菜单页，复用现有审计 API，为指定柜子的指定目的仓执行人工消库存。
 3. `WEB-OPS-04Efficient Live Operational Clock.md`
@@ -200,8 +204,8 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile，再使用 `scripts/run-business-agent.sh task '<task-file>'` 启动一个受监督进程；不要使用直接 prompt、原始 `exec`、手工 `resume` 或旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-02`。
-3. 严格按 `WEB-OPS-02 -> WEB-OPS-03 -> WEB-OPS-04 -> WEB-OPS-05` 继续柜子详情层级、库存专页、
+2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-03`。
+3. 严格按 `WEB-OPS-03 -> WEB-OPS-04 -> WEB-OPS-05` 继续库存专页、
    动态运营时间和最终 i18n/视觉/性能门禁；不得跳过 05。
 4. 完成 Web OPS 后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
 5. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时

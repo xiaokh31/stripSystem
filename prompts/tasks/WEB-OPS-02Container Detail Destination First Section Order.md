@@ -94,3 +94,45 @@ E2E 使用真实本地 API 柜子数据或隔离 fixture，至少覆盖库存可
 - 列出最终 section 顺序、修改文件和权限分支。
 - 列出工资/库存交互回归、API 请求计数、双语截图和视觉检查结果。
 - 更新任务索引与完成度报告。
+
+## 执行结果（2026-07-14）
+
+状态：Done。
+
+### Section 顺序与权限分支
+
+- 柜子详情真实 JSX/DOM 顺序现为：标题、状态摘要与警告 → 柜子状态操作 → 目的仓明细与修正 → 拆柜工资信息 →
+  目的仓库存与人工消库存 → 报告和面单。未使用 CSS `order`，heading source order、bounding-box top 顺序和键盘
+  focus source order 一致；各业务 section 仍为同级 landmark，没有 card-inside-card。
+- `inventory.read + inventory.adjust` 显示库存和人工消库存；只有 `inventory.read` 时显示库存、历史和只读标记但无
+  调整按钮；没有 `inventory.read` 时完全省略库存 section 且不保留占位。无工资管理权限时工资 section、完成摘要
+  和已保存拆柜人仍显示，保存/编辑操作保持隐藏。
+- 未修改 API、数据库、工资/库存算法、状态机、typed i18n catalog 或业务组件 contract；无需 migration。
+
+### 工资、库存与加载回归
+
+- Docker Chromium 使用隔离创建的长柜号、长目的仓、已完成 ocean wage、临时拆柜人和已生成托盘：验证完成态工资
+  初始自动收缩、手动展开/收起、worker selector、未保存 classification draft 在折叠后仍保留；中文折叠并 refresh
+  后仍保持 `zh-CN`，无 hydration/console/page error。
+- ADMIN 在浏览器确认对话框中执行一次 `SCAN_MISSED` 人工消库存，runtime 计数严格为 1 个 POST；成功后从 API
+  refresh 显示剩余库存、`ADJUSTED_OUT` 和审计历史。只读和无库存权限角色分别验证无调整入口与无 section。
+- 新增 source contract unit test 固定每个页面 loader 只有一个调用点，库存 summary 与各目的仓历史继续使用
+  `Promise.allSettled` 并发加载；权限 pruning 和原有 loading topology 未改变，没有因重排新增或重复 API 请求。
+
+### Docker、i18n 与视觉验证
+
+- Docker Web production image build、容器内显式 `pnpm --filter web build`、lint、typecheck：通过；unit tests：
+  193/193 通过；`web-ops-container-detail.spec.ts --project=chromium`：1/1 通过（37.1s）；full-stack
+  `scripts/healthcheck.sh` 与 `git diff --check` 通过。
+- 24 张截图位于 `/Volumes/xfl/logistics/stripSystem/test-results/web-ops-02/`：en/zh-CN × light/dark ×
+  390/768/1366/1920/2560，以及四张真实浏览器 200% zoom。E2E 对每个组合断言 key heading DOM/视觉顺序、
+  document overflow、heading/button clipping、当前单一语言和主题。
+- 已以原始分辨率人工检查 2560 英文浅色、390 中文深色和 1366 英文深色 200% zoom：长柜号、长目的仓、
+  English 按钮、完成折叠摘要无重叠或裁剪；移动端宽表只在自身容器滚动，页面无横向溢出。无已知
+  WEB-OPS-02 布局限制。
+
+### 手工复核与下一任务
+
+- 可打开上述 PNG，重点复核 2560 全页 section 顺序、390 中文深色局部表格滚动和 200% zoom header/长柜号；
+  自动化已同时覆盖 light/dark 和所有五档宽度。
+- 下一建议任务为 `WEB-OPS-03Dedicated Inventory Workspace and Destination Depletion.md`；本次未启动后续 Task。
