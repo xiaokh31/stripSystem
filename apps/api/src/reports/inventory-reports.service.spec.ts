@@ -1,251 +1,231 @@
 import { InventoryReportsService } from './inventory-reports.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-interface PalletRecord {
-  id: string;
-  loadJobId?: string | null;
-  loadedAt?: Date | string | null;
-  status: string;
-}
-
-interface DestinationRecord {
-  id: string;
-  destinationCode: string;
-  destinationType: string | null;
-  pallets: PalletRecord[];
-}
-
-interface ContainerRecord {
-  id: string;
+interface AggregateRow {
+  activeTotalPallets: number;
+  adjustedOutPallets: number;
+  cancelledPallets: number;
+  containerId: string;
   containerNo: string;
-  payClassification?: string | null;
-  payTrailerNumber?: string | null;
-  status: string;
-  destinations: DestinationRecord[];
+  createdAt: Date;
+  effectiveLoadedPallets: number;
+  hasLoadingSignal: boolean;
+  lifecycleActivePallets: number;
+  loadedPallets: number;
+  payClassification: string | null;
+  payTrailerNumber: string | null;
+  remainingPallets: number;
+  storedStatus: string;
+  totalPallets: number;
 }
 
-interface InventoryPrismaMock {
-  container: {
-    findMany: jest.Mock<Promise<ContainerRecord[]>, []>;
-    findUnique: jest.Mock<Promise<ContainerRecord | null>, []>;
-  };
+interface PrismaMock {
+  $queryRaw: jest.Mock<Promise<unknown[]>, [TemplateStringsArray, ...unknown[]]>;
+  container: { findUnique: jest.Mock };
 }
 
 describe('InventoryReportsService', () => {
-  let containers: ContainerRecord[];
-  let prisma: InventoryPrismaMock;
+  let rows: AggregateRow[];
+  let prisma: PrismaMock;
   let service: InventoryReportsService;
 
   beforeEach(() => {
-    containers = [
-      {
-        id: 'container-1',
-        containerNo: 'CSNU8877228',
-        status: 'LABELS_GENERATED',
-        destinations: [
-          {
-            id: 'destination-1',
-            destinationCode: 'YYZ',
-            destinationType: 'AMAZON_FBA',
-            pallets: [
-              { id: 'pallet-1', status: 'LABEL_PRINTED' },
-              { id: 'pallet-2', status: 'LOADED' },
-              { id: 'pallet-4', status: 'ADJUSTED_OUT' },
-            ],
-          },
-          {
-            id: 'destination-2',
-            destinationCode: 'YVR',
-            destinationType: 'AMAZON_FBA',
-            pallets: [
-              { id: 'pallet-3', status: 'LABEL_PRINTED' },
-              { id: 'pallet-5', status: 'CANCELLED' },
-            ],
-          },
-        ],
-      },
-    ];
+    rows = Array.from({ length: 55 }, (_, index) =>
+      row(
+        `container-${String(index + 1).padStart(2, '0')}`,
+        `WEBOPS08-${index + 1}`,
+        index % 3 === 0 ? 'PARSED' : 'LABELS_GENERATED',
+        new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+        { loadedPallets: index % 2, remainingPallets: 2 - (index % 2) },
+      ),
+    );
     prisma = {
-      container: {
-        findMany: jest
-          .fn<Promise<ContainerRecord[]>, []>()
-          .mockResolvedValue(containers),
-        findUnique: jest
-          .fn<Promise<ContainerRecord | null>, []>()
-          .mockResolvedValue(containers[0]),
-      },
+      $queryRaw: jest.fn(async (strings) => {
+        const statement = strings.join('?');
+        if (statement.includes('GROUP BY d."destination_code"')) {
+          return [
+            {
+              activeTotalPallets: 110,
+              adjustedOutPallets: 0,
+              cancelledPallets: 0,
+              destinationCode: 'YEG1',
+              loadedPallets: 27,
+              remainingPallets: 83,
+              totalPallets: 110,
+            },
+          ];
+        }
+        return rows;
+      }),
+      container: { findUnique: jest.fn() },
     };
     service = new InventoryReportsService(prisma as unknown as PrismaService);
   });
 
-  it('calculates container and destination inventory from pallet status', async () => {
-    const containerSummary = await service.containerSummary({});
-    const inventory = await service.inventory({});
+  it.each([5, 10, 20, 50] as const)(
+    'returns page metadata, global totals, and exactly %i current-page items',
+    async (pageSize) => {
+      const response = await service.containerSummary({ pageSize });
 
-    expect(containerSummary.items).toEqual([
-      {
-        containerId: 'container-1',
-        containerNo: 'CSNU8877228',
-        payClassification: null,
-        payTrailerNumber: null,
-        status: 'LOADING_IN_PROGRESS',
-        totalPallets: 5,
-        activeTotalPallets: 3,
-        loadedPallets: 1,
-        adjustedOutPallets: 1,
-        cancelledPallets: 1,
-        remainingPallets: 2,
-      },
-    ]);
-    expect(inventory.items).toEqual([
-      {
-        destinationCode: 'YVR',
-        totalPallets: 2,
-        activeTotalPallets: 1,
-        loadedPallets: 0,
-        adjustedOutPallets: 0,
-        cancelledPallets: 1,
-        remainingPallets: 1,
-      },
-      {
-        destinationCode: 'YYZ',
-        totalPallets: 3,
-        activeTotalPallets: 2,
-        loadedPallets: 1,
-        adjustedOutPallets: 1,
-        cancelledPallets: 0,
-        remainingPallets: 1,
-      },
-    ]);
-  });
+      expect(response).toMatchObject({
+        page: 1,
+        pageSize,
+        totalItems: 55,
+        totalPages: Math.ceil(55 / pageSize),
+        totals: {
+          activeTotalPallets: 110,
+          remainingPallets: 83,
+          totalPallets: 110,
+        },
+      });
+      expect(response.items).toHaveLength(pageSize);
+      expect(response.items[0]).not.toHaveProperty('createdAt');
+    },
+  );
 
-  it('reflects loaded status changes from database state', async () => {
-    containers[0].destinations[1].pallets[0].status = 'LOADED';
-
-    const summary = await service.containerDetailSummary('container-1', {});
-
-    expect(summary.totalPallets).toBe(5);
-    expect(summary.activeTotalPallets).toBe(3);
-    expect(summary.loadedPallets).toBe(2);
-    expect(summary.adjustedOutPallets).toBe(1);
-    expect(summary.cancelledPallets).toBe(1);
-    expect(summary.remainingPallets).toBe(1);
-    expect(summary.status).toBe('LOADING_IN_PROGRESS');
-    expect(summary.destinations).toEqual([
-      {
-        containerDestinationId: 'destination-1',
-        destinationCode: 'YYZ',
-        destinationType: 'AMAZON_FBA',
-        totalPallets: 3,
-        activeTotalPallets: 2,
-        loadedPallets: 1,
-        adjustedOutPallets: 1,
-        cancelledPallets: 0,
-        remainingPallets: 1,
-      },
-      {
-        containerDestinationId: 'destination-2',
-        destinationCode: 'YVR',
-        destinationType: 'AMAZON_FBA',
-        totalPallets: 2,
-        activeTotalPallets: 1,
-        loadedPallets: 1,
-        adjustedOutPallets: 0,
-        cancelledPallets: 1,
-        remainingPallets: 0,
-      },
-    ]);
-  });
-
-  it('keeps fully adjusted destinations in container detail for audit review', async () => {
-    containers[0].destinations[0].pallets.forEach((pallet) => {
-      pallet.status = 'ADJUSTED_OUT';
+  it('normalizes an out-of-range page to the final valid page without changing totals', async () => {
+    const response = await service.containerSummary({
+      page: 999,
+      pageSize: 20,
     });
 
-    const summary = await service.containerDetailSummary('container-1', {});
-
-    expect(summary.destinations[0]).toEqual({
-      containerDestinationId: 'destination-1',
-      destinationCode: 'YYZ',
-      destinationType: 'AMAZON_FBA',
-      totalPallets: 3,
-      activeTotalPallets: 0,
-      loadedPallets: 0,
-      adjustedOutPallets: 3,
-      cancelledPallets: 0,
-      remainingPallets: 0,
-    });
-    expect(summary.adjustedOutPallets).toBe(3);
+    expect(response.page).toBe(3);
+    expect(response.totalPages).toBe(3);
+    expect(response.items).toHaveLength(15);
+    expect(response.totalItems).toBe(55);
+    expect(response.totals.totalPallets).toBe(110);
   });
 
-  it('supports destination and pallet status filters', async () => {
-    const summary = await service.containerSummary({
-      destinationCode: 'YYZ',
+  it.each([
+    ['createdAt', 'asc', 'container-01'],
+    ['createdAt', 'desc', 'container-55'],
+    ['containerNo', 'asc', 'container-01'],
+    ['containerNo', 'desc', 'container-55'],
+    ['status', 'asc', 'container-01'],
+    ['status', 'desc', 'container-54'],
+  ] as const)(
+    'reuses the stable container ordering contract for %s %s',
+    async (sortBy, sortDirection, expectedFirst) => {
+      const response = await service.containerSummary({
+        pageSize: 5,
+        sortBy,
+        sortDirection,
+      });
+      expect(response.items[0]?.containerId).toBe(expectedFirst);
+    },
+  );
+
+  it('uses one aggregate query for 50+ containers and never hydrates pallet records or issues N+1 reads', async () => {
+    await service.containerSummary({
+      containerNo: String.raw` WEB%_\\08 `,
+      destinationCode: ' YEG_1 ',
+      page: 2,
+      pageSize: 10,
       status: 'LOADED',
     });
 
-    expect(summary.items).toEqual([
-      {
-        containerId: 'container-1',
-        containerNo: 'CSNU8877228',
-        payClassification: null,
-        payTrailerNumber: null,
-        status: 'LOADING_IN_PROGRESS',
-        totalPallets: 1,
-        activeTotalPallets: 1,
-        loadedPallets: 1,
-        adjustedOutPallets: 0,
-        cancelledPallets: 0,
-        remainingPallets: 0,
-      },
-    ]);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.container.findUnique).not.toHaveBeenCalled();
+    const statement = (prisma.$queryRaw.mock.calls[0]?.[0].join('?') ?? '')
+      .replace(/\s+/g, ' ');
+    expect(statement).toContain('FROM "containers" AS c');
+    expect(statement).toContain('LEFT JOIN "container_destinations" AS d');
+    expect(statement).toContain('LEFT JOIN "pallets" AS p');
+    expect(statement).toContain('GROUP BY c."id"');
+    expect(statement).not.toContain('SELECT p.*');
+    expect(prisma.$queryRaw.mock.calls[0]?.slice(1)).toContain(
+      String.raw`%web\%\_\\\\08%`,
+    );
+    expect(prisma.$queryRaw.mock.calls[0]?.slice(1)).toContain(
+      String.raw`%yeg\_1%`,
+    );
   });
 
-  it('keeps fully loaded containers visible as LOADED in filtered reports', async () => {
-    containers[0].status = 'UNLOADED';
-    containers[0].destinations.forEach((destination) => {
-      destination.pallets.forEach((pallet) => {
-        pallet.status = 'LOADED';
-      });
+  it('returns destination totals for the complete filtered set from one bounded aggregate query', async () => {
+    const response = await service.inventory({
+      containerNo: 'WEBOPS08',
+      destinationCode: 'YEG',
+      page: 4,
+      pageSize: 5,
+      sortBy: 'status',
+      sortDirection: 'asc',
     });
 
-    const summary = await service.containerSummary({ status: 'LOADED' });
-    const inventory = await service.inventory({ status: 'LOADED' });
+    expect(response.items).toEqual([
+      {
+        activeTotalPallets: 110,
+        adjustedOutPallets: 0,
+        cancelledPallets: 0,
+        destinationCode: 'YEG1',
+        loadedPallets: 27,
+        remainingPallets: 83,
+        totalPallets: 110,
+      },
+    ]);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
 
-    expect(summary.items).toEqual([
-      {
-        containerId: 'container-1',
-        containerNo: 'CSNU8877228',
-        payClassification: null,
-        payTrailerNumber: null,
-        status: 'LOADED',
-        totalPallets: 5,
-        activeTotalPallets: 5,
-        loadedPallets: 5,
-        adjustedOutPallets: 0,
-        cancelledPallets: 0,
-        remainingPallets: 0,
-      },
-    ]);
-    expect(inventory.items).toEqual([
-      {
-        destinationCode: 'YVR',
-        totalPallets: 2,
-        activeTotalPallets: 2,
-        loadedPallets: 2,
-        adjustedOutPallets: 0,
-        cancelledPallets: 0,
-        remainingPallets: 0,
-      },
-      {
-        destinationCode: 'YYZ',
-        totalPallets: 3,
-        activeTotalPallets: 3,
-        loadedPallets: 3,
-        adjustedOutPallets: 0,
-        cancelledPallets: 0,
-        remainingPallets: 0,
-      },
-    ]);
+  it('loads selected detail independently from the current summary page', async () => {
+    prisma.container.findUnique.mockResolvedValue({
+      containerNo: 'SELECTED-OUTSIDE-PAGE',
+      destinations: [
+        {
+          destinationCode: 'YYZ',
+          destinationType: 'AMAZON_FBA',
+          id: 'destination-selected',
+          pallets: [
+            { id: 'pallet-1', status: 'LABEL_PRINTED' },
+            { id: 'pallet-2', status: 'ADJUSTED_OUT' },
+          ],
+        },
+      ],
+      id: 'selected-outside-page',
+      status: 'LABELS_GENERATED',
+    });
+
+    await expect(
+      service.containerDetailSummary('selected-outside-page', {}),
+    ).resolves.toMatchObject({
+      containerId: 'selected-outside-page',
+      containerNo: 'SELECTED-OUTSIDE-PAGE',
+      adjustedOutPallets: 1,
+      remainingPallets: 1,
+      destinations: [
+        {
+          containerDestinationId: 'destination-selected',
+          remainingPallets: 1,
+        },
+      ],
+    });
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 });
+
+function row(
+  containerId: string,
+  containerNo: string,
+  storedStatus: string,
+  createdAt: string,
+  overrides: Partial<AggregateRow> = {},
+): AggregateRow {
+  const loadedPallets = overrides.loadedPallets ?? 0;
+  const remainingPallets = overrides.remainingPallets ?? 2;
+  return {
+    activeTotalPallets: 2,
+    adjustedOutPallets: 0,
+    cancelledPallets: 0,
+    containerId,
+    containerNo,
+    createdAt: new Date(createdAt),
+    effectiveLoadedPallets: loadedPallets,
+    hasLoadingSignal: loadedPallets > 0 && remainingPallets > 0,
+    lifecycleActivePallets: 2,
+    loadedPallets,
+    payClassification: null,
+    payTrailerNumber: null,
+    remainingPallets,
+    storedStatus,
+    totalPallets: 2,
+    ...overrides,
+  };
+}

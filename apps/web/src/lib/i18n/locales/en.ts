@@ -1,5 +1,6 @@
 export const enMessages = {
   "0 B": "0 B",
+  "1 container": "1 container",
   "API connection": "API connection",
   "API status": "API status",
   "API version": "API version",
@@ -23,6 +24,8 @@ export const enMessages = {
   "All statuses": "All statuses",
   "Already loaded": "Already loaded",
   "Apply filters": "Apply filters",
+  "Apply page size": "Apply page size",
+  "Apply sort": "Apply sort",
   "Ask the office to create or start a load job before scanning pallets.":
     "Ask the office to create or start a load job before scanning pallets.",
   Archived: "Archived",
@@ -119,6 +122,7 @@ export const enMessages = {
   "Container status saved.": "Container status saved.",
   "Container status update": "Container status update",
   "Container summary": "Container summary",
+  "Container summary pagination": "Container summary pagination",
   "Container summary could not be loaded":
     "Container summary could not be loaded",
   "Container summary failed.": "Container summary failed.",
@@ -1461,6 +1465,9 @@ export const enMessages = {
   "Inventory access is required": "Inventory access is required",
   "Inventory read-only": "Inventory read-only",
   "Inventory workspace": "Inventory workspace",
+  "Scrollable destination inventory and adjustment history":
+    "Scrollable destination inventory and adjustment history",
+  "Items per page": "Items per page",
   "Manual inventory depletion": "Manual inventory depletion",
   "Manual inventory depletion count": "Manual inventory depletion count",
   "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
@@ -1485,6 +1492,12 @@ export const enMessages = {
     "Select a container and manage destination inventory",
   "Select container": "Select container",
   "Selected container": "Selected container",
+  "This selected container is outside the current page.":
+    "This selected container is outside the current page.",
+  "The inventory page was moved to the last available page.":
+    "The inventory page was moved to the last available page.",
+  "Previous page": "Previous page",
+  "Next page": "Next page",
   "Selected container inventory could not be loaded":
     "Selected container inventory could not be loaded",
   "Choose a container from the table to review its destination inventory and adjustment history.":
@@ -1596,6 +1609,8 @@ export const enMessages = {
   "i18n.containers.warning.woodenCratePieceCountRequired": "A reliable wooden-crate piece count is required; volume calculation was retained.",
   "i18n.issue.count": "{message} {count}x",
   "i18n.inventory.activeFilters": "{count} active",
+  "i18n.inventory.pageStatus": "Page {page} of {totalPages}",
+  "i18n.inventory.totalItems": "{count} containers",
   "i18n.inventory.lastUpdated": "Last updated {time}. Inventory remaining is global warehouse inventory from the API, not load job planned remaining.",
   "i18n.inventory.polling": "Polling {seconds}s",
   "i18n.loadJobs.activeFilters": "{count} active filter(s)",

@@ -2,6 +2,7 @@ import { permanentRedirect } from "next/navigation";
 import {
   inventoryWorkspaceHref,
   normalizeInventoryFilters,
+  normalizeInventoryPagination,
   normalizeInventorySelection,
   type InventorySearchParams,
 } from "@/components/reports/inventory-report-flow";
@@ -18,6 +19,7 @@ export default async function LegacyInventoryReportPage({
     inventoryWorkspaceHref(
       normalizeInventoryFilters(query),
       normalizeInventorySelection(query),
+      normalizeInventoryPagination(query),
     ),
   );
 }

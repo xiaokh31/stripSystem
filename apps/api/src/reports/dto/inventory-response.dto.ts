@@ -23,6 +23,11 @@ export interface DestinationSummaryItemDto extends PalletStatsDto {
 
 export interface ContainerSummaryListResponseDto {
   items: ContainerSummaryItemDto[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  totals: PalletStatsDto;
 }
 
 export interface ContainerDetailSummaryResponseDto extends ContainerSummaryItemDto {

@@ -1199,6 +1199,11 @@ export interface ContainerDetailInventorySummaryResponse
 
 export interface ContainerSummaryListResponse {
   items: ContainerSummaryItemResponse[];
+  page: number;
+  pageSize: InventoryPageSize;
+  totalItems: number;
+  totalPages: number;
+  totals: PalletStatsResponse;
 }
 
 export type ContainerIndexSortField = "createdAt" | "containerNo" | "status";
@@ -1242,6 +1247,16 @@ export interface InventoryReportFilters {
   containerNo?: string;
   destinationCode?: string;
   status?: string;
+}
+
+export const INVENTORY_PAGE_SIZES = [5, 10, 20, 50] as const;
+export type InventoryPageSize = (typeof INVENTORY_PAGE_SIZES)[number];
+
+export interface InventoryContainerSummaryQuery extends InventoryReportFilters {
+  page: number;
+  pageSize: InventoryPageSize;
+  sortBy: ContainerIndexSortField;
+  sortDirection: ContainerIndexSortDirection;
 }
 
 export const INVENTORY_ADJUSTMENT_REASON_CODES = [
@@ -2181,11 +2196,11 @@ export function reprintPalletLabel(
 }
 
 export function getContainerInventorySummary(
-  filters: InventoryReportFilters = {},
+  query: InventoryContainerSummaryQuery,
   options: ApiClientOptions = {},
 ): Promise<ContainerSummaryListResponse> {
   return createApiClient(options).get<ContainerSummaryListResponse>(
-    `/reports/container-summary${toInventoryQueryString(filters)}`,
+    `/reports/container-summary${toInventoryContainerSummaryQueryString(query)}`,
   );
 }
 
@@ -2616,6 +2631,21 @@ function toInventoryQueryString(filters: InventoryReportFilters): string {
 
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+function toInventoryContainerSummaryQueryString(
+  query: InventoryContainerSummaryQuery,
+): string {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    pageSize: String(query.pageSize),
+    sortBy: query.sortBy,
+    sortDirection: query.sortDirection,
+  });
+  appendQueryParam(params, "containerNo", query.containerNo);
+  appendQueryParam(params, "destinationCode", query.destinationCode);
+  appendQueryParam(params, "status", query.status);
+  return `?${params.toString()}`;
 }
 
 function toOperationsDashboardQueryString(

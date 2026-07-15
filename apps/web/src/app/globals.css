@@ -460,7 +460,12 @@ html:root option {
 }
 
 .inventory-operation-grid {
+  align-items: start;
   grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-operation-grid > :last-child {
+  align-self: start;
 }
 
 .inventory-operation-grid > * {

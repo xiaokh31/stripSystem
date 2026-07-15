@@ -111,3 +111,18 @@
 - 给出 23+ 柜子 fixture 的分页/排序/selection/adjustment 前后值和精确清理结果。
 - 给出 desktop/mobile adaptive-height bounding-box 证据和截图。
 - 列出 i18n、RBAC、可访问性结果，更新 Task、索引和完成度报告；不得自动执行 WEB-OPS-09。
+
+## 执行结果（2026-07-15）
+
+- 状态：已完成。container summary API 支持默认 10、可选 5/10/20/50 的服务端分页，返回规范化 page metadata 与完整
+  筛选集合 totals；55 柜 query-shape 回归证明单条 aggregate query、无 pallet row 水合或 N+1。
+- createdAt/containerNo/status 六种排序与 WEB-OPS-07 共用 `common/container-ordering.ts`；global metrics、完整
+  Destination summary 和页外 selected detail 口径均通过 API/Web/Chromium 回归。
+- `/inventory` URL 保存 filter/selection/page/pageSize/sort；越界规范化、page reset、短/长内容自适应、390/768 单列、
+  bounded long-list scroll、typed en/zh-CN 与可访问分页控件完成。
+- 真实 PostgreSQL Chromium fixture 覆盖 24 柜、29 目的仓、58 pallet、四种 page size、六种排序、模糊选择、页外调整、
+  audit 与精确清理；28 张语言/主题/viewport/125%/200% zoom PNG 和 geometry/audit JSON 位于
+  `test-results/web-ops-08/`。
+- Docker API lint/typecheck/build、249 unit、110 E2E；Web lint/typecheck/build、220 unit；Worker 127 tests；Chromium
+  1/1、healthcheck 与 `git diff --check` 均通过。无 schema/migration 或外部验收项。
+- 完整证据：`docs/reports/web-ops-08-inventory-pagination-verification.md`。下一任务为 WEB-OPS-09，本会话未启动。

@@ -1,7 +1,11 @@
 import type {
+  ContainerIndexSortDirection,
+  ContainerIndexSortField,
+  InventoryPageSize,
   InventoryReportFilters,
   PalletStatsResponse,
 } from "@/lib/api-client";
+import { INVENTORY_PAGE_SIZES } from "../../lib/api-client";
 import { formatOperationalDateTime } from "../../lib/date-time";
 import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { palletStatusLabel } from "../../lib/i18n/status-labels";
@@ -51,6 +55,30 @@ export type InventorySearchParams = Record<
   string | string[] | undefined
 >;
 
+export interface InventoryPaginationState {
+  page: number;
+  pageSize: InventoryPageSize;
+  sortBy: ContainerIndexSortField;
+  sortDirection: ContainerIndexSortDirection;
+}
+
+export const DEFAULT_INVENTORY_PAGINATION: InventoryPaginationState = {
+  page: 1,
+  pageSize: 10,
+  sortBy: "createdAt",
+  sortDirection: "desc",
+};
+
+const INVENTORY_SORT_FIELDS: ContainerIndexSortField[] = [
+  "createdAt",
+  "containerNo",
+  "status",
+];
+const INVENTORY_SORT_DIRECTIONS: ContainerIndexSortDirection[] = [
+  "asc",
+  "desc",
+];
+
 export function normalizeInventoryFilters(
   searchParams: InventorySearchParams,
 ): InventoryReportFilters {
@@ -70,9 +98,38 @@ export function normalizeInventorySelection(
   return firstSearchValue(searchParams.containerId)?.trim() || undefined;
 }
 
+export function normalizeInventoryPagination(
+  searchParams: InventorySearchParams,
+): InventoryPaginationState {
+  const pageValue = Number(firstSearchValue(searchParams.page));
+  const pageSizeValue = Number(firstSearchValue(searchParams.pageSize));
+  const sortByValue = firstSearchValue(searchParams.sortBy);
+  const sortDirectionValue = firstSearchValue(searchParams.sortDirection);
+  return {
+    page:
+      Number.isSafeInteger(pageValue) && pageValue >= 1
+        ? pageValue
+        : DEFAULT_INVENTORY_PAGINATION.page,
+    pageSize: INVENTORY_PAGE_SIZES.includes(pageSizeValue as InventoryPageSize)
+      ? (pageSizeValue as InventoryPageSize)
+      : DEFAULT_INVENTORY_PAGINATION.pageSize,
+    sortBy: INVENTORY_SORT_FIELDS.includes(
+      sortByValue as ContainerIndexSortField,
+    )
+      ? (sortByValue as ContainerIndexSortField)
+      : DEFAULT_INVENTORY_PAGINATION.sortBy,
+    sortDirection: INVENTORY_SORT_DIRECTIONS.includes(
+      sortDirectionValue as ContainerIndexSortDirection,
+    )
+      ? (sortDirectionValue as ContainerIndexSortDirection)
+      : DEFAULT_INVENTORY_PAGINATION.sortDirection,
+  };
+}
+
 export function inventoryWorkspaceHref(
   filters: InventoryReportFilters,
   containerId?: string,
+  pagination: InventoryPaginationState = DEFAULT_INVENTORY_PAGINATION,
 ): string {
   const params = new URLSearchParams();
 
@@ -80,6 +137,10 @@ export function inventoryWorkspaceHref(
   appendFilter(params, "destinationCode", filters.destinationCode);
   appendFilter(params, "status", filters.status);
   appendFilter(params, "containerId", containerId);
+  params.set("page", String(pagination.page));
+  params.set("pageSize", String(pagination.pageSize));
+  params.set("sortBy", pagination.sortBy);
+  params.set("sortDirection", pagination.sortDirection);
 
   const query = params.toString();
   return query ? `/inventory?${query}` : "/inventory";
@@ -120,8 +181,13 @@ export function sumPalletStats<TItem extends PalletStatsResponse>(
   );
 }
 
-export function formatPalletCount(value: number): string {
-  return new Intl.NumberFormat("en-CA").format(value);
+export function formatPalletCount(
+  value: number,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return new Intl.NumberFormat(locale === "zh-CN" ? "zh-CN" : "en-CA").format(
+    value,
+  );
 }
 
 export function normalizeInventoryPollingIntervalMs(

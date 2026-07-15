@@ -2,6 +2,7 @@ import { enMessages, type MessageKey } from "./en";
 
 export const zhMessages = {
   ...enMessages,
+  "1 container": "共 1 个柜子",
   "API connection": "API 连接",
   "API status": "API 状态",
   "API version": "API 版本",
@@ -25,6 +26,8 @@ export const zhMessages = {
   "All statuses": "全部状态",
   "Already loaded": "已装车",
   "Apply filters": "应用筛选",
+  "Apply page size": "应用每页数量",
+  "Apply sort": "应用排序",
   "Ask the office to create or start a load job before scanning pallets.":
     "扫码托盘前，请让办公室创建或启动装车任务。",
   Archived: "已归档",
@@ -116,6 +119,7 @@ export const zhMessages = {
   "Container status saved.": "柜子状态已保存。",
   "Container status update": "柜子状态更新",
   "Container summary": "柜子汇总",
+  "Container summary pagination": "柜子汇总分页",
   "Container summary could not be loaded": "无法加载柜子汇总",
   "Container summary failed.": "柜子汇总加载失败。",
   "Container warnings": "柜子警告",
@@ -1370,6 +1374,9 @@ export const zhMessages = {
   "Inventory access is required": "需要库存访问权限",
   "Inventory read-only": "库存只读",
   "Inventory workspace": "库存工作区",
+  "Scrollable destination inventory and adjustment history":
+    "可滚动的目的仓库存和调整历史",
+  "Items per page": "每页数量",
   "Manual inventory depletion": "人工消库存",
   "Manual inventory depletion count": "人工消库存数量",
   "Manual inventory depletion could not be saved. Refresh the destination inventory and try again.":
@@ -1393,6 +1400,12 @@ export const zhMessages = {
     "选择柜子并管理目的仓库存",
   "Select container": "选择柜子",
   "Selected container": "已选柜子",
+  "This selected container is outside the current page.":
+    "已选柜子不在当前页，但仍可查看和操作。",
+  "The inventory page was moved to the last available page.":
+    "当前页已超出范围，已转到最后一个有效页面。",
+  "Previous page": "上一页",
+  "Next page": "下一页",
   "Selected container inventory could not be loaded": "无法加载所选柜子的库存",
   "Choose a container from the table to review its destination inventory and adjustment history.":
     "请从柜子表选择一个柜子，以查看其目的仓库存和调整历史。",
@@ -1502,6 +1515,8 @@ export const zhMessages = {
   "i18n.containers.warning.woodenCratePieceCountRequired": "需要可靠的木箱件数；当前保留按体积计算。",
   "i18n.issue.count": "{message}（{count} 次）",
   "i18n.inventory.activeFilters": "{count} 个筛选条件已启用",
+  "i18n.inventory.pageStatus": "第 {page} 页，共 {totalPages} 页",
+  "i18n.inventory.totalItems": "共 {count} 个柜子",
   "i18n.inventory.lastUpdated": "最近更新：{time}。剩余库存是 API 返回的全局仓库库存，不是装车任务计划剩余数。",
   "i18n.inventory.polling": "每 {seconds} 秒刷新",
   "i18n.loadJobs.activeFilters": "{count} 个筛选条件已启用",

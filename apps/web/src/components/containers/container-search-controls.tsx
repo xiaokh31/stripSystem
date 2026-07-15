@@ -11,7 +11,10 @@ import {
 import { useRouter } from "next/navigation";
 import { ContainerCombobox } from "./container-combobox";
 import type { ContainerSuggestion } from "./container-combobox-flow";
-import { inventoryWorkspaceHref } from "../reports/inventory-report-flow";
+import {
+  inventoryWorkspaceHref,
+  type InventoryPaginationState,
+} from "../reports/inventory-report-flow";
 import {
   listContainerSuggestions,
   type InventoryReportFilters,
@@ -55,9 +58,11 @@ export function ContainerQuickOpenCombobox({
 
 export function InventoryContainerCombobox({
   filters,
+  pagination,
   selectedSuggestion,
 }: {
   filters: InventoryReportFilters;
+  pagination: InventoryPaginationState;
   selectedSuggestion: ContainerSuggestion | null;
 }) {
   const router = useRouter();
@@ -102,6 +107,7 @@ export function InventoryContainerCombobox({
             inventoryWorkspaceHref(
               { ...filters, containerNo: value || undefined },
               undefined,
+              { ...pagination, page: 1 },
             ),
           );
         }}
@@ -111,6 +117,7 @@ export function InventoryContainerCombobox({
             inventoryWorkspaceHref(
               { ...filters, containerNo: suggestion.containerNo },
               suggestion.containerId,
+              { ...pagination, page: 1 },
             ),
           );
         }}

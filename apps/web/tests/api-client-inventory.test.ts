@@ -49,6 +49,10 @@ test("inventory API client sends filters to report endpoints", async () => {
     {
       containerNo: " CSNU8877228 ",
       destinationCode: " YEG1 ",
+      page: 2,
+      pageSize: 20,
+      sortBy: "status",
+      sortDirection: "asc",
       status: "LABEL_PRINTED",
     },
     { baseUrl: "http://api.local/api", fetcher },
@@ -59,7 +63,7 @@ test("inventory API client sends filters to report endpoints", async () => {
   );
 
   assert.deepEqual(requests, [
-    "http://api.local/api/reports/container-summary?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
+    "http://api.local/api/reports/container-summary?page=2&pageSize=20&sortBy=status&sortDirection=asc&containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED",
     "http://api.local/api/reports/inventory?status=LOADED",
   ]);
 });

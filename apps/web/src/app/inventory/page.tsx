@@ -8,15 +8,17 @@ import {
 } from "@/components/containers/container-search-controls";
 import type { ContainerSuggestion } from "@/components/containers/container-combobox-flow";
 import { InventoryRefreshControls } from "@/components/reports/inventory-refresh-controls";
+import { InventoryPageNormalization } from "@/components/reports/inventory-page-normalization";
 import {
   DEFAULT_INVENTORY_POLLING_INTERVAL_MS,
   activeInventoryFilterCount,
   formatPalletCount,
   inventoryWorkspaceHref,
   normalizeInventoryFilters,
+  normalizeInventoryPagination,
   normalizeInventorySelection,
   palletStatusOptions,
-  sumPalletStats,
+  type InventoryPaginationState,
   type InventorySearchParams,
 } from "@/components/reports/inventory-report-flow";
 import {
@@ -27,7 +29,8 @@ import {
   listInventoryAdjustments,
   type AuthUserResponse,
   type ContainerDetailInventorySummaryResponse,
-  type ContainerSummaryItemResponse,
+  type ContainerIndexSortField,
+  type ContainerSummaryListResponse,
   type DestinationInventoryItemResponse,
   type InventoryAdjustmentResponse,
   type InventoryReportFilters,
@@ -50,7 +53,7 @@ export const dynamic = "force-dynamic";
 
 interface InventoryReportState {
   containerError: ApiClientError | null;
-  containers: ContainerSummaryItemResponse[];
+  containerSummary: ContainerSummaryListResponse | null;
   destinationError: ApiClientError | null;
   destinations: DestinationInventoryItemResponse[];
   selected: SelectedContainerState | null;
@@ -72,6 +75,7 @@ export default async function InventoryReportPage({
   const { t } = createTranslator(locale);
   const query = await searchParams;
   const filters = normalizeInventoryFilters(query);
+  const pagination = normalizeInventoryPagination(query);
   const selectedContainerId = normalizeInventorySelection(query);
   const currentUser = await getServerCurrentUser();
 
@@ -79,7 +83,7 @@ export default async function InventoryReportPage({
     return (
       <InventoryLoginRequired
         locale={locale}
-        nextPath={inventoryWorkspaceHref(filters, selectedContainerId)}
+        nextPath={inventoryWorkspaceHref(filters, selectedContainerId, pagination)}
       />
     );
   }
@@ -88,8 +92,13 @@ export default async function InventoryReportPage({
     return <InventoryPermissionDenied locale={locale} />;
   }
 
-  const state = await loadInventoryReport(filters, selectedContainerId);
-  const totals = sumPalletStats(state.containers);
+  const state = await loadInventoryReport(
+    filters,
+    pagination,
+    selectedContainerId,
+  );
+  const containerSummary = state.containerSummary ?? emptyContainerSummary(pagination);
+  const totals = containerSummary.totals;
   const activeFilters = activeInventoryFilterCount(filters);
   const lastUpdatedAt = new Date().toISOString();
   const selectedContainerNo =
@@ -101,6 +110,16 @@ export default async function InventoryReportPage({
           containerNo: selectedContainerNo,
         }
       : null;
+  const selectedOutsidePage = Boolean(
+    selectedContainerId &&
+      !containerSummary.items.some(
+        (container) => container.containerId === selectedContainerId,
+      ),
+  );
+  const normalizedPagination = {
+    ...pagination,
+    page: containerSummary.page,
+  };
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
@@ -124,10 +143,20 @@ export default async function InventoryReportPage({
       </section>
 
       <InventorySelectionBoundary selectedContainerId={selectedContainerId}>
+        {containerSummary.page !== pagination.page ? (
+          <InventoryPageNormalization
+            href={inventoryWorkspaceHref(
+              filters,
+              selectedContainerId,
+              normalizedPagination,
+            )}
+          />
+        ) : null}
         <InventoryFilterForm
           activeFilters={activeFilters}
           filters={filters}
           locale={locale}
+          pagination={normalizedPagination}
           selectedSuggestion={selectedSuggestion}
         />
 
@@ -153,15 +182,19 @@ export default async function InventoryReportPage({
         />
       ) : null}
 
-        <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+        <section
+          className="border border-zinc-200 bg-white p-5 shadow-sm"
+          data-inventory-global-metrics="true"
+        >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          <Metric label={t("Containers")} value={state.containers.length} />
-          <Metric label={t("Destinations")} value={state.destinations.length} />
-          <Metric label={t("Active pallets")} value={totals.activeTotalPallets} />
-          <Metric label={t("Loaded pallets")} value={totals.loadedPallets} />
-          <Metric label={t("Adjusted out")} value={totals.adjustedOutPallets} />
+          <Metric label={t("Containers")} value={containerSummary.totalItems} locale={locale} />
+          <Metric label={t("Destinations")} locale={locale} value={state.destinations.length} />
+          <Metric label={t("Active pallets")} value={totals.activeTotalPallets} locale={locale} />
+          <Metric label={t("Loaded pallets")} value={totals.loadedPallets} locale={locale} />
+          <Metric label={t("Adjusted out")} value={totals.adjustedOutPallets} locale={locale} />
           <Metric
             label={t("Remaining pallets")}
+            locale={locale}
             value={totals.remainingPallets}
           />
         </div>
@@ -169,9 +202,10 @@ export default async function InventoryReportPage({
 
         <section className="inventory-operation-grid grid gap-4">
           <ContainerSummaryTable
-            containers={state.containers}
+            containerSummary={containerSummary}
             filters={filters}
             locale={locale}
+            pagination={normalizedPagination}
             selectedContainerId={selectedContainerId}
           />
           <InventorySelectedContainerContent>
@@ -180,6 +214,7 @@ export default async function InventoryReportPage({
               locale={locale}
               selected={state.selected}
               selectedContainerId={selectedContainerId}
+              selectedOutsidePage={selectedOutsidePage}
             />
           </InventorySelectedContainerContent>
         </section>
@@ -195,12 +230,13 @@ export default async function InventoryReportPage({
 
 async function loadInventoryReport(
   filters: InventoryReportFilters,
+  pagination: InventoryPaginationState,
   selectedContainerId?: string,
 ): Promise<InventoryReportState> {
   const apiOptions = await getServerApiOptions();
   const [containerResult, destinationResult, selectedSummaryResult] =
     await Promise.allSettled([
-    getContainerInventorySummary(filters, apiOptions),
+    getContainerInventorySummary({ ...filters, ...pagination }, apiOptions),
     getDestinationInventory(filters, apiOptions),
     selectedContainerId
       ? getContainerInventoryDetailSummary(selectedContainerId, {}, apiOptions)
@@ -258,8 +294,8 @@ async function loadInventoryReport(
       containerResult.status === "rejected"
         ? toApiClientError(containerResult.reason, "Container summary failed.")
         : null,
-    containers:
-      containerResult.status === "fulfilled" ? containerResult.value.items : [],
+    containerSummary:
+      containerResult.status === "fulfilled" ? containerResult.value : null,
     destinationError:
       destinationResult.status === "rejected"
         ? toApiClientError(destinationResult.reason, "Inventory report failed.")
@@ -272,21 +308,44 @@ async function loadInventoryReport(
   };
 }
 
+function emptyContainerSummary(
+  pagination: InventoryPaginationState,
+): ContainerSummaryListResponse {
+  return {
+    items: [],
+    page: 1,
+    pageSize: pagination.pageSize,
+    totalItems: 0,
+    totalPages: 1,
+    totals: {
+      activeTotalPallets: 0,
+      adjustedOutPallets: 0,
+      cancelledPallets: 0,
+      loadedPallets: 0,
+      remainingPallets: 0,
+      totalPallets: 0,
+    },
+  };
+}
+
 function InventoryFilterForm({
   activeFilters,
   filters,
   locale,
+  pagination,
   selectedSuggestion,
 }: {
   activeFilters: number;
   filters: InventoryReportFilters;
   locale: Locale;
+  pagination: InventoryPaginationState;
   selectedSuggestion: ContainerSuggestion | null;
 }) {
   const { format, t } = createTranslator(locale);
   const clearHref = inventoryWorkspaceHref(
     selectedSuggestion ? { containerNo: selectedSuggestion.containerNo } : {},
     selectedSuggestion?.containerId,
+    { ...pagination, page: 1 },
   );
 
   return (
@@ -307,7 +366,16 @@ function InventoryFilterForm({
       >
         <InventoryContainerCombobox
           filters={filters}
+          pagination={pagination}
           selectedSuggestion={selectedSuggestion}
+        />
+        <input name="page" type="hidden" value="1" />
+        <input name="pageSize" type="hidden" value={pagination.pageSize} />
+        <input name="sortBy" type="hidden" value={pagination.sortBy} />
+        <input
+          name="sortDirection"
+          type="hidden"
+          value={pagination.sortDirection}
         />
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
           {t("Destination")}
@@ -350,12 +418,20 @@ function InventoryFilterForm({
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({
+  label,
+  locale,
+  value,
+}: {
+  label: string;
+  locale?: Locale;
+  value: number;
+}) {
   return (
     <div className="border-t border-zinc-100 pt-3">
       <p className="text-sm font-medium text-zinc-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-zinc-950">
-        {formatPalletCount(value)}
+        {formatPalletCount(value, locale)}
       </p>
     </div>
   );
@@ -366,11 +442,13 @@ function SelectedContainerWorkspace({
   locale,
   selected,
   selectedContainerId,
+  selectedOutsidePage,
 }: {
   currentUser: AuthUserResponse;
   locale: Locale;
   selected: SelectedContainerState | null;
   selectedContainerId?: string;
+  selectedOutsidePage: boolean;
 }) {
   const { t } = createTranslator(locale);
 
@@ -428,13 +506,21 @@ function SelectedContainerWorkspace({
           </div>
           <StatusBadge locale={locale} status={summary.status} />
         </div>
+        {selectedOutsidePage ? (
+          <p
+            className="mt-3 border-l-2 border-amber-500 pl-3 text-sm text-zinc-600"
+            role="status"
+          >
+            {t("This selected container is outside the current page.")}
+          </p>
+        ) : null}
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Metric label={t("Active pallets")} value={summary.activeTotalPallets} />
-          <Metric label={t("Loaded pallets")} value={summary.loadedPallets} />
-          <Metric label={t("Adjusted out")} value={summary.adjustedOutPallets} />
-          <Metric label={t("Cancelled")} value={summary.cancelledPallets} />
-          <Metric label={t("Remaining pallets")} value={summary.remainingPallets} />
-          <Metric label={t("Destinations")} value={summary.destinations.length} />
+          <Metric label={t("Active pallets")} locale={locale} value={summary.activeTotalPallets} />
+          <Metric label={t("Loaded pallets")} locale={locale} value={summary.loadedPallets} />
+          <Metric label={t("Adjusted out")} locale={locale} value={summary.adjustedOutPallets} />
+          <Metric label={t("Cancelled")} locale={locale} value={summary.cancelledPallets} />
+          <Metric label={t("Remaining pallets")} locale={locale} value={summary.remainingPallets} />
+          <Metric label={t("Destinations")} locale={locale} value={summary.destinations.length} />
         </dl>
       </section>
 
@@ -451,23 +537,46 @@ function SelectedContainerWorkspace({
 }
 
 function ContainerSummaryTable({
-  containers,
+  containerSummary,
   filters,
   locale,
+  pagination,
   selectedContainerId,
 }: {
-  containers: ContainerSummaryItemResponse[];
+  containerSummary: ContainerSummaryListResponse;
   filters: InventoryReportFilters;
   locale: Locale;
+  pagination: InventoryPaginationState;
   selectedContainerId?: string;
 }) {
   const { format, t } = createTranslator(locale);
+  const containers = containerSummary.items;
 
   return (
-    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold text-zinc-950">
-        {t("Container summary")}
-      </h2>
+    <section
+      className="inventory-container-summary min-w-0 border border-zinc-200 bg-white p-5 shadow-sm"
+      data-inventory-container-summary="true"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-zinc-950">
+            {t("Container summary")}
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600" aria-live="polite">
+            {containerSummary.totalItems === 1
+              ? t("1 container")
+              : format("i18n.inventory.totalItems", {
+                  count: containerSummary.totalItems,
+                })}
+          </p>
+        </div>
+        <InventorySortControls
+          filters={filters}
+          locale={locale}
+          pagination={pagination}
+          selectedContainerId={selectedContainerId}
+        />
+      </div>
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
@@ -537,6 +646,7 @@ function ContainerSummaryTable({
                       href={inventoryWorkspaceHref(
                         filters,
                         container.containerId,
+                        pagination,
                       )}
                     >
                       {selected ? t("Selected") : t("Select container")}
@@ -555,7 +665,234 @@ function ContainerSummaryTable({
           </tbody>
         </table>
       </div>
+      <InventoryPaginationControls
+        containerSummary={containerSummary}
+        filters={filters}
+        locale={locale}
+        pagination={pagination}
+        selectedContainerId={selectedContainerId}
+      />
     </section>
+  );
+}
+
+const inventorySortLabelKeys: Record<ContainerIndexSortField, MessageKey> = {
+  containerNo: "Container number",
+  createdAt: "Created time",
+  status: "Status",
+};
+
+function InventorySortControls({
+  filters,
+  locale,
+  pagination,
+  selectedContainerId,
+}: {
+  filters: InventoryReportFilters;
+  locale: Locale;
+  pagination: InventoryPaginationState;
+  selectedContainerId?: string;
+}) {
+  const { t } = createTranslator(locale);
+  return (
+    <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(10rem,1fr)_auto]">
+      <form action="/inventory" className="flex min-w-0 flex-wrap items-end gap-2">
+        <InventoryQueryHiddenFields
+          filters={filters}
+          page={1}
+          pageSize={pagination.pageSize}
+          selectedContainerId={selectedContainerId}
+          sortDirection={pagination.sortDirection}
+        />
+        <label className="grid min-w-0 flex-1 gap-1 text-xs font-semibold text-zinc-600">
+          <span>{t("Sort field")}</span>
+          <select
+            className="min-h-10 min-w-0 border border-zinc-300 bg-white px-2 text-sm text-zinc-950"
+            defaultValue={pagination.sortBy}
+            name="sortBy"
+          >
+            {(Object.keys(inventorySortLabelKeys) as ContainerIndexSortField[]).map(
+              (field) => (
+                <option key={field} value={field}>
+                  {t(inventorySortLabelKeys[field])}
+                </option>
+              ),
+            )}
+          </select>
+        </label>
+        <button
+          className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-teal-700"
+          type="submit"
+        >
+          {t("Apply sort")}
+        </button>
+      </form>
+      <div
+        aria-label={t("Sort direction")}
+        className="inline-flex self-end border border-zinc-300"
+        role="group"
+      >
+        {(["asc", "desc"] as const).map((direction) => {
+          const active = pagination.sortDirection === direction;
+          const label = direction === "asc" ? t("Ascending") : t("Descending");
+          return (
+            <Link
+              aria-current={active ? "true" : undefined}
+              aria-label={
+                direction === "asc" ? t("Sort ascending") : t("Sort descending")
+              }
+              className={`inline-flex min-h-10 items-center gap-1 px-3 text-sm font-semibold ${
+                active
+                  ? "bg-teal-800 text-white"
+                  : "bg-white text-zinc-800 hover:bg-zinc-100"
+              }`}
+              href={inventoryWorkspaceHref(filters, selectedContainerId, {
+                ...pagination,
+                page: 1,
+                sortDirection: direction,
+              })}
+              key={direction}
+            >
+              <span aria-hidden="true">{direction === "asc" ? "↑" : "↓"}</span>
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function InventoryPaginationControls({
+  containerSummary,
+  filters,
+  locale,
+  pagination,
+  selectedContainerId,
+}: {
+  containerSummary: ContainerSummaryListResponse;
+  filters: InventoryReportFilters;
+  locale: Locale;
+  pagination: InventoryPaginationState;
+  selectedContainerId?: string;
+}) {
+  const { format, t } = createTranslator(locale);
+  const previousHref = inventoryWorkspaceHref(filters, selectedContainerId, {
+    ...pagination,
+    page: Math.max(1, containerSummary.page - 1),
+  });
+  const nextHref = inventoryWorkspaceHref(filters, selectedContainerId, {
+    ...pagination,
+    page: Math.min(containerSummary.totalPages, containerSummary.page + 1),
+  });
+  return (
+    <nav
+      aria-label={t("Container summary pagination")}
+      className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-zinc-200 pt-4"
+    >
+      <form action="/inventory" className="flex flex-wrap items-end gap-2">
+        <InventoryQueryHiddenFields
+          filters={filters}
+          page={1}
+          selectedContainerId={selectedContainerId}
+          sortBy={pagination.sortBy}
+          sortDirection={pagination.sortDirection}
+        />
+        <label className="grid gap-1 text-xs font-semibold text-zinc-600">
+          <span>{t("Items per page")}</span>
+          <select
+            className="min-h-10 border border-zinc-300 bg-white px-2 text-sm text-zinc-950"
+            defaultValue={pagination.pageSize}
+            name="pageSize"
+          >
+            {[5, 10, 20, 50].map((pageSize) => (
+              <option key={pageSize} value={pageSize}>
+                {pageSize}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-teal-700"
+          type="submit"
+        >
+          {t("Apply page size")}
+        </button>
+      </form>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        <p className="text-sm font-medium text-zinc-600" aria-live="polite">
+          {format("i18n.inventory.pageStatus", {
+            page: containerSummary.page,
+            totalPages: containerSummary.totalPages,
+          })}
+        </p>
+        {containerSummary.page <= 1 ? (
+          <button
+            aria-label={t("Previous page")}
+            className="min-h-10 border border-zinc-200 bg-zinc-100 px-3 text-sm font-semibold text-zinc-400"
+            disabled
+            type="button"
+          >
+            {t("Previous")}
+          </button>
+        ) : (
+          <Link
+            aria-label={t("Previous page")}
+            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-teal-700"
+            href={previousHref}
+          >
+            {t("Previous")}
+          </Link>
+        )}
+        {containerSummary.page >= containerSummary.totalPages ? (
+          <button
+            aria-label={t("Next page")}
+            className="min-h-10 border border-zinc-200 bg-zinc-100 px-3 text-sm font-semibold text-zinc-400"
+            disabled
+            type="button"
+          >
+            {t("Next")}
+          </button>
+        ) : (
+          <Link
+            aria-label={t("Next page")}
+            className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-900 hover:border-teal-700"
+            href={nextHref}
+          >
+            {t("Next")}
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+function InventoryQueryHiddenFields({
+  filters,
+  page,
+  pageSize,
+  selectedContainerId,
+  sortBy,
+  sortDirection,
+}: {
+  filters: InventoryReportFilters;
+  page: number;
+  pageSize?: number;
+  selectedContainerId?: string;
+  sortBy?: string;
+  sortDirection?: string;
+}) {
+  return (
+    <>
+      {filters.containerNo ? <input name="containerNo" type="hidden" value={filters.containerNo} /> : null}
+      {filters.destinationCode ? <input name="destinationCode" type="hidden" value={filters.destinationCode} /> : null}
+      {filters.status ? <input name="status" type="hidden" value={filters.status} /> : null}
+      {selectedContainerId ? <input name="containerId" type="hidden" value={selectedContainerId} /> : null}
+      <input name="page" type="hidden" value={page} />
+      {pageSize ? <input name="pageSize" type="hidden" value={pageSize} /> : null}
+      {sortBy ? <input name="sortBy" type="hidden" value={sortBy} /> : null}
+      {sortDirection ? <input name="sortDirection" type="hidden" value={sortDirection} /> : null}
+    </>
   );
 }
 
@@ -569,7 +906,10 @@ function DestinationInventoryTable({
   const { t } = createTranslator(locale);
 
   return (
-    <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+    <section
+      className="border border-zinc-200 bg-white p-5 shadow-sm"
+      data-inventory-destination-summary="true"
+    >
       <h2 className="text-base font-semibold text-zinc-950">
         {t("Destination summary")}
       </h2>

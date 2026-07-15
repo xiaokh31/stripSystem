@@ -327,6 +327,10 @@ interface FindManyArgs {
 }
 
 describe('ImportsController (e2e)', () => {
+  // Real parser/report/label worker subprocesses can exceed Jest's 5 second
+  // unit-test default on Docker Desktop while still completing successfully.
+  jest.setTimeout(15_000);
+
   const fixturePath = resolve(
     __dirname,
     '..',
@@ -1908,7 +1912,113 @@ describe('ImportsController (e2e)', () => {
       },
     };
 
-    prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+    prisma.$queryRaw = jest.fn(
+      (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const statement = strings.join('?');
+        const statusFilter = values.find(
+          (value) =>
+            typeof value === 'string' &&
+            [
+              'PLANNED',
+              'LABEL_PRINTED',
+              'LOADING',
+              'LOADED',
+              'ADJUSTED_OUT',
+              'CANCELLED',
+              'EXCEPTION',
+            ].includes(value),
+        ) as string | undefined;
+        const matchingPallets = (destinationId: string) =>
+          palletRecords.filter(
+            (pallet) =>
+              pallet.containerDestinationId === destinationId &&
+              (!statusFilter || pallet.status === statusFilter),
+          );
+        const stats = (items: PalletRecord[]) => ({
+          activeTotalPallets: items.filter(
+            (pallet) =>
+              pallet.status !== 'ADJUSTED_OUT' && pallet.status !== 'CANCELLED',
+          ).length,
+          adjustedOutPallets: items.filter(
+            (pallet) => pallet.status === 'ADJUSTED_OUT',
+          ).length,
+          cancelledPallets: items.filter(
+            (pallet) => pallet.status === 'CANCELLED',
+          ).length,
+          loadedPallets: items.filter((pallet) => pallet.status === 'LOADED')
+            .length,
+          remainingPallets: items.filter(
+            (pallet) =>
+              pallet.status !== 'LOADED' &&
+              pallet.status !== 'ADJUSTED_OUT' &&
+              pallet.status !== 'CANCELLED',
+          ).length,
+          totalPallets: items.length,
+        });
+
+        if (statement.includes('GROUP BY d."destination_code"')) {
+          const grouped = new Map<string, PalletRecord[]>();
+          for (const destination of destinationRecords) {
+            grouped.set(
+              destination.destinationCode,
+              (grouped.get(destination.destinationCode) ?? []).concat(
+                matchingPallets(destination.id),
+              ),
+            );
+          }
+          return Promise.resolve(
+            [...grouped.entries()]
+              .filter(([, items]) => items.length > 0)
+              .map(([destinationCode, items]) => ({
+                destinationCode,
+                ...stats(items),
+              })),
+          );
+        }
+        if (statement.includes('GROUP BY c."id"')) {
+          return Promise.resolve(
+            containerRecords.flatMap((container) => {
+              const containerDestinations = destinationRecords.filter(
+                (destination) => destination.containerId === container.id,
+              );
+              const filtered = containerDestinations.flatMap((destination) =>
+                matchingPallets(destination.id),
+              );
+              const lifecycle = containerDestinations.flatMap((destination) =>
+                palletRecords.filter(
+                  (pallet) => pallet.containerDestinationId === destination.id,
+                ),
+              );
+              if (filtered.length === 0) return [];
+              const activeLifecycle = lifecycle.filter(
+                (pallet) =>
+                  pallet.status !== 'ADJUSTED_OUT' &&
+                  pallet.status !== 'CANCELLED',
+              );
+              return [
+                {
+                  containerId: container.id,
+                  containerNo: container.containerNo,
+                  createdAt: container.createdAt,
+                  effectiveLoadedPallets: activeLifecycle.filter(
+                    (pallet) => pallet.status === 'LOADED' || pallet.loadedAt,
+                  ).length,
+                  hasLoadingSignal: activeLifecycle.some(
+                    (pallet) => pallet.status === 'LOADING' || pallet.loadJobId,
+                  ),
+                  lifecycleActivePallets: activeLifecycle.length,
+                  payClassification: null,
+                  payTrailerNumber: null,
+                  storedStatus: container.status,
+                  ...stats(filtered),
+                },
+              ];
+            }),
+          );
+        }
+        return Promise.resolve([]);
+      },
+    );
     prisma.$transaction = jest.fn((callback) => callback(prisma));
 
     return prisma;

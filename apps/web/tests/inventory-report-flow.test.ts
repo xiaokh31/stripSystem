@@ -5,6 +5,7 @@ import {
   formatInventoryRefreshTime,
   inventoryWorkspaceHref,
   normalizeInventoryFilters,
+  normalizeInventoryPagination,
   normalizeInventorySelection,
   normalizeInventoryPollingIntervalMs,
   PALLET_STATUS_OPTIONS,
@@ -35,7 +36,7 @@ test("inventory workspace href preserves API filters and exact container selecti
       },
       "container_cuid_123",
     ),
-    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container_cuid_123",
+    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container_cuid_123&page=1&pageSize=10&sortBy=createdAt&sortDirection=desc",
   );
 });
 
@@ -49,14 +50,62 @@ test("inventory exact suggestion selection stores canonical container text with 
       },
       "container-id-1",
     ),
-    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container-id-1",
+    "/inventory?containerNo=CSNU8877228&destinationCode=YEG1&status=LABEL_PRINTED&containerId=container-id-1&page=1&pageSize=10&sortBy=createdAt&sortDirection=desc",
   );
   assert.equal(
     inventoryWorkspaceHref(
       { containerNo: "CSNU8", destinationCode: "YEG1" },
       undefined,
     ),
-    "/inventory?containerNo=CSNU8&destinationCode=YEG1",
+    "/inventory?containerNo=CSNU8&destinationCode=YEG1&page=1&pageSize=10&sortBy=createdAt&sortDirection=desc",
+  );
+});
+
+test("inventory pagination normalizes defaults and rejects unstable URL values", () => {
+  assert.deepEqual(normalizeInventoryPagination({}), {
+    page: 1,
+    pageSize: 10,
+    sortBy: "createdAt",
+    sortDirection: "desc",
+  });
+  assert.deepEqual(
+    normalizeInventoryPagination({
+      page: "3",
+      pageSize: "50",
+      sortBy: "containerNo",
+      sortDirection: "asc",
+    }),
+    {
+      page: 3,
+      pageSize: 50,
+      sortBy: "containerNo",
+      sortDirection: "asc",
+    },
+  );
+  assert.deepEqual(
+    normalizeInventoryPagination({
+      page: "0",
+      pageSize: "25",
+      sortBy: "translated-status",
+      sortDirection: "sideways",
+    }),
+    {
+      page: 1,
+      pageSize: 10,
+      sortBy: "createdAt",
+      sortDirection: "desc",
+    },
+  );
+});
+
+test("inventory URLs preserve page, sorting, filters, and exact selection", () => {
+  assert.equal(
+    inventoryWorkspaceHref(
+      { containerNo: "AB 12", destinationCode: "YEG1" },
+      "container-id",
+      { page: 4, pageSize: 20, sortBy: "status", sortDirection: "asc" },
+    ),
+    "/inventory?containerNo=AB+12&destinationCode=YEG1&containerId=container-id&page=4&pageSize=20&sortBy=status&sortDirection=asc",
   );
 });
 

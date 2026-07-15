@@ -1339,7 +1339,14 @@
               <td><span class="badge done">Done</span></td>
               <td>All-container Index / Persisted Created Time / Stable Lifecycle Sorting Complete</td>
               <td>新增只要求 <code>containers.read</code> 的 <code>GET /api/containers</code>，以单条参数化 PostgreSQL LEFT JOIN/GROUP BY 查询返回全部真实柜子、ISO createdAt、effective status 和 raw pallet counts；无 N+1，不依赖 active inventory，也不向 Web 发送 pallet rows。createdAt/containerNo/status 与 asc/desc 均有稳定 comparator/tie-break，默认 createdAt desc，非法 API query 返回 400、非法 Web URL 回退默认。页面显示 locale/timezone 创建时间，search/sort/direction 写入 URL，并在刷新、详情返回、语言和主题切换后保持；typed 双语、tooltip/aria-label、aria-current、aria-sort 和表格局部滚动完成。API lint/typecheck、31 suites / 237 unit、focused E2E 2 suites / 5 tests、build；Web lint/typecheck、218 unit、production build、Chromium 1/1、healthcheck 和 diff check 通过。</td>
-              <td>真实 fixture 覆盖 active、全 loaded、全 adjusted、全 cancelled、无 pallet 五种柜子并证明六种排序。5 张 en/zh-CN、light/dark、390/1366/1920 与真实 200% zoom PNG 位于 <code>test-results/web-ops-07/</code>，原分辨率复核无混语、重叠或页面级 overflow；fixture container/admin 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-07-container-index-verification.md</code>。下一任务为 WEB-OPS-08，本会话不启动。</td>
+              <td>真实 fixture 覆盖 active、全 loaded、全 adjusted、全 cancelled、无 pallet 五种柜子并证明六种排序。5 张 en/zh-CN、light/dark、390/1366/1920 与真实 200% zoom PNG 位于 <code>test-results/web-ops-07/</code>，原分辨率复核无混语、重叠或页面级 overflow；fixture container/admin 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-07-container-index-verification.md</code>。后续 WEB-OPS-08 已完成，下一任务为 WEB-OPS-09。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-08 Inventory Pagination Sorting and Adaptive Workspace</td>
+              <td><span class="badge done">Done</span></td>
+              <td>Server Pagination / Shared Stable Sorting / Global Totals / Adaptive Inventory Workspace Complete</td>
+              <td>库存 container summary 支持默认 10、可选 5/10/20/50 的服务端分页，返回当前页 items、规范化 page metadata 和完整筛选集合 totals。summary 与完整 destination summary 各使用一条 PostgreSQL aggregate query，不水合全库 pallet rows；55 柜 query-count 回归证明无 N+1。createdAt/containerNo/status 六种顺序与柜子索引共用 comparator。URL 保存 filter、selection、page、pageSize 和 sort，页外 selected detail、越界规范化、后端 refresh/draft 保持完成。operation grid 不再 stretch，短内容自然占高，只有长目的仓/历史列表启用 focus 可达 bounded scroll；typed 双语分页与 aria/disabled 状态完成。</td>
+              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、220 unit；Worker 127；真实 PostgreSQL Chromium 1/1、healthcheck 和 diff check 通过。24 柜、29 目的仓、58 pallet fixture 覆盖四种 page size、六种排序、页外人工消库存 remaining 2→1 / adjusted 0→1、审计与精确清理。28 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom PNG 和 geometry/audit JSON 位于 <code>test-results/web-ops-08/</code>。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-08-inventory-pagination-verification.md</code>。下一任务为 WEB-OPS-09，本会话不启动。</td>
             </tr>
             <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
@@ -1461,8 +1468,8 @@
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 已补齐两个独立 RBAC endpoint 共用的数据库柜号模糊联想与稳定 identity combobox。</td>
-              <td>Dashboard redesign 与 WEB-OPS-01 至 06 已关闭；后续按任务索引执行 WEB-OPS-07 至 09，不重复启动已完成任务。</td>
+              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 至 08 已补齐独立 RBAC 柜号联想、稳定柜子排序、库存服务端分页、全局 totals 与自适应工作区。</td>
+              <td>Dashboard redesign 与 WEB-OPS-01 至 08 已关闭；后续按任务索引执行 WEB-OPS-09，不重复启动已完成任务。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>

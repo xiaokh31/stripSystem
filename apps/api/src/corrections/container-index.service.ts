@@ -5,12 +5,11 @@ import {
   ContainerIndexQueryDto,
 } from './dto/container-index.dto';
 import {
-  compareContainerNumbers,
   escapeSqlLikePattern,
   normalizeContainerSearchValue,
 } from '../common/container-search';
+import { compareContainerOrder } from '../common/container-ordering';
 import { effectiveContainerStatusFromAggregate } from '../common/container-lifecycle';
-import { ContainerStatus } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface ContainerIndexRow {
@@ -27,20 +26,6 @@ interface ContainerIndexRow {
   remainingPallets: number;
   hasLoadingSignal: boolean;
 }
-
-const CONTAINER_STATUS_RANK = new Map<string, number>(
-  [
-    ContainerStatus.IMPORTED,
-    ContainerStatus.PARSED,
-    ContainerStatus.CORRECTED,
-    ContainerStatus.REPORT_GENERATED,
-    ContainerStatus.LABELS_GENERATED,
-    ContainerStatus.UNLOADED,
-    ContainerStatus.LOADING_IN_PROGRESS,
-    ContainerStatus.LOADED,
-    ContainerStatus.ERROR,
-  ].map((status, index) => [status, index]),
-);
 
 @Injectable()
 export class ContainerIndexService {
@@ -90,7 +75,9 @@ export class ContainerIndexService {
     `;
 
     const items = rows.map((row) => this.toItem(row));
-    items.sort((left, right) => this.compare(left, right, query));
+    items.sort((left, right) =>
+      compareContainerOrder(left, right, query.sort, query.direction),
+    );
     return { items };
   }
 
@@ -116,40 +103,6 @@ export class ContainerIndexService {
     };
   }
 
-  private compare(
-    left: ContainerIndexItemDto,
-    right: ContainerIndexItemDto,
-    query: ContainerIndexQueryDto,
-  ): number {
-    const direction = query.direction === 'asc' ? 1 : -1;
-    if (query.sort === 'createdAt') {
-      const dateComparison = left.createdAt.localeCompare(right.createdAt);
-      return dateComparison !== 0
-        ? direction * dateComparison
-        : left.containerId.localeCompare(right.containerId);
-    }
-    if (query.sort === 'containerNo') {
-      const containerComparison = compareContainerNumbers(
-        left.containerNo,
-        right.containerNo,
-      );
-      if (containerComparison !== 0) return direction * containerComparison;
-      const dateComparison = right.createdAt.localeCompare(left.createdAt);
-      return dateComparison !== 0
-        ? dateComparison
-        : left.containerId.localeCompare(right.containerId);
-    }
-
-    const rankComparison = statusRank(left.status) - statusRank(right.status);
-    if (rankComparison !== 0) return direction * rankComparison;
-    const containerComparison = compareContainerNumbers(
-      left.containerNo,
-      right.containerNo,
-    );
-    return containerComparison !== 0
-      ? direction * containerComparison
-      : direction * left.containerId.localeCompare(right.containerId);
-  }
 }
 
 function effectiveStatus(
@@ -163,8 +116,4 @@ function effectiveStatus(
     hasLoadingSignal,
     loadedPalletCount: loadedPallets,
   });
-}
-
-function statusRank(status: string): number {
-  return CONTAINER_STATUS_RANK.get(status) ?? CONTAINER_STATUS_RANK.size;
 }

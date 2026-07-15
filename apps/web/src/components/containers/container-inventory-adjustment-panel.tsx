@@ -67,6 +67,11 @@ export function ContainerInventoryAdjustmentPanel({
   const [actionState, setActionState] =
     useState<AdjustmentActionState>(idleActionState);
   const summaries = inventorySummary?.destinations ?? [];
+  const historyCount = Object.values(historyByDestinationId).reduce(
+    (total, history) => total + history.length,
+    0,
+  );
+  const useBoundedWorkspace = summaries.length > 5 || historyCount > 10;
   const reasonOptions = useMemo(
     () => inventoryAdjustmentReasonOptions(locale),
     [locale],
@@ -201,7 +206,23 @@ export function ContainerInventoryAdjustmentPanel({
           {t("No generated pallets are available for destination inventory review.")}
         </p>
       ) : (
-        <div className="mt-4 divide-y divide-zinc-100 border-y border-zinc-100">
+        <div
+          aria-label={
+            useBoundedWorkspace
+              ? t("Scrollable destination inventory and adjustment history")
+              : undefined
+          }
+          className={`mt-4 divide-y divide-zinc-100 border-y border-zinc-100 ${
+            useBoundedWorkspace
+              ? "max-h-[48rem] overflow-y-auto overscroll-contain pr-2"
+              : ""
+          }`}
+          data-bounded-inventory-workspace={
+            useBoundedWorkspace ? "true" : "false"
+          }
+          role={useBoundedWorkspace ? "region" : undefined}
+          tabIndex={useBoundedWorkspace ? 0 : undefined}
+        >
           {summaries.map((summary) => (
             <DestinationInventoryRow
               canAdjust={canAdjust}

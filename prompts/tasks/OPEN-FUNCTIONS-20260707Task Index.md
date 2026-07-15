@@ -130,7 +130,8 @@ destination-first DOM/视觉顺序与权限/交互/双语视觉回归；`WEB-OPS
 单 timer、formatter cache、hidden/narrow pause 与 CDP/heap 评估；`WEB-OPS-05` 已完成 01-04 的最终 i18n、
 视觉、RBAC、库存事务与性能关闭门禁；`WEB-OPS-06` 已完成共享 database-backed 柜号联想、独立权限边界、
 稳定 identity 与可访问 combobox；`WEB-OPS-07` 已完成独立柜子索引 contract、持久化创建时间、全部柜子口径与
-createdAt/containerNo/status 六种稳定排序。不要为这些任务重复开会话；下一任务改为 `WEB-OPS-08`。
+createdAt/containerNo/status 六种稳定排序；`WEB-OPS-08` 已完成库存服务端分页、同口径排序、全局 totals、跨页
+selection 与自适应工作区。不要为这些任务重复开会话；下一任务改为 `WEB-OPS-09`。
 
 1. `WEB-OPS-06Shared Container Fuzzy Search and Suggestion Contract.md`
    - 已完成。database-backed exact/prefix/contains 联想只查询 id/container_no，由 `containers.read` 与
@@ -142,8 +143,9 @@ createdAt/containerNo/status 六种稳定排序。不要为这些任务重复开
      全 loaded、全 adjusted/cancelled 与历史柜子；createdAt/containerNo/status 六种稳定顺序、effective status、URL
      保持、typed 双语、390/1366/1920 和真实 200% zoom 均通过。无 schema/migration 或外部验收项。
 3. `WEB-OPS-08Inventory Pagination Sorting and Adaptive Workspace.md`
-   - 左侧柜子汇总实现默认 10、可选 5/10/20/50 的服务端分页和同口径排序；global metrics 不随当前页变化；
-     selected/destination 区域按内容自然占高，不再被左表 stretch。
+   - 已完成。左侧柜子汇总实现默认 10、可选 5/10/20/50 的服务端分页、共享六种稳定排序和完整筛选集合 totals；
+     selected 柜跨页保持，短/长 destination workspace 按内容自然占高。24 柜真实 PostgreSQL Chromium、28 张视觉
+     矩阵、API/Web/Worker 全量门禁、healthcheck 和精确清理均通过；无 schema/migration 或外部验收项。
 4. `WEB-OPS-09Container Inventory I18n Accessibility Visual Exit Gate.md`
    - 一次关闭 06-08 的 i18n、combobox accessibility、RBAC、库存事务、分页/排序和 responsive layout；采用受影响页面
      pairwise matrix，最终截图建议不超过 36 张，并强制报告 wall/build/E2E 重试成本。
@@ -219,8 +221,8 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile，再使用 `scripts/run-business-agent.sh task '<task-file>'` 启动一个受监督进程；不要使用直接 prompt、原始 `exec`、手工 `resume` 或旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-08`。
-3. 按 `WEB-OPS-08 -> WEB-OPS-09` 顺序执行；每个任务新建一个 supervisor session，
+2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-09`。
+3. 执行 `WEB-OPS-09` 时新建一个 supervisor session，
    不得跳过 09 的严格 i18n/RBAC/库存事务门禁，也不得恢复 236 张无差别截图矩阵。
 4. WEB-OPS-09 关闭后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
 5. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时
