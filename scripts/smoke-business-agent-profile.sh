@@ -10,6 +10,7 @@ canonical_profile="${project_root}/.codex/business-agent.config.toml"
 task_runner="${project_root}/scripts/run-business-task.sh"
 terminal_schema="${project_root}/.codex/business-task-terminal.schema.json"
 supervisor_test="${project_root}/scripts/test-business-task-supervisor.sh"
+windows_wrapper_test="${project_root}/scripts/test-windows-business-agent-wrapper.sh"
 
 if [[ $# -gt 1 || ( $# -eq 1 && "${1}" != '--policy-only' ) ]]; then
   printf 'Usage: %s [--policy-only]\n' "$0" >&2
@@ -34,7 +35,7 @@ if [[ "${1:-}" != '--policy-only' ]]; then
     exit 1
   fi
 
-  if [[ ! -x "${task_runner}" || ! -x "${supervisor_test}" ]]; then
+  if [[ ! -x "${task_runner}" || ! -x "${supervisor_test}" || ! -x "${windows_wrapper_test}" ]]; then
     printf 'Business-task supervisor scripts are not executable.\n' >&2
     exit 1
   fi
@@ -80,6 +81,7 @@ if [[ "${1:-}" != '--policy-only' ]]; then
 
   "${inner_smoke}" "${project_root}"
   "${supervisor_test}"
+  "${windows_wrapper_test}"
 fi
 
 assert_forbidden() {

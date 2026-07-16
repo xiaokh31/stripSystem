@@ -36,6 +36,7 @@ docs/runbooks/*
 !docs/runbooks/work-hours-settlement-regression.md
 !docs/runbooks/monitoring-alerting-siem.md
 !docs/runbooks/business-agent-execution.md
+!docs/runbooks/fresh-windows-agent-onboarding.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html

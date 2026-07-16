@@ -1,5 +1,14 @@
 # Windows Platform Project Status
 
+Task-Status: ARCHIVED
+Archived-On: 2026-07-15
+
+The Windows React Native Windows/MSIX delivery route is archived by product
+decision. Do not generate the RNW project, integrate modules, build/sign MSIX,
+or run Windows device smoke while archived. Existing source and the checklist
+below remain as reactivation references. Reactivation requires explicit product
+approval plus synchronized P6 Task, open-task index and completion-report updates.
+
 Status at P6-MOBILE-13: source boundary present, generated React Native Windows
 project and MSIX release blocked until a Windows 11 build machine is available.
 
@@ -51,7 +60,7 @@ Do not commit:
   signing passwords, or local Visual Studio user files.
 - `bin/`, `obj/`, `Generated Files/`, or per-user `.vs/` state.
 
-P6-MOBILE-13 conclusion for this checkout: Windows cannot be marked ready until
+Historical P6-MOBILE-13 conclusion for this checkout: Windows cannot be marked ready until
 the generated RNW solution is restored or generated on the Windows 11 build
 machine, `windows:check` passes, an MSIX artifact path is recorded, and Windows
 device smoke passes. Android and iOS pilot route readiness remains unchanged.

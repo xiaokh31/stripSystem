@@ -1,5 +1,11 @@
 # 执行 CROSS-UX-QA-01：Persistent Session Theme Locale Regression
 
+## 2026-07-15 当前交付范围
+
+- Native 组合矩阵当前只覆盖 Android 和 iOS；Web 范围不变。
+- Windows RNW/MSIX、Credential Locker、Windows theme/header/startup/device smoke 已归档，不再是前置条件或 blocker。
+- 恢复 Windows 矩阵必须先获得产品批准，并同步解除 P6-MOBILE-09 至 13、任务索引和完成度报告的归档状态。
+
 ## 前置任务
 
 - `NATIVE-AUTH-01Revocable Persistent Native Session.md`
@@ -46,7 +52,7 @@
 - 跑 API、Web、Native lint/typecheck/unit/e2e/build focused suites。
 - Docker full-stack 经 nginx 验证 Web login/theme/locale 与 API refresh/revoke。
 - Android/iOS release 实机采集关键截图和 session/theme/header 证据。
-- Windows 11/MSIX 项与 `P6-MOBILE-13` 合并执行；缺少设备时保留 blocker，不得标记三端完整通过。
+- Windows 11/MSIX 项已归档；当前不得执行 `P6-MOBILE-13`，也不得把 Windows 缺口写入活动 blocker。
 - 更新任务索引、项目完成度报告和相关 runbook，逐项标注 passed/blocked/not run。
 
 ## 测试命令
@@ -64,7 +70,7 @@
 - `pnpm --filter mobile-scan-app test`
 - `pnpm --filter mobile-scan-app android:check`
 - `pnpm --filter mobile-scan-app ios:check`
-- `pnpm --filter mobile-scan-app windows:check`
+- 已归档且当前不得执行：`pnpm --filter mobile-scan-app windows:check`
 - Docker full-stack focused auth/theme/locale smoke
 - `git diff --check`
 
@@ -74,4 +80,4 @@
 2. Native 长会话安全可撤销，Android 标题完整。
 3. Web 主题持久化且中文刷新从首帧开始就是中文。
 4. 组合矩阵无混语、闪烁、不可读状态或 hydration warning。
-5. 未验证平台明确保留为 release blocker。
+5. 未验证的 Android/iOS 活动平台明确保留为 release blocker；已归档 Windows 平台不阻塞当前结论。

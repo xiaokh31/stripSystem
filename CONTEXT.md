@@ -18,6 +18,9 @@ _Avoid_: Native app, installed scan app
 **Native Scan App**:
 An installed warehouse scanning application for Windows, Android, and iOS that
 contains only login and mobile scan workflows and uses native camera access.
+Current active delivery targets are Android and iOS. The Windows RNW/MSIX
+installation-package route was archived by product decision on 2026-07-15;
+its source boundaries and documents remain only as reactivation references.
 _Avoid_: Web app, PWA, browser scan page, office app
 
 **Scan Transaction**:

@@ -1,5 +1,8 @@
 执行 P6-MOBILE-08：Native Packaging + LAN Deployment Runbook。
 
+2026-07-15 范围说明：本 Task 已完成并保留历史交付记录。其 Windows MSIX 文档现在只作为归档恢复参考；
+当前活动发布范围为 Android/iOS，不得从本历史 Task 重新启动 Windows RNW/MSIX 工作。
+
 必须读取：
 - AGENTS.md
 - CONTEXT.md

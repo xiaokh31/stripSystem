@@ -1,5 +1,8 @@
 执行 P6-MOBILE Exit Gate：Standalone Native Scan App 验收。
 
+2026-07-15 范围说明：本文件是已完成阶段的历史验收定义。Windows MSIX 相关条目已随
+P6-MOBILE-09 至 13 归档，不再是当前 gate；Android/iOS 条件通过结论继续有效。
+
 必须读取：
 - AGENTS.md
 - CONTEXT.md

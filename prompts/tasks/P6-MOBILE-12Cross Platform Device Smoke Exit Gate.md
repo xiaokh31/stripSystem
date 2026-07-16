@@ -1,7 +1,14 @@
+Task-Status: ARCHIVED
+Archived-On: 2026-07-15
+Archive-Scope: Windows native package / React Native Windows / MSIX delivery
+Archive-Reason: Product decision to pause the Windows native installation package.
+Archive-Note: The completed Android/iOS conditional pilot result remains valid; do not rerun this historical Task.
+Reactivation: Requires explicit product approval, removal of this marker, and synchronized Task index/completion report updates.
+
 执行 P6-MOBILE-12：Cross-Platform Device Smoke + P6 Exit Gate。
 
 优先级：
-- 必做，P6 Exit Gate 最终验收任务。
+- 已归档，不在当前执行队列；Android/iOS 历史验收结论保留，以下内容仅供以后恢复参考。
 
 前置任务：
 - P6-MOBILE-09Native Camera Module Wiring

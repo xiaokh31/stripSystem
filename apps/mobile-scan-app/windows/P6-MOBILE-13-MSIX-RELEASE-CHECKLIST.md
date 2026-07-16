@@ -1,5 +1,13 @@
 # P6-MOBILE-13 Windows MSIX Release Checklist
 
+Task-Status: ARCHIVED
+Archived-On: 2026-07-15
+
+Do not execute or fill this checklist while the Windows native installation
+package route is archived. It is retained as a reversible reactivation asset.
+Reactivation requires explicit product approval, removal of the P6-MOBILE-09
+through 13 archive markers, and synchronized Task index/completion report updates.
+
 Use this checklist on the Windows 11 build machine. Do not fill passwords,
 JWTs, private certificate keys, or signing secrets into this file.
 

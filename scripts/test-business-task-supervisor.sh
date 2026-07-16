@@ -79,6 +79,13 @@ fake_codex() {
     external)
       status='CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING'
       ;;
+    implementation_only_done_then_external)
+      if [[ ${call_number} -eq 1 ]]; then
+        status='DONE'
+      else
+        status='CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING'
+      fi
+      ;;
     exhaust)
       status='CONTINUE'
       ;;
@@ -121,17 +128,31 @@ fake_codex() {
         }')"
         ;;
       CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING)
-        result="$(jq -nc --arg task_id "${task_id}" '{
-          task_id:$task_id,
-          status:"CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING",
-          summary:"Code and local automation are complete.",
-          changed_files:["example.ts"],
-          tests:["focused tests passed"],
-          remaining_work:[],
-          external_verification:["Open the generated workbook in Microsoft Excel."],
-          blockers:[],
-          next_action:"Perform the named external verification."
-        }')"
+        if [[ "${FAKE_CODEX_SCENARIO}" == 'implementation_only_done_then_external' ]]; then
+          result="$(jq -nc --arg task_id "${task_id}" '{
+            task_id:$task_id,
+            status:"CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING",
+            summary:"Implementation is complete without local execution.",
+            changed_files:["example.ts"],
+            tests:[],
+            remaining_work:[],
+            external_verification:["Run Docker tests and builds on a capable verification host."],
+            blockers:[],
+            next_action:"Transfer the diff to the verification host."
+          }')"
+        else
+          result="$(jq -nc --arg task_id "${task_id}" '{
+            task_id:$task_id,
+            status:"CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING",
+            summary:"Code and local automation are complete.",
+            changed_files:["example.ts"],
+            tests:["focused tests passed"],
+            remaining_work:[],
+            external_verification:["Open the generated workbook in Microsoft Excel."],
+            blockers:[],
+            next_action:"Perform the named external verification."
+          }')"
+        fi
         ;;
       BLOCKED)
         result="$(jq -nc --arg task_id "${task_id}" '{
@@ -164,6 +185,13 @@ project_root="$(cd -- "${script_dir}/.." && pwd)"
 launcher="${project_root}/scripts/run-business-agent.sh"
 canonical_profile="${project_root}/.codex/business-agent.config.toml"
 task_file='prompts/tasks/UNLOAD-PALLET-09Footprint Height Capacity and Oversize Piece Calculation.md'
+archived_task_files=(
+  'prompts/tasks/P6-MOBILE-09Native Camera Module Wiring.md'
+  'prompts/tasks/P6-MOBILE-10Secure Token Storage.md'
+  'prompts/tasks/P6-MOBILE-11Windows iOS Native Project Hardening.md'
+  'prompts/tasks/P6-MOBILE-12Cross Platform Device Smoke Exit Gate.md'
+  'prompts/tasks/P6-MOBILE-13Windows MSIX Release Completion.md'
+)
 test_root="$(mktemp -d "${TMPDIR:-/private/tmp}/bestar-business-task-supervisor-test.XXXXXX")"
 fake_bin="${test_root}/bin"
 fake_home="${test_root}/codex-home"
@@ -196,6 +224,7 @@ run_case() {
   local expected_exit="$3"
   local expected_calls="$4"
   local expected_state="$5"
+  local execution_mode="${6:-full}"
   local case_root="${test_root}/${scenario}"
   local state_file="${case_root}/fake-state"
   local call_log="${case_root}/calls.log"
@@ -204,6 +233,7 @@ run_case() {
   local output
   local exit_code
   local final_state
+  local final_execution_mode
   local calls=0
 
   mkdir -p "${case_root}"
@@ -216,6 +246,7 @@ run_case() {
       FAKE_CODEX_CALL_LOG="${call_log}" \
       FAKE_TASK_ID='UNLOAD-PALLET-09' \
       BUSINESS_AGENT_MAX_TURNS="${max_turns}" \
+      BUSINESS_AGENT_EXECUTION_MODE="${execution_mode}" \
       BUSINESS_AGENT_RUN_ROOT="${run_root}" \
       BUSINESS_AGENT_LOCK_DIR="${lock_directory}" \
       "${launcher}" task "${task_file}" 2>&1
@@ -227,10 +258,12 @@ run_case() {
     read -r calls <"${state_file}" || calls=0
   fi
   final_state="$(find "${run_root}" -name state.json -type f -exec jq -r '.supervisor_status' {} \; | head -n 1)"
+  final_execution_mode="$(find "${run_root}" -name state.json -type f -exec jq -r '.execution_mode' {} \; | head -n 1)"
 
   assert_equals "${expected_exit}" "${exit_code}" "${scenario} exit code"
   assert_equals "${expected_calls}" "${calls}" "${scenario} Codex calls"
   assert_equals "${expected_state}" "${final_state}" "${scenario} supervisor state"
+  assert_equals "${execution_mode}" "${final_execution_mode}" "${scenario} execution mode"
 
   if [[ -d "${lock_directory}" ]]; then
     fail "${scenario} left the business-task lock behind"
@@ -253,6 +286,7 @@ run_case terminal_progress_then_done 4 0 2 DONE
 run_case process_failure_then_done 4 0 2 DONE
 run_case blocked 2 0 1 BLOCKED
 run_case external 2 0 1 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
+run_case implementation_only_done_then_external 3 0 2 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING implementation-only
 run_case exhaust 3 75 3 SUPERVISOR_EXHAUSTED
 
 set +e
@@ -315,5 +349,20 @@ if [[ "${invalid_path_output}" != *'directly under prompts/tasks/'* ]]; then
   fail 'invalid Task path did not explain the path boundary'
 fi
 printf 'PASS: Task path boundary\n'
+
+for archived_task_file in "${archived_task_files[@]}"; do
+  set +e
+  archived_task_output="$(
+    PATH="${fake_bin}:${PATH}" CODEX_HOME="${fake_home}" \
+      "${launcher}" task "${archived_task_file}" 2>&1
+  )"
+  archived_task_exit=$?
+  set -e
+  assert_equals 78 "${archived_task_exit}" "archived Task guard exit code (${archived_task_file})"
+  if [[ "${archived_task_output}" != *'Task is archived and cannot be executed'* ]]; then
+    fail "archived Task guard did not explain how to reactivate ${archived_task_file}"
+  fi
+done
+printf 'PASS: archived Task guard\n'
 
 printf 'Business-task supervisor tests passed.\n'

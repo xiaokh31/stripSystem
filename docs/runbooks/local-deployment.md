@@ -596,6 +596,22 @@ Execute one complete Task through the programmatic supervisor:
   'prompts/tasks/<task-file>.md'
 ```
 
+From Windows PowerShell, use the CMD entry instead of invoking `.sh` files
+directly:
+
+```powershell
+.\scripts\run-business-agent.cmd doctor
+.\scripts\run-business-agent.cmd install
+.\scripts\run-business-agent.cmd develop "prompts/tasks/<task-file>.md"
+```
+
+The CMD entry locates Git for Windows and delegates to the same canonical Bash
+supervisor; it does not maintain a second terminal-state implementation. On a
+Windows host without Docker, `develop` performs implementation only, skips all
+test/build/runtime operations, and can only return external verification
+pending. Use `.cmd smoke` and `.cmd task` only on a different host that has the
+complete verification environment.
+
 Run this from a normal terminal after leaving the old Codex session. The supervisor starts a fresh Session, requires structured
 turn results, and automatically resumes the same Task after `CONTINUE`, malformed output, premature in-progress output, or a
 recoverable Codex process failure. Only a valid terminal state stops the process. It also prevents concurrent supervised Tasks and

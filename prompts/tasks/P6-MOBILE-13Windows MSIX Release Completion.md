@@ -1,7 +1,14 @@
+Task-Status: ARCHIVED
+Archived-On: 2026-07-15
+Archive-Scope: Windows native package / React Native Windows / MSIX delivery
+Archive-Reason: Product decision to pause the Windows native installation package.
+Archive-Note: Repository-side handoff assets remain as historical/reactivation references; do not execute this Task while archived.
+Reactivation: Requires explicit product approval, removal of this marker, and synchronized Task index/completion report updates.
+
 执行 P6-MOBILE-13：Windows MSIX Release Completion。
 
 优先级：
-- 必做。Android/iOS pilot route 已条件通过，但完整 PRD 要求 Windows MSIX、Android APK、iOS IPA 三端原生交付。
+- 已归档，不在当前执行队列；Android/iOS pilot route 继续有效，以下 Windows 内容仅供以后恢复参考。
 
 必须读取：
 - AGENTS.md

@@ -1,5 +1,15 @@
 # Native Scan App Release Runbook
 
+## Current Delivery Scope (2026-07-15)
+
+Android APK and iOS IPA are the active release targets. Windows React Native
+Windows project generation, native module integration, Credential Locker,
+MSIX packaging/signing and Windows-device smoke are archived by product
+decision. The Windows section remains below only as a reversible technical
+reference. Do not execute it or treat it as an active release gate until the
+P6-MOBILE-09 through P6-MOBILE-13 archive markers, Task index and completion
+report are explicitly reactivated together.
+
 ## Scope
 
 This runbook explains how to build, install, update, and smoke test the Bestar
@@ -67,8 +77,8 @@ session; it must not treat the browser's long JWT lifetime as its session
 policy. Local access token, refresh token, session id/expiries, and cached user
 must be written atomically through `NativeModules.BestarSecureTokenStore`. Do
 not ship a production build that silently falls back to AsyncStorage.
-Android uses Android Keystore-backed AES-GCM; iOS uses Keychain; Windows uses
-Credential Locker after the generated RNW project includes the module source.
+Android uses Android Keystore-backed AES-GCM and iOS uses Keychain. The Windows
+Credential Locker path is retained only in the archived reference section.
 
 Before signing a release, exercise access expiry, app restart, device restart,
 temporary offline restore, server revoke, account disable, refresh replay, and
@@ -89,12 +99,14 @@ pnpm --filter mobile-scan-app package:check
 ```
 
 `package:check` verifies shared React Native prerequisites and reports whether
-the Android, iOS, and Windows platform projects exist on this checkout. It
+the Android, iOS, and Windows platform projects exist on this checkout. Its
+Windows result is diagnostic while the Windows package route is archived. It
 distinguishes native module source boundaries from generated platform projects;
 source files alone are not enough for MSIX/IPA readiness. It does not create
 signing secrets and does not claim an install package exists.
 
-Use strict mode for release gate checks:
+Use strict mode only as an all-platform architecture diagnostic while Windows
+is archived; it is not the active Android/iOS release gate:
 
 ```bash
 pnpm --filter mobile-scan-app package:check -- --strict
@@ -104,7 +116,11 @@ Strict mode returns non-zero when any platform is missing required generated
 project markers such as iOS `Podfile`/`.xcodeproj`/`.xcworkspace` or Windows
 `.sln`/`.vcxproj`/`Package.appxmanifest`.
 
-## Windows MSIX
+## Windows MSIX (Archived Reactivation Reference)
+
+Do not run the commands in this section while the Windows native package route
+is archived. They are preserved so a future approved reactivation can resume
+without reconstructing the build and signing procedure.
 
 ### Build Machine
 
@@ -671,27 +687,23 @@ If a release fails:
   workspace, Pods, app target, `BestarQrScanner`, and `BestarSecureTokenStore`
   target wiring. After local Apple signing was configured, iOS real-device
   debug smoke was completed and passed on 2026-07-09.
-- Windows still has only the native module source boundary. Windows MSIX
-  readiness remains blocked until a Windows 11 build machine generates/restores
-  `.sln`, `.vcxproj`, and `Package.appxmanifest`, adds the module files to the
-  RNW project, builds an MSIX, and completes device smoke.
+- Windows still has only the native module source boundary. The remaining RNW
+  project and MSIX work is archived rather than an active release blocker.
 - `pnpm --filter mobile-scan-app package:check` reports Android and iOS ready
-  and Windows blocked. Strict all-platform release checks still fail until
-  Windows generated project markers exist.
+  and the archived Windows markers missing/blocked. Strict all-platform checks
+  still fail diagnostically, but that result is not the active release status.
 - P6 mobile exit gate is passed for the Android+iOS pilot route. Do not present
-  Windows MSIX as ready until the Windows follow-up above is complete.
+  Windows MSIX as ready; report it as archived.
 
-## Current Status At P6-MOBILE-13
+## Archived Status At P6-MOBILE-13 (2026-07-15)
 
-- This macOS checkout cannot complete the Windows MSIX release because the task
-  requires Windows 11, Visual Studio 2022, Windows SDK/MSIX packaging tools, and
-  a trusted signing certificate.
+- `P6-MOBILE-13` and its P6-MOBILE-09 through 12 predecessor Tasks now carry
+  `Task-Status: ARCHIVED` and the business-task supervisor rejects execution.
 - The repository now includes the P6-MOBILE-13 Windows release checklist and
   `pnpm --filter mobile-scan-app windows:check` command for the Windows build
-  machine.
-- `package:check` still reports Android and iOS ready and Windows blocked until
-  generated Windows `.sln`, `.vcxproj`, and `Package.appxmanifest` markers
-  exist.
-- `package:check -- --strict` and `windows:check` must continue to fail until
-  the Windows generated project, MSIX artifact, and device smoke evidence exist.
-  Do not present Windows MSIX as complete before those checks pass on Windows.
+  machine as dormant reactivation assets.
+- `package:check` still reports Android and iOS ready and the archived Windows
+  markers missing. This is retained diagnostic output, not an active blocker.
+- `package:check -- --strict` and `windows:check` may continue to report missing
+  Windows markers; that diagnostic result does not block the active Android/iOS
+  scope. Do not run Windows packaging work unless the archive is explicitly reopened.

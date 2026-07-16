@@ -16,6 +16,7 @@
         --done: #047857;
         --partial: #b45309;
         --deferred: #6b7280;
+        --archived: #475569;
         --risk: #b91c1c;
       }
 
@@ -150,6 +151,10 @@
         color: var(--deferred);
       }
 
+      .archived {
+        color: var(--archived);
+      }
+
       .risk {
         color: var(--risk);
       }
@@ -215,17 +220,15 @@
           API/UI 合约、当前代码目录和已执行任务清单整理。结论是：核心业务闭环
           和账号权限体系均已完成到原 Web/API 项目验收范围；P2 剩余的可编辑
           Settings 后台和 Playwright 浏览器 E2E 已补齐。新增的 P6-MOBILE
-          standalone native scan app 已进入实现阶段：架构决策、workspace scaffold、
-          LAN API 设置、登录/session、open load job list、scan workflow、offline
-          queue、supervisor override、dock update、complete loading、三端 release
-          runbook、packaging readiness check、Android debug APK 构建、
-          P6-MOBILE-09 Android native camera module source wiring、
-          P6-MOBILE-10 secure token storage、P6-MOBILE-11 Windows/iOS
-          platform readiness hardening、iOS generated project / Pods
-          smoke build、P6-MOBILE-13 Windows MSIX readiness script / build-machine
-          checklist / handoff docs 已完成到当前仓库可验证范围；P6-MOBILE-12
-          按 Android+iOS pilot route 条件通过，但完整 cross-platform release
-          仍缺 Windows MSIX gate。
+          standalone native scan app 已完成架构决策、workspace scaffold、LAN API
+          设置、登录/session、open load job list、scan workflow、offline queue、
+          supervisor override、dock update、complete loading、Android/iOS release
+          runbook、packaging readiness check、Android debug APK 构建、Android native
+          camera/secure storage、iOS generated project / Pods / native module wiring
+          和 Android+iOS pilot route 条件验收。2026-07-15 产品决定暂不交付
+          Windows 原生安装包；P6-MOBILE-09 至 13 已标记为 Archived，既有 Windows
+          source boundary、readiness script、build-machine checklist 和 handoff docs
+          仅作为以后恢复资料，不再是当前 release gate。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -234,12 +237,10 @@
           URL、login 和 native camera scan pallet QR；iOS 已生成
           Xcode workspace、完成 `pod install` 和 native module target wiring，
           并在 Apple signing 配置后完成真机安装调试 smoke；该 iOS 设备结果为
-          现场确认，本轮未复跑。Windows 仍需在
-          Windows 11 构建机生成 RNW 工程并验收 MSIX；`package:check`
+          现场确认，本轮未复跑。Windows RNW/MSIX 路线已归档；`package:check`
           和 `windows:check` 已能明确区分 source boundary、generated
-          platform project 与 MSIX handoff evidence，normal check 显示
-          Android/iOS ready、Windows blocked，strict all-platform release
-          gate 当前会因 Windows marker 缺失失败。
+          platform project 与 MSIX handoff evidence。Windows missing-marker 结果
+          现在只作为恢复诊断，不阻塞 Android/iOS 活动范围。
           新增
           Work Hours / Unloading Wage P0/P1/P2 扩展已完成到 API/DB/Web review
           workflow 范围：attendance upload/parse/generate、unloading pay
@@ -369,13 +370,13 @@
           </dl>
         </div>
         <p class="note">
-          2026-07-15 20:27 MDT 未完成项复核：WEB-OPS-06 至 09 均已达到
+          2026-07-15 Windows 原生安装包归档复核：WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          外部设备验收。当前开发机没有新的代码 Task。尚未关闭的 10 个唯一 Task
-          均依赖真实业务 workbook、目标打印机/Microsoft Excel、Android/iOS 人工
-          设备矩阵、Windows 11 RNW/MSIX 构建机或目标部署主机；不得把缺少外部条件
-          误报为代码未完成，也不要重复启动 NATIVE-AUTH-01 或 WEB-OPS 关闭任务。
+          Android/iOS 外部设备验收。当前开发机没有新的代码 Task。尚未关闭的
+          9 个活动 Task 均依赖真实业务 workbook、目标打印机/Microsoft Excel、
+          Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
+          P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
         </p>
       </header>
 
@@ -386,14 +387,13 @@
           详细托盘计算、面单和 QR、库存查询、Load Job、移动扫码、离线队列、
           重打审计、部署文档。
           账号体系也已经覆盖登录、JWT、Users/Roles/Permissions、API Guard、角色
-          感知 UI、移动端权限和业务审计 userId。新增需求要求将 mobile scan
-          单独交付为 Windows MSIX、Android APK、iOS IPA 三端原生 App，以规避
-          LAN 浏览器 HTTPS/camera 限制。目前已新增
+          感知 UI、移动端权限和业务审计 userId。mobile scan 已按独立 Native App
+          交付方向规避 LAN 浏览器 HTTPS/camera 限制。目前已新增
           docs/product/01-cross-platform-mobile-scan-app.md、docs/adr/0003-native-scan-app.md
           和 P6-MOBILE 任务拆解，并已完成 P6-MOBILE-01 至 P6-MOBILE-12
-          的 Android+iOS pilot gate 范围。完整三端 native release 当前未完成项主要是
-          Windows generated platform project 生成、Windows camera decoder
-          dependency、MSIX 打包和 Windows 设备 smoke；BullMQ/Redis
+          的 Android+iOS pilot gate 范围。2026-07-15 产品范围更新后，Windows
+          generated platform project、camera decoder、Credential Locker、MSIX
+          打包和 Windows 设备 smoke 已归档，不再计入活动完成度；BullMQ/Redis
           异步队列已完成 API/DB/worker 垂直线并接入 office web review
           workflow，P1-QUEUE-02 已修复 API E2E teardown 并完成 Docker
           full-stack parse/generation 并发回归与 failed job review；
@@ -473,10 +473,9 @@
           在 Apple signing 配置后，iOS 真机安装调试 smoke 已由现场确认全部通过，
           但本轮没有在本机复跑 iOS 设备验收。
           P6-MOBILE-13 已补 `windows:check`、MSIX 构建机 checklist 和 runbook
-          handoff，能在非 Windows 主机明确失败并列出缺失 marker。Windows native
-          platform project 仍需在 Windows 11 构建机生成并验收 MSIX，Windows camera
-          与 secure-token module 仍需平台工程验收；该项作为 Windows MSIX release
-          follow-up 保留，不阻塞 Android+iOS pilot gate，但阻塞完整三端 native release。
+          handoff。2026-07-15 起 P6-MOBILE-09 至 13 统一归档，Windows native
+          platform project、camera、Credential Locker、MSIX 和设备 smoke 不再是
+          活动 follow-up 或 Android/iOS gate blocker；相关资料仅用于未来批准恢复。
         </p>
         <table>
           <thead>
@@ -500,22 +499,22 @@
             <tr>
               <td>Packaging docs</td>
               <td><span class="badge done">Pass</span></td>
-              <td>`docs/runbooks/native-scan-app-release.md` 覆盖 Windows MSIX、Android APK、iOS IPA、LAN URL、HTTP/HTTPS、证书、相机权限和 release checklist；P6-MOBILE-13 另补 `windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md`。</td>
+              <td>`docs/runbooks/native-scan-app-release.md` 覆盖活动 Android APK、iOS IPA、LAN URL、HTTP/HTTPS、证书、相机权限和 release checklist；Windows MSIX 与 `windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 作为 Archived reactivation reference 保留。</td>
             </tr>
             <tr>
-              <td>Platform device readiness</td>
+              <td>Active platform device readiness</td>
               <td><span class="badge partial">Conditional Pass</span></td>
-              <td>Android platform project 已生成并加入 `BestarQrScanner` CameraX/ML Kit 原生模块与 `BestarSecureTokenStore` Android Keystore 模块；`./gradlew assembleDebug` 已通过，debug APK 已改为内置 JS bundle，真实 Android 设备已验证 LAN API URL、login 和 native camera scan pallet QR。iOS 已生成 `Podfile`、`.xcodeproj`、`.xcworkspace`、app target 和 Pods，`xcodebuild -list` 可识别 workspace，camera 与 secure-token native module 已接入 target；2026-07-09 现场完成 iOS 真机安装调试 smoke 并确认全部通过。Windows 已有 native module source boundary、`PLATFORM-STATUS.md`、`windows:check` 和 MSIX handoff checklist，但仍缺 `.sln`/`.vcxproj`/`Package.appxmanifest`，保持 Windows MSIX follow-up。</td>
+              <td>Android platform project 已生成并加入 `BestarQrScanner` CameraX/ML Kit 原生模块与 `BestarSecureTokenStore` Android Keystore 模块；`./gradlew assembleDebug` 已通过，debug APK 已改为内置 JS bundle，真实 Android 设备已验证 LAN API URL、login 和 native camera scan pallet QR。iOS 已生成 `Podfile`、`.xcodeproj`、`.xcworkspace`、app target 和 Pods，`xcodebuild -list` 可识别 workspace，camera 与 secure-token native module 已接入 target；2026-07-09 现场完成 iOS 真机安装调试 smoke 并确认全部通过。Windows 不在当前活动平台范围。</td>
             </tr>
             <tr>
               <td>Automated checks</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>2026-07-11 P6-MOBILE-13 通过 `git diff --check`、`env CI=true pnpm --filter mobile-scan-app lint`、`env CI=true pnpm --filter mobile-scan-app typecheck`、`env CI=true pnpm --filter mobile-scan-app test`（35 passed）和 `env CI=true pnpm --filter mobile-scan-app package:check`。`env CI=true pnpm --filter mobile-scan-app package:check -- --strict` 与 `env CI=true pnpm --filter mobile-scan-app windows:check` 在 macOS 上按预期失败，阻塞项为 Windows host、`windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。本行仍为 Partial 仅因 Windows MSIX follow-up 尚未完成。</td>
+              <td><span class="badge done">Pass</span></td>
+              <td>2026-07-11 P6-MOBILE-13 通过 `git diff --check`、`env CI=true pnpm --filter mobile-scan-app lint`、`env CI=true pnpm --filter mobile-scan-app typecheck`、`env CI=true pnpm --filter mobile-scan-app test`（35 passed）和 `env CI=true pnpm --filter mobile-scan-app package:check`。历史 strict/windows checks 的 missing-marker 结果保留为 Windows 恢复诊断，不影响当前 Android/iOS 自动化结论。</td>
             </tr>
             <tr>
-              <td>Windows MSIX follow-up</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>`pnpm --filter mobile-scan-app package:check` 明确显示 Windows source boundary present，但 generated markers 缺少 `windows/**/*.sln`、`windows/**/*.vcxproj`、`windows/**/Package.appxmanifest`。`pnpm --filter mobile-scan-app windows:check` 已作为 P6-MOBILE-13 严格 gate，当前在 macOS 上按预期 blocked。需要 Windows 11 + Visual Studio 2022 构建机生成 RNW 工程、接入 C# modules、打包 MSIX 并做设备 smoke。</td>
+              <td>Windows native package / MSIX</td>
+              <td><span class="badge archived">Archived</span></td>
+              <td>2026-07-15 产品决定暂不交付。P6-MOBILE-09 至 13 均有 `Task-Status: ARCHIVED`，监督器会拒绝执行。已有 source boundary、`windows:check`、checklist 和 runbook 保留；恢复需产品批准、移除归档标记并同步任务索引和本报告。</td>
             </tr>
           </tbody>
         </table>
@@ -564,21 +563,21 @@
               <td><span class="badge done">Done</span></td>
               <td>Scan Workspace Complete</td>
               <td>已选任务页把任务身份、后端进度、托盘标签输入、扫码枪 Enter 和原生相机作为首屏主操作；固定高度反馈槽避免连续扫描时主控件跳动。最近扫描只显示柜号、目的仓、托盘号和后端进度。月台保存、完成装车、主管覆盖均改为按需展开的次级操作；离线队列默认仅显示待同步数量，按需展开后才可手动同步。未改变真实 scan transaction、offline queue、duplicate/invalid/closed/override 或 loadJobId 隔离规则。</td>
-              <td>执行 NATIVE-UX-04：在 release 实机上记录启动基线、优化关键路径并完成三端 UX/i18n 回归。</td>
+              <td>执行 NATIVE-UX-04：在 release 实机上记录启动基线、优化关键路径并完成 Android/iOS UX/i18n 回归。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-04 Startup Performance and Cross Platform UX Exit Gate</td>
               <td><span class="badge partial">Partial</span></td>
               <td>Build/Instrumentation Complete; Device Gate Blocked</td>
-              <td>新增仅保留 elapsed duration 的 `process-start`、`first-shell`、`session-resolved`、`load-jobs-ready` 启动标记，不记录 token、密码、QR payload 或请求内容。设置、device ID、locale 并行读取；session 决定 shell 后才读取离线队列，因此队列不阻塞首屏且不改变 scan/queue 幂等和后端确认规则。Android release clean build 已通过；`android/app/build.gradle` 已使每个 CMake 配置任务显式依赖 AsyncStorage Codegen，修复干净构建时 JNI Codegen 目录缺失。2026-07-11 Release-mode APK 已在 MI 8 SE 安装、启动并保持前台运行，最近日志无 crash；iPhone 15 Pro 上的 signed iOS Release 也已构建、安装和启动。未伪造五次冷启动中位数、双语截图或扫码回归。Windows 仍无 RNW project/MSIX/设备 smoke。</td>
-              <td>连接同一 Android/iOS release 实机，各采集五次冷启动的中位数与中英 Login、Bay Board、Scan、Offline/Error、Settings 证据；在 Windows 11 完成 RNW/MSIX 和设备 smoke 后才可标记完成。</td>
+              <td>新增仅保留 elapsed duration 的 `process-start`、`first-shell`、`session-resolved`、`load-jobs-ready` 启动标记，不记录 token、密码、QR payload 或请求内容。设置、device ID、locale 并行读取；session 决定 shell 后才读取离线队列，因此队列不阻塞首屏且不改变 scan/queue 幂等和后端确认规则。Android release clean build 已通过；`android/app/build.gradle` 已使每个 CMake 配置任务显式依赖 AsyncStorage Codegen，修复干净构建时 JNI Codegen 目录缺失。2026-07-11 Release-mode APK 已在 MI 8 SE 安装、启动并保持前台运行，最近日志无 crash；iPhone 15 Pro 上的 signed iOS Release 也已构建、安装和启动。未伪造五次冷启动中位数、双语截图或扫码回归。Windows 证据已归档。</td>
+              <td>连接同一 Android/iOS release 实机，各采集五次冷启动的中位数与中英 Login、Bay Board、Scan、Offline/Error、Settings 证据后即可按当前范围关闭；不等待 Windows。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-05 System Adaptive Color Theme</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>Android Dark Device Verified; Cross-platform Evidence Pending</td>
-              <td>Native React UI 已由固定颜色改为 light/dark 语义 tokens 和缓存样式工厂；系统 `useColorScheme` 变化只刷新样式与 StatusBar，不触发 session restore、load-jobs refresh 或 offline sync。Android 配置已改为 DayNight，并为启动、状态栏、导航栏和 scanner chrome 集中配置主题色与 Force Dark 防护。2026-07-11 `lint`、45 个 mobile unit tests 和 Android Release build 通过；MI 8 SE Release 真机已验证深色 Login 页面完整绘制。该机型出现按钮多词文本视觉裁剪，已改为占满父按钮宽度的居中文本并在同机验证 `Sign in`、`Open settings` 完整显示。MIUI 拒绝 shell 切换浅色模式，iOS/Windows 的系统主题切换尚未验证。</td>
-              <td>在 Android 系统设置中采集浅色与运行中切换证据；在 iOS/Windows 验证运行中主题切换、scanner/native chrome、locale x theme 和高对比场景后才可标记完成。</td>
+              <td>Android Dark Device Verified; Android/iOS Evidence Pending</td>
+              <td>Native React UI 已由固定颜色改为 light/dark 语义 tokens 和缓存样式工厂；系统 `useColorScheme` 变化只刷新样式与 StatusBar，不触发 session restore、load-jobs refresh 或 offline sync。Android 配置已改为 DayNight，并为启动、状态栏、导航栏和 scanner chrome 集中配置主题色与 Force Dark 防护。2026-07-11 `lint`、45 个 mobile unit tests 和 Android Release build 通过；MI 8 SE Release 真机已验证深色 Login 页面完整绘制。该机型出现按钮多词文本视觉裁剪，已改为占满父按钮宽度的居中文本并在同机验证 `Sign in`、`Open settings` 完整显示。MIUI 拒绝 shell 切换浅色模式，iOS 系统主题切换尚未验证；Windows 主题矩阵已归档。</td>
+              <td>在 Android 系统设置中采集浅色与运行中切换证据；在 iOS 验证运行中主题切换、scanner/native chrome 和 locale x theme 后即可按当前范围关闭。</td>
             </tr>
           </tbody>
         </table>
@@ -1061,11 +1060,11 @@
             </tr>
             <tr>
               <td>P6-MOBILE</td>
-              <td>Standalone native scan app：只包含登录和 mobile scan，面向 Windows MSIX、Android APK、iOS IPA 三端。</td>
+              <td>Standalone native scan app：只包含登录和 mobile scan；当前活动交付为 Android APK、iOS IPA，Windows MSIX 已归档。</td>
               <td><span class="badge partial">Conditional Pass</span></td>
               <td>95%</td>
-              <td>已完成 native architecture decision、React Native/React Native Windows scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Android `BestarQrScanner` CameraX/ML Kit source wiring、Android `BestarSecureTokenStore` Keystore storage、iOS generated Xcode project/Pods/workspace、iOS camera 与 secure-token native module target wiring、P6-MOBILE-11 platform readiness hardening、P6-MOBILE-12 Android+iOS device smoke exit gate、P6-MOBILE-13 Windows MSIX readiness script/build-machine checklist/handoff docs、Windows MSIX/Android APK/iOS IPA release runbook；新增 docs/runbooks/native-scan-app-testing.md 和 docs/runbooks/native-scan-app-release.md。</td>
-              <td>Android+iOS pilot route 条件通过；P6-MOBILE-13 已执行到当前仓库可验证范围。完整 PRD 要求的 Windows MSIX 尚未完成，仍需在 Windows 11 构建机生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并做 Windows device smoke。</td>
+              <td>已完成 native architecture decision、React Native scaffold、LAN API settings、device ID、health check、login/session/logout、permission gate、planned/in-progress load job list、scan screen、real scan API submission、scanner-gun/manual Enter input、native camera scanner adapter、offline scan queue、manual/API-recovery sync、supervisor override、Dock No. update、complete loading、packaging readiness check、Android platform project/debug APK、Android `BestarQrScanner` CameraX/ML Kit source wiring、Android `BestarSecureTokenStore` Keystore storage、iOS generated Xcode project/Pods/workspace、iOS camera 与 secure-token native module target wiring和 Android+iOS device smoke exit gate。Windows source/readiness/handoff 资料保留为归档恢复资产。</td>
+              <td>Android+iOS pilot route 条件通过。P6-MOBILE-09 至 13 的 Windows 原生/MSIX 路线自 2026-07-15 起为 Archived，不属于当前剩余完成项。</td>
             </tr>
           </tbody>
         </table>
@@ -1277,7 +1276,7 @@
               <td>UNLOAD-REPORT-01 Palletizing Standards Rich Text Print Clipping Regression</td>
               <td><span class="badge partial">Code Complete / Excel Print Verification Pending</span></td>
               <td>Rich Text / White-Row Capacity / Docker Print Complete</td>
-              <td>业务决定 A 已落实：报告保留既有 8 个主目的仓槽位，随后使用业务表格白色行 5/7/9/11/13/15/17/19，超过 16 才创建后续 worksheet；长文字与显式换行自适应行高，不进入合计或 `C21:I25`。真实 CAAU 的 9 个目的仓全部写入，Worker 和 API 下载均为 1 个 populated worksheet/1 张 A4 landscape 页面，第 9 个目的仓位于 `N5`。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓则为 2 worksheets/2 pages。`rich_text=True` 保留完整 `<r>/<rPr>`、11pt/10pt Arial/宋体、bold、换行和末尾 `when stored.`；merge、Standards rows/columns、dimension、78% page setup、margins 与模板等价。generated-file status/SHA/size/storage/audit actor、上传原件和历史 artifact/DB 记录不变检查通过；模板 SHA 前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。Docker Worker 127、API E2E 92、Web 189、专用 Chromium 1 项、full-stack health 和 12 张原始分辨率全页/crop 逐图检查通过；证据位于 `test-results/unload-report-01/20260714T050519Z/`。</td>
+              <td>业务决定 A 已落实：报告保留既有 8 个主目的仓槽位，随后使用业务表格白色行 5/7/9/11/13/15/17/19，超过 16 才创建后续 worksheet；长文字与显式换行自适应行高，不进入合计或 `C21:I25`。真实 CAAU 的 9 个目的仓全部写入，Worker 和 API 下载均为 1 个 populated worksheet/1 张 A4 landscape 页面，第 9 个目的仓位于 `N5`。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓则为 2 worksheets/2 pages。`rich_text=True` 保留完整 `&lt;r&gt;/&lt;rPr&gt;`、11pt/10pt Arial/宋体、bold、换行和末尾 `when stored.`；merge、Standards rows/columns、dimension、78% page setup、margins 与模板等价。generated-file status/SHA/size/storage/audit actor、上传原件和历史 artifact/DB 记录不变检查通过；模板 SHA 前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。Docker Worker 127、API E2E 92、Web 189、专用 Chromium 1 项、full-stack health 和 12 张原始分辨率全页/crop 逐图检查通过；证据位于 `test-results/unload-report-01/20260714T050519Z/`。</td>
               <td>在办公室 Windows/Microsoft Excel 中打开真实 API 下载的 `source/api-downloaded-report.xlsx`，不手动改缩放，完成 Print Preview 与 Microsoft Print to PDF，逐页确认 Standards 最后一行未裁切；通过后可标记 Done。</td>
             </tr>
             <tr>
@@ -1369,7 +1368,7 @@
               <td><span class="badge partial">External Verification Pending</span></td>
               <td>Repository / Automation / iOS Authenticated Non-destructive Matrix Complete</td>
               <td>新增 hash-only refresh token history、rolling idle + absolute expiry、事务 session row lock、rotation、并发/旧 token replay family revoke、session-bound access、refresh 限流和管理员 actor/reason 撤销审计；refresh 重新读取 active user/roles/permissions。Native secure store 原子保存完整 session，启动静默恢复，受保护请求共用 single-flight refresh，仅明确 token-expired 401 重试一次；断网保留 session/offline queue，invalid/revoked/inactive 才清除；恢复文案全量双语且无默认英文闪现。</td>
-              <td>API auth 5 suites / 18 unit、3 suites / 25 E2E，Native 50 tests、lint/typecheck、Android/iOS secure-store checks、Docker API build、23 migrations 和真实 PostgreSQL 并发 refresh/replay/logout/hash/audit/cleanup 全部通过。2026-07-16 iPhone 15 Pro / iOS 26.5 已完成当前源码Release build/sign/install、真实登录后的App重启、设备full reboot、已认证nginx离线保留/恢复和access自然到期silent refresh；history 1→2且新access校验通过。iOS只剩人工双语视觉与破坏性online/offline logout、revoke/inactive；Android Release和Windows 11 RNW/MSIX/Credential Locker同矩阵仍待外部验收。证据见 <code>docs/reports/native-auth-01-revocable-session-verification.md</code>。</td>
+              <td>API auth 5 suites / 18 unit、3 suites / 25 E2E，Native 50 tests、lint/typecheck、Android/iOS secure-store checks、Docker API build、23 migrations 和真实 PostgreSQL 并发 refresh/replay/logout/hash/audit/cleanup 全部通过。2026-07-16 iPhone 15 Pro / iOS 26.5 已完成当前源码Release build/sign/install、真实登录后的App重启、设备full reboot、已认证nginx离线保留/恢复和access自然到期silent refresh；history 1→2且新access校验通过。iOS只剩人工双语视觉与破坏性online/offline logout、revoke/inactive；Android Release 同矩阵仍待外部验收。Windows RNW/MSIX/Credential Locker 矩阵已归档。证据见 <code>docs/reports/native-auth-01-revocable-session-verification.md</code>。</td>
             </tr>
           </tbody>
         </table>
@@ -1495,38 +1494,38 @@
             </tr>
             <tr>
               <td>Windows native scan app MSIX</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>P6 mobile exit gate 已按 Android+iOS pilot route 通过；P6-MOBILE-13 已补 Windows MSIX handoff gate，但当前仓库仍没有 generated RNW project marker。</td>
-              <td>在 Windows 11 build machine 按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 生成并验收 Windows native project，完成 Windows camera decoder 集成、MSIX 打包以及 Windows 设备 smoke test；完成前不要把 Windows MSIX 标记为 ready。</td>
+              <td><span class="badge archived">Archived</span></td>
+              <td>2026-07-15 产品决定暂不交付 Windows 原生安装包。P6-MOBILE-09 至 13 已标记 `Task-Status: ARCHIVED`；RNW project、camera decoder、Credential Locker、MSIX 打包/签名和 Windows device smoke 不计入当前完成度。</td>
+              <td>保留 source boundary、readiness script、checklist 和 runbook。恢复时先取得产品批准，移除五个归档标记，恢复关联 Native 验收范围，并同步任务索引和本报告。</td>
             </tr>
             <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
               <td><span class="badge partial">External Verification Pending</span></td>
-              <td>Repository、23 migrations、API auth 18 unit / 25 E2E、Native 50 tests、真实 PostgreSQL/HTTP 并发 refresh/replay/revoke/logout/audit 和 iPhone 15 Pro 的 App/设备重启、离线恢复、access 到期 silent rotation 均已通过。iOS 只剩人工双语视觉和破坏性 logout/revoke/inactive；Android Release 与 Windows Credential Locker 同矩阵尚未完成。</td>
-              <td>不要第四次启动代码 Task。先按 `docs/reports/native-auth-01-revocable-session-verification.md` 补 Android/iOS 人工设备证据；P6-MOBILE-13 完成 MSIX 后再补 Windows 矩阵并关闭该 Task。</td>
+              <td>Repository、23 migrations、API auth 18 unit / 25 E2E、Native 50 tests、真实 PostgreSQL/HTTP 并发 refresh/replay/revoke/logout/audit 和 iPhone 15 Pro 的 App/设备重启、离线恢复、access 到期 silent rotation 均已通过。iOS 只剩人工双语视觉和破坏性 logout/revoke/inactive；Android Release 矩阵尚未完成。Windows Credential Locker 矩阵已归档。</td>
+              <td>不要第四次启动代码 Task。按 `docs/reports/native-auth-01-revocable-session-verification.md` 补 Android/iOS 人工设备证据后按当前范围关闭；不等待 Windows。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-05 System Adaptive Color Theme</td>
               <td><span class="badge partial">Device Evidence Pending</span></td>
-              <td>语义 light/dark tokens、DayNight chrome、运行中 `useColorScheme` 和 Android 深色 Login 已实现；Android 浅色/运行中切换，以及 iOS/Windows scanner chrome、locale x theme 与高对比证据仍缺。</td>
-              <td>与 NATIVE-AUTH 设备矩阵合并采集 Android/iOS 证据；在 Windows MSIX 上补完整系统主题矩阵后关闭。</td>
+              <td>语义 light/dark tokens、DayNight chrome、运行中 `useColorScheme` 和 Android 深色 Login 已实现；Android 浅色/运行中切换及 iOS scanner chrome、locale x theme 证据仍缺。Windows 矩阵已归档。</td>
+              <td>与 NATIVE-AUTH 设备矩阵合并采集 Android/iOS 证据后按当前范围关闭。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-06 Header Title Clipping Regression</td>
               <td><span class="badge partial">Device Evidence Pending</span></td>
-              <td>MI 8 SE Release English 1.0 字体下 `BESTAR SCAN` 已完整；中文、font scale 1.3/2.0、dark、iOS 与 Windows 对照尚未验收。</td>
-              <td>在 Android/iOS/Windows 的 en/zh-CN、light/dark、1.0/1.3/2.0 font scale 组合中记录标题 bounds 和无重叠证据。</td>
+              <td>MI 8 SE Release English 1.0 字体下 `BESTAR SCAN` 已完整；中文、font scale 1.3/2.0、dark 和 iOS 对照尚未验收。Windows 对照已归档。</td>
+              <td>在 Android/iOS 的 en/zh-CN、light/dark、1.0/1.3/2.0 font scale 组合中记录标题 bounds 和无重叠证据。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-04 Startup Performance and Cross Platform UX Exit Gate</td>
               <td><span class="badge partial">Device Evidence Pending</span></td>
-              <td>启动标记、关键路径并行化和 Android/iOS Release build/install 已完成；未完成三端各五次冷启动中位数、双语 Login/Bay Board/Scan/Offline/Settings 和核心扫码回归。</td>
-              <td>在 NATIVE-UX-05/06 设备证据和 Windows MSIX 就绪后统一采集，避免在缺 Windows 时重复启动只能返回 Partial 的关闭任务。</td>
+              <td>启动标记、关键路径并行化和 Android/iOS Release build/install 已完成；未完成 Android/iOS 各五次冷启动中位数、双语 Login/Bay Board/Scan/Offline/Settings 和核心扫码回归。Windows 证据已归档。</td>
+              <td>在 NATIVE-UX-05/06 的 Android/iOS 设备证据齐全后统一采集并关闭，不等待 Windows MSIX。</td>
             </tr>
             <tr>
               <td>CROSS-UX-QA-01 Persistent Session Theme Locale Regression</td>
               <td><span class="badge partial">Prerequisites Pending</span></td>
-              <td>Web theme/i18n 已关闭，Native 自动化与 iOS 非破坏性 session 证据已完成；完整 Android/iOS/Windows session/theme/locale/header 组合矩阵仍依赖 NATIVE-AUTH、P6-MOBILE-13 和 NATIVE-UX-04/05/06。</td>
+              <td>Web theme/i18n 已关闭，Native 自动化与 iOS 非破坏性 session 证据已完成；当前 Android/iOS session/theme/locale/header 组合矩阵仍依赖 NATIVE-AUTH 和 NATIVE-UX-04/05/06。Windows 组合已归档。</td>
               <td>只能在上述前置项都有设备证据后最后执行；现在启动只会再次留下外部 blocker。</td>
             </tr>
             <tr>
@@ -1587,7 +1586,7 @@
               <td>P5-PILOT-01 Windows Target Deployment Verification</td>
               <td><span class="badge partial">Target Pending</span></td>
               <td>macOS Docker rehearsal、health、备份/恢复 dry-run、SIEM export 和主业务 smoke 已完成；生产 secrets、真实账号、真实 Excel、打印/PDA、LAN、防火墙、备份路径及调度仍必须在目标 Windows 11 主机验证。</td>
-              <td>等真实样本、打印、Native/Windows gates 全部关闭后最后执行，并填写 pilot checklist；不得用开发机 rehearsal 代替目标主机签字。</td>
+              <td>等真实样本、打印和 Android/iOS Native 活动 gates 全部关闭后最后执行，并填写 pilot checklist；Windows 原生/MSIX 已归档，不是前置条件。不得用开发机 rehearsal 代替目标主机签字。</td>
             </tr>
             <tr>
               <td>API generated Prisma lint 配置</td>
@@ -1702,12 +1701,12 @@
             <tr>
               <td>CROSS-UX-QA-01 Persistent Session Theme Locale Regression</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>API/Web/Native 自动化已通过，WEB-I18N-04/05/06 和 WEB-OPS-09 已完成 Web locale x theme/role 无闪烁门禁；NATIVE-AUTH-01 repository 与 iOS 非破坏性 session matrix 也已完成。仍待 Android/iOS 人工破坏性/视觉证据、Windows RNW/MSIX/Credential Locker，以及 NATIVE-UX-04/05/06 三端 theme/header/startup 设备矩阵。</td>
+              <td>API/Web/Native 自动化已通过，WEB-I18N-04/05/06 和 WEB-OPS-09 已完成 Web locale x theme/role 无闪烁门禁；NATIVE-AUTH-01 repository 与 iOS 非破坏性 session matrix 也已完成。仍待 Android/iOS 人工破坏性/视觉证据，以及 NATIVE-UX-04/05/06 两端 theme/header/startup 设备矩阵。Windows RNW/MSIX/Credential Locker 已归档。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-06 Android Header Title Clipping</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>共享 header 让品牌区占剩余可收缩宽度且最多两行，Settings 保持 44px 触控语义。2026-07-11 MI 8 SE Release 浅色 English 真机确认 `BESTAR SCAN` 完整显示；UI hierarchy 标题 bounds `[55,181][871,231]`，Settings control bounds `[904,146][1025,267]`，无裁剪或重叠。mobile lint/typecheck 与 46 项 unit tests 通过；中文、font scale 1.3/2.0、dark、iOS/Windows 对照尚待验证。</td>
+              <td>共享 header 让品牌区占剩余可收缩宽度且最多两行，Settings 保持 44px 触控语义。2026-07-11 MI 8 SE Release 浅色 English 真机确认 `BESTAR SCAN` 完整显示；UI hierarchy 标题 bounds `[55,181][871,231]`，Settings control bounds `[904,146][1025,267]`，无裁剪或重叠。mobile lint/typecheck 与 46 项 unit tests 通过；中文、font scale 1.3/2.0、dark和 iOS 对照尚待验证。Windows 对照已归档。</td>
             </tr>
             <tr>
               <td>WEB-I18N-04 Explicit Localization Runtime Contract</td>
@@ -1748,11 +1747,11 @@
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
-          <li>2026-07-15 复核后当前开发机没有新的代码 Task；WEB-OPS-01 至 09 已关闭，NATIVE-AUTH-01 已三次达到 Code Complete / External Verification Pending。缺少设备、真实样本或 Windows 主机时不要重复启动 supervisor。</li>
-          <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵、Android Release 矩阵和 Windows Credential Locker 同矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。</li>
-          <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；有 Windows 11 + Visual Studio 2022 构建机后，它是 Native 路线的下一代码/打包 Task。完成 RNW project、MSIX 和 Windows device smoke 后，依次关闭 NATIVE-AUTH-01、NATIVE-UX-05、NATIVE-UX-06、NATIVE-UX-04、CROSS-UX-QA-01。</li>
+          <li>2026-07-15 复核后当前开发机没有新的代码 Task；WEB-OPS-01 至 09 已关闭，NATIVE-AUTH-01 已三次达到 Code Complete / External Verification Pending。缺少设备或真实样本时不要重复启动 supervisor。</li>
+          <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>
+          <li>Windows 原生安装包/MSIX 路线已归档：P6-MOBILE-09 至 13 不得执行，监督器会以 exit code 78 拒绝。以后恢复时必须先取得产品批准、移除归档标记、恢复关联验收范围并同步任务索引和本报告。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
-          <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>
+          <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 当前状态必须显示为 Archived。</li>
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>
           <li>按 `docs/runbooks/pilot-account-assignment.md` 创建真实 ADMIN、OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 账号，验证权限不足和审计 userId；不使用共享账号或 E2E/smoke/test 账号。</li>
           <li>用 28 份真实 Excel fixture 重新跑一轮 P0 worker regression。</li>

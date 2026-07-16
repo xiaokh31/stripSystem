@@ -1,7 +1,14 @@
+Task-Status: ARCHIVED
+Archived-On: 2026-07-15
+Archive-Scope: Windows native package / React Native Windows / MSIX delivery
+Archive-Reason: Product decision to pause the Windows native installation package.
+Archive-Note: Completed Android/iOS implementation and evidence remain valid; do not rerun this historical Task.
+Reactivation: Requires explicit product approval, removal of this marker, and synchronized Task index/completion report updates.
+
 执行 P6-MOBILE-10：Secure Token Storage。
 
 优先级：
-- 必做，P6 Exit Gate 阻塞项。
+- 已归档，不在当前执行队列；以下内容仅供以后恢复参考。
 
 必须读取：
 - AGENTS.md

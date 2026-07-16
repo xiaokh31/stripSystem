@@ -9,6 +9,9 @@
 
 - 从真实业务样例开始，不用 mock 数据冒充真实输入。
 - 读取并遵守 `AGENTS.md`、`CONTEXT.md` 和当前任务相关的 `docs/` 文档。
+- 在全新 Windows 工作区、无历史会话，或任务涉及 Windows/MSIX/Microsoft Excel/打印/目标机部署时，先读
+  `docs/runbooks/fresh-windows-agent-onboarding.md`；以受版本控制的任务索引和完成度报告恢复状态，不依赖会话记忆，
+  不因本机缺少 `.codex/business-agent-runs/` 而重复执行已完成任务。
 - 将业务概念保持清楚：原始文件、解析结果、计算结果、生成文件、人工修正和审计记录不能混在一起。
 - 原始上传或样例文件必须按 SHA-256 登记，重复内容必须可检测。
 - Parser 和 detector 失败必须显式输出 warning/error，不允许静默吞异常。
@@ -27,6 +30,8 @@
 6. 对 `.xls`、`.xlsx` 等格式差异必须显式处理，不能靠偶然可读性。
 7. 测试必须使用真实 fixture；新增构造 fixture 只能覆盖边界逻辑，不能替代真实样例验收。
 8. 完成后按本文件的“终态与输出”简洁汇报，不用长篇复述实现过程。
+9. 任何包含 `Task-Status: ARCHIVED` 的 Task 均不得执行、恢复或作为依赖 blocker。只有产品明确批准恢复、移除
+   归档标记并同步任务索引和完成度报告后，才可重新进入执行队列。
 
 ## 自主执行权限
 
@@ -80,6 +85,8 @@
    不得写入项目 `.env`、用户 shell profile 或日常 Docker runtime 环境。
 5. Jest/ts-jest 是 API 容器内的测试依赖，不能因为宿主解析失败而从项目 package/lockfile 删除或重复安装。
 6. 宿主机只用于 Docker Compose 编排、Git/文件检查，以及任务明确要求的 Android/iOS/Windows 原生工具链。
+7. 当监督器明确声明 `implementation-only` 时，本机没有 Docker/验证工具：不得安装或启动 Docker，不得运行测试、
+   构建、migration、服务、浏览器、模拟器或设备检查；只完成可由仓库静态检查支撑的实现，并把全部验证列为外部待办。
 
 ## 启动方式
 
@@ -87,6 +94,12 @@
 首次使用先执行 `scripts/install-business-agent-profile.sh`。监督器固定 Task 路径和结构化状态协议，遇到 `CONTINUE`、
 格式错误、进度文本或 Codex 进程失败时自动恢复同一 Task，只在合法终态停止。原始 `exec`、手工 `resume` 和直接
 prompt 均被拒绝，交互 TUI 只用于需求讨论、检查或诊断，不能作为完整 Task 的执行入口。
+
+Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 安装 profile，再使用
+`scripts\run-business-agent.cmd develop "<task-file>"` 在无 Docker 环境中只完成实现。该模式禁止返回 `DONE`；
+代码完成后必须以 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 精确列出待另一台环境执行的验证。只有具备完整
+验证环境时才使用 `.cmd task`。CMD 入口只负责定位 Git for Windows 并转交上述唯一 Bash 监督器，不维护第二套
+终态逻辑；不得从桌面版 Codex 绕过该入口。
 
 launcher 固定选择 `business-agent` profile、当前仓库 root、`danger-full-access` sandbox 和 `never` approval，且拒绝
 调用方覆盖这些设置。profile 更新后必须退出旧会话，运行 `scripts/install-business-agent-profile.sh --replace`，再通过
@@ -104,9 +117,11 @@ launcher 固定选择 `business-agent` profile、当前仓库 root、`danger-ful
 
 ## 当前执行顺序
 
-1. 读取本文件、Task、相关 skill/docs，并检查工作区已有改动。
-2. 写明将修改的文件范围、验收标准和 Docker 测试，然后立即实施。
+1. 读取本文件、Task、相关 skill/docs，并检查工作区已有改动；发现 `Task-Status: ARCHIVED` 时立即停止选择该 Task，
+   返回任务索引选择其他活动任务，不创建执行会话。
+2. 写明将修改的文件范围和验收标准；完整模式列出并执行 Docker 测试，`implementation-only` 只记录应由外部主机
+   执行的测试且不得在本机运行。
 3. 按 Task 完成最小垂直切片；只有解析任务才执行 fixture SHA/detector/parsed JSON 专用步骤。
-4. 先运行聚焦测试，再运行 Task 要求的 Docker full-stack、浏览器或生成物验证。
-5. 修复失败并重跑，更新 Task index/report/runbook 中与当前 Task 直接相关的状态。
+4. 完整模式先运行聚焦测试，再运行 Task 要求的 Docker full-stack、浏览器或生成物验证；实现模式跳过全部执行类步骤。
+5. 更新 Task index/report/runbook 中与当前 Task 直接相关的状态，不把未执行验证写成通过。
 6. 每轮按监督 schema 返回 `CONTINUE` 或合法终态；只有合法终态会结束整个 Task 进程。

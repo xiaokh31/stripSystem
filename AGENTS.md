@@ -91,8 +91,21 @@ After implementation:
 
 ## Business Agent Sessions
 
+- On a fresh Windows machine or a Session without prior project context, read `docs/runbooks/fresh-windows-agent-onboarding.md`
+  before selecting a Task. The tracked Task index and completion report are authoritative; conversation memory and local
+  `.codex/business-agent-runs/` history are not required.
+- On a Windows PowerShell host without Docker or verification tooling, use
+  `scripts\run-business-agent.cmd develop "<task-file>"`. This implementation-only mode must not run tests, builds, migrations,
+  services, browsers, emulators, or device checks and can only finish as `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`; another
+  capable host must complete the Definition of Done. Use `.cmd task` only on a host that can run the full Task gate.
+- The Codex/ChatGPT desktop app is optional for inspection only and must not bypass the supervisor or write the same checkout
+  concurrently.
 - Read `prompts/agents/business-logic-agent.md` and `docs/runbooks/business-agent-execution.md` before executing a business task.
-- Execute a complete Task only through `scripts/run-business-agent.sh task '<task-file>'`. Raw `exec`, manual `resume`, and direct launcher prompts are intentionally rejected.
+- Never execute a Task containing `Task-Status: ARCHIVED`. The supervisor rejects it before creating a Session. Reactivation
+  requires an explicit product decision, removal of the marker, and synchronized Task index/completion report updates.
+- Execute a fully verified Task only through `scripts/run-business-agent.sh task '<task-file>'`, or the Windows PowerShell
+  `scripts\run-business-agent.cmd task "<task-file>"` wrapper on a capable host. Use `.cmd develop` only for explicitly unverified
+  implementation. Raw `exec`, manual `resume`, and direct launcher prompts are intentionally rejected.
 - Use one fresh supervisor-created session per Task. Do not reuse a session created for another Task.
 - The supervisor may automatically resume that same session while the current Task reports `CONTINUE`; this does not authorize the next Task.
 - A fresh session must inspect and preserve existing uncommitted work, then continue the named Task from the current worktree.

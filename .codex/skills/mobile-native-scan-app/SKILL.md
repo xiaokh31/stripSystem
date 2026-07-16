@@ -5,6 +5,14 @@ description: Use for the standalone cross-platform native warehouse scan app, in
 
 # Mobile Native Scan App Skill
 
+## Current Delivery Scope (2026-07-15)
+
+Android and iOS are active. The React Native Windows/MSIX installation-package
+route is archived; do not plan, implement, verify, or treat Windows native work
+as a blocker while P6-MOBILE-09 through P6-MOBILE-13 carry
+`Task-Status: ARCHIVED`. Existing Windows guidance is a dormant reactivation
+reference only.
+
 ## Must Read
 
 Before editing standalone mobile scan app work, read:

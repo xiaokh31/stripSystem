@@ -1,5 +1,17 @@
 # Cross-Platform Mobile Scan App PRD
 
+## Delivery Scope Override (2026-07-15)
+
+- Android APK and iOS IPA remain active delivery targets.
+- Windows React Native Windows project generation, Credential Locker/camera
+  integration, MSIX packaging, signing and Windows-device smoke are archived.
+- Archived Windows work is not a current acceptance criterion or release
+  blocker. Existing Windows requirements are retained below as a reversible
+  reactivation reference rather than deleted.
+- Reactivation requires explicit product approval, removal of the
+  `Task-Status: ARCHIVED` marker from P6-MOBILE-09 through P6-MOBILE-13, and
+  synchronized updates to the open-task index and completion report.
+
 ## Background
 
 Bestar Warehouse Unloading System is deployed inside the company local area
@@ -19,7 +31,8 @@ the final product.
 
 ## Goal
 
-Deliver one cross-platform native warehouse scan app codebase that can produce:
+The original cross-platform architecture can produce the following artifacts;
+the active delivery scope is currently Android and iOS as stated above:
 
 - Windows MSIX for warehouse PCs, Windows tablets, or local scan stations.
 - Android apk for company-managed phones and Android PDA devices.
@@ -181,7 +194,7 @@ revoke and current-account checks.
 
 ## Acceptance Criteria
 
-The standalone app is complete when:
+For the current Android/iOS delivery scope, the standalone app is complete when:
 
 1. A fresh warehouse device can install the app and configure LAN API URL.
 2. A warehouse user can log in with an existing account.
@@ -189,8 +202,8 @@ The standalone app is complete when:
 4. Camera scan and scanner-gun/manual input both call the real scan API.
 5. Offline scans are queued and later synced without double decrementing.
 6. Supervisor override works only for authorized users and writes audit events.
-7. Windows MSIX, Android apk, and iOS ipa build instructions are documented and
-   tested to the extent possible in the available environment.
+7. Android apk and iOS ipa build instructions are documented and tested to the
+   extent possible in the available environment. Windows MSIX is excluded while archived.
 8. No office/admin/report/import UI is bundled into the app.
 
 ## Open Decisions

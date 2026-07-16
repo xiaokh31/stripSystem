@@ -1,5 +1,12 @@
 # Native Scan App Testing Runbook
 
+## Current Delivery Scope (2026-07-15)
+
+Android and iOS are the active Native test/release platforms. The Windows RNW,
+Credential Locker, camera, MSIX and Windows-device matrix is archived. Existing
+Windows/P6-MOBILE-09 through 13 sections are historical reactivation references
+and must not be executed while their Task files carry `Task-Status: ARCHIVED`.
+
 This runbook explains how to test the P6-MOBILE native scan app work as it is
 being built. The app lives in `apps/mobile-scan-app` and is a standalone native
 React Native app, not the office web app and not a WebView wrapper.
@@ -603,15 +610,14 @@ Device smoke evidence recorded on 2026-07-09:
   configured locally; the operator confirmed the iOS device smoke passed. Do
   not record the device password, Apple credentials, JWT, or provisioning
   profile in git.
-- Windows: `package:check` still reports Windows blocked because the generated
+- Windows: `package:check` still reports missing Windows generated markers because the
   React Native Windows `.sln`, `.vcxproj`, and `Package.appxmanifest` are not in
-  this checkout. Windows MSIX generation and device smoke remain a platform
-  follow-up on a Windows 11 build machine.
+  this checkout. Windows MSIX generation and device smoke are archived.
 
 P6 exit decision:
 - P6 mobile exit gate is passed for the Android+iOS pilot route.
-- Windows MSIX is not marked ready and must stay visible in release planning
-  until a Windows 11 build-machine smoke produces and installs the MSIX.
+- Windows MSIX is not marked ready; it must be shown as `Archived`, not as an
+  active blocker or next release task.
 
 ## Before Pilot Release
 
@@ -633,14 +639,14 @@ pnpm test
 scripts/healthcheck.sh
 ```
 
-Native device packaging checks now follow P6-MOBILE-08 through P6-MOBILE-12:
+Active native device packaging checks cover Android and iOS. Historical work followed P6-MOBILE-08 through P6-MOBILE-12:
 Android can be built from `apps/mobile-scan-app/android`; iOS has a generated
-Xcode workspace and device smoke evidence; Windows still requires its generated
-React Native Windows project before MSIX device acceptance.
+Xcode workspace and device smoke evidence. The Windows generated-project and
+MSIX acceptance path is archived.
 
 ## NATIVE-UX-04 Startup And Cross-Platform Exit Gate
 
-Use a signed release APK/IPA/MSIX on the same physical device for a five-sample
+Use a signed release APK/IPA on the same physical device for a five-sample
 cold-start baseline. Do not use Fast Refresh, a debug build, or a warm resume.
 Record the median of these app-relative marks:
 
@@ -677,17 +683,19 @@ Current evidence on 2026-07-11:
   be claimed. On 2026-07-11, the signed iOS Release app was built, installed,
   and launched on a paired iPhone 15 Pro; five-sample timing, screenshots, and
   Login/Bay Board/scan/manual regression remain required.
-- Windows remains blocked pending the generated React Native Windows project,
-  MSIX build, and Windows-device smoke. This gate is therefore `Partial`, not
-  complete.
+- Windows RNW/MSIX/device evidence is archived and no longer affects this gate.
+  Android/iOS evidence still determines whether this gate is `Partial` or complete.
 
-## P6-MOBILE-13 Windows MSIX Release Completion
+## P6-MOBILE-13 Windows MSIX Release Completion (Archived Reference)
+
+Do not execute this section while `P6-MOBILE-13` is archived. The commands and
+checklists below are retained only to make a future approved reactivation reversible.
 
 Purpose:
 - Complete or explicitly block the Windows MSIX release gate.
 - Use a Windows 11 build machine with Visual Studio 2022, Windows SDK, MSIX
   packaging tools, and a trusted signing certificate.
-- Keep Android/iOS pilot readiness unchanged while Windows remains blocked.
+- Preserve Android/iOS pilot readiness while Windows remains archived.
 
 Automated checks from any host:
 
@@ -737,7 +745,6 @@ Windows device smoke:
    module; otherwise record scanner-gun/manual input as the approved Windows
    pilot mode.
 
-Known limitation:
-- P6-MOBILE-13 cannot be completed honestly on macOS. Completion requires the
-  Windows build-machine and device-smoke evidence above. Until then the correct
-  release decision is `windows msix release blocked`.
+Archive status:
+- P6-MOBILE-13 is not an active Task or release blocker. The correct current
+  release decision is `windows native msix archived`.

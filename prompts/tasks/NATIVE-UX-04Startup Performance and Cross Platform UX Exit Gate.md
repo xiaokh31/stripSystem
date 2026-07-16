@@ -1,5 +1,11 @@
 # 执行 NATIVE-UX-04：Startup Performance and Cross Platform UX Exit Gate
 
+## 2026-07-15 当前交付范围
+
+- 当前退出门禁只覆盖 Android 和 iOS Release 实机证据。
+- Windows RNW/MSIX、Windows 视觉/性能/扫码设备证据已随 Windows 原生安装包路线归档，不再阻塞本 Task。
+- 恢复 Windows 范围必须先获得产品批准，并同步解除 P6-MOBILE-09 至 13、任务索引和完成度报告的归档状态。
+
 ## 前置任务
 
 - `NATIVE-UX-01`、`NATIVE-UX-02`、`NATIVE-UX-03`
@@ -29,7 +35,7 @@
    - release bundle、Hermes 和平台构建配置是否正确启用且无重复依赖。
 4. 保持快速首帧与安全鉴权平衡：缓存 shell 不代表已授权，服务端仍校验账号 active 和权限。
 5. 更新 native testing/release runbook，记录测量设备、构建类型、方法、前后结果和剩余瓶颈。
-6. 完成 Android、iOS、Windows 的视觉、i18n、无障碍与核心扫码回归；无法在当前平台实机验证的项目必须明确留作 release blocker，不得假定通过。
+6. 完成 Android、iOS 的视觉、i18n、无障碍与核心扫码回归；无法在当前平台实机验证的活动范围项目必须明确留作 release blocker，不得假定通过。
 
 ## 性能验收
 
@@ -62,14 +68,13 @@
 - `pnpm --filter mobile-scan-app test`
 - `pnpm --filter mobile-scan-app android:check`
 - `pnpm --filter mobile-scan-app ios:check`
-- `pnpm --filter mobile-scan-app windows:check`
+- 已归档且当前不得执行：`pnpm --filter mobile-scan-app windows:check`
 - `pnpm --filter api test:e2e`
 - `git diff --check`
 
 ## 完成产物
 
-- 三端截图或设备证据：登录、Bay Board、扫描工作台、离线/错误、设置，英文和中文。
+- Android/iOS 截图或设备证据：登录、Bay Board、扫描工作台、离线/错误、设置，英文和中文。
 - 优化前后性能表，注明设备、OS、release artifact、样本数与中位数。
 - 修改文件、测试结果、已知限制和未完成实机 gate。
 - 更新 `OPEN-FUNCTIONS-20260707Task Index.md` 与项目完成度报告；只有证据齐全才标记完成。
-

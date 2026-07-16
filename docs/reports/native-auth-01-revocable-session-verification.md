@@ -2,6 +2,9 @@
 
 验证窗口：2026-07-15 18:43–19:38 MDT（2026-07-16 00:43–01:38 UTC）
 
+范围更新：2026-07-15 产品决定归档 Windows RNW/MSIX 安装包路线。Windows Credential Locker
+和设备 session 矩阵不再是本报告的活动外部验收项；既有静态证据保留为恢复参考。
+
 ## 结论
 
 仓库实现、Docker 自动化、真实 PostgreSQL/HTTP 会话生命周期验证，以及当前 iPhone 的 Release 构建、
@@ -13,8 +16,8 @@
 `last_used_at`/`rotated_at` 更新，refresh history 从 1 增至 2，随后新 access 的 `/api/auth/me` 返回 304。
 全程未读取或输出 Keychain、密码、access/refresh token、refresh hash 或 secure-store JSON。iOS 仅剩
 在线/离线 logout、管理员撤销、账号停用和 en/zh-CN 视觉提示需要人工点击/观察；这些会清除当前真实
-session 的破坏性步骤没有自动执行。Android Release 同矩阵及 Windows 11 RNW/MSIX/Credential Locker
-矩阵仍是外部验收项。
+session 的破坏性步骤没有自动执行。Android Release 同矩阵仍是活动外部验收项；Windows
+RNW/MSIX/Credential Locker 矩阵已归档。
 
 ## 仓库实现证据
 
@@ -84,8 +87,8 @@ session 的破坏性步骤没有自动执行。Android Release 同矩阵及 Wind
 - Native lint、typecheck、build：PASS；50/50 tests PASS。
 - Android secure-store static checks：3/3 PASS。
 - iOS secure-store static checks：3/3 PASS。
-- Windows check：Credential Locker source、secret guardrail、module/checklist 项 PASS；Windows 11、
-  `.sln`、`.vcxproj`、`Package.appxmanifest` 仍按设计返回外部 blocker。
+- Windows check（归档历史证据）：Credential Locker source、secret guardrail、module/checklist 项 PASS；
+  缺少 Windows 11、`.sln`、`.vcxproj`、`Package.appxmanifest` 不再作为当前 blocker。
 - 真实 PostgreSQL/HTTP disposable fixture：5 sessions / 7 refresh history rows；hash-only、rotation、
   旧 token replay、201/401 并发、family revoke、管理员撤销审计、账号停用/恢复和 logout 全部 PASS。
 - 精确清理：disposable users = 0、sessions = 0、refresh tokens = 0。
@@ -103,7 +106,7 @@ session 的破坏性步骤没有自动执行。Android Release 同矩阵及 Wind
 - iOS：上述最小人工视觉与破坏性logout/revoke/inactive矩阵。
 - Android Release：关闭/重启 App、设备重启、access 到期、离线、在线/离线 logout、管理员撤销、
   账号停用及双语视觉矩阵。
-- Windows 11：生成并接入 RNW project，构建/安装 MSIX，验证 Credential Locker 与相同 session 矩阵。
+- Windows 11：已归档，不执行。恢复时按保留的 RNW/MSIX/Credential Locker checklist 重新纳入验收。
 
 ## QA 回归结论
 

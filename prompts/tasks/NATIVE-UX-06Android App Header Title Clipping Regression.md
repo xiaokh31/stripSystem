@@ -1,5 +1,10 @@
 # 执行 NATIVE-UX-06：Android App Header Title Clipping Regression
 
+## 2026-07-15 当前交付范围
+
+- 当前回归平台为 Android，并以 iOS 作为共享布局对照。
+- Windows 对照已随 Windows 原生安装包路线归档，不再是本 Task 关闭条件；恢复时必须同步解除 P6 与报告归档状态。
+
 ## 前置任务
 
 - `NATIVE-UX-05System Adaptive Color Theme.md` 代码实现完成。
@@ -28,7 +33,7 @@
 3. 让 `BESTAR SCAN` 与中文品牌名在可用宽度内完整显示；必要时允许品牌区占剩余宽度、标题字号在
    明确的有限档位自适应，或在极窄宽度使用经产品定义的双行布局。
 4. 不允许无省略标记地静默裁掉 `SCAN`，也不允许标题覆盖设置按钮、状态栏或刘海区域。
-5. light/dark、English/中文、Android/iOS/Windows 共享布局语义；修复不得使 iOS 标题回归。
+5. light/dark、English/中文、Android/iOS 共享布局语义；修复不得使 iOS 标题回归。Windows 对照已归档。
 
 ## i18n 硬门禁
 
@@ -52,4 +57,3 @@
 - `pnpm --filter mobile-scan-app android:check`
 - `pnpm --filter mobile-scan-app ios:check`
 - `git diff --check`
-

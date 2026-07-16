@@ -1,5 +1,11 @@
 # Native Scan App Architecture Execution Plan
 
+## Delivery Scope Override (2026-07-15)
+
+Android and iOS remain active. The React Native Windows/MSIX delivery path is
+archived and the Windows sections below are dormant architecture references,
+not current implementation requirements or release blockers.
+
 ## Status
 
 P6-MOBILE-01 architecture decision, accepted for implementation planning.

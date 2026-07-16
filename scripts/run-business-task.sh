@@ -46,6 +46,12 @@ if [[ "${task_directory}" != "${expected_task_directory}" || ! -f "${task_path}"
   exit 66
 fi
 
+if grep -Eq '^[[:space:]]*Task-Status:[[:space:]]*ARCHIVED[[:space:]]*$' "${task_path}"; then
+  printf 'Task is archived and cannot be executed: %s\n' "${task_argument}" >&2
+  printf 'Reactivate it only after explicit product approval by removing the ARCHIVED marker and updating the Task index and completion report.\n' >&2
+  exit 78
+fi
+
 task_id="$(
   sed -nE 's/^[[:space:]#]*执行[[:space:]]+([A-Z][A-Z0-9]*(-[A-Z][A-Z0-9]*)*-[0-9]+).*/\1/p' "${task_path}" |
     sed -n '1p'
@@ -68,6 +74,16 @@ if [[ ! "${max_turns}" =~ ^[1-9][0-9]*$ ]] || (( max_turns > 100 )); then
   printf 'BUSINESS_AGENT_MAX_TURNS must be an integer from 1 to 100.\n' >&2
   exit 64
 fi
+
+execution_mode="${BUSINESS_AGENT_EXECUTION_MODE:-full}"
+case "${execution_mode}" in
+  full|implementation-only)
+    ;;
+  *)
+    printf 'BUSINESS_AGENT_EXECUTION_MODE must be full or implementation-only.\n' >&2
+    exit 64
+    ;;
+esac
 
 run_root="${BUSINESS_AGENT_RUN_ROOT:-${project_root}/.codex/business-agent-runs}"
 lock_directory="${BUSINESS_AGENT_LOCK_DIR:-${project_root}/.codex/business-agent-task.lock}"
@@ -146,6 +162,7 @@ write_state() {
     --arg session_id "${session_id}" \
     --arg status "${supervisor_status}" \
     --arg reason "${supervisor_reason}" \
+    --arg execution_mode "${execution_mode}" \
     --arg updated_at "${updated_at}" \
     --argjson pid "$$" \
     --argjson turn "${turn_number}" \
@@ -156,6 +173,7 @@ write_state() {
       session_id: $session_id,
       supervisor_status: $status,
       reason: $reason,
+      execution_mode: $execution_mode,
       pid: $pid,
       turn: $turn,
       max_turns: $max_turns,
@@ -207,6 +225,7 @@ validate_result() {
   local remaining_count
   local external_count
   local blocker_count
+  local tests_count
   local terminal_text
 
   candidate_status=''
@@ -238,6 +257,7 @@ validate_result() {
   remaining_count="$(jq -r '.remaining_work | length' "${result_file}")"
   external_count="$(jq -r '.external_verification | length' "${result_file}")"
   blocker_count="$(jq -r '.blockers | length' "${result_file}")"
+  tests_count="$(jq -r '.tests | length' "${result_file}")"
 
   if [[ "${result_task_id}" != "${task_id}" ]]; then
     validation_reason="Final result Task ID ${result_task_id} does not match ${task_id}."
@@ -274,6 +294,15 @@ validate_result() {
       return 1
       ;;
   esac
+
+  if [[ "${execution_mode}" == 'implementation-only' && "${candidate_status}" == 'DONE' ]]; then
+    validation_reason='Implementation-only mode cannot claim DONE before tests, builds, and runtime verification run on a capable host.'
+    return 1
+  fi
+  if [[ "${execution_mode}" == 'implementation-only' && ${tests_count} -ne 0 ]]; then
+    validation_reason='Implementation-only mode must not claim locally executed tests or builds; leave tests empty and list verification externally.'
+    return 1
+  fi
 
   if [[ "${candidate_status}" == 'DONE' ]]; then
     terminal_text="$(jq -r '[.summary, .next_action] | join(" ")' "${result_file}")"
@@ -314,13 +343,28 @@ render_terminal_result() {
   ' "${result_file}"
 }
 
+if [[ "${execution_mode}" == 'implementation-only' ]]; then
+  execution_mode_prompt="$(printf '%s\n' \
+    'This supervisor is running in explicit implementation-only mode on a Windows host without Docker or verification tooling.' \
+    'Do not invoke Docker, package installation, tests, builds, migrations, application services, browsers, emulators, device tools, or runtime smoke checks.' \
+    'Complete every in-scope code and documentation change that can be justified through repository inspection; do not fabricate test or runtime evidence.' \
+    'Never return DONE in this mode. When implementation work is complete, return CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING and list every omitted test, build, migration, runtime, visual, device, and business verification item exactly.'
+  )"
+  delivery_scope_prompt='Continue through all implementation and directly related documentation updates, but leave every execution or verification step to a capable external host.'
+else
+  execution_mode_prompt='Run in full Definition-of-Done mode, including every current-environment implementation and verification requirement.'
+  delivery_scope_prompt='Continue through implementation, migrations, Docker-only tests/builds, required browser or artifact verification, and directly related Task/index/report updates.'
+fi
+
 initial_prompt="$(printf '%s\n' \
   'You are running under the Bestar programmatic business-task supervisor.' \
+  "Execution mode: ${execution_mode}." \
+  "${execution_mode_prompt}" \
   'Use Chinese for progress updates and result text.' \
   'Read AGENTS.md, prompts/agents/business-logic-agent.md, docs/runbooks/business-agent-execution.md, the named Task, and all relevant skills/docs.' \
   'Inspect and preserve every existing worktree change. Do not revert or overwrite unrelated work.' \
   "Fully execute Task ${task_id} from '${task_relative_path}'." \
-  'Continue through implementation, migrations, Docker-only tests/builds, required browser or artifact verification, and directly related Task/index/report updates.' \
+  "${delivery_scope_prompt}" \
   'Do not start another Task.' \
   'At the end of this Codex turn, return one JSON object matching the supplied schema.' \
   'Use status CONTINUE whenever any actionable in-scope work remains; the supervisor will resume this same Task automatically.' \
@@ -344,7 +388,7 @@ while (( turn_number < max_turns )); do
   supervisor_status='RUNNING'
   supervisor_reason="Starting supervised turn ${turn_number} of ${max_turns}."
   write_state
-  printf '\n[supervisor] %s turn %s/%s\n' "${task_id}" "${turn_number}" "${max_turns}"
+  printf '\n[supervisor] %s turn %s/%s mode=%s\n' "${task_id}" "${turn_number}" "${max_turns}" "${execution_mode}"
 
   set +e
   if [[ "${turn_mode}" == 'resume' && -n "${session_id}" ]]; then
@@ -419,6 +463,7 @@ while (( turn_number < max_turns )); do
   fi
   continuation_prompt="$(printf '%s\n' \
     "The supervisor is continuing Task ${task_id}; do not start another Task and do not wait for user input." \
+    "Execution mode remains ${execution_mode}. ${execution_mode_prompt}" \
     "Supervisor reason: ${supervisor_reason}" \
     "Previous turn result: ${previous_result}" \
     'Inspect the current worktree, running containers, logs, and persisted artifacts, then continue immediately from the smallest missing acceptance criterion.' \

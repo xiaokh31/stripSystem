@@ -1,5 +1,13 @@
 # 执行 NATIVE-AUTH-01：Revocable Persistent Native Session
 
+## 2026-07-15 当前交付范围
+
+- 活动平台范围为 Android 和 iOS；两端尚未完成的 Release 真机 session、退出、撤销、停用和双语视觉证据继续验收。
+- Windows RNW/MSIX、Credential Locker 接入和 Windows 设备 session 矩阵已随 Windows 原生安装包路线归档，
+  不再是本 Task 当前关闭条件，也不得作为 `external_verification` 或 release blocker。
+- 既有 Windows source boundary 和历史记录保留为恢复参考。只有产品明确恢复 Windows 原生安装包，并同步移除
+  P6-MOBILE-09 至 13 的 `Task-Status: ARCHIVED` 标记、任务索引和完成度报告后，才恢复 Windows 验收。
+
 ## 必须读取与使用的 skills
 
 - `AGENTS.md`、`CONTEXT.md`
@@ -16,8 +24,8 @@
 
 ## 现状
 
-- Native access token 已持久化到 Android Keystore-backed storage、iOS Keychain 和 Windows
-  Credential Locker，关闭 App 后不会自动丢失。
+- Native access token 已持久化到 Android Keystore-backed storage 和 iOS Keychain，关闭 App 后不会自动丢失。
+  Windows Credential Locker source boundary 属于已归档路线，不纳入当前完成度。
 - 但 Native 与 Web 当前共享 API JWT 有效期，默认约 400 天。JWT 到期后 Native restore 会清除
   token 并要求重新登录。
 - 因此目前是“长周期持久化”，不是“不主动退出就持续登录”。
@@ -48,7 +56,7 @@
 
 ## Native 任务
 
-1. Secure token store 升级为原子保存 access token、refresh token、session metadata；三端均不得回退
+1. Secure token store 升级为原子保存 access token、refresh token、session metadata；活动范围内的 Android/iOS 均不得回退
    到普通 AsyncStorage/UserDefaults 明文保存 secrets。
 2. App 启动时：access token 有效则恢复；即将到期或已到期则静默 refresh；refresh 成功后继续进入
    Bay Board，不闪回登录页。
@@ -56,7 +64,7 @@
    不得并发轮换同一 refresh token。
 4. 网络不可达不等同 session invalid：保留本地 session 和离线能力，不得因暂时断网清除 refresh token。
 5. refresh invalid/revoked/user inactive 才清除凭据并进入本地化重新登录状态。
-6. 主动退出清除三端 secure store；卸载/系统清除凭据后的行为服从平台安全存储规则并写入 runbook。
+6. 主动退出清除 Android/iOS secure store；卸载/系统清除凭据后的行为服从平台安全存储规则并写入 runbook。
 
 ## 安全与业务约束
 
@@ -80,7 +88,7 @@
 2. 主动退出后旧 access/refresh token 均不能继续使用。
 3. 禁用账号、撤销 session 或检测 refresh replay 后，设备下一次请求/refresh 被拒绝。
 4. 暂时离线不会误删有效 session，离线扫描规则不回归。
-5. 三端 secrets 仅保存在平台 secure store，API 数据库仅存 refresh hash。
+5. Android/iOS secrets 仅保存在平台 secure store，API 数据库仅存 refresh hash。
 6. migration、API unit/e2e、Native session/concurrency tests 和 runbook 齐全。
 
 ## 测试命令
@@ -95,11 +103,11 @@
 - `pnpm --filter mobile-scan-app test`
 - `pnpm --filter mobile-scan-app android:check`
 - `pnpm --filter mobile-scan-app ios:check`
-- `pnpm --filter mobile-scan-app windows:check`
+- 已归档且当前不得执行：`pnpm --filter mobile-scan-app windows:check`
 
 ## 2026-07-15 执行结果
 
-状态：Repository and current-environment automation complete; external native-device verification pending.
+状态：Repository and current-environment automation complete; Android/iOS external native-device verification pending.
 
 - 已完成 migration、hash-only refresh history、row-lock rotation/replay revoke、access/session binding、
   refresh rate limit、管理员撤销审计和 current user/permission revalidation。
@@ -108,8 +116,8 @@
 - Docker API auth unit 5 suites / 18 tests、auth E2E 3 suites / 25 tests、Native 50 tests、lint、
   typecheck、build/static platform checks 与真实 PostgreSQL/HTTP 并发验证通过；23 migrations up to date。
 - 详细证据见 `docs/reports/native-auth-01-revocable-session-verification.md`。
-- 仅剩 Android/iOS Release 真机 session matrix，以及 Windows 11 RNW/MSIX/Credential Locker 同矩阵；
-  不再有可在当前仓库环境自动化的实现项。
+- 仅剩 Android/iOS Release 真机 session matrix；Windows 11 RNW/MSIX/Credential Locker 同矩阵已归档，
+  不再属于当前关闭条件。当前仓库环境没有剩余自动化实现项。
 
 ## 2026-07-16 iOS 真机自动验收续跑
 
@@ -155,7 +163,7 @@ external destructive/visual device verification pending.
 - 当前源码包真实登录后，App重启、nginx离线/恢复和设备full reboot均保持session；自然进入提前60秒
   refresh窗口后设备refresh 201、history `1→2`，新access `/auth/me` 304。全程未读取Keychain/token/hash。
 - iOS仅剩需要人工点击/视觉观察且会清除当前session的online/offline logout、管理员revoke、账号inactive
-  和双语状态矩阵；Android Release与Windows 11 RNW/MSIX/Credential Locker同矩阵仍待外部验收。
+  和双语状态矩阵；Android Release 同矩阵仍待外部验收。Windows 11 RNW/MSIX/Credential Locker 矩阵已归档。
 - 真实 PostgreSQL/HTTP disposable fixture 的 hash-only、rotation/replay、201/401并发、管理员撤销审计、
   账号停用/恢复和logout通过；清理后 users/sessions/refresh tokens均为0。
 - Docker API auth 18 unit / 25 E2E、Native 50 tests、lint/typecheck/build、Android/iOS static checks、
