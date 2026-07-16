@@ -1,5 +1,12 @@
 import { resolve, sep } from 'node:path';
 import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from './auth-session.constants';
+import {
+  DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  DEFAULT_NATIVE_REFRESH_RATE_LIMIT_MAX,
+  DEFAULT_NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS,
+  DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
+  DEFAULT_NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
+} from './native-auth.constants';
 
 export const DEFAULT_DATABASE_URL =
   'postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public';
@@ -19,6 +26,11 @@ export interface AppConfiguration {
   queueConcurrency: number;
   jwtSecret?: string;
   jwtExpiresInSeconds: number;
+  nativeAccessTokenExpiresInSeconds: number;
+  nativeSessionIdleExpiresInSeconds: number;
+  nativeSessionAbsoluteExpiresInSeconds: number;
+  nativeRefreshRateLimitMax: number;
+  nativeRefreshRateLimitWindowSeconds: number;
 }
 
 export const appConfig = (): { app: AppConfiguration } => ({
@@ -43,6 +55,26 @@ export const appConfig = (): { app: AppConfiguration } => ({
     jwtExpiresInSeconds: parsePositiveInteger(
       process.env.JWT_EXPIRES_IN_SECONDS,
       DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
+    ),
+    nativeAccessTokenExpiresInSeconds: parsePositiveInteger(
+      process.env.NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+      DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+    ),
+    nativeSessionIdleExpiresInSeconds: parsePositiveInteger(
+      process.env.NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
+      DEFAULT_NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
+    ),
+    nativeSessionAbsoluteExpiresInSeconds: parsePositiveInteger(
+      process.env.NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
+      DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
+    ),
+    nativeRefreshRateLimitMax: parsePositiveInteger(
+      process.env.NATIVE_REFRESH_RATE_LIMIT_MAX,
+      DEFAULT_NATIVE_REFRESH_RATE_LIMIT_MAX,
+    ),
+    nativeRefreshRateLimitWindowSeconds: parsePositiveInteger(
+      process.env.NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS,
+      DEFAULT_NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS,
     ),
   },
 });

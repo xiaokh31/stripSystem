@@ -24,7 +24,9 @@ docs/*
 !docs/fixtures.md
 prompts
 apps/mobile-scan-app/android/.gradle
+apps/mobile-scan-app/.gradle-user-home
 apps/mobile-scan-app/android/.cxx
+apps/mobile-scan-app/android/app/.cxx
 apps/mobile-scan-app/android/build
 apps/mobile-scan-app/android/app/build
 apps/mobile-scan-app/ios/Pods
@@ -34,7 +36,6 @@ apps/mobile-scan-app/windows/.vs
 apps/mobile-scan-app/windows/**/bin
 apps/mobile-scan-app/windows/**/obj
 apps/mobile-scan-app/windows/**/Generated Files
-apps/mobile-scan-app
 apps/web/.next
 apps/web/.test-output
 apps/worker-python/.mypy_cache

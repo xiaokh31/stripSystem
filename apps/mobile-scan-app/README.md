@@ -11,7 +11,9 @@ as Android APK, iOS IPA, and Windows MSIX.
 - LAN API URL setting.
 - Device identity.
 - API health connectivity check.
-- Login with existing Bestar accounts through `POST /api/auth/login`.
+- Login with existing Bestar accounts through `POST /api/auth/native/login`.
+- Rotating refresh through `POST /api/auth/native/refresh` and server revoke
+  through `POST /api/auth/native/logout`.
 - Current-user restore through `GET /api/auth/me`.
 - Logout and local token clearing.
 - Session expired and scan permission denied states.
@@ -33,13 +35,28 @@ as Android APK, iOS IPA, and Windows MSIX.
 - P6-MOBILE-13 Windows MSIX readiness checklist and `windows:check` handoff
   command for the Windows 11 build machine.
 
+## Revocable Native Session
+
+Native auth uses a short-lived access token (15 minutes by default) and a
+one-time rotating refresh token. The rolling idle window defaults to 400 days
+and is capped by a five-year absolute lifetime. Startup validates or silently
+refreshes the saved session before entering the warehouse console. A temporary
+network failure preserves the session and cached user for offline operation.
+
+Protected requests share a single-flight refresh. Only an explicit
+`AUTH_TOKEN_EXPIRED` response causes one refresh and one request retry. Invalid,
+revoked, replayed, or inactive-user results clear the secure session and return
+to localized login. Logout first attempts server revoke and always clears the
+local secure store.
+
 ## Token Storage
 
 P6-MOBILE-10 keeps tokens behind the `SecureTokenStore` interface and requires
 the native module named `BestarSecureTokenStore` in production builds. There is
 no silent production fallback to AsyncStorage for JWT storage.
 
-Platform storage:
+The store writes one JSON session record atomically; secrets never fall back to
+AsyncStorage. Platform storage:
 
 - Android: Android Keystore AES-GCM key with ciphertext and IV in private
   SharedPreferences.
@@ -93,6 +110,8 @@ pnpm --filter mobile-scan-app build
 pnpm --filter mobile-scan-app package:check
 pnpm --filter mobile-scan-app package:check -- --strict
 pnpm --filter mobile-scan-app windows:check
+pnpm --filter mobile-scan-app android:check
+pnpm --filter mobile-scan-app ios:check
 ```
 
 `package:check` reports all three platform states. Strict mode is the release

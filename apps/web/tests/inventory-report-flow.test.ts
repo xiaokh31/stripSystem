@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   activeInventoryFilterCount,
   formatInventoryRefreshTime,
@@ -58,6 +60,22 @@ test("inventory exact suggestion selection stores canonical container text with 
       undefined,
     ),
     "/inventory?containerNo=CSNU8&destinationCode=YEG1&page=1&pageSize=10&sortBy=createdAt&sortDirection=desc",
+  );
+});
+
+test("inventory combobox restores the stable selection boundary before URL navigation", () => {
+  const source = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "src/components/containers/container-search-controls.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.match(source, /selectContainer\(containerId: string\): void;/);
+  assert.match(
+    source,
+    /selectionBoundary\?\.selectContainer\(suggestion\.containerId\);\s*router\.push\(/,
   );
 });
 

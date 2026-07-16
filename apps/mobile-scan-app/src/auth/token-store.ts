@@ -1,15 +1,20 @@
+import type { AuthUser } from "./auth-types";
+
 export interface SecureTokenStore {
   clearToken(): Promise<void>;
   getToken(): Promise<string | null>;
   setToken(token: string): Promise<void>;
-  getSession?(): Promise<NativeStoredSession | null>;
-  setSession?(session: NativeStoredSession): Promise<void>;
+  getSession(): Promise<NativeStoredSession | null>;
+  setSession(session: NativeStoredSession): Promise<void>;
 }
 
 export interface NativeStoredSession {
   accessToken: string;
+  accessExpiresAt: string;
   refreshToken: string;
+  refreshExpiresAt: string;
   sessionId: string;
+  user: AuthUser | null;
 }
 
 interface NativeSecureTokenStoreModule {
@@ -54,6 +59,7 @@ export class NativeSecureTokenStore implements SecureTokenStore {
   }
 
   async setSession(session: NativeStoredSession): Promise<void> {
+    assertStoredSession(session);
     await this.nativeModule.setToken(JSON.stringify(session));
   }
 }
@@ -66,7 +72,7 @@ export class MemorySecureTokenStore implements SecureTokenStore {
   }
 
   async getToken(): Promise<string | null> {
-    return this.token;
+    return parseStoredSession(this.token)?.accessToken ?? this.token;
   }
 
   async setToken(token: string): Promise<void> {
@@ -76,8 +82,14 @@ export class MemorySecureTokenStore implements SecureTokenStore {
     this.token = token;
   }
 
-  async getSession(): Promise<NativeStoredSession | null> { return parseStoredSession(this.token); }
-  async setSession(session: NativeStoredSession): Promise<void> { this.token = JSON.stringify(session); }
+  async getSession(): Promise<NativeStoredSession | null> {
+    return parseStoredSession(this.token);
+  }
+
+  async setSession(session: NativeStoredSession): Promise<void> {
+    assertStoredSession(session);
+    this.token = JSON.stringify(session);
+  }
 }
 
 class UnavailableSecureTokenStore implements SecureTokenStore {
@@ -92,6 +104,14 @@ class UnavailableSecureTokenStore implements SecureTokenStore {
   }
 
   async setToken(): Promise<void> {
+    throw new Error(this.message);
+  }
+
+  async getSession(): Promise<NativeStoredSession | null> {
+    throw new Error(this.message);
+  }
+
+  async setSession(): Promise<void> {
     throw new Error(this.message);
   }
 }
@@ -119,10 +139,52 @@ function loadReactNativeModules(): NativeSecureTokenModuleMap {
   return reactNative.NativeModules ?? {};
 }
 
-function parseStoredSession(value: string | null): NativeStoredSession | null {
+export function parseStoredSession(value: string | null): NativeStoredSession | null {
   if (!value) return null;
   try {
-    const parsed = JSON.parse(value) as NativeStoredSession;
-    return typeof parsed.accessToken === "string" && typeof parsed.refreshToken === "string" && typeof parsed.sessionId === "string" ? parsed : null;
+    const parsed = JSON.parse(value) as Partial<NativeStoredSession>;
+    if (
+      typeof parsed.accessToken !== "string" ||
+      typeof parsed.refreshToken !== "string" ||
+      typeof parsed.sessionId !== "string"
+    ) {
+      return null;
+    }
+    return {
+      accessToken: parsed.accessToken,
+      accessExpiresAt:
+        typeof parsed.accessExpiresAt === "string"
+          ? parsed.accessExpiresAt
+          : new Date(0).toISOString(),
+      refreshToken: parsed.refreshToken,
+      refreshExpiresAt:
+        typeof parsed.refreshExpiresAt === "string"
+          ? parsed.refreshExpiresAt
+          : new Date(0).toISOString(),
+      sessionId: parsed.sessionId,
+      user: isAuthUser(parsed.user) ? parsed.user : null,
+    };
   } catch { return null; }
+}
+
+function assertStoredSession(session: NativeStoredSession): void {
+  if (
+    !session.accessToken.trim() ||
+    !session.refreshToken.trim() ||
+    !session.sessionId.trim() ||
+    !Number.isFinite(Date.parse(session.accessExpiresAt)) ||
+    !Number.isFinite(Date.parse(session.refreshExpiresAt))
+  ) {
+    throw new Error("Cannot persist an incomplete native auth session.");
+  }
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as AuthUser).id === "string" &&
+    Array.isArray((value as AuthUser).roles) &&
+    Array.isArray((value as AuthUser).permissions)
+  );
 }

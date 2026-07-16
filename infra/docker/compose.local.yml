@@ -58,6 +58,11 @@ services:
       REPORT_TEMPLATE_PATH: /workspace/samples/templates/卸柜报告-En.xlsx
       JWT_SECRET: ${JWT_SECRET:-replace-with-long-random-secret}
       JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-34560000}
+      NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS: ${NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS:-900}
+      NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS: ${NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS:-34560000}
+      NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS: ${NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS:-157680000}
+      NATIVE_REFRESH_RATE_LIMIT_MAX: ${NATIVE_REFRESH_RATE_LIMIT_MAX:-10}
+      NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS: ${NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS:-60}
     volumes:
       - ../../storage:/workspace/storage
     command: >
@@ -197,6 +202,15 @@ services:
     volumes:
       - ../../test-results:/workspace/test-results
     profiles: ["report-visual"]
+
+  mobile-scan-app:
+    build:
+      context: ../..
+      dockerfile: infra/docker/mobile-scan-app.Dockerfile
+    image: bestar_mobile_scan_app_checks:latest
+    working_dir: /workspace
+    command: tail -f /dev/null
+    profiles: ["checks"]
 
 volumes:
   bestar_postgres_data:

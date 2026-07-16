@@ -1,11 +1,27 @@
 import { appConfig } from './app.config';
 import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from './auth-session.constants';
+import {
+  DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
+  DEFAULT_NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
+} from './native-auth.constants';
 
 describe('appConfig auth session defaults', () => {
   const originalJwtExpiresInSeconds = process.env.JWT_EXPIRES_IN_SECONDS;
+  const originalNativeAccess =
+    process.env.NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS;
+  const originalNativeIdle = process.env.NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS;
+  const originalNativeAbsolute =
+    process.env.NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS;
 
   afterEach(() => {
     restoreEnv('JWT_EXPIRES_IN_SECONDS', originalJwtExpiresInSeconds);
+    restoreEnv('NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS', originalNativeAccess);
+    restoreEnv('NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS', originalNativeIdle);
+    restoreEnv(
+      'NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS',
+      originalNativeAbsolute,
+    );
   });
 
   it('defaults browser login JWT expiry to a 400-day persistent session', () => {
@@ -27,6 +43,23 @@ describe('appConfig auth session defaults', () => {
 
     expect(appConfig().app.jwtExpiresInSeconds).toBe(
       DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
+    );
+  });
+
+  it('keeps Native access short while defaulting refresh idle and absolute lifetimes independently', () => {
+    delete process.env.NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS;
+    delete process.env.NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS;
+    delete process.env.NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS;
+
+    const config = appConfig().app;
+    expect(config.nativeAccessTokenExpiresInSeconds).toBe(
+      DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+    );
+    expect(config.nativeSessionIdleExpiresInSeconds).toBe(
+      DEFAULT_NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
+    );
+    expect(config.nativeSessionAbsoluteExpiresInSeconds).toBe(
+      DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
     );
   });
 });

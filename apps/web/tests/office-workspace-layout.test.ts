@@ -110,6 +110,35 @@ test("inventory workspace stacks below desktop without widening the viewport", (
   );
 });
 
+test("container and inventory table scroll regions are named and keyboard reachable", () => {
+  const containers = readSource("src/app/containers/page.tsx");
+  const inventory = readSource("src/app/inventory/page.tsx");
+  const adjustment = readSource(
+    "src/components/containers/container-inventory-adjustment-panel.tsx",
+  );
+
+  for (const [source, headingId] of [
+    [containers, "container-index-heading"],
+    [inventory, "inventory-container-summary-heading"],
+    [inventory, "inventory-destination-summary-heading"],
+  ] as const) {
+    assert.match(source, new RegExp(`id="${headingId}"`));
+    assert.match(
+      source,
+      new RegExp(
+        `aria-labelledby="${headingId}"[\\s\\S]*?role="region"[\\s\\S]*?tabIndex=\\{0\\}`,
+      ),
+    );
+  }
+
+  assert.match(adjustment, /const headingId = `inventory-adjustment-history-/);
+  assert.match(adjustment, /aria-labelledby=\{headingId\}/);
+  assert.match(
+    adjustment,
+    /aria-labelledby=\{headingId\}[\s\S]*?role="region"[\s\S]*?tabIndex=\{0\}/,
+  );
+});
+
 test("office shell owns the single inventory sync listener", () => {
   assert.match(
     readSource("src/components/layout/office-shell.tsx"),

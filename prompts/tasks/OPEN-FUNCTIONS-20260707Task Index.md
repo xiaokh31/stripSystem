@@ -46,6 +46,9 @@
 - Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
   `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
+- `NATIVE-AUTH-01` repository、Docker 自动化、真实数据库/HTTP 和 iOS 非破坏性已认证矩阵已完成；三次 supervisor
+  运行均返回 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。当前仍有 10 个唯一未关闭 Task，但全部依赖真实样本、
+  打印/Excel、Android/iOS 人工设备矩阵、Windows 11 RNW/MSIX 构建机或目标部署主机；当前开发机没有新代码 Task。
 
 历史执行记录（其中多数已经关闭，实际状态以本文件“当前执行队列”和完成度报告为准）：
 1. P6-MOBILE-09Native Camera Module Wiring.md
@@ -119,7 +122,7 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-15 复核）：
+当前执行队列（2026-07-15 20:27 MDT 复核）：
 
 ### A. 当前开发机立即执行
 
@@ -131,69 +134,60 @@ destination-first DOM/视觉顺序与权限/交互/双语视觉回归；`WEB-OPS
 视觉、RBAC、库存事务与性能关闭门禁；`WEB-OPS-06` 已完成共享 database-backed 柜号联想、独立权限边界、
 稳定 identity 与可访问 combobox；`WEB-OPS-07` 已完成独立柜子索引 contract、持久化创建时间、全部柜子口径与
 createdAt/containerNo/status 六种稳定排序；`WEB-OPS-08` 已完成库存服务端分页、同口径排序、全局 totals、跨页
-selection 与自适应工作区。不要为这些任务重复开会话；下一任务改为 `WEB-OPS-09`。
+selection 与自适应工作区；`WEB-OPS-09` 已完成 06-08 的 i18n、accessibility、RBAC、库存事务和视觉关闭门禁。
+`NATIVE-AUTH-01` 的 repository、Docker 自动化、真实 PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵也已完成；
+三次 supervisor 运行均合法停在 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。当前没有可在本开发机继续执行的
+代码 Task，且没有 active supervisor lock。不要第四次启动 `NATIVE-AUTH-01`，也不要重复 WEB-OPS 关闭任务。
 
-1. `WEB-OPS-06Shared Container Fuzzy Search and Suggestion Contract.md`
-   - 已完成。database-backed exact/prefix/contains 联想只查询 id/container_no，由 `containers.read` 与
-     `inventory.read` 两个 endpoint 独立授权；共享可访问 combobox 覆盖 250ms debounce、stale response、
-     键盘/鼠标、typed i18n、柜子详情直达及库存稳定 containerId。Docker API/Web 门禁、Chromium 40 张
-     双语/主题/responsive/200% zoom 证据、healthcheck 和精确 fixture 清理均通过。
-2. `WEB-OPS-07Container Index Created Time and Stable Sorting.md`
-   - 已完成。柜子索引改用 `containers.read` 专用单查询聚合 contract，显示既有 `Container.createdAt`，包含无 pallet、
-     全 loaded、全 adjusted/cancelled 与历史柜子；createdAt/containerNo/status 六种稳定顺序、effective status、URL
-     保持、typed 双语、390/1366/1920 和真实 200% zoom 均通过。无 schema/migration 或外部验收项。
-3. `WEB-OPS-08Inventory Pagination Sorting and Adaptive Workspace.md`
-   - 已完成。左侧柜子汇总实现默认 10、可选 5/10/20/50 的服务端分页、共享六种稳定排序和完整筛选集合 totals；
-     selected 柜跨页保持，短/长 destination workspace 按内容自然占高。24 柜真实 PostgreSQL Chromium、28 张视觉
-     矩阵、API/Web/Worker 全量门禁、healthcheck 和精确清理均通过；无 schema/migration 或外部验收项。
-4. `WEB-OPS-09Container Inventory I18n Accessibility Visual Exit Gate.md`
-   - 一次关闭 06-08 的 i18n、combobox accessibility、RBAC、库存事务、分页/排序和 responsive layout；采用受影响页面
-     pairwise matrix，最终截图建议不超过 36 张，并强制报告 wall/build/E2E 重试成本。
-5. `NATIVE-AUTH-01Revocable Persistent Native Session.md`
-   - API/Native 主体实现已存在，但仍缺 refresh replay/revoke E2E、Native 单飞 refresh/请求重试回归。
-     WEB-OPS-09 完成后再执行当前环境可自动化项目；三端 secure-store/access-expiry 实机项允许保留外部验收。
+### B. 获得真实数据、打印环境或 Android/iOS 设备后
 
-### B. 获得真实数据或设备后执行
-
-6. `UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md`
+1. `UNLOAD-PALLET-04Packaging Type Pilot Verification + Correction.md`
    - 仅在业务提供真实/脱敏私人、商业或其他目的仓 workbook 后执行，验证默认纸箱、明确木箱、可靠件数、
      超大件和混合货型；不得用 synthetic fixture 冒充 pilot 数据。
-7. `UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md` 外部关闭项
+2. `UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md` 外部关闭项
    - 仓库代码和自动化已经完成，不要重复执行全量开发。复用 04 的真实样本，并在目标打印机/PDA 上完成
      150mm x 100mm、25mm QR 实测和扫码签字后更新为 Done。
-8. `UNLOAD-REPORT-01Palletizing Standards Rich Text Print Clipping Regression.md` 外部关闭项
+3. `UNLOAD-REPORT-01Palletizing Standards Rich Text Print Clipping Regression.md` 外部关闭项
    - 仓库代码和自动化已经完成，不要重复开发。在办公室 Windows/Microsoft Excel 完成 Print Preview 与
      Print to PDF，确认每页 `when stored.` 未裁切后更新为 Done。
+4. `NATIVE-AUTH-01Revocable Persistent Native Session.md` Android/iOS 外部证据
+   - iOS 只剩人工双语视觉，以及会清除当前 session 的 online/offline logout、管理员 revoke、账号 inactive；
+     Android Release 仍需 App/设备重启、到期 refresh、离线、logout、revoke、inactive 和双语矩阵。
+   - 这些是设备验收，不是新的代码开发。按 `docs/reports/native-auth-01-revocable-session-verification.md` 记录证据；
+     设备、一次性账号或人工点击条件不齐时不要再次启动 supervisor。
 
-Android/iOS 的 theme、header、冷启动和双语扫码证据可以在此阶段提前采集，但 `NATIVE-UX-04/05/06`
-都要求三端结论；Windows MSIX 尚未生成时不要启动只能再次返回 External Verification Pending 的关闭会话。
+Android/iOS 的 theme、header、冷启动和双语扫码证据可以与上述设备矩阵一起采集，但 `NATIVE-UX-04/05/06`
+都要求三端结论；Windows MSIX 尚未生成时不要启动只能再次返回 External Verification Pending 的关闭 Task。
 
 ### C. Windows 11 构建机执行
 
-9. `P6-MOBILE-13Windows MSIX Release Completion.md`
+5. `P6-MOBILE-13Windows MSIX Release Completion.md`
    - 生成 RNW project、接入 camera/secure-token modules、打包 MSIX 并完成 Windows 设备 smoke。
    - `P6-MOBILE-09/10/11/12` 剩余项全部是该 Windows gate 的组成部分，不要分别重复开启四个 Task。
-10. `NATIVE-UX-05System Adaptive Color Theme.md`
+6. `NATIVE-AUTH-01Revocable Persistent Native Session.md` 最终设备关闭
+   - 复用已完成的 repository/iOS 证据和 B-4 Android/iOS 证据；在 Windows MSIX 中验证 Credential Locker、
+     App/设备重启、access refresh、离线、logout、revoke、inactive 和双语状态后再把该 Task 标记 Done。
+7. `NATIVE-UX-05System Adaptive Color Theme.md`
    - 复用 Android/iOS 证据，并在 Windows 补 light/dark、高对比、native chrome/scanner 和 locale x theme。
-11. `NATIVE-UX-06Android App Header Title Clipping Regression.md`
+8. `NATIVE-UX-06Android App Header Title Clipping Regression.md`
    - 在完整三端 theme matrix 上关闭 en/zh-CN、font scale 1.0/1.3/2.0、小屏和标题无裁切门禁。
-12. `NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md`
+9. `NATIVE-UX-04Startup Performance and Cross Platform UX Exit Gate.md`
    - 合并三端设备证据，完成 release 冷启动中位数、双语页面和核心扫码退出门禁。
-13. `CROSS-UX-QA-01Persistent Session Theme Locale Regression.md`
+10. `CROSS-UX-QA-01Persistent Session Theme Locale Regression.md`
     - 只有 NATIVE-AUTH-01、NATIVE-UX-05/06 和 Windows MSIX gate 具备证据后执行最终三端
       session/theme/locale/header 组合回归；同时吸收 NATIVE-UX-04 的 Windows 证据。
 
 ### D. 上线前最后执行
 
-14. `P5-PILOT-01Windows Target Deployment Verification.md`
+11. `P5-PILOT-01Windows Target Deployment Verification.md`
     - 在目标 Windows 11 主机完成 Docker full stack、生产 secrets、真实账号、真实 Excel、报告/标签打印、
       PDA/扫码枪、备份恢复、告警/SIEM schedule 和业务签字。该任务必须最后关闭。
 
 Pilot 前必须验收：
 1. `UNLOAD-REPORT-01`：Windows/Microsoft Excel Print Preview 与 Print to PDF 无裁切签字。
 2. `UNLOAD-PALLET-04` / `UNLOAD-PALLET-10`：真实业务 workbook、目标打印机实体尺寸和 PDA/扫码枪签字。
-3. `P6-MOBILE-13` / `NATIVE-UX-04` / `CROSS-UX-QA-01`：Windows RNW/MSIX、三端启动性能、secure store、
-   session/theme/locale/device smoke。
+3. `NATIVE-AUTH-01` / `P6-MOBILE-13` / `NATIVE-UX-04/05/06` / `CROSS-UX-QA-01`：Android/iOS/Windows
+   可撤销长会话、Windows RNW/MSIX、三端启动性能、secure store、session/theme/locale/header/device smoke。
 4. `P5-PILOT-01`：目标 Windows 11 主机的 full stack、secrets、账号、真实业务、备份恢复和告警验收。
 
 Deferred，按现场反馈再执行：
@@ -221,17 +215,20 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile，再使用 `scripts/run-business-agent.sh task '<task-file>'` 启动一个受监督进程；不要使用直接 prompt、原始 `exec`、手工 `resume` 或旧权限会话。安装、测试、构建、Prisma、worker 命令只经 Docker Compose；源码变更后以 `docker compose -f infra/docker/compose.local.yml up -d --build` 重建相应服务。
-2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08` 已关闭，不再重复启动；下一个任务是 `WEB-OPS-09`。
-3. 执行 `WEB-OPS-09` 时新建一个 supervisor session，
-   不得跳过 09 的严格 i18n/RBAC/库存事务门禁，也不得恢复 236 张无差别截图矩阵。
-4. WEB-OPS-09 关闭后执行 `NATIVE-AUTH-01`，补完当前开发机可自动化的 API E2E 和 Native 并发 refresh 回归。
-5. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时
+2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
+3. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
+4. 当前开发机没有新的可执行代码 Task。`NATIVE-AUTH-01` 已连续三次合法返回 external pending；不要第四次重复运行。
+   iOS 当前源码 Release 已安装，只按现有报告人工补双语视觉与 online/offline logout、revoke/inactive；另收集 Android
+   Release matrix，并在 Windows 11 RNW/MSIX gate 中补齐 Credential Locker 证据。
+5. 下一 Task 由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；有 Windows 11 + Visual Studio
+   构建机时执行 `P6-MOBILE-13`；只有 iOS/Android 设备时按 runbook 采证，不启动新的业务开发 Task。
+6. Android/iOS release 实机可提前采集主题、标题、冷启动和双语扫码证据，但 Windows App 尚未生成时
    不启动三端关闭会话。
-6. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+7. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
    `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
-7. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
+8. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
    不要重复开发。
-8. Windows 11 构建机按 `P6-MOBILE-13 -> NATIVE-UX-05 -> NATIVE-UX-06 -> NATIVE-UX-04 ->
-   CROSS-UX-QA-01` 执行；09/10/11/12 的 Windows 剩余项由 13 统一关闭。
-9. 所有上述功能、外部打印、真实样本和三端设备 gate 结束后，最后执行 `P5-PILOT-01`。
-10. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
+9. Windows 11 构建机按 `P6-MOBILE-13 -> NATIVE-AUTH-01 final device closure -> NATIVE-UX-05 ->
+   NATIVE-UX-06 -> NATIVE-UX-04 -> CROSS-UX-QA-01` 执行；P6-MOBILE-09/10/11/12 的 Windows 剩余项由 13 统一关闭。
+10. 所有上述外部打印、真实样本和三端设备 gate 结束后，最后执行 `P5-PILOT-01`。
+11. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。

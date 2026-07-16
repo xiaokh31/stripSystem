@@ -12,7 +12,13 @@ import {
 } from "react-native";
 import { NativeApiError } from "../api/api-error";
 import { checkApiHealth, type HealthCheckResult } from "../api/health-client";
-import { restoreSession, signIn, signOut } from "../auth/auth-session";
+import {
+  isInvalidSessionError,
+  restoreSession,
+  signIn,
+  signOut,
+  withNativeSession,
+} from "../auth/auth-session";
 import type { AuthSession } from "../auth/auth-session";
 import {
   canCompleteMobileLoadJob,
@@ -80,7 +86,8 @@ import {
 } from "../ui/styles";
 
 const initialAuthSession: AuthSession = {
-  message: "Checking saved session.",
+  code: "AUTH_RESTORING",
+  message: "AUTH_RESTORING",
   status: "checking",
   user: null,
 };
@@ -115,6 +122,7 @@ export function App() {
   );
   const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
   const [locale, setLocale] = useState<NativeLocale>("en");
+  const [localeReady, setLocaleReady] = useState(false);
   const [screen, setScreen] = useState<NativeScreen>("login");
   const [deviceId, setDeviceId] = useState("Loading device.");
   const [email, setEmail] = useState("");
@@ -163,6 +171,7 @@ export function App() {
       }
       setApiBaseUrl(settings.apiBaseUrl);
       setLocale(savedLocale);
+      setLocaleReady(true);
       setDeviceId(resolvedDeviceId);
       const restored = await restoreSession({
         apiBaseUrl: settings.apiBaseUrl,
@@ -183,6 +192,20 @@ export function App() {
       mounted = false;
     };
   }, [settingsStore, tokenStore]);
+
+  async function executeWithSession<T>(
+    operation: (accessToken: string) => Promise<T>,
+    baseUrl = apiBaseUrl,
+  ): Promise<T> {
+    return withNativeSession(
+      {
+        apiBaseUrl: baseUrl,
+        onSessionUpdated: setAuthSession,
+        tokenStore,
+      },
+      operation,
+    );
+  }
 
   async function saveAndCheck() {
     if (checking) {
@@ -245,7 +268,8 @@ export function App() {
       await syncOfflineQueue(apiBaseUrl);
     } catch (error) {
       setAuthSession({
-        message: toLoginErrorMessage(error),
+        code: authCodeForError(error),
+        message: authCodeForError(error),
         status:
           error instanceof NativeApiError && error.status === 403
             ? "permission_denied"
@@ -277,18 +301,6 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      setLoadJobsState(initialLoadJobsState);
-      clearScanState();
-      return;
-    }
-
     setLoadJobsState({
       items: loadJobsState.items,
       lastSuccessfulAt: loadJobsState.lastSuccessfulAt,
@@ -296,7 +308,9 @@ export function App() {
       status: "loading",
     });
     try {
-      const response = await listOpenLoadJobs(apiBaseUrl, token);
+      const response = await executeWithSession((token) =>
+        listOpenLoadJobs(apiBaseUrl, token),
+      );
       setLoadJobsState({
         items: response.items,
         lastSuccessfulAt: new Date().toISOString(),
@@ -313,21 +327,11 @@ export function App() {
   }
 
   async function openLoadJob(loadJobId: string) {
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      setSelectedLoadJob(null);
-      clearScanState();
-      return;
-    }
-
     setOpeningLoadJobId(loadJobId);
     try {
-      const loadJob = await getLoadJob(apiBaseUrl, token, loadJobId);
+      const loadJob = await executeWithSession((token) =>
+        getLoadJob(apiBaseUrl, token, loadJobId),
+      );
       setSelectedLoadJob(loadJob);
       setDockNo(loadJob.dockNo ?? "");
       clearScanState();
@@ -355,27 +359,14 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      return;
-    }
-
     setSubmittingScan(true);
     setScanNotice(null);
     try {
-      const response = await scanLoadJobPallet(
-        apiBaseUrl,
-        token,
-        selectedLoadJob.id,
-        {
+      const response = await executeWithSession((token) =>
+        scanLoadJobPallet(apiBaseUrl, token, selectedLoadJob.id, {
           deviceId,
           qrPayload: normalizedPayload,
-        },
+        }),
       );
       setSelectedLoadJob(response.loadJob);
       setLastScan(response);
@@ -415,13 +406,8 @@ export function App() {
         setOverrideReason("");
       }
       setScanNotice(scanErrorNotice(error));
-      if (error instanceof NativeApiError && error.status === 401) {
-        void tokenStore.clearToken();
-        setAuthSession({
-          message: "Session expired. Sign in again.",
-          status: "session_expired",
-          user: null,
-        });
+      if (isInvalidSessionError(error)) {
+        setAuthSession(expiredSessionForError(error));
       }
     } finally {
       setSubmittingScan(false);
@@ -447,29 +433,16 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      return;
-    }
-
     setSubmittingOverride(true);
     setScanNotice(null);
     try {
-      const response = await scanLoadJobPallet(
-        apiBaseUrl,
-        token,
-        selectedLoadJob.id,
-        {
+      const response = await executeWithSession((token) =>
+        scanLoadJobPallet(apiBaseUrl, token, selectedLoadJob.id, {
           deviceId,
           overrideReason: reason,
           qrPayload: normalizedPayload,
           supervisorOverride: true,
-        },
+        }),
       );
       setSelectedLoadJob(response.loadJob);
       setLastScan(response);
@@ -494,22 +467,14 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      return;
-    }
-
     setSavingDock(true);
     setScanNotice(null);
     try {
-      const result = await updateLoadJob(apiBaseUrl, token, selectedLoadJob.id, {
-        dockNo: normalizeScanInput(dockNo),
-      });
+      const result = await executeWithSession((token) =>
+        updateLoadJob(apiBaseUrl, token, selectedLoadJob.id, {
+          dockNo: normalizeScanInput(dockNo),
+        }),
+      );
       setSelectedLoadJob(result);
       setDockNo(result.dockNo ?? "");
       setScanNotice({
@@ -558,24 +523,16 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
-      return;
-    }
-
     setCompletingLoadJob(true);
     setScanNotice(null);
     try {
-      const result = await closeLoadJob(apiBaseUrl, token, selectedLoadJob.id, {
-        dockNo: normalizedDockNo,
-        note: "Completed from native scan app.",
-        reason: "Warehouse loading completed.",
-      });
+      const result = await executeWithSession((token) =>
+        closeLoadJob(apiBaseUrl, token, selectedLoadJob.id, {
+          dockNo: normalizedDockNo,
+          note: "Completed from native scan app.",
+          reason: "Warehouse loading completed.",
+        }),
+      );
       setSelectedLoadJob(result);
       setDockNo(result.dockNo ?? normalizedDockNo);
       setScanNotice({
@@ -600,17 +557,6 @@ export function App() {
       return;
     }
 
-    const token = await tokenStore.getToken();
-    if (!token) {
-      setScanNotice({
-        code: "OFFLINE_SYNC_NEEDS_LOGIN",
-        message: "Sign in before syncing pending scans.",
-        title: "Login required",
-        tone: "amber",
-      });
-      return;
-    }
-
     const records = (await offlineQueueStore.list()).filter(
       (record) => record.syncStatus !== "SYNCED",
     );
@@ -626,12 +572,16 @@ export function App() {
 
     try {
       for (const record of records) {
-        const result = await syncOfflineScanRecord({
-          apiBaseUrl: baseUrl,
-          record,
-          store: offlineQueueStore,
-          token,
-        });
+        const result = await executeWithSession(
+          (token) =>
+            syncOfflineScanRecord({
+              apiBaseUrl: baseUrl,
+              record,
+              store: offlineQueueStore,
+              token,
+            }),
+          baseUrl,
+        );
         if (result.response) {
           syncedCount += 1;
           lastResponse = result.response;
@@ -715,24 +665,14 @@ export function App() {
   }
 
   function handleActionAuthError(error: unknown) {
-    if (error instanceof NativeApiError && error.status === 401) {
-      void tokenStore.clearToken();
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
+    if (isInvalidSessionError(error)) {
+      setAuthSession(expiredSessionForError(error));
     }
   }
 
   function handleProtectedApiError(error: unknown, fallbackMessage: string) {
-    if (error instanceof NativeApiError && error.status === 401) {
-      void tokenStore.clearToken();
-      setAuthSession({
-        message: "Session expired. Sign in again.",
-        status: "session_expired",
-        user: null,
-      });
+    if (isInvalidSessionError(error)) {
+      setAuthSession(expiredSessionForError(error));
       setLoadJobsState(initialLoadJobsState);
       setSelectedLoadJob(null);
       clearScanState();
@@ -769,6 +709,10 @@ export function App() {
     await saveNativeLocale(settingsStore, nextLocale);
   }
 
+  if (!localeReady) {
+    return React.createElement(SafeAreaView, { style: appStyles.screen });
+  }
+
   return React.createElement(
     SafeAreaView,
     { style: appStyles.screen },
@@ -803,6 +747,13 @@ export function App() {
             )
           : null,
       ),
+      authSession.status === "offline"
+        ? React.createElement(
+            Text,
+            { style: appStyles.statusMessage },
+            t(locale, "offlineSessionCheck"),
+          )
+        : null,
       activeScreen === "settings"
         ? renderSettingsScreen({
               apiBaseUrl,
@@ -932,7 +883,7 @@ function renderLoginScreen(input: {
     View,
     { style: appStyles.section },
     React.createElement(Text, { style: appStyles.title }, t(input.locale, "signIn")),
-    React.createElement(Text, { style: appStyles.body }, input.authSession.status === "checking" ? t(input.locale, "checkingSession") : t(input.locale, "configureServer")),
+    React.createElement(Text, { style: appStyles.body }, input.authSession.status === "checking" ? t(input.locale, "restoringSession") : t(input.locale, "configureServer")),
     React.createElement(Text, { style: appStyles.labelSpaced }, t(input.locale, "email")),
     React.createElement(TextInput, {
       accessibilityLabel: t(input.locale, "email"), autoCapitalize: "none", autoCorrect: false,
@@ -1475,27 +1426,37 @@ function renderMeta(label: string, value: string | null, locale: NativeLocale) {
   );
 }
 
-function toLoginErrorMessage(error: unknown): string {
+function authCodeForError(error: unknown): AuthSession["code"] {
   if (error instanceof NativeApiError) {
     if (error.code === "INVALID_CREDENTIALS") {
-      return "Invalid email or password.";
+      return "INVALID_CREDENTIALS";
     }
     if (error.code === "USER_INACTIVE") {
-      return "This account is inactive.";
+      return "USER_INACTIVE";
     }
     if (error.code === "SYSTEM_USER_LOGIN_NOT_ALLOWED") {
-      return "SYSTEM users cannot use ordinary employee login.";
+      return "SYSTEM_USER_LOGIN_NOT_ALLOWED";
     }
-    if (error.code === "FORBIDDEN") {
-      return "This account does not have permission to use mobile scan.";
-    }
-    return error.message;
+    if (error.status === 403) return "PERMISSION_DENIED";
   }
+  return "AUTH_RESTORE_FAILED";
+}
 
-  return error instanceof Error ? error.message : "Login failed.";
+function expiredSessionForError(error: unknown): AuthSession {
+  const code = authCodeForError(error);
+  return {
+    code: code === "USER_INACTIVE" ? code : "AUTH_SESSION_REVOKED",
+    message: code,
+    status: "session_expired",
+    user: null,
+  };
 }
 
 function localizeAuthMessage(session: AuthSession, locale: NativeLocale): string {
+  if (session.code === "INVALID_CREDENTIALS") return t(locale, "invalidCredentials");
+  if (session.code === "SYSTEM_USER_LOGIN_NOT_ALLOWED") return t(locale, "systemUser");
+  if (session.code === "USER_INACTIVE") return t(locale, "inactiveUser");
+  if (session.code === "AUTH_SESSION_REVOKED") return t(locale, "sessionRevoked");
   if (session.status === "session_expired") return t(locale, "sessionExpired");
   if (session.status === "permission_denied") return t(locale, "cannotUseScan");
   return nativeApiErrorMessage(locale, "UNKNOWN_AUTH_ERROR");

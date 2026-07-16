@@ -323,7 +323,6 @@ async function expectNoJavaScriptSsr(
         await expect(page.locator("html")).toHaveAttribute("lang", locale);
         await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-        const body = await page.locator("body").innerText();
         const expected = locale === "zh-CN" ? check.zhText : check.enText;
         const unexpected = locale === "zh-CN" ? check.enText : check.zhText;
         const expectedShell =
@@ -332,6 +331,17 @@ async function expectNoJavaScriptSsr(
           locale === "zh-CN"
             ? check.requiredChinese ?? []
             : check.requiredEnglish ?? [];
+
+        await expect
+          .poll(
+            async () => normalizeVisibleText(await page.locator("body").innerText()),
+            {
+              message: `${locale} SSR ${check.path} should finish streaming its route copy`,
+              timeout: 15_000,
+            },
+          )
+          .toContain(normalizeVisibleText(expected));
+        const body = await page.locator("body").innerText();
 
         expectBodyToContain(
           body,
@@ -577,11 +587,13 @@ async function visibleCandidateIndex(candidates: Locator): Promise<number> {
 async function switchToChinese(page: Page): Promise<void> {
   await page.getByRole("button", { name: "中文" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByLabel("语言")).toHaveAttribute("aria-busy", "false");
 }
 
 async function switchToEnglish(page: Page): Promise<void> {
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByLabel("Language")).toHaveAttribute("aria-busy", "false");
 }
 
 async function expectNoForbiddenVisibleText(

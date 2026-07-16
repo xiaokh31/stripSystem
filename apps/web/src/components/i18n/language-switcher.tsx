@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import {
   LOCALE_LABELS,
   SUPPORTED_LOCALES,
@@ -10,21 +12,26 @@ import { persistBrowserLocale } from "@/lib/i18n/browser";
 import { useI18n } from "./i18n-provider";
 
 export function LanguageSwitcher() {
-  const { locale, t } = useI18n();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const { locale, setLocale, t } = useI18n();
 
   function switchLocale(option: Locale) {
     if (option === locale) {
       return;
     }
 
-    // The cookie is the SSR source of truth, then reload requests matching Server Components.
+    // The cookie remains the SSR source of truth. Update Client Components immediately,
+    // then refresh the Server Component payload without discarding local form state.
     persistBrowserLocale(option);
-    window.location.reload();
+    setLocale(option);
+    startTransition(() => router.refresh());
   }
 
   return (
     <div
       aria-label={t("Language")}
+      aria-busy={isPending}
       className="inline-flex min-h-9 overflow-hidden border border-white/20 bg-black/10 text-xs font-semibold"
     >
       {SUPPORTED_LOCALES.map((option) => (
@@ -36,6 +43,7 @@ export function LanguageSwitcher() {
               ? "bg-white text-[var(--surface-action-foreground)]"
               : "text-zinc-100 hover:bg-white/10",
           ].join(" ")}
+          disabled={isPending}
           key={option}
           onClick={() => switchLocale(option)}
           type="button"

@@ -23,6 +23,7 @@ import { useI18n } from "../i18n/i18n-provider";
 
 interface InventorySelectionContextValue {
   clearSelection(): void;
+  selectContainer(containerId: string): void;
   selectedContainerId?: string;
 }
 
@@ -113,6 +114,7 @@ export function InventoryContainerCombobox({
         }}
         onSelect={(suggestion) => {
           setSelection(suggestion);
+          selectionBoundary?.selectContainer(suggestion.containerId);
           router.push(
             inventoryWorkspaceHref(
               { ...filters, containerNo: suggestion.containerNo },
@@ -147,6 +149,11 @@ export function InventorySelectionBoundary({
       clearSelection: () =>
         setSelectionState({
           activeContainerId: undefined,
+          sourceContainerId: selectedContainerId,
+        }),
+      selectContainer: (containerId: string) =>
+        setSelectionState({
+          activeContainerId: containerId,
           sourceContainerId: selectedContainerId,
         }),
       selectedContainerId: activeContainerId,

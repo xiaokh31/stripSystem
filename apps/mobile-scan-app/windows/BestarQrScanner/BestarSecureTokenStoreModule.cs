@@ -59,7 +59,8 @@ public sealed class BestarSecureTokenStoreModule
         try
         {
             var vault = new PasswordVault();
-            ClearCredential(vault);
+            // PasswordVault.Add replaces the credential for the same resource/user key,
+            // avoiding a delete-then-add window with no recoverable session.
             vault.Add(new PasswordCredential(ResourceName, UserName, token));
             promise.Resolve(null);
         }

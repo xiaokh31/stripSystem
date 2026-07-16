@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import { publishInventorySyncRefresh } from "@/components/inventory/inventory-sync-refresh";
@@ -348,11 +348,12 @@ function AdjustmentHistory({
   historyError: boolean;
 }) {
   const { locale, t } = useI18n();
+  const headingId = `inventory-adjustment-history-${useId().replace(/:/g, "")}`;
 
   return (
     <div className="mt-4 border-t border-zinc-100 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-zinc-900">
+        <h4 className="text-sm font-semibold text-zinc-900" id={headingId}>
           {t("Manual inventory depletion history")}
         </h4>
         <span className="text-xs font-medium text-zinc-500">
@@ -368,7 +369,12 @@ function AdjustmentHistory({
           {t("No manual inventory depletion history.")}
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto">
+        <div
+          aria-labelledby={headingId}
+          className="mt-3 overflow-x-auto"
+          role="region"
+          tabIndex={0}
+        >
           <table className="min-w-[760px] w-full border-collapse text-left text-sm">
             <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
               <tr>

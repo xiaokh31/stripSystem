@@ -89,3 +89,11 @@ global totals、准确 selection、人工消库存和自适应布局可以同时
 - 列出 API/Web 测试数量、E2E 行为矩阵、最多 36 张最终截图路径和逐张检查结果。
 - 列出 fixture 排序序列、page metadata、global totals、adjustment/audit 前后证据和 cleanup。
 - 列出本任务真实 wall time、build-bearing commands、E2E attempts、重试根因；不得只给最终通过数。
+
+## 执行结果（2026-07-15）
+
+- 状态：已完成。WEB-OPS-06/07/08 的搜索、稳定排序、分页、global totals、selection、RBAC、人工消库存和 adaptive workspace 已在同一 Docker full stack 关闭。
+- 修复：库存 suggestion stable-ID selection race；语言切换 reload/draft 丢失与重叠 Server Component refresh；no-JS `/containers` 永久 loading；表格/历史横向滚动区命名及键盘入口；历史 E2E locator/SSR 时序。
+- 门禁：API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、223 unit；Worker 127；Prisma 22 migrations up to date；最终 Chromium 2/2、healthcheck 和 cleanup 均通过。
+- 证据：`test-results/web-ops-09/` 保留 27 张已逐张检查的 PNG、20 条无 overflow geometry、完整 inventory mutation/audit 和空 browser/server diagnostics；隔离 container/admin 残留均为 0。
+- 无 schema/migration 变更，无外部验收项。完整命令、尝试成本、wall time 和视觉清单见 `docs/reports/web-ops-09-container-inventory-exit-gate.md`。

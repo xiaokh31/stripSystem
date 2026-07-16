@@ -49,6 +49,13 @@ export async function syncOfflineScanRecord(input: {
       response,
     };
   } catch (error) {
+    if (
+      error instanceof NativeApiError &&
+      error.status === 401 &&
+      error.code === "AUTH_TOKEN_EXPIRED"
+    ) {
+      throw error;
+    }
     const failed = await input.store.markFailed(
       input.record.localId,
       offlineErrorMessage(error),

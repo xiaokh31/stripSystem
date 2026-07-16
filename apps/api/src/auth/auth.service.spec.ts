@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthTokenService } from './auth-token.service';
 import { PasswordService } from './password.service';
+import { NativeRefreshRateLimiter } from './native-refresh-rate-limiter.service';
 
 describe('AuthService', () => {
   let prisma: any;
@@ -11,6 +12,20 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn((callback) => callback(prisma)),
+      $queryRaw: jest.fn(),
+      nativeAuthSession: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn(),
+      },
+      nativeRefreshToken: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
+      },
       user: {
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -21,6 +36,8 @@ describe('AuthService', () => {
       prisma,
       passwordService,
       new AuthTokenService(configService()),
+      configService(),
+      new NativeRefreshRateLimiter(configService()),
     );
   });
 
@@ -120,6 +137,110 @@ describe('AuthService', () => {
     });
   });
 
+  it('creates a short-access Native session with only refresh hashes in persistence', async () => {
+    const user = await userRecord();
+    prisma.user.findUnique.mockResolvedValue(user);
+    prisma.user.update.mockResolvedValue(user);
+    prisma.nativeAuthSession.create.mockImplementation(({ data }) => ({
+      id: 'native-session-1',
+      ...data,
+    }));
+
+    const result = await service.nativeLogin({
+      appVersion: '1.2.3',
+      deviceId: ' device-1 ',
+      email: 'office@example.com',
+      password: 'Correct#123',
+      platform: 'android',
+    });
+
+    expect(result).toMatchObject({
+      expiresIn: 900,
+      refreshToken: expect.any(String),
+      sessionId: 'native-session-1',
+    });
+    expect(result.refreshToken).not.toBe(result.accessToken);
+    const data = prisma.nativeAuthSession.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      absoluteExpiresAt: expect.any(Date),
+      appVersion: '1.2.3',
+      deviceId: 'device-1',
+      expiresAt: expect.any(Date),
+      platform: 'android',
+      refreshTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      refreshTokens: {
+        create: {
+          tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        },
+      },
+    });
+    expect(JSON.stringify(data)).not.toContain(result.refreshToken);
+    expect(JSON.stringify(data)).not.toContain(result.accessToken);
+  });
+
+  it('rotates one refresh token and revokes the family when a consumed token is replayed', async () => {
+    const user = await userRecord();
+    const session = nativeSessionRecord(user);
+    const token = {
+      id: 'refresh-1',
+      sessionId: session.id,
+      tokenHash: 'hash',
+      issuedAt: new Date(),
+      usedAt: new Date(),
+      revokedAt: null,
+      expiresAt: session.expiresAt,
+      replacedByTokenHash: 'next-hash',
+    };
+    prisma.nativeRefreshToken.findUnique
+      .mockResolvedValueOnce({ sessionId: session.id })
+      .mockResolvedValueOnce(token);
+    prisma.nativeAuthSession.findUnique.mockResolvedValue(session);
+    prisma.nativeAuthSession.updateMany.mockResolvedValue({ count: 1 });
+    prisma.nativeRefreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.refreshNativeSession('replayed-token'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AUTH_REFRESH_REPLAYED' }),
+    });
+    expect(prisma.nativeAuthSession.updateMany).toHaveBeenCalledWith({
+      where: { id: session.id, revokedAt: null },
+      data: {
+        revokedAt: expect.any(Date),
+        revokeReason: 'REFRESH_REPLAY',
+      },
+    });
+    expect(prisma.nativeRefreshToken.updateMany).toHaveBeenCalledWith({
+      where: { sessionId: session.id, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it('rejects a Native access token immediately after its server session is revoked', async () => {
+    const token = new AuthTokenService(configService()).sign(
+      {
+        email: 'office@example.com',
+        nativeSessionId: 'native-session-1',
+        roles: ['OFFICE'],
+        sub: 'user-office',
+      },
+      900,
+    );
+    prisma.nativeAuthSession.findUnique.mockResolvedValue({
+      absoluteExpiresAt: new Date(Date.now() + 10_000),
+      expiresAt: new Date(Date.now() + 10_000),
+      revokedAt: new Date(),
+      userId: 'user-office',
+    });
+
+    await expect(
+      service.authenticateBearer(`Bearer ${token.accessToken}`),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'AUTH_SESSION_REVOKED' }),
+    });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
   async function userRecord(overrides: Record<string, unknown> = {}) {
     return {
       id: 'user-office',
@@ -144,6 +265,27 @@ describe('AuthService', () => {
     };
   }
 
+  function nativeSessionRecord(user: Awaited<ReturnType<typeof userRecord>>) {
+    return {
+      absoluteExpiresAt: new Date(Date.now() + 86_400_000),
+      appVersion: '1.2.3',
+      createdAt: new Date(),
+      deviceId: 'device-1',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      id: 'native-session-1',
+      lastUsedAt: new Date(),
+      platform: 'android',
+      previousRefreshTokenHash: null,
+      refreshTokenHash: 'hash',
+      revokeReason: null,
+      revokedAt: null,
+      revokedByUserId: null,
+      rotatedAt: null,
+      user,
+      userId: user.id,
+    };
+  }
+
   function configService(): ConfigService {
     return {
       get: jest.fn((key: string) => {
@@ -152,6 +294,15 @@ describe('AuthService', () => {
         }
         if (key === 'app.jwtExpiresInSeconds') {
           return 900;
+        }
+        if (key === 'app.nativeAccessTokenExpiresInSeconds') {
+          return 900;
+        }
+        if (key === 'app.nativeSessionIdleExpiresInSeconds') {
+          return 86_400;
+        }
+        if (key === 'app.nativeSessionAbsoluteExpiresInSeconds') {
+          return 31_536_000;
         }
         return undefined;
       }),

@@ -234,6 +234,7 @@ export function nativeApiErrorMessage(locale: NativeLocale, code: string): strin
     INVALID_CREDENTIALS: "invalidCredentials",
     SYSTEM_USER_LOGIN_NOT_ALLOWED: "systemUser",
     UNAUTHENTICATED: "sessionExpired",
+    AUTH_TOKEN_EXPIRED: "sessionExpired",
     AUTH_REFRESH_EXPIRED: "sessionExpired",
     AUTH_REFRESH_REPLAYED: "sessionRevoked",
     AUTH_SESSION_REVOKED: "sessionRevoked",

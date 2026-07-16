@@ -25,7 +25,9 @@ export interface LoginResponse {
 }
 
 export interface NativeSessionResponse extends LoginResponse {
+  accessExpiresAt: string;
   refreshExpiresIn: number;
+  refreshExpiresAt: string;
   refreshToken: string;
   sessionId: string;
 }
@@ -42,6 +44,7 @@ export type AuthStatus =
   | "checking"
   | "logged_out"
   | "authenticated"
+  | "offline"
   | "session_expired"
   | "permission_denied"
   | "error";

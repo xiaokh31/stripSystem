@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "android": "react-native run-android",
+    "android:check": "node scripts/native-auth-platform-check.mjs android",
     "build": "tsc --noEmit --pretty false",
     "ios": "react-native run-ios",
+    "ios:check": "node scripts/native-auth-platform-check.mjs ios",
     "lint": "tsc --noEmit --pretty false",
     "package:check": "node scripts/packaging-readiness.mjs",
     "start": "react-native start",

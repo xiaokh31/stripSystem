@@ -205,7 +205,9 @@ async function verifyLocalesThemesAndResponsiveLayout(
   await expect(page.getByRole("heading", { exact: true, name: "柜子" })).toBeVisible();
   const chineseDate = await page.locator("tbody time").first().textContent();
   expect(chineseDate).not.toBe(englishDate);
-  await expect(page.locator("tbody")).not.toContainText("LABELS_GENERATED");
+  await expect(page.locator("main tbody").first()).not.toContainText(
+    "LABELS_GENERATED",
+  );
 
   await page.getByRole("button", { name: "深色主题" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

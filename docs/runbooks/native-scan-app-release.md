@@ -62,10 +62,19 @@ HTTPS secure-context rules, but API credential transport is still a security
 decision. If HTTPS is enabled, install the internal CA certificate on Windows,
 Android, and iOS devices before login testing.
 
-Local JWT storage must use `NativeModules.BestarSecureTokenStore`. Do not ship
-a production build that silently falls back to AsyncStorage for auth tokens.
+The Native app must use the dedicated login/refresh/logout API and a revocable
+session; it must not treat the browser's long JWT lifetime as its session
+policy. Local access token, refresh token, session id/expiries, and cached user
+must be written atomically through `NativeModules.BestarSecureTokenStore`. Do
+not ship a production build that silently falls back to AsyncStorage.
 Android uses Android Keystore-backed AES-GCM; iOS uses Keychain; Windows uses
 Credential Locker after the generated RNW project includes the module source.
+
+Before signing a release, exercise access expiry, app restart, device restart,
+temporary offline restore, server revoke, account disable, refresh replay, and
+online/offline logout. Verify no secret appears in logs or artifacts. Uninstall
+or OS credential clearing may remove the local secure record and must lead to a
+localized login prompt on the next launch.
 
 ## Shared Build Checks
 
@@ -632,6 +641,11 @@ Before distributing any MSIX/APK/IPA:
 - Dock No. is required before complete loading.
 - Complete loading updates the job to `COMPLETED` and history shows the loader.
 - Logout clears the local session.
+- Old access and refresh tokens are rejected after logout or administrator
+  revoke.
+- Expired access silently refreshes once; concurrent requests do not rotate the
+  same refresh token concurrently.
+- Temporary network loss preserves the secure session and offline queue.
 - Reopening after logout does not restore a previous token.
 - App logs do not expose passwords, JWTs, signing secrets, or keystore
   passwords.

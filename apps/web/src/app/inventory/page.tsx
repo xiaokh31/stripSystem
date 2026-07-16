@@ -559,7 +559,10 @@ function ContainerSummaryTable({
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-zinc-950">
+          <h2
+            className="text-base font-semibold text-zinc-950"
+            id="inventory-container-summary-heading"
+          >
             {t("Container summary")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600" aria-live="polite">
@@ -577,7 +580,12 @@ function ContainerSummaryTable({
           selectedContainerId={selectedContainerId}
         />
       </div>
-      <div className="mt-4 overflow-x-auto">
+      <div
+        aria-labelledby="inventory-container-summary-heading"
+        className="mt-4 overflow-x-auto"
+        role="region"
+        tabIndex={0}
+      >
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
@@ -910,10 +918,18 @@ function DestinationInventoryTable({
       className="border border-zinc-200 bg-white p-5 shadow-sm"
       data-inventory-destination-summary="true"
     >
-      <h2 className="text-base font-semibold text-zinc-950">
+      <h2
+        className="text-base font-semibold text-zinc-950"
+        id="inventory-destination-summary-heading"
+      >
         {t("Destination summary")}
       </h2>
-      <div className="mt-4 overflow-x-auto">
+      <div
+        aria-labelledby="inventory-destination-summary-heading"
+        className="mt-4 overflow-x-auto"
+        role="region"
+        tabIndex={0}
+      >
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>

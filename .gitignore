@@ -42,6 +42,8 @@ docs/reports/*
 !docs/reports/docker-cache-verification-2026-07-13.md
 !docs/reports/web-ops-04-operational-clock-performance.md
 !docs/reports/business-agent-execution-time-analysis-2026-07-15.html
+!docs/reports/web-ops-09-container-inventory-exit-gate.md
+!docs/reports/native-auth-01-revocable-session-verification.md
 
 # macOS
 .DS_Store

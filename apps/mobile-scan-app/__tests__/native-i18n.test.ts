@@ -28,12 +28,15 @@ test("native locale persists in the settings store", async () => {
 test("stable API codes map to local operator messages without backend fallback text", () => {
   assert.equal(nativeApiErrorMessage("en", "INVALID_CREDENTIALS"), "Email or password is incorrect.");
   assert.equal(nativeApiErrorMessage("zh-CN", "INVALID_CREDENTIALS"), "账号或密码不正确。");
+  assert.equal(nativeApiErrorMessage("en", "AUTH_SESSION_REVOKED"), "This session was revoked. Sign in again.");
+  assert.equal(nativeApiErrorMessage("zh-CN", "USER_INACTIVE"), "此账号已停用。");
+  assert.equal(nativeApiErrorMessage("zh-CN", "AUTH_TOKEN_EXPIRED"), "登录已过期，请重新登录。");
   assert.equal(nativeApiErrorMessage("zh-CN", "UNKNOWN_BACKEND_CODE"), "操作未完成。请重试或在设置中检查连接。");
 });
 
 test("navigation sends saved sessions to load jobs and protects scan without a selected job", () => {
-  const loggedOut = { message: "", status: "logged_out" as const, user: null };
-  const signedIn = { message: "", status: "authenticated" as const, user: { id: "u", email: null, name: null, permissions: [], roles: [] } };
+  const loggedOut = { code: "AUTH_SIGNED_OUT" as const, message: "", status: "logged_out" as const, user: null };
+  const signedIn = { code: "AUTHENTICATED" as const, message: "", status: "authenticated" as const, user: { id: "u", email: null, name: null, permissions: [], roles: [] } };
   assert.equal(initialNativeScreen(loggedOut), "login");
   assert.equal(initialNativeScreen(signedIn), "load-jobs");
   assert.equal(resolveNativeScreen({ requested: "settings", selectedLoadJob: null, session: loggedOut }), "settings");

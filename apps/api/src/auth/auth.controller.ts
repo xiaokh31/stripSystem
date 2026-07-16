@@ -40,8 +40,11 @@ export class AuthController {
 
   @Post('native/users/:userId/revoke-sessions')
   @RequirePermissions(PERMISSIONS.users.manage)
-  revokeUserNativeSessions(@Param('userId') userId: string) {
-    return this.authService.revokeAllNativeSessionsForUser(userId);
+  revokeUserNativeSessions(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.authService.revokeAllNativeSessionsForUser(userId, actor.id);
   }
 
   @Get('me')

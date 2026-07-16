@@ -280,6 +280,26 @@ Payload:
 
 Password hashes are never returned by API responses.
 
+## Revoke Native Sessions
+
+An administrator with `users.manage` can revoke every active Native session for
+one user without changing browser cookie policy:
+
+```http
+POST /api/auth/native/users/:userId/revoke-sessions
+Authorization: Bearer <ADMIN access token>
+```
+
+The response reports the revoked count. The API records the acting user in
+`native_auth_sessions.revoked_by_user_id`, sets
+`revoke_reason = ADMIN_REVOKE_ALL`, and revokes the session's refresh-token
+history. Because Native access tokens are bound to the server session, existing
+access and refresh tokens are rejected on the next request.
+
+For audit verification, query only identifiers, timestamps, metadata, actor,
+and reason. Never select or paste refresh-token hashes into tickets, chat, or
+screenshots, even though the database stores hashes rather than plaintext.
+
 ## Enforcement Rules
 
 - Every mutating endpoint should receive an authenticated user identity.

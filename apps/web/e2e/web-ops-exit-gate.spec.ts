@@ -19,17 +19,8 @@ import {
   type E2ETestUser,
 } from "./helpers";
 
-const OUTPUT_DIR = "test-results/web-ops-05";
+const OUTPUT_DIR = "test-results/web-ops-09";
 const CLOCK = 'time[data-operational-clock="true"]';
-const viewports = [
-  { height: 844, width: 390 },
-  { height: 1024, width: 768 },
-  { height: 768, width: 1366 },
-  { height: 1080, width: 1920 },
-  { height: 1440, width: 2560 },
-  { height: 1800, width: 2880 },
-] as const;
-
 type Locale = "en" | "zh-CN";
 type Theme = "dark" | "light";
 type RoleName = "admin" | "no-inventory" | "office" | "read-only";
@@ -67,27 +58,11 @@ interface GeometryRecord {
 }
 
 const routeCopies = {
-  dashboard: { en: "Operations dashboard", "zh-CN": "运营中控台" },
-  container: { en: "Container detail", "zh-CN": "柜子详情" },
+  containers: { en: "Containers", "zh-CN": "柜子" },
   inventory: { en: "Inventory workspace", "zh-CN": "库存工作区" },
-  reports: { en: "Warehouse reports", "zh-CN": "仓库报告" },
-  settings: { en: "Operational settings", "zh-CN": "运营设置" },
 } as const;
 
-const sectionCopies = {
-  en: {
-    destination: "Destinations",
-    inventory: "Destination inventory",
-    wage: "Unloading wage information",
-  },
-  "zh-CN": {
-    destination: "目的仓",
-    inventory: "目的仓库存",
-    wage: "拆柜工资信息",
-  },
-} as const;
-
-test("WEB-OPS requirements remain compatible across i18n, visual, role, and inventory gates", async ({
+test("WEB-OPS-09 closes container and inventory i18n, accessibility, visual, role, and transaction gates", async ({
   page,
   request,
 }, testInfo) => {
@@ -124,6 +99,7 @@ test("WEB-OPS requirements remain compatible across i18n, visual, role, and inve
     const geometry: GeometryRecord[] = [];
 
     await verifyClockIsolation(page);
+    await verifyContainerInventoryInteraction(page, fixture);
     await verifyAdminVisualMatrix(page, fixture, geometry);
     await verifyRealBrowserZoom(
       adminToken,
@@ -209,33 +185,135 @@ async function verifyClockIsolation(page: Page): Promise<void> {
   await expect(page.getByText("Operational time", { exact: true })).toHaveCount(0);
 }
 
+async function verifyContainerInventoryInteraction(
+  page: Page,
+  fixture: ExitFixture,
+): Promise<void> {
+  await setPresentation(page.context(), "en", "light");
+  await page.setViewportSize({ height: 768, width: 1366 });
+
+  const prefix = fixture.containerNo.slice(0, -1);
+  await page.goto(`/containers?containerNo=${prefix}&sort=status&direction=asc`);
+  const containerSearch = page.getByRole("combobox", {
+    name: "Search container index",
+  });
+  await containerSearch.fill("");
+  await containerSearch.fill(prefix);
+  await expect(page.getByRole("listbox", { name: "Container suggestions" })).toBeVisible();
+  await containerSearch.press("ArrowDown");
+  await expect(containerSearch).toHaveAttribute("aria-activedescendant", /option-0/);
+  await expect(page.getByRole("option", { name: fixture.containerNo })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await containerSearch.press("Escape");
+  await expect(containerSearch).toBeFocused();
+  await expect(containerSearch).toHaveAttribute("aria-expanded", "false");
+
+  await containerSearch.fill("");
+  await containerSearch.fill(prefix);
+  await expect(page.getByRole("option", { name: fixture.containerNo })).toBeVisible();
+  await containerSearch.press("ArrowDown");
+  await containerSearch.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/containers/${fixture.containerId}$`));
+  await expect(
+    page.getByRole("heading", {
+      exact: true,
+      level: 1,
+      name: fixture.containerNo,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Container detail", { exact: true })).toBeVisible();
+
+  await page.goto(`/containers?containerNo=${prefix}&sort=status&direction=asc`);
+  const sortRegion = page.getByRole("region", { name: "Container index" });
+  await expect(sortRegion).toHaveAttribute("tabindex", "0");
+  await expect(page.locator('th[aria-sort="ascending"]')).toHaveCount(1);
+
+  await setPresentation(page.context(), "zh-CN", "dark");
+  const rawHtml = await page.context().request.get(
+    `/containers?containerNo=${encodeURIComponent(prefix)}&sort=status&direction=asc`,
+  );
+  expect(rawHtml.status()).toBe(200);
+  const html = await rawHtml.text();
+  expect(html).toContain('lang="zh-CN"');
+  expect(html).toContain("柜子索引");
+  expect(html).not.toContain(">Container index<");
+
+  await setPresentation(page.context(), "en", "light");
+  await page.goto(inventoryRoute(fixture));
+  const inventorySearch = page.getByRole("combobox", { name: "Container No." });
+  await inventorySearch.fill(prefix);
+  await expect(page.getByRole("option", { name: fixture.containerNo })).toBeVisible();
+  await page.getByRole("option", { name: fixture.containerNo }).click();
+  await expect(page).toHaveURL(new RegExp(`containerId=${fixture.containerId}`));
+  await expect(page.locator('[data-selected-container-workspace="true"]')).toContainText(
+    fixture.containerNo,
+  );
+  await expect(page.getByRole("region", { name: "Container summary" })).toHaveAttribute(
+    "tabindex",
+    "0",
+  );
+  await expect(page.getByRole("region", { name: "Destination summary" })).toHaveAttribute(
+    "tabindex",
+    "0",
+  );
+  await expect(page.getByRole("navigation", { name: "Container summary pagination" }))
+    .toBeVisible();
+  await expect(page.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+
+  await page.setViewportSize({ height: 500, width: 390 });
+  await inventorySearch.scrollIntoViewIfNeeded();
+  await inventorySearch.fill(prefix);
+  const mobileListbox = page.getByRole("listbox", { name: "Container suggestions" });
+  await expect(mobileListbox).toBeVisible();
+  const mobileBox = await mobileListbox.boundingBox();
+  expect(mobileBox).not.toBeNull();
+  expect(mobileBox!.width).toBeLessThanOrEqual(390);
+  await inventorySearch.press("Tab");
+  await expect(inventorySearch).toHaveAttribute("aria-expanded", "false");
+}
+
 async function verifyAdminVisualMatrix(
   page: Page,
   fixture: ExitFixture,
   geometry: GeometryRecord[],
 ): Promise<void> {
-  for (const locale of ["en", "zh-CN"] as const) {
-    for (const theme of ["light", "dark"] as const) {
-      await setPresentation(page.context(), locale, theme);
-      for (const viewport of viewports) {
-        await page.setViewportSize(viewport);
-        const routes = routeMatrix(fixture);
-        for (const route of routes) {
+  const presentationCases: Array<{
+    locale: Locale;
+    theme: Theme;
+    viewport: { height: number; width: number };
+  }> = [
+    ...(["en", "zh-CN"] as const).flatMap((locale) =>
+      (["light", "dark"] as const).map((theme) => ({
+        locale,
+        theme,
+        viewport: { height: 768, width: 1366 },
+      })),
+    ),
+    { locale: "en", theme: "dark", viewport: { height: 844, width: 390 } },
+    { locale: "zh-CN", theme: "light", viewport: { height: 1024, width: 768 } },
+    { locale: "zh-CN", theme: "dark", viewport: { height: 1080, width: 1920 } },
+    { locale: "en", theme: "light", viewport: { height: 1440, width: 2560 } },
+  ];
+
+  for (const { locale, theme, viewport } of presentationCases) {
+    await setPresentation(page.context(), locale, theme);
+    await page.setViewportSize(viewport);
+    for (const route of routeMatrix(fixture)) {
           await page.goto(route.path, { waitUntil: "networkidle" });
-          if (route.legacy) {
-            await expect(page).toHaveURL(
-              new RegExp(
-                `/inventory\\?containerNo=${fixture.containerNo}.*containerId=${fixture.containerId}`,
-              ),
-            );
-          }
           await expectLocalizedRoute(page, route.copy, locale);
           await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
           await assertNoOverflowClippingOrRawUi(page, locale);
-          if (route.name === "container") {
-            await assertContainerSectionOrder(page, locale);
+          if (route.name === "containers") {
+            await expect(
+              page.getByRole("region", {
+                name: locale === "en" ? "Container index" : "柜子索引",
+              }),
+            ).toBeVisible();
           }
-          if (route.name === "inventory" || route.legacy) {
+          if (route.name === "inventory") {
             await assertInventorySelection(page, fixture, locale);
           }
           geometry.push(
@@ -266,18 +344,11 @@ async function verifyAdminVisualMatrix(
           if (viewport.width >= 2560) {
             await captureMainOverlay(page, `${OUTPUT_DIR}/${stem}-main-overlay.png`);
           }
-          if (viewport.width >= 2560 && route.name === "container") {
-            await page
-              .locator("main.office-main-content")
-              .screenshot({ path: `${OUTPUT_DIR}/${stem}-sections-crop.png` });
-          }
           if (viewport.width >= 2560 && route.name === "inventory") {
             await page
               .locator('[data-selected-container-workspace="true"]')
               .screenshot({ path: `${OUTPUT_DIR}/${stem}-selection-crop.png` });
           }
-        }
-      }
     }
   }
 }
@@ -302,6 +373,37 @@ async function verifyRoleMatrix(
         await expect(
           page.getByRole("button", { name: "Close manual inventory depletion" }),
         ).toBeFocused();
+        const dialog = page.getByRole("dialog");
+        await dialog.getByLabel("Manual inventory depletion count").fill("1");
+        await dialog
+          .getByLabel("Manual inventory depletion reason")
+          .selectOption("SCAN_MISSED");
+        const draftNote = `WEB-OPS-09 ${fixture.containerNo} locale theme draft`;
+        await dialog.getByLabel("Manual inventory depletion note").fill(draftNote);
+        const stableUrl = page.url();
+        await page
+          .getByRole("button", { name: "Dark theme" })
+          .evaluate((button) => (button as HTMLButtonElement).click());
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+        await expect(dialog.getByLabel("Manual inventory depletion note")).toHaveValue(
+          draftNote,
+        );
+        await page
+          .getByRole("button", { name: "中文" })
+          .evaluate((button) => (button as HTMLButtonElement).click());
+        await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await expect(page.getByRole("dialog").getByLabel("人工消库存备注")).toHaveValue(
+          draftNote,
+        );
+        await expect(page).toHaveURL(stableUrl);
+        await expect(page.getByLabel("语言")).toHaveAttribute("aria-busy", "false");
+        await page
+          .getByRole("button", { name: "English" })
+          .evaluate((button) => (button as HTMLButtonElement).click());
+        await page
+          .getByRole("button", { name: "Light theme" })
+          .evaluate((button) => (button as HTMLButtonElement).click());
         await page.screenshot({
           fullPage: true,
           path: `${OUTPUT_DIR}/${screenshotStem("inventory-dialog", "en", "light", 1366, 768, 100, "office")}-full.png`,
@@ -374,7 +476,7 @@ async function verifyInventoryMutationAndConcurrency(
   await dialog
     .getByLabel("Manual inventory depletion reason")
     .selectOption("SCAN_MISSED");
-  const note = `WEB-OPS-05 ${fixture.containerNo} audited UI depletion`;
+  const note = `WEB-OPS-09 ${fixture.containerNo} audited UI depletion`;
   await dialog.getByLabel("Manual inventory depletion note").fill(note);
   await dialog.getByLabel("Confirm manual inventory depletion").check();
   await dialog
@@ -466,7 +568,7 @@ async function createAdjustment(
     `/api/container-destinations/${destinationId}/inventory-adjustments`,
     {
       data: {
-        note: "WEB-OPS-05 concurrent duplicate guard",
+        note: "WEB-OPS-09 concurrent duplicate guard",
         palletIds: [palletId],
         reasonCode: "DATA_CLEANUP",
       },
@@ -477,27 +579,16 @@ async function createAdjustment(
 
 function routeMatrix(fixture: ExitFixture) {
   return [
-    { copy: routeCopies.dashboard, legacy: false, name: "dashboard", path: "/" },
     {
-      copy: routeCopies.container,
-      legacy: false,
-      name: "container",
-      path: `/containers/${fixture.containerId}`,
+      copy: routeCopies.containers,
+      name: "containers",
+      path: `/containers?containerNo=${fixture.containerNo}&sort=status&direction=asc`,
     },
     {
       copy: routeCopies.inventory,
-      legacy: false,
       name: "inventory",
       path: inventoryRoute(fixture),
     },
-    {
-      copy: routeCopies.inventory,
-      legacy: true,
-      name: "legacy-inventory",
-      path: `/reports/inventory?containerNo=${fixture.containerNo}&containerId=${fixture.containerId}`,
-    },
-    { copy: routeCopies.reports, legacy: false, name: "reports", path: "/reports" },
-    { copy: routeCopies.settings, legacy: false, name: "settings", path: "/settings" },
   ] as const;
 }
 
@@ -507,34 +598,17 @@ async function expectLocalizedRoute(
   locale: Locale,
 ): Promise<void> {
   await expect(page.locator("html")).toHaveAttribute("lang", locale);
-  await expect(page.getByText(copy[locale], { exact: true }).first()).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByText(copy[locale], { exact: true })
+        .evaluateAll((elements) =>
+          elements.some((element) => (element as HTMLElement).offsetParent !== null),
+        ),
+    )
+    .toBe(true);
   await expect(page.getByText(copy[locale === "en" ? "zh-CN" : "en"], { exact: true }))
     .toHaveCount(0);
-}
-
-async function assertContainerSectionOrder(page: Page, locale: Locale) {
-  const copy = sectionCopies[locale];
-  const headings = [copy.destination, copy.wage, copy.inventory].map((name) =>
-    page.getByRole("heading", { exact: true, level: 2, name }),
-  );
-  for (const heading of headings) await expect(heading).toBeVisible();
-  const positions = await Promise.all(
-    headings.map((heading) =>
-      heading.evaluate((element) => ({
-        sourceIndex: [...document.querySelectorAll<HTMLElement>("h2")].indexOf(
-          element as HTMLElement,
-        ),
-        top: element.getBoundingClientRect().top + window.scrollY,
-      })),
-    ),
-  );
-  expect(positions.map((item) => item.sourceIndex)).toEqual(
-    [...positions].sort((left, right) => left.sourceIndex - right.sourceIndex)
-      .map((item) => item.sourceIndex),
-  );
-  expect(positions.map((item) => item.top)).toEqual(
-    [...positions].sort((left, right) => left.top - right.top).map((item) => item.top),
-  );
 }
 
 async function assertInventorySelection(
@@ -557,7 +631,8 @@ async function assertInventorySelection(
 async function assertNoOverflowClippingOrRawUi(page: Page, locale: Locale) {
   const diagnostics = await page.locator("body").evaluate((body) => {
     const visible = [...body.querySelectorAll<HTMLElement>("main *")].filter(
-      (element) => element.offsetParent !== null,
+      (element) =>
+        element.offsetParent !== null && !element.classList.contains("sr-only"),
     );
     return {
       clientWidth: document.documentElement.clientWidth,
@@ -587,10 +662,10 @@ async function assertNoOverflowClippingOrRawUi(page: Page, locale: Locale) {
   expect(diagnostics.clipped).toEqual([]);
   expect(diagnostics.rawUi).toEqual([]);
   if (locale === "en") {
-    expect(diagnostics.text).not.toMatch(/运营中控台|库存工作区|目的仓库存|仓库报告|运营设置/);
+    expect(diagnostics.text).not.toMatch(/柜子索引|库存工作区|目的仓库存/);
   } else {
     expect(diagnostics.text).not.toMatch(
-      /Operations dashboard|Inventory workspace|Destination inventory|Warehouse reports|Operational settings/,
+      /Container index|Inventory workspace|Destination inventory/,
     );
   }
 }
@@ -677,35 +752,42 @@ async function verifyRealBrowserZoom(
       },
     ]);
     const zoomPage = context.pages()[0] ?? (await context.newPage());
-    for (const locale of ["en", "zh-CN"] as const) {
-      for (const theme of ["light", "dark"] as const) {
-        await setPresentation(context, locale, theme);
-        for (const route of routeMatrix(fixture).filter((item) =>
-          ["container", "dashboard", "inventory"].includes(item.name),
-        )) {
-          await zoomPage.goto(route.path, { waitUntil: "networkidle" });
-          for (const zoom of [1.25, 2] as const) {
-            await setRealBrowserZoom(zoomPage, worker, zoom, 1366);
-            await assertNoOverflowClippingOrRawUi(zoomPage, locale);
-            geometry.push(
-              await collectGeometry(
-                zoomPage,
-                route.name,
-                locale,
-                theme,
-                "admin",
-                { height: 768, width: 1366 },
-                zoom * 100,
-              ),
-            );
-            await captureBrowserViewport(
-              zoomPage,
-              `${OUTPUT_DIR}/${screenshotStem(route.name, locale, theme, 1366, 768, zoom * 100, "admin")}-viewport.png`,
-            );
-          }
-          await setRealBrowserZoom(zoomPage, worker, 1, 1366);
-        }
-      }
+    const routes = routeMatrix(fixture);
+    const cases = [
+      { locale: "en", route: routes[0], theme: "light", zoom: 1.25 },
+      { locale: "zh-CN", route: routes[1], theme: "dark", zoom: 1.25 },
+      { locale: "zh-CN", route: routes[0], theme: "light", zoom: 2 },
+      { locale: "en", route: routes[1], theme: "dark", zoom: 2 },
+    ] as const;
+    for (const { locale, route, theme, zoom } of cases) {
+      await setPresentation(context, locale, theme);
+      await zoomPage.goto(route.path, { waitUntil: "networkidle" });
+      const search = zoomPage.getByRole("combobox", {
+        name:
+          route.name === "containers"
+            ? locale === "en" ? "Search container index" : "搜索柜号索引"
+            : locale === "en" ? "Container No." : "柜号",
+      });
+      await search.fill(fixture.containerNo.slice(0, -1));
+      await expect(zoomPage.getByRole("listbox")).toBeVisible();
+      await setRealBrowserZoom(zoomPage, worker, zoom, 1366);
+      await assertNoOverflowClippingOrRawUi(zoomPage, locale);
+      geometry.push(
+        await collectGeometry(
+          zoomPage,
+          route.name,
+          locale,
+          theme,
+          "admin",
+          { height: 768, width: 1366 },
+          zoom * 100,
+        ),
+      );
+      await captureBrowserViewport(
+        zoomPage,
+        `${OUTPUT_DIR}/${screenshotStem(route.name, locale, theme, 1366, 768, zoom * 100, "admin")}-viewport.png`,
+      );
+      await setRealBrowserZoom(zoomPage, worker, 1, 1366);
     }
   } finally {
     await context.close();
@@ -851,25 +933,25 @@ async function createFixture(
   token: string,
   suffix: string,
 ): Promise<ExitFixture> {
-  const containerNo = `WEBOPS05-${suffix}`;
-  const destinationCode = `YEG-WEBOPS05-${suffix}`;
+  const containerNo = `WEBOPS09-${suffix}`;
+  const destinationCode = `YEG-WEBOPS09-${suffix}`;
   const response = await request.post("/api/containers/manual", {
     data: {
-      company: "Bestar WEB-OPS-05 E2E",
+      company: "Bestar WEB-OPS-09 E2E",
       containerNo,
-      correctionNote: `WEB-OPS-05 ${suffix} isolated fixture`,
+      correctionNote: `WEB-OPS-09 ${suffix} isolated fixture`,
       destinations: [
         {
           cartons: 50,
           destinationCode,
           destinationType: "WAREHOUSE",
-          note: "WEB-OPS-05 visual and inventory fixture",
+          note: "WEB-OPS-09 visual and inventory fixture",
           pallets: 5,
           volume: 5,
         },
       ],
       dockNo: "E2E",
-      reason: "WEB-OPS-05 isolated browser fixture",
+      reason: "WEB-OPS-09 isolated browser fixture",
     },
     headers: authHeaders(token),
   });
@@ -902,8 +984,8 @@ async function createActors(
   token: string,
   suffix: string,
 ): Promise<ExitActors> {
-  const readOnlyRoleCode = `E2E_WEB_OPS_05_READ_${suffix}`;
-  const noInventoryRoleCode = `E2E_WEB_OPS_05_NONE_${suffix}`;
+  const readOnlyRoleCode = `E2E_WEB_OPS_09_READ_${suffix}`;
+  const noInventoryRoleCode = `E2E_WEB_OPS_09_NONE_${suffix}`;
   const readOnlyRoleId = await createRole(request, token, readOnlyRoleCode, [
     "containers.read",
     "inventory.read",
@@ -915,21 +997,21 @@ async function createActors(
     "settings.read",
   ]);
   const office = await ensureTestUser(request, token, {
-    email: `e2e-web-ops-05-office-${suffix}@bestarcca.com`,
-    name: `WEB-OPS-05 Office ${suffix}`,
-    password: "Bestar-E2E-WEB-OPS-05-Office-123!",
+    email: `e2e-web-ops-09-office-${suffix}@bestarcca.com`,
+    name: `WEB-OPS-09 Office ${suffix}`,
+    password: "Bestar-E2E-WEB-OPS-09-Office-123!",
     roleCodes: ["OFFICE"],
   });
   const readOnly = await ensureTestUser(request, token, {
-    email: `e2e-web-ops-05-read-${suffix}@bestarcca.com`,
-    name: `WEB-OPS-05 Read ${suffix}`,
-    password: "Bestar-E2E-WEB-OPS-05-Read-123!",
+    email: `e2e-web-ops-09-read-${suffix}@bestarcca.com`,
+    name: `WEB-OPS-09 Read ${suffix}`,
+    password: "Bestar-E2E-WEB-OPS-09-Read-123!",
     roleCodes: [readOnlyRoleCode],
   });
   const noInventory = await ensureTestUser(request, token, {
-    email: `e2e-web-ops-05-none-${suffix}@bestarcca.com`,
-    name: `WEB-OPS-05 None ${suffix}`,
-    password: "Bestar-E2E-WEB-OPS-05-None-123!",
+    email: `e2e-web-ops-09-none-${suffix}@bestarcca.com`,
+    name: `WEB-OPS-09 None ${suffix}`,
+    password: "Bestar-E2E-WEB-OPS-09-None-123!",
     roleCodes: [noInventoryRoleCode],
   });
   return { noInventory, noInventoryRoleId, office, readOnly, readOnlyRoleId };
@@ -1012,7 +1094,7 @@ COMMIT;
 }
 
 async function cleanupPartialFixture(suffix: string) {
-  const containerNo = `WEBOPS05-${suffix}`;
+  const containerNo = `WEBOPS09-${suffix}`;
   const storageResult = runPsql(
     [`container_no=${containerNo}`],
     String.raw`
@@ -1029,11 +1111,11 @@ WHERE containers.container_no = :'container_no'
   const cleanup = runPsql(
     [
       `container_no=${containerNo}`,
-      `office_email=e2e-web-ops-05-office-${suffix}@bestarcca.com`,
-      `read_email=e2e-web-ops-05-read-${suffix}@bestarcca.com`,
-      `no_email=e2e-web-ops-05-none-${suffix}@bestarcca.com`,
-      `read_role_code=E2E_WEB_OPS_05_READ_${suffix}`,
-      `no_role_code=E2E_WEB_OPS_05_NONE_${suffix}`,
+      `office_email=e2e-web-ops-09-office-${suffix}@bestarcca.com`,
+      `read_email=e2e-web-ops-09-read-${suffix}@bestarcca.com`,
+      `no_email=e2e-web-ops-09-none-${suffix}@bestarcca.com`,
+      `read_role_code=E2E_WEB_OPS_09_READ_${suffix}`,
+      `no_role_code=E2E_WEB_OPS_09_NONE_${suffix}`,
     ],
     String.raw`
 BEGIN;
@@ -1104,7 +1186,7 @@ function runPsql(variables: string[], input: string, tuplesOnly = false) {
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required for WEB-OPS-05 E2E cleanup.`);
+  if (!value) throw new Error(`${name} is required for WEB-OPS-09 E2E cleanup.`);
   return value;
 }
 

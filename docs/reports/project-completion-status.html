@@ -343,8 +343,8 @@
           duplicate scan 全链路。IMPORT-DELETE-01 已完成导入删除 storage
           清理：删除导入会校验 storage root 后逐个删除原始上传清单和关联
           generated files，保留业务使用 blocker 和 correction feedback 审计。
-          2026-07-09 本轮重新复查发现 API E2E
-          仍受 BullMQ/ioredis teardown 问题影响，不能记录为全量通过。
+          2026-07-09 曾发现的 BullMQ/ioredis teardown 问题已由 P1-QUEUE-02
+          修复并完成 Docker concurrency regression，不再是当前未完成项。
         </p>
         <div class="grid">
           <dl class="metric">
@@ -368,6 +368,15 @@
             <dd>95%</dd>
           </dl>
         </div>
+        <p class="note">
+          2026-07-15 20:27 MDT 未完成项复核：WEB-OPS-06 至 09 均已达到
+          supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
+          PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
+          外部设备验收。当前开发机没有新的代码 Task。尚未关闭的 10 个唯一 Task
+          均依赖真实业务 workbook、目标打印机/Microsoft Excel、Android/iOS 人工
+          设备矩阵、Windows 11 RNW/MSIX 构建机或目标部署主机；不得把缺少外部条件
+          误报为代码未完成，也不要重复启动 NATIVE-AUTH-01 或 WEB-OPS 关闭任务。
+        </p>
       </header>
 
       <section>
@@ -1339,21 +1348,28 @@
               <td><span class="badge done">Done</span></td>
               <td>All-container Index / Persisted Created Time / Stable Lifecycle Sorting Complete</td>
               <td>新增只要求 <code>containers.read</code> 的 <code>GET /api/containers</code>，以单条参数化 PostgreSQL LEFT JOIN/GROUP BY 查询返回全部真实柜子、ISO createdAt、effective status 和 raw pallet counts；无 N+1，不依赖 active inventory，也不向 Web 发送 pallet rows。createdAt/containerNo/status 与 asc/desc 均有稳定 comparator/tie-break，默认 createdAt desc，非法 API query 返回 400、非法 Web URL 回退默认。页面显示 locale/timezone 创建时间，search/sort/direction 写入 URL，并在刷新、详情返回、语言和主题切换后保持；typed 双语、tooltip/aria-label、aria-current、aria-sort 和表格局部滚动完成。API lint/typecheck、31 suites / 237 unit、focused E2E 2 suites / 5 tests、build；Web lint/typecheck、218 unit、production build、Chromium 1/1、healthcheck 和 diff check 通过。</td>
-              <td>真实 fixture 覆盖 active、全 loaded、全 adjusted、全 cancelled、无 pallet 五种柜子并证明六种排序。5 张 en/zh-CN、light/dark、390/1366/1920 与真实 200% zoom PNG 位于 <code>test-results/web-ops-07/</code>，原分辨率复核无混语、重叠或页面级 overflow；fixture container/admin 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-07-container-index-verification.md</code>。后续 WEB-OPS-08 已完成，下一任务为 WEB-OPS-09。</td>
+              <td>真实 fixture 覆盖 active、全 loaded、全 adjusted、全 cancelled、无 pallet 五种柜子并证明六种排序。5 张 en/zh-CN、light/dark、390/1366/1920 与真实 200% zoom PNG 位于 <code>test-results/web-ops-07/</code>，原分辨率复核无混语、重叠或页面级 overflow；fixture container/admin 残留为 0。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-07-container-index-verification.md</code>。后续 WEB-OPS-08/09 与 NATIVE-AUTH-01 仓库实现均已完成；当前没有新的 Web 代码 Task。</td>
             </tr>
             <tr>
               <td>WEB-OPS-08 Inventory Pagination Sorting and Adaptive Workspace</td>
               <td><span class="badge done">Done</span></td>
               <td>Server Pagination / Shared Stable Sorting / Global Totals / Adaptive Inventory Workspace Complete</td>
               <td>库存 container summary 支持默认 10、可选 5/10/20/50 的服务端分页，返回当前页 items、规范化 page metadata 和完整筛选集合 totals。summary 与完整 destination summary 各使用一条 PostgreSQL aggregate query，不水合全库 pallet rows；55 柜 query-count 回归证明无 N+1。createdAt/containerNo/status 六种顺序与柜子索引共用 comparator。URL 保存 filter、selection、page、pageSize 和 sort，页外 selected detail、越界规范化、后端 refresh/draft 保持完成。operation grid 不再 stretch，短内容自然占高，只有长目的仓/历史列表启用 focus 可达 bounded scroll；typed 双语分页与 aria/disabled 状态完成。</td>
-              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、220 unit；Worker 127；真实 PostgreSQL Chromium 1/1、healthcheck 和 diff check 通过。24 柜、29 目的仓、58 pallet fixture 覆盖四种 page size、六种排序、页外人工消库存 remaining 2→1 / adjusted 0→1、审计与精确清理。28 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom PNG 和 geometry/audit JSON 位于 <code>test-results/web-ops-08/</code>。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-08-inventory-pagination-verification.md</code>。下一任务为 WEB-OPS-09，本会话不启动。</td>
+              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、220 unit；Worker 127；真实 PostgreSQL Chromium 1/1、healthcheck 和 diff check 通过。24 柜、29 目的仓、58 pallet fixture 覆盖四种 page size、六种排序、页外人工消库存 remaining 2→1 / adjusted 0→1、审计与精确清理。28 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom PNG 和 geometry/audit JSON 位于 <code>test-results/web-ops-08/</code>。无 schema/migration 或外部验收项；完整证据见 <code>docs/reports/web-ops-08-inventory-pagination-verification.md</code>。后续 WEB-OPS-09 与 NATIVE-AUTH-01 仓库实现均已完成；当前只剩 Native 外部设备验收。</td>
+            </tr>
+            <tr>
+              <td>WEB-OPS-09 Container Inventory I18n Accessibility Visual Exit Gate</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WEB-OPS 06-09 / I18n / Accessibility / RBAC / Inventory Transaction / Visual Exit Gate Complete</td>
+              <td>06-08 的 database-backed suggestion、稳定柜子索引、六种排序、库存服务端分页、global totals、跨页 selection 和 adaptive workspace 已在同一 Docker full stack 兼容关闭。修复库存 suggestion 导航时 stable containerId selection race；语言切换改为 cookie + client translator + React transition Server Component refresh，切换期间有 <code>aria-busy</code> 且不 reload/不丢 adjustment draft；移除会让 no-JS 柜子页永久停在 loading 的 route boundary。柜子/库存/目的仓/adjustment history 横向区域均由 heading 命名并可键盘聚焦。人工消库存 remaining 5→4→3、adjusted 0→1→2、loaded 恒 0；同 pallet 并发 201/409，真实 actor/reason/note/eventId audit 完整。</td>
+              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、223 unit；Worker 127；22 migrations up to date；最终 Chromium locale + exit gate 2/2、healthcheck、diff 和精确 cleanup 通过。27 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom、四类角色 PNG 已逐张原尺寸检查；20 条 geometry 无 overflow，browser/server diagnostics 为空。证据位于 <code>test-results/web-ops-09/</code>，报告见 <code>docs/reports/web-ops-09-container-inventory-exit-gate.md</code>。无 schema/migration 或外部验收项；NATIVE-AUTH-01 仓库实现也已完成，当前开发机没有新的代码 Task。</td>
             </tr>
             <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
-              <td><span class="badge partial">Partial</span></td>
-              <td>API and Native Source Implementation Present; Device Gate Pending</td>
-              <td>仓库已有 native auth session migration、仅存 SHA-256 refresh hash 的 session model、native login/refresh/logout/revoke-user API、rotation 和旧 refresh token replay 撤销；refresh 时重新读取 active 用户、角色和权限。Native secure store 已原子保存 access/refresh/session id，restore 在 access 失效后尝试 silent refresh，网络失败不会清空凭据，logout 先尽力撤销后本地清除。2026-07-12 Docker API typecheck 和 auth Jest 4 suites / 14 tests 通过。</td>
-              <td>补 API replay/revoke E2E、Native 单飞 refresh/请求重试回归，以及 Android/iOS/Windows secure-store 与 access-expiry 真机恢复矩阵后关闭。</td>
+              <td><span class="badge partial">External Verification Pending</span></td>
+              <td>Repository / Automation / iOS Authenticated Non-destructive Matrix Complete</td>
+              <td>新增 hash-only refresh token history、rolling idle + absolute expiry、事务 session row lock、rotation、并发/旧 token replay family revoke、session-bound access、refresh 限流和管理员 actor/reason 撤销审计；refresh 重新读取 active user/roles/permissions。Native secure store 原子保存完整 session，启动静默恢复，受保护请求共用 single-flight refresh，仅明确 token-expired 401 重试一次；断网保留 session/offline queue，invalid/revoked/inactive 才清除；恢复文案全量双语且无默认英文闪现。</td>
+              <td>API auth 5 suites / 18 unit、3 suites / 25 E2E，Native 50 tests、lint/typecheck、Android/iOS secure-store checks、Docker API build、23 migrations 和真实 PostgreSQL 并发 refresh/replay/logout/hash/audit/cleanup 全部通过。2026-07-16 iPhone 15 Pro / iOS 26.5 已完成当前源码Release build/sign/install、真实登录后的App重启、设备full reboot、已认证nginx离线保留/恢复和access自然到期silent refresh；history 1→2且新access校验通过。iOS只剩人工双语视觉与破坏性online/offline logout、revoke/inactive；Android Release和Windows 11 RNW/MSIX/Credential Locker同矩阵仍待外部验收。证据见 <code>docs/reports/native-auth-01-revocable-session-verification.md</code>。</td>
             </tr>
           </tbody>
         </table>
@@ -1468,8 +1484,8 @@
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 至 08 已补齐独立 RBAC 柜号联想、稳定柜子排序、库存服务端分页、全局 totals 与自适应工作区。</td>
-              <td>Dashboard redesign 与 WEB-OPS-01 至 08 已关闭；后续按任务索引执行 WEB-OPS-09，不重复启动已完成任务。</td>
+              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 至 09 已补齐独立 RBAC 柜号联想、稳定柜子排序、库存服务端分页、全局 totals、自适应工作区及 i18n/accessibility/transaction/visual 最终门禁。</td>
+              <td>Dashboard redesign 与 WEB-OPS-01 至 09 已关闭；当前开发机没有后续 Web 代码任务，不重复启动已完成任务。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>
@@ -1482,6 +1498,36 @@
               <td><span class="badge partial">Partial</span></td>
               <td>P6 mobile exit gate 已按 Android+iOS pilot route 通过；P6-MOBILE-13 已补 Windows MSIX handoff gate，但当前仓库仍没有 generated RNW project marker。</td>
               <td>在 Windows 11 build machine 按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 生成并验收 Windows native project，完成 Windows camera decoder 集成、MSIX 打包以及 Windows 设备 smoke test；完成前不要把 Windows MSIX 标记为 ready。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
+              <td><span class="badge partial">External Verification Pending</span></td>
+              <td>Repository、23 migrations、API auth 18 unit / 25 E2E、Native 50 tests、真实 PostgreSQL/HTTP 并发 refresh/replay/revoke/logout/audit 和 iPhone 15 Pro 的 App/设备重启、离线恢复、access 到期 silent rotation 均已通过。iOS 只剩人工双语视觉和破坏性 logout/revoke/inactive；Android Release 与 Windows Credential Locker 同矩阵尚未完成。</td>
+              <td>不要第四次启动代码 Task。先按 `docs/reports/native-auth-01-revocable-session-verification.md` 补 Android/iOS 人工设备证据；P6-MOBILE-13 完成 MSIX 后再补 Windows 矩阵并关闭该 Task。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-05 System Adaptive Color Theme</td>
+              <td><span class="badge partial">Device Evidence Pending</span></td>
+              <td>语义 light/dark tokens、DayNight chrome、运行中 `useColorScheme` 和 Android 深色 Login 已实现；Android 浅色/运行中切换，以及 iOS/Windows scanner chrome、locale x theme 与高对比证据仍缺。</td>
+              <td>与 NATIVE-AUTH 设备矩阵合并采集 Android/iOS 证据；在 Windows MSIX 上补完整系统主题矩阵后关闭。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-06 Header Title Clipping Regression</td>
+              <td><span class="badge partial">Device Evidence Pending</span></td>
+              <td>MI 8 SE Release English 1.0 字体下 `BESTAR SCAN` 已完整；中文、font scale 1.3/2.0、dark、iOS 与 Windows 对照尚未验收。</td>
+              <td>在 Android/iOS/Windows 的 en/zh-CN、light/dark、1.0/1.3/2.0 font scale 组合中记录标题 bounds 和无重叠证据。</td>
+            </tr>
+            <tr>
+              <td>NATIVE-UX-04 Startup Performance and Cross Platform UX Exit Gate</td>
+              <td><span class="badge partial">Device Evidence Pending</span></td>
+              <td>启动标记、关键路径并行化和 Android/iOS Release build/install 已完成；未完成三端各五次冷启动中位数、双语 Login/Bay Board/Scan/Offline/Settings 和核心扫码回归。</td>
+              <td>在 NATIVE-UX-05/06 设备证据和 Windows MSIX 就绪后统一采集，避免在缺 Windows 时重复启动只能返回 Partial 的关闭任务。</td>
+            </tr>
+            <tr>
+              <td>CROSS-UX-QA-01 Persistent Session Theme Locale Regression</td>
+              <td><span class="badge partial">Prerequisites Pending</span></td>
+              <td>Web theme/i18n 已关闭，Native 自动化与 iOS 非破坏性 session 证据已完成；完整 Android/iOS/Windows session/theme/locale/header 组合矩阵仍依赖 NATIVE-AUTH、P6-MOBILE-13 和 NATIVE-UX-04/05/06。</td>
+              <td>只能在上述前置项都有设备证据后最后执行；现在启动只会再次留下外部 blocker。</td>
             </tr>
             <tr>
               <td>外部身份集成 / SSO</td>
@@ -1529,7 +1575,19 @@
               <td>包装类型现场数据口径</td>
               <td><span class="badge partial">Needs Pilot Verification</span></td>
               <td>详细托盘规则和 UNLOAD-PALLET-05 默认纸箱口径已实现：缺失、`UNKNOWN`、`UNSPECIFIED` 按 `CARTON` 计算且不再显示 package confirmation warning；明确木箱仍按件数规则。</td>
-              <td>pilot 前提供真实/脱敏私人或商业地址 Excel，覆盖纸箱和明确木箱；完成 parser fixture 证据后关闭该项。</td>
+              <td>pilot 前提供真实/脱敏私人或商业地址 Excel，覆盖纸箱、明确木箱、可靠超大件和混合货型；执行 UNLOAD-PALLET-04 后，复用同一数据和目标打印机/PDA 关闭 UNLOAD-PALLET-10 外部签字。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-REPORT-01 Microsoft Excel Print Verification</td>
+              <td><span class="badge partial">External Verification Pending</span></td>
+              <td>rich text、16 槽位、第 17 个目的仓分页、Worker/API 下载、A4 landscape、12 张 LibreOffice 逐页图和完整自动化均通过；只缺办公室 Windows/Microsoft Excel Print Preview 与 Print to PDF。</td>
+              <td>使用 API 下载文件和 workbook 自带 print settings，确认每页 `when stored.` 不裁切后签字；不重复开发或重跑仓库全量门禁。</td>
+            </tr>
+            <tr>
+              <td>P5-PILOT-01 Windows Target Deployment Verification</td>
+              <td><span class="badge partial">Target Pending</span></td>
+              <td>macOS Docker rehearsal、health、备份/恢复 dry-run、SIEM export 和主业务 smoke 已完成；生产 secrets、真实账号、真实 Excel、打印/PDA、LAN、防火墙、备份路径及调度仍必须在目标 Windows 11 主机验证。</td>
+              <td>等真实样本、打印、Native/Windows gates 全部关闭后最后执行，并填写 pilot checklist；不得用开发机 rehearsal 代替目标主机签字。</td>
             </tr>
             <tr>
               <td>API generated Prisma lint 配置</td>
@@ -1644,7 +1702,7 @@
             <tr>
               <td>CROSS-UX-QA-01 Persistent Session Theme Locale Regression</td>
               <td><span class="badge partial">Partial</span></td>
-              <td>API lint/typecheck/unit、非沙箱 API E2E（15 suites / 91 tests）、Web lint/typecheck/unit/build、native lint/typecheck/unit 已通过。WEB-I18N-04/05/06 已完成共享首屏、业务模块显式翻译与完整 Web locale x theme/role 无闪烁门禁。NATIVE-AUTH-01 可撤销 refresh session，以及 Android/iOS/Windows locale x theme/persistent-session 实机矩阵仍待完成。native package 未定义 android/ios check script，Windows readiness 仍是 blocker。</td>
+              <td>API/Web/Native 自动化已通过，WEB-I18N-04/05/06 和 WEB-OPS-09 已完成 Web locale x theme/role 无闪烁门禁；NATIVE-AUTH-01 repository 与 iOS 非破坏性 session matrix 也已完成。仍待 Android/iOS 人工破坏性/视觉证据、Windows RNW/MSIX/Credential Locker，以及 NATIVE-UX-04/05/06 三端 theme/header/startup 设备矩阵。</td>
             </tr>
             <tr>
               <td>NATIVE-UX-06 Android Header Title Clipping</td>
@@ -1690,7 +1748,9 @@
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
-          <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；仍需在 Windows 11 构建机按 `apps/mobile-scan-app/windows/P6-MOBILE-13-MSIX-RELEASE-CHECKLIST.md` 补齐 Windows RNW generated project、MSIX 打包和 Windows 设备 smoke；完成前 native app 只能算 Android+iOS pilot route 条件通过。</li>
+          <li>2026-07-15 复核后当前开发机没有新的代码 Task；WEB-OPS-01 至 09 已关闭，NATIVE-AUTH-01 已三次达到 Code Complete / External Verification Pending。缺少设备、真实样本或 Windows 主机时不要重复启动 supervisor。</li>
+          <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵、Android Release 矩阵和 Windows Credential Locker 同矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。</li>
+          <li>P6-MOBILE-13 已补 Windows MSIX handoff gate；有 Windows 11 + Visual Studio 2022 构建机后，它是 Native 路线的下一代码/打包 Task。完成 RNW project、MSIX 和 Windows device smoke 后，依次关闭 NATIVE-AUTH-01、NATIVE-UX-05、NATIVE-UX-06、NATIVE-UX-04、CROSS-UX-QA-01。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
           <li>P6 Exit Gate 已按 Android+iOS pilot route 条件通过：Android/iOS standalone native scan app 路径已完成真机 smoke，仓库移动扫码可优先使用已验证 native app 路径；Windows MSIX 仍需 Windows 11 generated platform project、MSIX 打包和 Windows 设备验收，完成前不要标记完整三端 release ready。</li>
           <li>生产 pilot 前先执行 `docs/runbooks/pilot-data-cleanup-archive.md`，完成 PostgreSQL/storage 备份、非 pilot smoke 数据归档和清理签字。</li>

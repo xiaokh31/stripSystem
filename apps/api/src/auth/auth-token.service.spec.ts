@@ -20,7 +20,7 @@ describe('AuthTokenService', () => {
     expect(token.expiresIn).toBe(DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS);
   });
 
-  it('rejects expired tokens with UNAUTHENTICATED', () => {
+  it('rejects expired tokens with explicit AUTH_TOKEN_EXPIRED', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-11T00:00:00.000Z'));
     const service = new AuthTokenService(configService(1));
@@ -37,7 +37,7 @@ describe('AuthTokenService', () => {
     );
     expect(() => service.verify(token.accessToken)).toThrow(
       expect.objectContaining({
-        response: expect.objectContaining({ code: 'UNAUTHENTICATED' }),
+        response: expect.objectContaining({ code: 'AUTH_TOKEN_EXPIRED' }),
       }),
     );
   });

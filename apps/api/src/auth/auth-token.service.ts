@@ -14,6 +14,7 @@ export interface AuthTokenPayload {
   iat: number;
   exp: number;
   permissionsIssuedAt: number;
+  nativeSessionId?: string;
 }
 
 @Injectable()
@@ -93,7 +94,11 @@ export class AuthTokenService {
     }
 
     if (payload.exp <= Math.floor(Date.now() / 1000)) {
-      throw this.unauthenticated('Bearer token is expired.');
+      throw new UnauthorizedException({
+        code: 'AUTH_TOKEN_EXPIRED',
+        message: 'Bearer token is expired.',
+        details: {},
+      });
     }
 
     return payload;
@@ -151,7 +156,9 @@ export class AuthTokenService {
       Array.isArray((value as AuthTokenPayload).roles) &&
       typeof (value as AuthTokenPayload).iat === 'number' &&
       typeof (value as AuthTokenPayload).exp === 'number' &&
-      typeof (value as AuthTokenPayload).permissionsIssuedAt === 'number'
+      typeof (value as AuthTokenPayload).permissionsIssuedAt === 'number' &&
+      ((value as AuthTokenPayload).nativeSessionId === undefined ||
+        typeof (value as AuthTokenPayload).nativeSessionId === 'string')
     );
   }
 

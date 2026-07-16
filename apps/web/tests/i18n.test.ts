@@ -165,6 +165,20 @@ test("runtime source has no legacy DOM or source-string translation path", () =>
   );
 });
 
+test("language switching refreshes server content without discarding client drafts", () => {
+  const source = fs.readFileSync(
+    path.join(process.cwd(), "src/components/i18n/language-switcher.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /persistBrowserLocale\(option\);/);
+  assert.match(source, /setLocale\(option\);/);
+  assert.match(source, /startTransition\(\(\) => router\.refresh\(\)\);/);
+  assert.match(source, /aria-busy=\{isPending\}/);
+  assert.match(source, /disabled=\{isPending\}/);
+  assert.doesNotMatch(source, /window\.location\.(?:reload|assign|replace)/);
+});
+
 test("shared entry boundaries use the explicit translation contract", () => {
   const boundaries: Array<{
     file: string;

@@ -97,3 +97,67 @@
 - `pnpm --filter mobile-scan-app ios:check`
 - `pnpm --filter mobile-scan-app windows:check`
 
+## 2026-07-15 执行结果
+
+状态：Repository and current-environment automation complete; external native-device verification pending.
+
+- 已完成 migration、hash-only refresh history、row-lock rotation/replay revoke、access/session binding、
+  refresh rate limit、管理员撤销审计和 current user/permission revalidation。
+- 已完成 Native 原子 secure session、启动静默恢复、single-flight refresh、一次请求重试、离线保留、
+  invalid/revoked/inactive 清除和双语恢复状态。
+- Docker API auth unit 5 suites / 18 tests、auth E2E 3 suites / 25 tests、Native 50 tests、lint、
+  typecheck、build/static platform checks 与真实 PostgreSQL/HTTP 并发验证通过；23 migrations up to date。
+- 详细证据见 `docs/reports/native-auth-01-revocable-session-verification.md`。
+- 仅剩 Android/iOS Release 真机 session matrix，以及 Windows 11 RNW/MSIX/Credential Locker 同矩阵；
+  不再有可在当前仓库环境自动化的实现项。
+
+## 2026-07-16 iOS 真机自动验收续跑
+
+用户已连接并授权对当前 iOS 真机执行本 Task 中所有无需人工屏幕点击的验收步骤，并要求更新验证报告。
+
+当前已知设备状态：
+
+- CoreDevice 名称：`xfl super B`
+- CoreDevice identifier：仅记录后缀 `…6565`
+- UDID：仅记录后缀 `…40021401C`
+- 型号/系统：iPhone 15 Pro / iOS 26.5
+- 连接：wired、paired、Developer Mode enabled
+- App：`com.bestar.nativescan` 已安装；Xcode 26.5 可识别 physical device destination
+
+本次监督运行必须先完成所有可全自动执行的项目，再返回终态：
+
+1. 只读确认设备、App、Docker API/数据库和当前 Native session 状态；不得读取或输出 Keychain secret、
+   access/refresh token、密码或 secure-store JSON。
+2. 自动终止并重新启动 App，记录进程、API/数据库 session 使用或其他非 secret 证据。
+3. 自动重启设备，轮询重新连接；设备恢复后自动启动 App，并记录 session restore 的非 secret 证据。
+4. 在不把测试变量持久写入 `.env` 的前提下，完成当前环境可安全执行的 access expiry / silent refresh
+   验证；优先使用现有 session expiry/数据库 rotation 证据，不得伪造 UI 结果。
+5. 若 App 指向本机 Docker API，可通过暂时停止/隔离 API 或 nginx 模拟网络不可达，自动重启 App，
+   再恢复服务并验证 session 未被服务端错误撤销、恢复后的 refresh/校验继续；必须恢复全部服务。
+6. 自动核对管理员 revoke、账号停用/恢复在 API/数据库侧可执行的部分。不得为了完成矩阵而停用未确认的
+   真实业务账号，不得把测试凭据注入代码或日志；任何会让设备端 secure session 永久失效、且需要再次
+   输入密码才能继续的步骤必须排在所有非破坏性自动项之后，并仅在能保持验收顺序与清理安全时执行。
+7. 不安装未批准的 UI 自动化工具，不绕过 iOS 安全边界，不通过读取 Keychain 来代替用户登录。
+8. 更新 `docs/reports/native-auth-01-revocable-session-verification.md`，逐项记录 PASS、PARTIAL 或 MANUAL，
+   包括命令级证据、时间、设备型号/系统、服务恢复与临时数据清理；不得记录 secrets 或完整 device id。
+9. 最终明确列出仍需人工完成的最小步骤，例如 UI 点击、凭据输入、重启后系统提示和本地化视觉确认。
+10. 保留所有既有 WEB-OPS-09 和其他无关工作树修改；完成 `git diff --check`。
+
+## 2026-07-16 iOS 自动验收结果
+
+状态：Repository/current-environment automation and authenticated iOS non-destructive matrix complete;
+external destructive/visual device verification pending.
+
+- 已发现初始安装包仍调用旧 `/api/auth/login`，没有把旧包误报为 Native refresh 实现。
+- 已从 Docker 冻结依赖生成当前 production bundle，在一次性副本中完成当前 Swift 的 Xcode Release
+  iphoneos build、签名、安装和启动；当前包包含 `/auth/native/login` 与 `BestarSecureTokenStore`。
+- 当前包完成 App 重启和设备 full reboot 后重新安装态/启动验证；nginx 离线期间 App 进程保持，服务已恢复。
+- 当前源码包真实登录后，App重启、nginx离线/恢复和设备full reboot均保持session；自然进入提前60秒
+  refresh窗口后设备refresh 201、history `1→2`，新access `/auth/me` 304。全程未读取Keychain/token/hash。
+- iOS仅剩需要人工点击/视觉观察且会清除当前session的online/offline logout、管理员revoke、账号inactive
+  和双语状态矩阵；Android Release与Windows 11 RNW/MSIX/Credential Locker同矩阵仍待外部验收。
+- 真实 PostgreSQL/HTTP disposable fixture 的 hash-only、rotation/replay、201/401并发、管理员撤销审计、
+  账号停用/恢复和logout通过；清理后 users/sessions/refresh tokens均为0。
+- Docker API auth 18 unit / 25 E2E、Native 50 tests、lint/typecheck/build、Android/iOS static checks、
+  23 migrations 和 full-stack health通过。详细 PASS/PARTIAL/MANUAL 证据见
+  `docs/reports/native-auth-01-revocable-session-verification.md`。

@@ -14,7 +14,9 @@ export interface LoginResponseDto {
 }
 
 export interface NativeSessionResponseDto extends LoginResponseDto {
+  accessExpiresAt: string;
   refreshExpiresIn: number;
+  refreshExpiresAt: string;
   refreshToken: string;
   sessionId: string;
 }

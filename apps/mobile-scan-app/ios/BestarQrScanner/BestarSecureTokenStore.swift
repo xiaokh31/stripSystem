@@ -54,12 +54,19 @@ final class BestarSecureTokenStore: NSObject {
       return
     }
 
-    SecItemDelete(keychainQuery() as CFDictionary)
-    var attributes = keychainQuery()
-    attributes[kSecValueData as String] = data
-    attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-
-    let status = SecItemAdd(attributes as CFDictionary, nil)
+    let updateAttributes: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+    ]
+    var status = SecItemUpdate(
+      keychainQuery() as CFDictionary,
+      updateAttributes as CFDictionary
+    )
+    if status == errSecItemNotFound {
+      var attributes = keychainQuery()
+      attributes.merge(updateAttributes) { _, replacement in replacement }
+      status = SecItemAdd(attributes as CFDictionary, nil)
+    }
     guard status == errSecSuccess else {
       reject(
         "SECURE_TOKEN_STORE_WRITE_FAILED",

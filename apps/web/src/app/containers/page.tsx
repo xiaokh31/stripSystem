@@ -199,7 +199,10 @@ function ContainerTable({
     <section className="min-w-0 border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-zinc-950">
+          <h2
+            className="text-base font-semibold text-zinc-950"
+            id="container-index-heading"
+          >
             {t("Container index")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
@@ -213,7 +216,12 @@ function ContainerTable({
         </p>
       </div>
 
-      <div className="mt-5 max-w-full overflow-x-auto" tabIndex={0}>
+      <div
+        aria-labelledby="container-index-heading"
+        className="mt-5 max-w-full overflow-x-auto"
+        role="region"
+        tabIndex={0}
+      >
         <table className="w-full min-w-[940px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">

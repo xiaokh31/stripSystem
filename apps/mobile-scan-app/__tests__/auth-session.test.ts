@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getCurrentUser, login } from "../src/api/auth-client";
 import { NativeApiError } from "../src/api/api-error";
-import { restoreSession, signIn, signOut } from "../src/auth/auth-session";
+import {
+  restoreSession,
+  signIn,
+  signOut,
+  withNativeSession,
+} from "../src/auth/auth-session";
 import {
   canCompleteMobileLoadJob,
   canSupervisorOverrideScans,
@@ -121,7 +126,12 @@ test("session stores token, exposes current user, and gates missing scan permiss
         new Response(
           JSON.stringify({
             accessToken: "office-token",
+            accessExpiresAt: future(900),
             expiresIn: 3600,
+            refreshExpiresAt: future(86_400),
+            refreshExpiresIn: 86_400,
+            refreshToken: "office-refresh-token",
+            sessionId: "office-session",
             tokenType: "Bearer",
             user: officeOnlyUser,
           }),
@@ -201,7 +211,8 @@ test("restoreSession reports secure storage read failures without falling back t
   });
 
   assert.equal(session.status, "error");
-  assert.equal(session.message, "secure store read failed");
+  assert.equal(session.code, "AUTH_RESTORE_FAILED");
+  assert.equal(session.message, "AUTH_RESTORE_FAILED");
 });
 
 test("native scan permissions separate ordinary warehouse users from supervisors", () => {
@@ -235,14 +246,14 @@ test("native scan permissions separate ordinary warehouse users from supervisors
 
 test("restoreSession clears expired tokens and logout clears active tokens", async () => {
   const tokenStore = new MemorySecureTokenStore();
-  await tokenStore.setToken("expired-token");
+  await tokenStore.setSession(storedSession({ accessToken: "expired-token" }));
 
   const expired = await restoreSession({
     apiBaseUrl: "http://api.local/api",
     fetcher: async () =>
       new Response(
         JSON.stringify({
-          code: "UNAUTHENTICATED",
+          code: "AUTH_SESSION_REVOKED",
           message: "Bearer token is invalid or expired.",
         }),
         { status: 401 },
@@ -253,9 +264,169 @@ test("restoreSession clears expired tokens and logout clears active tokens", asy
   assert.equal(expired.status, "session_expired");
   assert.equal(await tokenStore.getToken(), null);
 
-  await tokenStore.setToken("active-token");
+  await tokenStore.setSession(storedSession({ accessToken: "active-token" }));
   const signedOut = await signOut(tokenStore);
 
   assert.equal(signedOut.status, "logged_out");
   assert.equal(await tokenStore.getToken(), null);
 });
+
+test("expired access token refresh is single-flight and atomically rotates the stored session", async () => {
+  const tokenStore = new MemorySecureTokenStore();
+  await tokenStore.setSession(storedSession());
+  let refreshRequests = 0;
+  const fetcher: typeof fetch = async (input) => {
+    assert.equal(String(input), "http://api.local/api/auth/native/refresh");
+    refreshRequests += 1;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return new Response(JSON.stringify(nativeSessionResponse()), { status: 200 });
+  };
+  const tokens: string[] = [];
+
+  await Promise.all([
+    withNativeSession(
+      { apiBaseUrl: "http://api.local/api", fetcher, tokenStore },
+      async (token) => tokens.push(token),
+    ),
+    withNativeSession(
+      { apiBaseUrl: "http://api.local/api", fetcher, tokenStore },
+      async (token) => tokens.push(token),
+    ),
+  ]);
+
+  assert.equal(refreshRequests, 1);
+  assert.deepEqual(tokens, ["rotated-access-token", "rotated-access-token"]);
+  const stored = await tokenStore.getSession();
+  assert.equal(stored?.accessToken, "rotated-access-token");
+  assert.equal(stored?.refreshToken, "rotated-refresh-token");
+  assert.equal(stored?.sessionId, "native-session-1");
+  assert.equal(stored?.user?.id, warehouseUser.id);
+});
+
+test("one explicit AUTH_TOKEN_EXPIRED response triggers one refresh and one safe retry", async () => {
+  const tokenStore = new MemorySecureTokenStore();
+  await tokenStore.setSession(
+    storedSession({ accessExpiresAt: future(600), accessToken: "old-access" }),
+  );
+  let calls = 0;
+  const result = await withNativeSession(
+    {
+      apiBaseUrl: "http://api.local/api",
+      fetcher: async () =>
+        new Response(JSON.stringify(nativeSessionResponse()), { status: 200 }),
+      tokenStore,
+    },
+    async (token) => {
+      calls += 1;
+      if (calls === 1) {
+        assert.equal(token, "old-access");
+        throw new NativeApiError({
+          code: "AUTH_TOKEN_EXPIRED",
+          message: "expired",
+          status: 401,
+        });
+      }
+      return token;
+    },
+  );
+
+  assert.equal(calls, 2);
+  assert.equal(result, "rotated-access-token");
+});
+
+test("temporary offline refresh preserves secure credentials and restores cached operator context", async () => {
+  const tokenStore = new MemorySecureTokenStore();
+  await tokenStore.setSession(storedSession());
+
+  const session = await restoreSession({
+    apiBaseUrl: "http://api.local/api",
+    fetcher: async () => {
+      throw new TypeError("network unavailable");
+    },
+    tokenStore,
+  });
+
+  assert.equal(session.status, "offline");
+  assert.equal(session.user?.id, warehouseUser.id);
+  assert.notEqual(await tokenStore.getSession(), null);
+});
+
+test("revoked refresh clears the complete secure session but generic 401 does not rotate", async () => {
+  const revokedStore = new MemorySecureTokenStore();
+  await revokedStore.setSession(storedSession());
+  const revoked = await restoreSession({
+    apiBaseUrl: "http://api.local/api",
+    fetcher: async () =>
+      new Response(JSON.stringify({ code: "AUTH_SESSION_REVOKED" }), {
+        status: 401,
+      }),
+    tokenStore: revokedStore,
+  });
+  assert.equal(revoked.status, "session_expired");
+  assert.equal(await revokedStore.getSession(), null);
+
+  const genericStore = new MemorySecureTokenStore();
+  await genericStore.setSession(
+    storedSession({ accessExpiresAt: future(600), accessToken: "active" }),
+  );
+  let refreshCalls = 0;
+  await assert.rejects(() =>
+    withNativeSession(
+      {
+        apiBaseUrl: "http://api.local/api",
+        fetcher: async () => {
+          refreshCalls += 1;
+          return new Response("{}", { status: 500 });
+        },
+        tokenStore: genericStore,
+      },
+      async () => {
+        throw new NativeApiError({
+          code: "UNAUTHENTICATED",
+          message: "invalid",
+          status: 401,
+        });
+      },
+    ),
+  );
+  assert.equal(refreshCalls, 0);
+  assert.notEqual(await genericStore.getSession(), null);
+});
+
+function future(seconds: number): string {
+  return new Date(Date.now() + seconds * 1000).toISOString();
+}
+
+function storedSession(
+  overrides: Partial<{
+    accessExpiresAt: string;
+    accessToken: string;
+    refreshExpiresAt: string;
+    refreshToken: string;
+    sessionId: string;
+  }> = {},
+) {
+  return {
+    accessExpiresAt: new Date(0).toISOString(),
+    accessToken: "expired-access-token",
+    refreshExpiresAt: future(86_400),
+    refreshToken: "refresh-token-1",
+    sessionId: "native-session-1",
+    user: warehouseUser,
+    ...overrides,
+  };
+}
+
+function nativeSessionResponse() {
+  return {
+    accessExpiresAt: future(900),
+    accessToken: "rotated-access-token",
+    expiresIn: 900,
+    refreshExpiresAt: future(86_400),
+    refreshExpiresIn: 86_400,
+    refreshToken: "rotated-refresh-token",
+    sessionId: "native-session-1",
+    tokenType: "Bearer" as const,
+    user: warehouseUser,
+  };
+}

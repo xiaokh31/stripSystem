@@ -134,6 +134,11 @@ WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 JWT_SECRET=replace-with-long-random-secret
 JWT_EXPIRES_IN_SECONDS=34560000
+NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=157680000
+NATIVE_REFRESH_RATE_LIMIT_MAX=10
+NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS=60
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
 
@@ -148,6 +153,13 @@ Do not use the example values as production credentials.
 cookies, the account is disabled, or the configured token lifetime is reached.
 Browsers may cap very long persistent cookies, and shorter values can be set
 for stricter workstation security.
+
+Native sessions use separate settings: a 15-minute access token, a rolling
+400-day idle window capped at five years, and a per-process refresh rate limit
+of 10 attempts per 60 seconds by default. Refresh tokens rotate once and only
+their SHA-256 hashes are stored. Changing the browser JWT lifetime does not
+change the Native session policy. Multi-instance API deployment must replace
+the local in-memory rate limiter with a shared store before adding replicas.
 
 `TZ`, `OPERATIONAL_TIME_ZONE`, and `NEXT_PUBLIC_OPERATIONAL_TIME_ZONE` must use
 an IANA timezone name. `America/Edmonton` is the Calgary/Edmonton warehouse
@@ -398,9 +410,8 @@ generated `W06<run-suffix>` and no disposable E2E administrator remain.
 Run the focused suites before the final exit gate. Playwright clears its configured
 output directory at the beginning of each invocation, so `web-ops-exit-gate.spec.ts`
 must be the last invocation when its screenshots and JSON evidence need to remain in
-`test-results/web-ops-05/`. Use a different Playwright `--output` directory for the
-clock performance run because that spec writes its retained measurements directly to
-`test-results/web-ops-04/clock-performance.json`.
+`test-results/web-ops-09/`. Use a different Playwright `--output` directory for the
+WEB-OPS-06/07/08 regression and locale runs.
 
 If `pnpm --filter web build` is executed with `docker compose exec` while `next start`
 is running, recreate `web` and `nginx` from the already-built image before browser
@@ -414,22 +425,24 @@ docker compose -f infra/docker/compose.local.yml up -d --force-recreate web ngin
 docker compose -f infra/docker/compose.local.yml --profile e2e build e2e-web
 
 docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
-  e2e-web dashboard.spec.ts locale-switch.spec.ts \
-  web-ops-container-detail.spec.ts web-ops-inventory.spec.ts \
-  web-ops-layout.spec.ts --project=chromium
+  e2e-web web-ops-container-search.spec.ts web-ops-container-index.spec.ts \
+  web-ops-08-inventory-pagination.spec.ts --project=chromium \
+  --output=/tmp/web-ops-06-08-playwright-output
 docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
-  e2e-web web-ops-clock.spec.ts --project=chromium \
-  --output=/tmp/web-ops-clock-playwright-output
+  e2e-web locale-switch.spec.ts --project=chromium \
+  --output=/tmp/web-ops-09-locale-output
 docker compose -f infra/docker/compose.local.yml --profile e2e run --rm -T \
   e2e-web web-ops-exit-gate.spec.ts --project=chromium
 ```
 
-The final exit gate uses a uniquely prefixed container, destination, five pallets,
+The WEB-OPS-09 exit gate uses a uniquely prefixed container, destination, five pallets,
 OFFICE/read-only/no-inventory actors, exact SQL cleanup, and generated-file cleanup.
-It retains the full route/locale/theme/viewport/zoom/role screenshot matrix plus
-geometry, browser-diagnostic, and inventory-mutation JSON evidence. Credentials must
-only be supplied through environment variables or a dedicated one-time local seed;
-never write them to screenshots or reports.
+It retains a high-signal pairwise route/locale/theme/viewport/zoom/role matrix capped
+below 36 screenshots, plus geometry, browser-diagnostic, and inventory-mutation JSON
+evidence. Inspect every retained PNG at original resolution, verify the two diagnostic
+arrays are empty, and confirm both `WEBOPS09%` containers and disposable administrators
+are zero after cleanup. Credentials must only be supplied through environment variables
+or a dedicated one-time local seed; never write them to screenshots or reports.
 
 ## Unloading Report Print Regression
 

@@ -88,13 +88,14 @@ Device test when native tooling is available:
 3. Tap `Save and check API`.
 4. Confirm the health status changes to reachable when the API is up.
 
-## P6-MOBILE-03 Native Login + Auth Session
+## P6-MOBILE-03 / NATIVE-AUTH-01 Native Login + Revocable Session
 
 Purpose:
-- Login with real Bestar accounts.
-- Restore current user from `GET /api/auth/me`.
-- Logout and clear token.
-- Show expired session and permission denied states.
+- Login with real Bestar accounts and stable device identity.
+- Restore through a valid access token or silent rotating refresh.
+- Revoke server session on logout and clear the local secure record.
+- Preserve a valid session during temporary network failure.
+- Show localized revoked, inactive, re-login, offline, and permission states.
 
 Automated checks:
 
@@ -102,28 +103,68 @@ Automated checks:
 pnpm --filter mobile-scan-app lint
 pnpm --filter mobile-scan-app typecheck
 pnpm --filter mobile-scan-app test
-pnpm --filter api test:e2e
+pnpm --filter mobile-scan-app android:check
+pnpm --filter mobile-scan-app ios:check
+pnpm --filter mobile-scan-app windows:check
+pnpm --filter api test -- auth --runInBand
+pnpm --filter api test:e2e -- auth --runInBand
 ```
 
 Manual API setup:
 1. Start Docker full stack.
 2. Confirm the API is healthy at `http://127.0.0.1/api/health`.
 3. Confirm the deployment has real ADMIN, OFFICE, and WAREHOUSE accounts.
+4. Confirm all Prisma migrations are applied.
+5. Confirm the Native auth lifetime/rate variables in `.env` match the intended
+   deployment policy.
 
 Device test:
 1. Set API base URL to `http://<server-lan-ip>/api`.
 2. Login as a WAREHOUSE user.
-3. Confirm the app shows user name/email/roles/permissions.
+3. Confirm the app shows user name/email/roles/permissions and records the
+   device/platform/app version in `native_auth_sessions`.
 4. Login with a wrong password and confirm the error is clear.
 5. Login with an inactive user and confirm the user is rejected.
 6. Login with a SYSTEM user and confirm ordinary employee login is rejected.
-7. Tap Logout, restart the app, and confirm protected session data is cleared or
-   restored only when a valid token still exists.
+7. Close and reopen the app, then reboot the device; confirm it restores without
+   re-entering the password.
+8. Allow/force the short access token to expire. Confirm one silent refresh
+   enters the Bay Board without flashing English or the login screen.
+9. Trigger simultaneous protected requests and confirm only one refresh rotates
+   the token; all callers use the resulting session.
+10. Disable the user or call the administrator revoke endpoint. Confirm the
+    next protected request/refresh returns localized login and clears secrets.
+11. Disconnect the network, restart the app, and confirm the cached session and
+    offline queue remain. Reconnect and confirm validation/refresh resumes.
+12. Tap Logout while online and confirm old access and refresh tokens are both
+    rejected. Repeat offline and confirm local credentials are immediately gone.
 
-Secure-storage note:
-- P6-MOBILE-10 replaces the original AsyncStorage token fallback. Production
-  builds require `NativeModules.BestarSecureTokenStore`; tests may explicitly
-  inject the memory token store.
+Administrator revoke API:
+
+```http
+POST /api/auth/native/users/:userId/revoke-sessions
+Authorization: Bearer <ADMIN access token>
+```
+
+The actor needs `users.manage`. Verify `revoked_at`, `revoked_by_user_id`, and
+`revoke_reason = ADMIN_REVOKE_ALL`; do not inspect or print token values.
+
+Secure-storage and uninstall notes:
+
+- Production builds require `NativeModules.BestarSecureTokenStore`; tests may
+  explicitly inject the memory token store.
+- Android stores one AES-GCM ciphertext/IV record using an Android Keystore key
+  and commits SharedPreferences synchronously.
+- iOS updates one Keychain generic-password item with
+  `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+- Windows replaces one PasswordVault/Credential Locker credential after the RNW
+  project wires the module.
+- OS uninstall, app-data clearing, device security reset, Keychain policy, or
+  administrator device wipe may remove the local credential. In that case the
+  expected behavior is a localized login prompt; the server session remains
+  revocable and eventually expires.
+- Never copy access/refresh tokens, passwords, or the secure-store JSON into
+  logs, screenshots, AsyncStorage, test artifacts, or audit notes.
 
 ## P6-MOBILE-04 Native Load Job List
 

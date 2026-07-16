@@ -53,9 +53,13 @@ permission, audit, duplicate scan, supervisor override, and offline queue rules.
 ## Required Capabilities
 
 1. Login
-   - Uses existing `POST /api/auth/login`.
+   - Uses `POST /api/auth/native/login` with stable device identity.
+   - Uses short-lived access tokens plus rotating, revocable Native refresh
+     sessions; it does not reuse the browser cookie lifetime as its session
+     policy.
    - Reads current user via `GET /api/auth/me`.
-   - Stores token securely for the chosen runtime.
+   - Atomically stores access token, refresh token, session metadata, and cached
+     user in the platform secure store.
    - Shows clear expired-session and permission-denied states.
 
 2. LAN API configuration
@@ -135,7 +139,9 @@ written, but the product direction is native React Native, not a web app.
 
 Existing API contracts expected to be reused:
 
-- `POST /api/auth/login`
+- `POST /api/auth/native/login`
+- `POST /api/auth/native/refresh`
+- `POST /api/auth/native/logout`
 - `GET /api/auth/me`
 - `GET /api/load-jobs`
 - `GET /api/load-jobs/:id`
@@ -144,13 +150,19 @@ Existing API contracts expected to be reused:
 - `POST /api/load-jobs/:id/scan/reverse`
 - `POST /api/load-jobs/:id/close`
 
-No new API should be added unless a task proves the standalone app cannot
-safely use the existing contracts.
+The Native session endpoints are intentionally distinct from browser login so
+the app can silently rotate short access tokens while retaining server-side
+revoke and current-account checks.
 
 ## Security Requirements
 
 - Token storage must use the best available secure storage for each runtime.
-- The app must support logout and token clearing.
+- The app must support server-side logout/revoke followed by local token
+  clearing. Offline logout still clears local credentials immediately.
+- Temporary network failure must preserve an otherwise valid local session and
+  offline queue; only stable invalid/revoked/inactive results clear it.
+- Concurrent protected requests may perform only one refresh and retry each
+  original request at most once after explicit `AUTH_TOKEN_EXPIRED`.
 - App logs must not print JWTs, passwords, or full secrets.
 - API base URL can be stored locally, but passwords and JWTs must not be stored
   in plain text when a secure platform store is available.
