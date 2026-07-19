@@ -152,6 +152,9 @@ export interface ContainerDetailResponseDto {
 export interface ManualContainerResponseDto {
   container: ContainerDetailResponseDto;
   corrections: CorrectionFeedbackResponseDto[];
+  learningCase:
+    | import('../../parser-learning-cases/dto/parser-learning-case.dto').ParserLearningCaseResponseDto
+    | null;
 }
 
 export interface CorrectionListResponseDto {

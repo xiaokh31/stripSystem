@@ -20,6 +20,8 @@ tracked Task or write the same checkout while the CLI supervisor is active.
 - `scripts/run-business-agent.sh`: fixed-profile launcher and public command entry.
 - `scripts/run-business-task.sh`: one-Task terminal-state supervisor.
 - `.codex/business-task-terminal.schema.json`: structured result contract.
+- `.codex/skills/bestar-handoff/`: project handoff contract and deterministic writer.
+- `HANDOFF.md`: tracked latest-session recovery summary read by every fresh Agent.
 - `scripts/test-business-task-supervisor.sh`: offline supervisor regression using a fake Codex CLI.
 
 The launcher fixes the repository root, `business-agent` profile, `danger-full-access` sandbox, and `never` approval. Project
@@ -90,13 +92,16 @@ supervision.
 2. A Task containing an exact `Task-Status: ARCHIVED` marker is rejected with exit code 78 before a Codex Session is created.
 3. A repository lock prevents two supervised business Tasks from writing the worktree concurrently.
 4. The first turn creates a fresh `codex exec --json` Session with the terminal JSON schema.
-5. `CONTINUE`, malformed output, the wrong Task ID, in-progress text presented as a terminal result, or a failed Codex process
+5. Before Codex starts, the supervisor writes a Task startup recovery snapshot to `HANDOFF.md`.
+6. Every valid `CONTINUE` or terminal result atomically updates `HANDOFF.md`; a handoff write failure stops the supervisor instead
+   of accepting an unrecorded terminal state.
+7. `CONTINUE`, malformed output, the wrong Task ID, in-progress text presented as a terminal result, or a failed Codex process
    triggers an automatic `codex exec resume` for the same Task.
-6. The supervisor never starts the next Task.
-7. Only `DONE`, `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`, or a valid `BLOCKED` result exits successfully.
-8. The default limit is 20 Codex turns. Set `BUSINESS_AGENT_MAX_TURNS` to an integer from 1 to 100 when a Task genuinely needs a
+8. The supervisor never starts the next Task.
+9. Only `DONE`, `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`, or a valid `BLOCKED` result exits successfully.
+10. The default limit is 20 Codex turns. Set `BUSINESS_AGENT_MAX_TURNS` to an integer from 1 to 100 when a Task genuinely needs a
    different guardrail.
-9. JSONL events, stderr, per-turn results, Session ID, and supervisor state are stored under
+11. JSONL events, stderr, per-turn results, Session ID, handoff path/update time, and supervisor state are stored under
    `.codex/business-agent-runs/<timestamp>-<task-id>-<pid>/`. This runtime directory is gitignored.
 
 The supervisor prevents premature progress messages from stopping the process. It cannot prove that a model's claimed test result
@@ -122,7 +127,13 @@ Every Codex turn returns one JSON object with the exact Task ID and these fields
 - `remaining_work`
 - `external_verification`
 - `blockers`
+- `pitfalls`
 - `next_action`
+
+`pitfalls` records concise, task-specific mistakes or recovery hazards the next
+Session must avoid. It may be empty only when none exist. The structured result
+and handoff must never contain credentials, private customer data or
+unredacted personal information.
 
 ### CONTINUE
 
@@ -172,7 +183,7 @@ If the terminal or host stops the supervisor before an accepted terminal state:
 
 1. Confirm the previous supervisor/Codex process is no longer running.
 2. Inspect the latest `.codex/business-agent-runs/*/state.json`, `git status`, current diff, Docker containers, and persisted test
-   artifacts.
+   artifacts. Read `HANDOFF.md` first, but verify it against those sources.
 3. Run the same platform and mode command again: `run-business-agent.sh task '<same-task-file>'`, Windows
    `run-business-agent.cmd develop "<same-task-file>"` for implementation-only, or `.cmd task` on a full verification host.
 4. The new Session must preserve the existing worktree and continue from the smallest missing acceptance criterion.
@@ -183,7 +194,7 @@ two business Agents against the same worktree concurrently.
 ## Before Starting The Next Task
 
 1. Confirm the supervised process ended with an accepted terminal status.
-2. Review its result, run artifacts, and `git status`.
+2. Review `HANDOFF.md`, its structured result, run artifacts, and `git status`.
 3. Do not start a dependent Task unless the prerequisite is `DONE`, or its only external verification does not affect the
    dependency and the Task explicitly permits proceeding.
 4. Start the next Task with a new supervised `.sh` process, or the `.cmd` wrapper on Windows PowerShell.
@@ -195,6 +206,10 @@ Run the offline regression without invoking a real model:
 ```bash
 ./scripts/test-business-task-supervisor.sh
 ```
+
+The regression redirects `BUSINESS_AGENT_HANDOFF_FILE` to an isolated temporary
+file. Do not set that variable during normal execution; normal Tasks must update
+the repository-root `HANDOFF.md`.
 
 Run the profile and execpolicy smoke separately:
 

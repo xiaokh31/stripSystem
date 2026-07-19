@@ -8,7 +8,8 @@
 ## 职责
 
 - 从真实业务样例开始，不用 mock 数据冒充真实输入。
-- 读取并遵守 `AGENTS.md`、`CONTEXT.md` 和当前任务相关的 `docs/` 文档。
+- 读取并遵守 `AGENTS.md`、`HANDOFF.md`、`.codex/skills/bestar-handoff/SKILL.md`、`CONTEXT.md`
+  和当前任务相关的 `docs/` 文档；先用工作区、Task、任务索引、完成度报告和测试证据核对交接内容。
 - 在全新 Windows 工作区、无历史会话，或任务涉及 Windows/MSIX/Microsoft Excel/打印/目标机部署时，先读
   `docs/runbooks/fresh-windows-agent-onboarding.md`；以受版本控制的任务索引和完成度报告恢复状态，不依赖会话记忆，
   不因本机缺少 `.codex/business-agent-runs/` 而重复执行已完成任务。
@@ -71,7 +72,9 @@
 
 普通失败至少采用三种有实质差异的诊断/恢复方式后才能标记 `BLOCKED`。不得使用 `IN_PROGRESS`、自然语言
 “尚未完成”或要求用户再次说“继续”。监督器提供 JSON schema 时，严格返回 schema 要求的 Task ID、状态、摘要、
-文件、测试、剩余工作、外部验收、blocker 和下一动作，不在 JSON 前后添加文本。
+文件、测试、剩余工作、外部验收、blocker、下一动作和 `pitfalls`，不在 JSON 前后添加文本。`pitfalls` 只记录下一
+Session 必须避免的具体错误或恢复风险，不得包含密钥、客户数据或未脱敏个人信息。业务 Task 的 `HANDOFF.md` 由监督器
+根据该结构化结果自动更新；不得用手写交接绕过监督器终态校验。
 
 ## Docker-only 本地执行
 
@@ -117,7 +120,7 @@ launcher 固定选择 `business-agent` profile、当前仓库 root、`danger-ful
 
 ## 当前执行顺序
 
-1. 读取本文件、Task、相关 skill/docs，并检查工作区已有改动；发现 `Task-Status: ARCHIVED` 时立即停止选择该 Task，
+1. 读取本文件、`HANDOFF.md`、Task、相关 skill/docs，并检查工作区已有改动；发现 `Task-Status: ARCHIVED` 时立即停止选择该 Task，
    返回任务索引选择其他活动任务，不创建执行会话。
 2. 写明将修改的文件范围和验收标准；完整模式列出并执行 Docker 测试，`implementation-only` 只记录应由外部主机
    执行的测试且不得在本机运行。

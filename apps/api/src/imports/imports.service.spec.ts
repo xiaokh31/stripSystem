@@ -50,6 +50,10 @@ describe('ImportsService', () => {
   let storageRoot: string;
   let prisma: any;
   let workerParser: { parseFile: jest.Mock };
+  let parserLearningCases: {
+    lockImportLearningMutation: jest.Mock;
+    assertImportDeletionAllowed: jest.Mock;
+  };
   let createdImportData:
     | {
         storedPath: string;
@@ -107,6 +111,10 @@ describe('ImportsService', () => {
       },
     };
     workerParser = { parseFile: jest.fn() };
+    parserLearningCases = {
+      lockImportLearningMutation: jest.fn().mockResolvedValue(undefined),
+      assertImportDeletionAllowed: jest.fn().mockResolvedValue(undefined),
+    };
     service = new ImportsService(
       prisma,
       {
@@ -118,20 +126,23 @@ describe('ImportsService', () => {
         }),
       } as unknown as ConfigService,
       workerParser as never,
-      { resolve: jest.fn().mockResolvedValue({
-        policyVersion: 'pallet-footprint-v1',
-        settingsRevision: 'test-policy',
-        palletLengthM: '1.0',
-        palletWidthM: '1.2',
-        lowHeightM: '1.7',
-        otherHeightM: '2.2',
-        lowHeightCapacityCbm: '2.04',
-        otherDestinationCapacityCbm: '2.64',
-        yeg1ExtraPallets: 4,
-        lowHeightDestinationCodes: [],
-        otherDestinationAliases: [],
-        destinationAliasVersion: 'test',
-      }) } as never,
+      {
+        resolve: jest.fn().mockResolvedValue({
+          policyVersion: 'pallet-footprint-v1',
+          settingsRevision: 'test-policy',
+          palletLengthM: '1.0',
+          palletWidthM: '1.2',
+          lowHeightM: '1.7',
+          otherHeightM: '2.2',
+          lowHeightCapacityCbm: '2.04',
+          otherDestinationCapacityCbm: '2.64',
+          yeg1ExtraPallets: 4,
+          lowHeightDestinationCodes: [],
+          otherDestinationAliases: [],
+          destinationAliasVersion: 'test',
+        }),
+      } as never,
+      parserLearningCases as never,
     );
   });
 
@@ -356,6 +367,42 @@ describe('ImportsService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.importFile.update).not.toHaveBeenCalled();
     expect(prisma.container.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('blocks parser-learning imports before any storage cleanup', async () => {
+    const record = importRecord({ id: 'import-learning', containers: [] });
+    await writeFile(record.storedPath, 'preserved original bytes');
+    parserLearningCases.assertImportDeletionAllowed.mockResolvedValue({
+      code: 'IMPORT_USED_BY_PARSER_LEARNING',
+      message: 'IMPORT_USED_BY_PARSER_LEARNING',
+      details: { importFileId: record.id },
+    });
+
+    await expect(
+      service.delete(record.id, { reason: 'Wrong file' }, officeActor),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'IMPORT_USED_BY_PARSER_LEARNING',
+      }),
+    });
+
+    await expect(stat(record.storedPath)).resolves.toBeDefined();
+    expect(
+      parserLearningCases.assertImportDeletionAllowed,
+    ).toHaveBeenCalledWith(record.id, officeActor, prisma, false);
+    expect(parserLearningCases.lockImportLearningMutation).toHaveBeenCalledWith(
+      prisma,
+      record.id,
+    );
+    expect(
+      parserLearningCases.lockImportLearningMutation.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      parserLearningCases.assertImportDeletionAllowed.mock
+        .invocationCallOrder[0],
+    );
+    expect(prisma.importFile.findUnique).not.toHaveBeenCalled();
+    expect(prisma.importFile.update).not.toHaveBeenCalled();
   });
 
   it('calls the worker parser for a stored real fixture and persists parsed rows', async () => {

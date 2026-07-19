@@ -15,6 +15,7 @@ import { InventoryAdjustmentsModule } from './inventory-adjustments/inventory-ad
 import { LabelsModule } from './labels/labels.module';
 import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ParserLearningCasesModule } from './parser-learning-cases/parser-learning-cases.module';
 import { ReportsModule } from './reports/reports.module';
 import { RolesModule } from './roles/roles.module';
 import { SettingsModule } from './settings/settings.module';
@@ -33,6 +34,7 @@ import { UsersModule } from './users/users.module';
     AsyncJobsModule,
     AttendanceModule,
     PrismaModule,
+    ParserLearningCasesModule,
     HealthModule,
     DashboardModule,
     ImportsModule,

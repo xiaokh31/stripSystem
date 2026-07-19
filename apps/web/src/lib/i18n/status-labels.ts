@@ -186,8 +186,92 @@ const generatedAndImportStatusLabels: Record<string, LocalizedLabel> = {
   GENERATED: { en: "Generated", "zh-CN": "已生成" },
   PARSED: { en: "Parsed", "zh-CN": "已解析" },
   PARSING: { en: "Parsing", "zh-CN": "解析中" },
+  REVIEW_REQUIRED: { en: "Review required", "zh-CN": "需要人工复核" },
   UPLOADED: { en: "Uploaded", "zh-CN": "已上传" },
   WARNING: { en: "Warning", "zh-CN": "警告" },
+};
+
+const parserLearningCaseStatusLabels: Record<string, LocalizedLabel> = {
+  CLOSED: { en: "Closed", "zh-CN": "已关闭" },
+  DRAFT: { en: "Draft", "zh-CN": "草稿" },
+  LINKED: { en: "Manual result linked", "zh-CN": "已关联人工结果" },
+};
+
+const parserProfileLifecycleLabels: Record<string, LocalizedLabel> = {
+  ACTIVE: { en: "Active", "zh-CN": "已启用" },
+  DRAFT: { en: "Draft", "zh-CN": "草稿" },
+  PAUSED: { en: "Paused", "zh-CN": "已暂停" },
+  RETIRED: { en: "Retired", "zh-CN": "已退役" },
+};
+
+const parserProfileTrustStateLabels: Record<string, LocalizedLabel> = {
+  REVIEW_REQUIRED: { en: "Review required", "zh-CN": "需要人工复核" },
+  TRUSTED: { en: "Trusted", "zh-CN": "已信任" },
+};
+
+const parserSourceKindLabels: Record<string, LocalizedLabel> = {
+  BUILT_IN: { en: "Built-in parser", "zh-CN": "内置解析器" },
+  MANUAL: { en: "Manual entry", "zh-CN": "人工录入" },
+  PROFILE: { en: "Parser profile", "zh-CN": "解析配置" },
+};
+
+const parserProfileContractCodeLabels: Record<string, LocalizedLabel> = {
+  IMPORT_USED_BY_PARSER_LEARNING: {
+    en: "Import is used by parser learning",
+    "zh-CN": "导入文件正用于解析学习",
+  },
+  PARSER_LEARNING_CASE_ALREADY_LINKED: {
+    en: "Learning case already has a manual result",
+    "zh-CN": "学习案例已有关联的人工结果",
+  },
+  PARSER_LEARNING_CASE_CLOSED: {
+    en: "Learning case is closed",
+    "zh-CN": "学习案例已关闭",
+  },
+  PARSER_LEARNING_CASE_LINK_CONFLICT: {
+    en: "Learning case link changed concurrently",
+    "zh-CN": "学习案例关联已被并发修改",
+  },
+  PARSER_LEARNING_CASE_HAS_PROFILE_DEPENDENCY: {
+    en: "Learning case has protected profile history",
+    "zh-CN": "学习案例已有受保护的解析配置历史",
+  },
+  PARSER_LEARNING_VALIDATION_FAILED: {
+    en: "Parser learning request validation failed.",
+    "zh-CN": "解析学习请求验证失败。",
+  },
+  PARSER_LEARNING_CASE_NOT_FOUND: {
+    en: "Learning case not found",
+    "zh-CN": "未找到学习案例",
+  },
+  PARSER_LEARNING_CASE_START_CONFLICT: {
+    en: "Learning case was created concurrently",
+    "zh-CN": "学习案例已被并发创建",
+  },
+  PARSER_LEARNING_CONTAINER_ALREADY_LINKED: {
+    en: "Manual result belongs to another learning case",
+    "zh-CN": "人工结果已属于其他学习案例",
+  },
+  PARSER_LEARNING_CONTAINER_NOT_FOUND: {
+    en: "Manual result not found",
+    "zh-CN": "未找到人工结果",
+  },
+  PARSER_LEARNING_CONTAINER_NOT_MANUAL: {
+    en: "Only a manual result can be linked",
+    "zh-CN": "只能关联人工结果",
+  },
+  PARSER_LEARNING_IMPORT_NOT_FOUND: {
+    en: "Source import not found",
+    "zh-CN": "未找到来源导入",
+  },
+  PARSER_LEARNING_IMPORT_STATUS_NOT_ALLOWED: {
+    en: "Import is not eligible for parser learning",
+    "zh-CN": "该导入不可进入解析学习",
+  },
+  PARSER_PROFILE_TRAIN_FORBIDDEN: {
+    en: "Parser training permission required",
+    "zh-CN": "需要解析训练权限",
+  },
 };
 
 const generatedAndImportStatusAliases: Record<string, string> = {
@@ -361,6 +445,41 @@ export function generatedOrImportStatusLabel(
   );
 }
 
+export function parserLearningCaseStatusLabel(
+  status: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(parserLearningCaseStatusLabels, status, locale);
+}
+
+export function parserProfileLifecycleLabel(
+  status: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(parserProfileLifecycleLabels, status, locale);
+}
+
+export function parserProfileTrustStateLabel(
+  status: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(parserProfileTrustStateLabels, status, locale);
+}
+
+export function parserSourceKindLabel(
+  sourceKind: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(parserSourceKindLabels, sourceKind, locale);
+}
+
+export function parserProfileContractCodeLabel(
+  code: string | null | undefined,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return labelFrom(parserProfileContractCodeLabels, code, locale);
+}
+
 export function uploadQueueStatusLabel(
   status: string | null | undefined,
   locale: Locale = DEFAULT_LOCALE,
@@ -449,6 +568,11 @@ export function businessStatusLabel(
       locale,
       generatedAndImportStatusAliases,
     ) ??
+    lookup(parserLearningCaseStatusLabels, status, locale) ??
+    lookup(parserProfileLifecycleLabels, status, locale) ??
+    lookup(parserProfileTrustStateLabels, status, locale) ??
+    lookup(parserSourceKindLabels, status, locale) ??
+    lookup(parserProfileContractCodeLabels, status, locale) ??
     lookup(uploadQueueStatusLabels, status, locale) ??
     lookup(offlineQueueStatusLabels, status, locale) ??
     humanizeStatus(status, locale)

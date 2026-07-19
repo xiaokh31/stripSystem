@@ -26,6 +26,10 @@ export const UNLOADING_WAGE_COMPLETE_PERMISSION = "unloading_wage.complete";
 export const UNLOADING_WAGE_SETTLE_PERMISSION = "unloading_wage.settle";
 export const UNLOADING_SUMMARY_READ_PERMISSION = "unloading_summary.read";
 export const UNLOADING_SUMMARY_EXPORT_PERMISSION = "unloading_summary.export";
+export const PARSER_PROFILES_READ_PERMISSION = "parser_profiles.read";
+export const PARSER_PROFILES_TRAIN_PERMISSION = "parser_profiles.train";
+export const PARSER_PROFILES_REVIEW_PERMISSION = "parser_profiles.review";
+export const PARSER_PROFILES_APPROVE_PERMISSION = "parser_profiles.approve";
 
 export function hasRole(
   user: AuthUserResponse | null,
@@ -176,4 +180,20 @@ export function canManageContainerUnloadingWage(
     UNLOADING_WAGE_CLASSIFY_PERMISSION,
     UNLOADING_WAGE_COMPLETE_PERMISSION,
   ]);
+}
+
+export function canReadParserProfiles(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, PARSER_PROFILES_READ_PERMISSION);
+}
+
+export function canTrainParserProfiles(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, PARSER_PROFILES_TRAIN_PERMISSION);
+}
+
+export function canReviewParserProfiles(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, PARSER_PROFILES_REVIEW_PERMISSION);
+}
+
+export function canApproveParserProfiles(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, PARSER_PROFILES_APPROVE_PERMISSION);
 }

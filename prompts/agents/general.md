@@ -5,6 +5,8 @@
 ## 必须先读取
 
 - `AGENTS.md`
+- `HANDOFF.md`
+- `.codex/skills/bestar-handoff/SKILL.md`
 - `docs/product/00-business-context.md`
 - `docs/adr/0001-phase0-first.md`
 - 当前 Task 文件
@@ -21,6 +23,8 @@
 6. 测试、构建、Docker 或工具命令失败时，诊断原因、采用替代命令或从失败点恢复。长命令中断后先检查进程、容器、日志和已有产物，不得直接把中断当成任务阻塞。
 7. 进度消息只报告新事实，每次一至两句；不要反复复述任务范围、剩余清单或“仍未完成”。
 8. 只要还有可自主执行的当前 Task 工作，就不得发送 final。计划、范围确认、部分代码和部分测试只能作为进度，不能作为交付。
+9. 将 `HANDOFF.md` 作为交接线索而非完成证据；先用工作区、Task、索引、报告和测试核对。任何 final 或暂停前按
+   `bestar-handoff` skill 更新同一文件，不得写入密钥或伪造未执行的验证。
 
 ## 允许结束的状态
 
@@ -40,6 +44,7 @@
 - changed files；
 - tests/verification；
 - 真实限制或外部验收步骤；
+- 已更新的 `HANDOFF.md`；
 - next Task（仅名称，不自动执行）。
 
 当前 Task：

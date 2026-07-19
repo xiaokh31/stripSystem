@@ -4,10 +4,16 @@ import { ImportsService } from './imports.service';
 import { WorkerParserService } from './worker-parser.service';
 import { AsyncJobsModule } from '../async-jobs/async-jobs.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ParserLearningCasesModule } from '../parser-learning-cases/parser-learning-cases.module';
 import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, SettingsModule, forwardRef(() => AsyncJobsModule)],
+  imports: [
+    PrismaModule,
+    ParserLearningCasesModule,
+    SettingsModule,
+    forwardRef(() => AsyncJobsModule),
+  ],
   controllers: [ImportsController],
   providers: [ImportsService, WorkerParserService],
   exports: [ImportsService],

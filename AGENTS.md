@@ -65,10 +65,32 @@ Correct order:
 14. PDF labels must be exactly 150mm x 100mm.
 15. QR physical size target is 25mm x 25mm.
 
+## Session Handoff
+
+- Every Agent and every fresh Session must read `HANDOFF.md` immediately after
+  this file, then read `.codex/skills/bestar-handoff/SKILL.md` and the
+  authoritative Task/index/report files relevant to the work.
+- Treat `HANDOFF.md` as orientation, not proof. Reconcile it with `git status`,
+  the current worktree, the named Task, task index, completion report, tests and
+  persisted artifacts before acting.
+- Before any final response, pause, context switch or handoff, update
+  `HANDOFF.md` with the active Task/status, completed work, changed files, tests
+  actually run, remaining implementation, external verification, blockers,
+  one next action and task-specific pitfalls. This also applies to planning,
+  audit and diagnosis Sessions that make no code changes.
+- Supervised business Tasks write the handoff automatically through
+  `scripts/run-business-task.sh`. Other Agents update the same file directly
+  with `apply_patch`; do not create competing "latest" handoff files.
+- Never put credentials, tokens, private signing material, customer data or
+  unredacted personal information in the handoff. Do not claim unrun tests.
+- Updating the handoff does not make a Task complete and cannot reactivate an
+  archived Task. The active Task and Definition of Done remain authoritative.
+
 ## Agent Workflow
 
 Before editing:
 - Read this file.
+- Read `HANDOFF.md` and verify it against the current worktree.
 - Read relevant docs under docs/.
 - State files likely to be changed.
 - State acceptance criteria.
@@ -83,6 +105,7 @@ During implementation:
 - Do not end with an in-progress report while actionable task work remains.
 
 After implementation:
+- Update `HANDOFF.md` using the `bestar-handoff` skill.
 - Show changed files.
 - Show tests run.
 - Show known limitations.
@@ -173,3 +196,4 @@ A task is not complete unless:
 - Database migration exists if schema changed.
 - No unrelated files are modified.
 - Manual verification steps are documented.
+- `HANDOFF.md` records the truthful terminal or recovery state without secrets.

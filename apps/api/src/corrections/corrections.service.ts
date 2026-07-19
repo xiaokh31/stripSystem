@@ -40,6 +40,7 @@ import { Prisma } from '../generated/prisma/client';
 import { ContainerPalletInventorySyncService } from '../pallet-inventory-sync/container-pallet-inventory-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
+import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
 import {
   calculateDestinationPallets,
   type DestinationPalletCalculationResult,
@@ -191,6 +192,7 @@ export class CorrectionsService {
     private readonly prisma: PrismaService,
     private readonly palletInventorySync: ContainerPalletInventorySyncService,
     private readonly palletPolicyResolver: PalletPolicyResolver,
+    private readonly parserLearningCases: ParserLearningCasesService,
   ) {}
 
   async getContainer(id: string): Promise<ContainerDetailResponseDto> {
@@ -243,11 +245,17 @@ export class CorrectionsService {
     actor: AuthenticatedUser,
   ): Promise<ManualContainerResponseDto> {
     const containerNo = this.requiredString(dto.containerNo, 'containerNo');
-    const destinationInputs = await Promise.all(dto.destinations.map((destination, index) =>
-      this.toManualDestinationCreateInput(destination, index + 1),
-    ));
+    const learningCaseId = this.optionalLearningCaseId(dto.learningCaseId);
+    const destinationInputs = await Promise.all(
+      dto.destinations.map((destination, index) =>
+        this.toManualDestinationCreateInput(destination, index + 1),
+      ),
+    );
     const createdAt = new Date();
-    const correctedById = auditUserId(actor, dto.correctedById);
+    const correctedById = actor.id;
+    if (learningCaseId) {
+      this.parserLearningCases.assertCanTrain(actor);
+    }
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -256,6 +264,7 @@ export class CorrectionsService {
             containerNo,
             sourceFormat: FileFormat.UNKNOWN,
             parserVersion: 'manual-entry-v1',
+            parserSourceKind: 'MANUAL',
             dockNo: this.stringOrNull(dto.dockNo),
             company: this.stringOrNull(dto.company),
             status: ContainerStatus.CORRECTED,
@@ -336,12 +345,22 @@ export class CorrectionsService {
           );
         }
 
+        const learningCase = learningCaseId
+          ? await this.parserLearningCases.linkContainerInTransaction(
+              tx,
+              learningCaseId,
+              container.id,
+              actor,
+            )
+          : null;
+
         return {
           container: {
             ...container,
             destinations,
           },
           corrections,
+          learningCase,
         };
       });
 
@@ -350,6 +369,7 @@ export class CorrectionsService {
         corrections: result.corrections.map((record) =>
           this.toCorrectionResponse(record),
         ),
+        learningCase: result.learningCase ? result.learningCase : null,
       };
     } catch (error) {
       this.throwConflictIfUnique(error, 'MANUAL_CONTAINER_CREATE_CONFLICT');
@@ -896,7 +916,9 @@ export class CorrectionsService {
   private async toManualDestinationCreateInput(
     dto: CreateManualContainerDestinationDto,
     sequence: number,
-  ): Promise<Omit<Prisma.ContainerDestinationUncheckedCreateInput, 'containerId'>> {
+  ): Promise<
+    Omit<Prisma.ContainerDestinationUncheckedCreateInput, 'containerId'>
+  > {
     const destinationCode = this.requiredString(
       dto.destinationCode,
       `destinations[${sequence}].destinationCode`,
@@ -1928,6 +1950,21 @@ export class CorrectionsService {
       message: `${fieldName} cannot be empty.`,
       details: { fieldName },
     });
+  }
+
+  private optionalLearningCaseId(value: unknown): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (typeof value !== 'string' || !value.trim()) {
+      const code = 'PARSER_LEARNING_VALIDATION_FAILED';
+      throw new BadRequestException({
+        code,
+        message: code,
+        details: { fields: ['learningCaseId'] },
+      });
+    }
+    return value.trim();
   }
 
   private stringOrNull(value: unknown): string | null {

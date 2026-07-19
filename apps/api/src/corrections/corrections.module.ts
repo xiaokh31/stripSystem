@@ -6,10 +6,16 @@ import { CorrectionsService } from './corrections.service';
 import { ContainerIndexService } from './container-index.service';
 import { PalletInventorySyncModule } from '../pallet-inventory-sync/pallet-inventory-sync.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ParserLearningCasesModule } from '../parser-learning-cases/parser-learning-cases.module';
 import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, PalletInventorySyncModule, SettingsModule],
+  imports: [
+    PrismaModule,
+    ParserLearningCasesModule,
+    PalletInventorySyncModule,
+    SettingsModule,
+  ],
   controllers: [
     ContainersController,
     ContainerDestinationsController,

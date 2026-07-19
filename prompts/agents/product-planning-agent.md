@@ -77,6 +77,21 @@ The Product Planning Agent does not own:
   bilingual display such as Chinese plus English fallback in the same visible
   status label.
 
+## Session Handoff Standard
+
+- At Session start, read `AGENTS.md`, `HANDOFF.md`, and
+  `.codex/skills/bestar-handoff/SKILL.md`; verify the handoff against the
+  current worktree, Task index, completion report, and relevant planning docs.
+- Before every final response or pause, update the repository-root
+  `HANDOFF.md`, even when the Session only plans or audits. Record what was
+  planned, which task files/reports changed, open decisions, the exact next
+  action, and planning pitfalls the next Agent must avoid.
+- Keep this Session handoff separate from the development Task handoff below.
+  `HANDOFF.md` points to authoritative artifacts; it does not replace Task
+  files, acceptance criteria, the task index, or the completion report.
+- Never include credentials, private customer data, or unredacted personal
+  information in a handoff.
+
 ## Planning Output Standard
 
 Every planning document should include:

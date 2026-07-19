@@ -51,6 +51,7 @@ import { effectiveContainerStatus } from '../common/container-lifecycle';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
+import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
 
 type FileFormatValue = (typeof FileFormat)[keyof typeof FileFormat];
 type NullableJsonInput =
@@ -199,6 +200,7 @@ export class ImportsService {
     configService: ConfigService,
     private readonly workerParser: WorkerParserService,
     private readonly palletPolicyResolver: PalletPolicyResolver,
+    private readonly parserLearningCases: ParserLearningCasesService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
@@ -308,25 +310,18 @@ export class ImportsService {
   ): Promise<ImportFileResponseDto> {
     const deletedAt = new Date();
     const reason = this.stringOrNull(dto.reason);
-    const existing = await this.findImportForDeleteOrThrow(this.prisma, id);
-    const containerIds = existing.containers.map((container) => container.id);
-    const generatedFiles = await this.findGeneratedFilesForDelete(
-      this.prisma,
-      id,
-      containerIds,
-    );
-    const initialDeletePlan = await this.assertImportCanBeDeleted(
-      this.prisma,
-      id,
-      containerIds,
-    );
-    const cleanupTargets = await this.prepareStorageCleanupTargets(
-      existing,
-      generatedFiles,
-    );
-    const cleanupResult = await this.cleanupStorageFiles(cleanupTargets);
-
     const record = (await this.prisma.$transaction(async (tx) => {
+      await this.parserLearningCases.lockImportLearningMutation(tx, id);
+      const parserLearningBlocker =
+        await this.parserLearningCases.assertImportDeletionAllowed(
+          id,
+          actor,
+          tx,
+          false,
+        );
+      if (parserLearningBlocker) {
+        return { blocked: parserLearningBlocker, record: null };
+      }
       const existingInTransaction = await this.findImportForDeleteOrThrow(
         tx,
         id,
@@ -344,6 +339,11 @@ export class ImportsService {
         id,
         txContainerIds,
       );
+      const cleanupTargets = await this.prepareStorageCleanupTargets(
+        existingInTransaction,
+        txGeneratedFiles,
+      );
+      const cleanupResult = await this.cleanupStorageFiles(cleanupTargets);
       const generatedFileIds = txGeneratedFiles.map((file) => file.id);
       const releasedFileSha256 = this.deletedImportFileSha256(
         existingInTransaction.id,
@@ -399,9 +399,9 @@ export class ImportsService {
             deletedStorageFileCount: cleanupResult.deletedPaths.length,
             deletedStoragePaths: cleanupResult.deletedPaths,
             missingStoragePaths: cleanupResult.missingPaths,
-            generatedFileCount: generatedFiles.length,
-            generatedFileIds: generatedFiles.map((file) => file.id),
-            palletCount: initialDeletePlan.palletIds.length,
+            generatedFileCount: txGeneratedFiles.length,
+            generatedFileIds,
+            palletCount: deletePlan.palletIds.length,
             originalFileSha256: existingInTransaction.fileSha256,
             releasedFileSha256,
           }),
@@ -414,10 +414,19 @@ export class ImportsService {
         },
       });
 
-      return updated;
-    })) as ImportFileRecord;
+      return { blocked: null, record: updated };
+    })) as
+      | {
+          blocked: { code: string; message: string; details: object };
+          record: null;
+        }
+      | { blocked: null; record: ImportFileRecord };
 
-    return this.toResponse(record);
+    if (record.blocked) {
+      throw new ConflictException(record.blocked);
+    }
+
+    return this.toResponse(record.record);
   }
 
   async parse(

@@ -49,6 +49,10 @@ fake_codex() {
     jq -nc '{type:"error",message:"simulated process failure"}'
     return 17
   fi
+  if [[ "${FAKE_CODEX_SCENARIO}" == 'process_exhaust' ]]; then
+    jq -nc '{type:"error",message:"simulated persistent process failure"}'
+    return 17
+  fi
 
   case "${FAKE_CODEX_SCENARIO}" in
     continue_then_done)
@@ -107,6 +111,7 @@ fake_codex() {
           remaining_work:["Finish the focused regression tests."],
           external_verification:[],
           blockers:[],
+          pitfalls:["Do not treat a CONTINUE result as Task completion."],
           next_action:"Continue implementation."
         }')"
         ;;
@@ -124,6 +129,7 @@ fake_codex() {
           remaining_work:[],
           external_verification:[],
           blockers:[],
+          pitfalls:["Do not rerun completed work without evidence that relevant source changed."],
           next_action:""
         }')"
         ;;
@@ -138,6 +144,7 @@ fake_codex() {
             remaining_work:[],
             external_verification:["Run Docker tests and builds on a capable verification host."],
             blockers:[],
+            pitfalls:["Do not claim tests were run on the implementation-only host."],
             next_action:"Transfer the diff to the verification host."
           }')"
         else
@@ -150,6 +157,7 @@ fake_codex() {
             remaining_work:[],
             external_verification:["Open the generated workbook in Microsoft Excel."],
             blockers:[],
+            pitfalls:["Do not replace the required Microsoft Excel check with a mock result."],
             next_action:"Perform the named external verification."
           }')"
         fi
@@ -164,6 +172,7 @@ fake_codex() {
           remaining_work:["Run the credential-protected external operation."],
           external_verification:[],
           blockers:["The required production credential was not provided."],
+          pitfalls:["Never place the production credential in HANDOFF.md."],
           next_action:"Provide the named credential through the approved channel."
         }')"
         ;;
@@ -230,10 +239,13 @@ run_case() {
   local call_log="${case_root}/calls.log"
   local run_root="${case_root}/runs"
   local lock_directory="${case_root}/lock"
+  local handoff_file="${case_root}/HANDOFF.md"
   local output
   local exit_code
   local final_state
   local final_execution_mode
+  local final_handoff_path
+  local final_handoff_updated_at
   local calls=0
 
   mkdir -p "${case_root}"
@@ -249,6 +261,7 @@ run_case() {
       BUSINESS_AGENT_EXECUTION_MODE="${execution_mode}" \
       BUSINESS_AGENT_RUN_ROOT="${run_root}" \
       BUSINESS_AGENT_LOCK_DIR="${lock_directory}" \
+      BUSINESS_AGENT_HANDOFF_FILE="${handoff_file}" \
       "${launcher}" task "${task_file}" 2>&1
   )"
   exit_code=$?
@@ -259,11 +272,26 @@ run_case() {
   fi
   final_state="$(find "${run_root}" -name state.json -type f -exec jq -r '.supervisor_status' {} \; | head -n 1)"
   final_execution_mode="$(find "${run_root}" -name state.json -type f -exec jq -r '.execution_mode' {} \; | head -n 1)"
+  final_handoff_path="$(find "${run_root}" -name state.json -type f -exec jq -r '.handoff_path' {} \; | head -n 1)"
+  final_handoff_updated_at="$(find "${run_root}" -name state.json -type f -exec jq -r '.handoff_updated_at' {} \; | head -n 1)"
 
   assert_equals "${expected_exit}" "${exit_code}" "${scenario} exit code"
   assert_equals "${expected_calls}" "${calls}" "${scenario} Codex calls"
   assert_equals "${expected_state}" "${final_state}" "${scenario} supervisor state"
   assert_equals "${execution_mode}" "${final_execution_mode}" "${scenario} execution mode"
+  assert_equals "${handoff_file}" "${final_handoff_path}" "${scenario} handoff path"
+
+  if [[ -z "${final_handoff_updated_at}" ]]; then
+    fail "${scenario} did not record the handoff update time"
+  fi
+  if [[ ! -f "${handoff_file}" ]]; then
+    fail "${scenario} did not leave a handoff file"
+  fi
+  if ! grep -Fq '# Bestar Agent Handoff' "${handoff_file}" ||
+     ! grep -Fq 'Task: `UNLOAD-PALLET-09`' "${handoff_file}" ||
+     ! grep -Fq '## 不要再踩的坑' "${handoff_file}"; then
+    fail "${scenario} handoff is missing its required identity or sections"
+  fi
 
   if [[ -d "${lock_directory}" ]]; then
     fail "${scenario} left the business-task lock behind"
@@ -271,6 +299,9 @@ run_case() {
 
   if (( expected_calls > 1 )) && ! grep -Fq ' resume ' "${call_log}"; then
     fail "${scenario} did not resume the original session"
+  fi
+  if ! grep -Fq 'HANDOFF.md' "${call_log}"; then
+    fail "${scenario} did not instruct the fresh Session to read the handoff"
   fi
   if [[ "${expected_state}" == 'SUPERVISOR_EXHAUSTED' && "${output}" != *'No valid terminal state'* ]]; then
     fail "${scenario} did not explain supervisor exhaustion"
@@ -284,6 +315,7 @@ run_case malformed_then_done 4 0 2 DONE
 run_case wrong_task_then_done 4 0 2 DONE
 run_case terminal_progress_then_done 4 0 2 DONE
 run_case process_failure_then_done 4 0 2 DONE
+run_case process_exhaust 2 75 2 SUPERVISOR_EXHAUSTED
 run_case blocked 2 0 1 BLOCKED
 run_case external 2 0 1 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
 run_case implementation_only_done_then_external 3 0 2 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING implementation-only
@@ -364,5 +396,24 @@ for archived_task_file in "${archived_task_files[@]}"; do
   fi
 done
 printf 'PASS: archived Task guard\n'
+
+handoff_instruction_files=(
+  "${project_root}/AGENTS.md"
+  "${project_root}"/prompts/agents/*.md
+)
+for handoff_instruction_file in "${handoff_instruction_files[@]}"; do
+  if ! grep -Fq 'HANDOFF.md' "${handoff_instruction_file}"; then
+    fail "Agent instruction does not require HANDOFF.md: ${handoff_instruction_file}"
+  fi
+done
+if ! grep -Fq 'allow_implicit_invocation: true' \
+  "${project_root}/.codex/skills/bestar-handoff/agents/openai.yaml"; then
+  fail 'bestar-handoff skill does not allow implicit invocation'
+fi
+if ! jq -e '.required | index("pitfalls")' \
+  "${project_root}/.codex/business-task-terminal.schema.json" >/dev/null; then
+  fail 'business Task terminal schema does not require pitfalls'
+fi
+printf 'PASS: all Agent handoff instructions\n'
 
 printf 'Business-task supervisor tests passed.\n'

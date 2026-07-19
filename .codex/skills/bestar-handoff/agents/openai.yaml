@@ -1,0 +1,7 @@
+interface:
+  display_name: "Bestar Handoff"
+  short_description: "Read and maintain the project session handoff"
+  default_prompt: "Use $bestar-handoff to read the current Bestar handoff or update it before ending this session."
+
+policy:
+  allow_implicit_invocation: true

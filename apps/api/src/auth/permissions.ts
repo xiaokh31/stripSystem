@@ -73,6 +73,12 @@ export const PERMISSIONS = {
     read: 'unloading_summary.read',
     export: 'unloading_summary.export',
   },
+  parserProfiles: {
+    read: 'parser_profiles.read',
+    train: 'parser_profiles.train',
+    review: 'parser_profiles.review',
+    approve: 'parser_profiles.approve',
+  },
 } as const;
 
 export type PermissionCode = LeafValues<typeof PERMISSIONS>;

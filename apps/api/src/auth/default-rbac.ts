@@ -144,6 +144,26 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
     'unloading_summary',
     'Export monthly unloading data summary workbooks.',
   ),
+  permission(
+    PERMISSIONS.parserProfiles.read,
+    'parser_profiles',
+    'Read parser profiles and learning cases.',
+  ),
+  permission(
+    PERMISSIONS.parserProfiles.train,
+    'parser_profiles',
+    'Create and link parser learning cases.',
+  ),
+  permission(
+    PERMISSIONS.parserProfiles.review,
+    'parser_profiles',
+    'Review parser-profile parse evidence.',
+  ),
+  permission(
+    PERMISSIONS.parserProfiles.approve,
+    'parser_profiles',
+    'Approve and govern parser profiles.',
+  ),
 ];
 
 export const DEFAULT_ROLES: DefaultRole[] = [
@@ -200,6 +220,9 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.settings.read,
       PERMISSIONS.unloadingSummary.read,
       PERMISSIONS.unloadingSummary.export,
+      PERMISSIONS.parserProfiles.read,
+      PERMISSIONS.parserProfiles.train,
+      PERMISSIONS.parserProfiles.review,
     ],
     [ROLE_CODES.hrManager]: [
       PERMISSIONS.settings.read,

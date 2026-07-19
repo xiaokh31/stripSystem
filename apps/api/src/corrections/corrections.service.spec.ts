@@ -13,6 +13,7 @@ describe('CorrectionsService', () => {
   let prisma: any;
   let palletInventorySync: any;
   let palletPolicyResolver: any;
+  let parserLearningCases: any;
   let service: CorrectionsService;
 
   beforeEach(() => {
@@ -62,10 +63,15 @@ describe('CorrectionsService', () => {
         }),
       ),
     };
+    parserLearningCases = {
+      assertCanTrain: jest.fn(),
+      linkContainerInTransaction: jest.fn(),
+    };
     service = new CorrectionsService(
       prisma as PrismaService,
       palletInventorySync,
       palletPolicyResolver,
+      parserLearningCases,
     );
   });
 
@@ -738,6 +744,71 @@ describe('CorrectionsService', () => {
     expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
   });
 
+  it('links a learning case inside the manual-container transaction', async () => {
+    parserLearningCases.linkContainerInTransaction.mockResolvedValue({
+      id: 'case-1',
+      status: 'LINKED',
+      sourceImportId: 'import-error',
+      linkedContainer: { id: 'container-2' },
+    });
+
+    const result = await service.createManualContainer(
+      {
+        containerNo: 'LEARN1234567',
+        learningCaseId: 'case-1',
+        destinations: [{ destinationCode: 'YEG1', cartons: 10, pallets: 2 }],
+      },
+      officeActor,
+    );
+
+    expect(parserLearningCases.assertCanTrain).toHaveBeenCalledWith(
+      officeActor,
+    );
+    expect(parserLearningCases.linkContainerInTransaction).toHaveBeenCalledWith(
+      prisma,
+      'case-1',
+      result.container.id,
+      officeActor,
+    );
+    expect(result.learningCase).toMatchObject({
+      id: 'case-1',
+      status: 'LINKED',
+      sourceImportId: 'import-error',
+    });
+    expect(prisma.container.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ parserSourceKind: 'MANUAL' }),
+    });
+  });
+
+  it('rolls back manual container, destinations, and corrections when case linking conflicts', async () => {
+    parserLearningCases.linkContainerInTransaction.mockRejectedValue(
+      new ConflictException({
+        code: 'PARSER_LEARNING_CASE_ALREADY_LINKED',
+        message: 'PARSER_LEARNING_CASE_ALREADY_LINKED',
+      }),
+    );
+
+    await expect(
+      service.createManualContainer(
+        {
+          containerNo: 'ROLLBACK12345',
+          learningCaseId: 'case-conflict',
+          destinations: [{ destinationCode: 'YEG1', cartons: 10, pallets: 2 }],
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'PARSER_LEARNING_CASE_ALREADY_LINKED',
+      }),
+    });
+
+    expect(containersFixture(prisma)).toHaveLength(1);
+    expect(prisma.__corrections).toHaveLength(0);
+    expect(prisma.containerDestination.create).toHaveBeenCalled();
+    expect(prisma.correctionFeedback.create).toHaveBeenCalled();
+  });
+
   it('updates container lifecycle status and writes audit feedback', async () => {
     const result = await service.updateContainer(
       'container-1',
@@ -1068,8 +1139,25 @@ describe('CorrectionsService', () => {
 
     const mock: any = {
       __containers: containers,
+      __corrections: corrections,
       $queryRaw: jest.fn().mockResolvedValue([]),
-      $transaction: jest.fn((callback) => callback(mock)),
+      $transaction: jest.fn(async (callback) => {
+        const containerCount = containers.length;
+        const correctionCount = corrections.length;
+        const destinationCounts = containers.map(
+          (container) => container.destinations.length,
+        );
+        try {
+          return await callback(mock);
+        } catch (error) {
+          containers.splice(containerCount);
+          corrections.splice(correctionCount);
+          containers.forEach((container, index) => {
+            container.destinations.splice(destinationCounts[index]);
+          });
+          throw error;
+        }
+      }),
       container: {
         create: jest.fn(({ data }) => {
           const created = {

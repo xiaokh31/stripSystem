@@ -97,4 +97,8 @@ export const ROUTE_PERMISSIONS = {
     export: [PERMISSIONS.unloadingSummary.export],
     downloadExport: [PERMISSIONS.unloadingSummary.read],
   },
+  parserLearningCases: {
+    read: [PERMISSIONS.parserProfiles.read],
+    train: [PERMISSIONS.parserProfiles.train],
+  },
 } as const;

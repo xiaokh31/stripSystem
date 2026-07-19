@@ -115,6 +115,22 @@ Notes:
 - Users with multiple roles receive the union of their active role
   permissions.
 
+## Parser Profile Permission Matrix
+
+| Permission | ADMIN | OFFICE | WAREHOUSE | HR_MANAGER | WAREHOUSE_MANAGER | SYSTEM |
+| --- | --- | --- | --- | --- | --- | --- |
+| `parser_profiles.read` | yes | yes | no | no | no | no |
+| `parser_profiles.train` | yes | yes | no | no | no | no |
+| `parser_profiles.review` | yes | yes | no | no | no | no |
+| `parser_profiles.approve` | yes | no | no | no | no | no |
+
+Learning-case lookup uses `parser_profiles.read`; start, manual-result link,
+unlink, and close use `parser_profiles.train`. Later review and approval routes
+must use their dedicated permissions and must not infer authority from a
+visible UI action. Default RBAC seeding is exact: `ADMIN` receives all four,
+`OFFICE` receives read/train/review, and all other default interactive roles
+receive none.
+
 ## Enforcement Rules
 
 - Every mutating endpoint should receive an authenticated user identity.

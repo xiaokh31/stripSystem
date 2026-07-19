@@ -12,12 +12,16 @@ docs/*
 docs/adr/*
 !docs/adr/0002-printing-strategy.md
 !docs/adr/0003-native-scan-app.md
+!docs/adr/0004-approved-parser-profiles.md
 !docs/architecture/
 docs/architecture/*
+!docs/architecture/02-data-model.md
+!docs/architecture/04-api-contracts.md
 !docs/architecture/09-account-role-permission-management.md
 !docs/architecture/10-native-scan-app-architecture.md
 !docs/product/
 !docs/product/01-cross-platform-mobile-scan-app.md
+!docs/product/04-adaptive-parser-profiles.md
 !docs/runbooks/
 docs/runbooks/*
 !docs/runbooks/local-deployment.md
@@ -45,6 +49,7 @@ docs/reports/*
 !docs/reports/business-agent-execution-time-analysis-2026-07-15.html
 !docs/reports/web-ops-09-container-inventory-exit-gate.md
 !docs/reports/native-auth-01-revocable-session-verification.md
+!docs/reports/parser-profile-01-foundation-verification.md
 
 # macOS
 .DS_Store
@@ -142,6 +147,7 @@ prompts/tasks/*
 !prompts/tasks/DOCKER-DEV*.md
 !prompts/tasks/DOCKER-CACHE*.md
 !prompts/tasks/WEB-OPS*.md
+!prompts/tasks/PARSER-PROFILE*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

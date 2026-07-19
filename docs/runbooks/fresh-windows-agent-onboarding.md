@@ -77,14 +77,21 @@ absence of `.codex/business-agent-runs/` on a fresh clone.
 Before changing files, a fresh Agent must read these in order:
 
 1. `AGENTS.md` for repository rules and the Definition of Done.
-2. `CONTEXT.md` for domain terms and product boundaries.
-3. `prompts/agents/business-logic-agent.md` for the business Agent contract.
-4. `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md` for the current queue.
-5. `docs/reports/project-completion-status.html` for implementation and
+2. `HANDOFF.md` and `.codex/skills/bestar-handoff/SKILL.md` for the latest
+   recovery summary and its trust rules.
+3. `CONTEXT.md` for domain terms and product boundaries.
+4. `prompts/agents/business-logic-agent.md` for the business Agent contract.
+5. `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md` for the current queue.
+6. `docs/reports/project-completion-status.html` for implementation and
    verification evidence.
-6. The one selected `prompts/tasks/<TASK>.md` file.
-7. Every skill, product document, ADR, runbook and checklist named by that
+7. The one selected `prompts/tasks/<TASK>.md` file.
+8. Every skill, product document, ADR, runbook and checklist named by that
    Task.
+
+`HANDOFF.md` is advisory and may be stale after a branch switch or incomplete
+file transfer. Resolve conflicts in favor of the current worktree, selected
+Task, task index, completion report, tests and persisted artifacts. Preserve
+existing changes while resolving the discrepancy.
 
 Only after an explicit future product decision reactivates Windows native work,
 also read:
@@ -119,7 +126,9 @@ result because those files are absent.
 
 Before moving work to the Windows machine, commit and transfer the intended
 branch or copy the complete worktree. Uncommitted changes on another computer
-do not appear in a normal clone.
+do not appear in a normal clone. The same applies to an uncommitted
+`HANDOFF.md`; transfer or commit it only after checking that it contains no
+secrets or private business data.
 
 ## Windows Machine Prerequisites
 
@@ -254,16 +263,17 @@ array and lists all unexecuted verification under `external_verification`.
 
 After the supervisor exits:
 
-1. Read the accepted terminal status and latest
+1. Read `HANDOFF.md`, the accepted terminal status and latest
    `.codex/business-agent-runs/*/state.json`.
 2. Review `git status`, the diff and the exact omitted verification list.
 3. Do not mark the Task Done or write unexecuted tests/builds as passing.
 4. Start a dependent Task in a new supervised Session only when its prerequisite
    evidence exists.
 
-Runtime supervisor history is intentionally ignored by Git. The tracked Task
-index, completion report, Task file, code, migrations and committed verification
-reports are the durable cross-machine handoff.
+Runtime supervisor history is intentionally ignored by Git. The supervisor
+updates the tracked `HANDOFF.md` at startup and after every valid state; the
+Task index, completion report, Task file, code, migrations and committed
+verification reports remain the authoritative durable evidence behind it.
 
 ## Windows Native Archive And Reactivation
 
@@ -286,7 +296,8 @@ For inspection or diagnosis before starting a supervised Task, give a new
 interactive Agent this instruction:
 
 ```text
-Do not edit yet. Read AGENTS.md, CONTEXT.md,
+Do not edit yet. Read AGENTS.md, HANDOFF.md,
+.codex/skills/bestar-handoff/SKILL.md, CONTEXT.md,
 docs/runbooks/fresh-windows-agent-onboarding.md,
 prompts/agents/business-logic-agent.md,
 prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md, and

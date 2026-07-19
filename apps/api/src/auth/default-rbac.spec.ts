@@ -66,6 +66,9 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.settings.read,
         PERMISSIONS.unloadingSummary.read,
         PERMISSIONS.unloadingSummary.export,
+        PERMISSIONS.parserProfiles.read,
+        PERMISSIONS.parserProfiles.train,
+        PERMISSIONS.parserProfiles.review,
       ]),
     );
     expect(officePermissions.has(PERMISSIONS.users.manage)).toBe(false);
@@ -140,7 +143,38 @@ describe('default RBAC seed data', () => {
       false,
     );
   });
+
+  it('grants parser-profile permissions only to the approved default roles', () => {
+    expect(parserProfilePermissions(ROLE_CODES.admin)).toEqual(
+      new Set([
+        PERMISSIONS.parserProfiles.read,
+        PERMISSIONS.parserProfiles.train,
+        PERMISSIONS.parserProfiles.review,
+        PERMISSIONS.parserProfiles.approve,
+      ]),
+    );
+    expect(parserProfilePermissions(ROLE_CODES.office)).toEqual(
+      new Set([
+        PERMISSIONS.parserProfiles.read,
+        PERMISSIONS.parserProfiles.train,
+        PERMISSIONS.parserProfiles.review,
+      ]),
+    );
+    expect(parserProfilePermissions(ROLE_CODES.warehouse)).toEqual(new Set());
+    expect(parserProfilePermissions(ROLE_CODES.hrManager)).toEqual(new Set());
+    expect(parserProfilePermissions(ROLE_CODES.warehouseManager)).toEqual(
+      new Set(),
+    );
+  });
 });
+
+function parserProfilePermissions(roleCode: string): Set<string> {
+  return new Set(
+    DEFAULT_ROLE_PERMISSION_CODES[
+      roleCode as keyof typeof DEFAULT_ROLE_PERMISSION_CODES
+    ].filter((permission) => permission.startsWith('parser_profiles.')),
+  );
+}
 
 function permissionCodes(value: unknown): string[] {
   if (typeof value === 'string') {

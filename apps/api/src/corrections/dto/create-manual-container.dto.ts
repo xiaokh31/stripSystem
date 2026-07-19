@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  Allow,
   IsArray,
   IsInt,
   IsNotEmpty,
@@ -47,6 +48,10 @@ export class CreateManualContainerDto {
   containerNo!: string;
 
   @IsOptional()
+  @Allow()
+  learningCaseId?: unknown;
+
+  @IsOptional()
   @IsString()
   dockNo?: string | null;
 
@@ -67,8 +72,4 @@ export class CreateManualContainerDto {
   @IsOptional()
   @IsString()
   correctionNote?: string | null;
-
-  @IsOptional()
-  @IsString()
-  correctedById?: string | null;
 }

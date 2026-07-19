@@ -350,7 +350,7 @@
         <div class="grid">
           <dl class="metric">
             <dt>Overall</dt>
-            <dd>98%</dd>
+            <dd>90%</dd>
           </dl>
           <dl class="metric">
             <dt>Account/RBAC</dt>
@@ -368,12 +368,21 @@
             <dt>Ops Readiness</dt>
             <dd>95%</dd>
           </dl>
+          <dl class="metric">
+            <dt>Parser Profiles</dt>
+            <dd>12.5%</dd>
+          </dl>
         </div>
         <p class="note">
-          2026-07-15 Windows 原生安装包归档复核：WEB-OPS-06 至 09 均已达到
+          2026-07-18 新需求复核：既有 WEB-OPS、NATIVE-AUTH 仓库实现与 Windows
+          原生安装包归档结论保持不变；新增 PARSER-PROFILE-01 至 08 作为当前开发
+          线路。该线路采用明确审批的 deterministic parser profile，首版批准后仍需
+          连续 3 个不同 SHA 且无实质 parser 修正的导入才进入可信自动解析。PARSER-PROFILE-01
+          已完成领域 schema、正式 learning case/manual result 关联、权限、审计、并发约束和删除保护；当前下一
+          Task 是 PARSER-PROFILE-02。此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。当前开发机没有新的代码 Task。尚未关闭的
+          Android/iOS 外部设备验收。此前尚未关闭的
           9 个活动 Task 均依赖真实业务 workbook、目标打印机/Microsoft Excel、
           Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
@@ -1738,6 +1747,69 @@
       </section>
 
       <section>
+        <h2>Adaptive Parser Profiles / 客户清单模板学习</h2>
+        <p class="note">
+          2026-07-18 产品已接受审批门槛。失败导入将通过正式 learning case 关联手工
+          container、字段 provenance、已拆完 snapshot 和 replay；“已拆完”只确定证据
+          时间，不等于批准。首版 profile 必须由授权人明确批准并进入 REVIEW_REQUIRED，
+          连续 3 个 distinct-SHA 无实质 parser 修正的复核才提升 TRUSTED。任一实质修正
+          清零当前连续证据；可信结果被实质修正会降回 REVIEW_REQUIRED。完整方案见
+          <code>docs/product/04-adaptive-parser-profiles.md</code>。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>状态</th>
+              <th>范围 / 下一步</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>PARSER-PROFILE-01 Learning Case Linkage and Domain Schema</td>
+              <td><span class="badge done">Complete</span></td>
+              <td>已完成 schema 与 3 个 additive migrations、正式 failed-import/manual-container 关系、不可变 profile version/source snapshot、evidence/audit、精确 RBAC、并发唯一约束和 import deletion blocker。Docker API/Web/Worker 全量回归、真实 Excel learning flow、空库迁移和 PostgreSQL 约束验证通过；完整证据见 <code>docs/reports/parser-profile-01-foundation-verification.md</code>。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-02 Deterministic Workbook Fingerprint and Mapping Engine</td>
+              <td><span class="badge deferred">Planned / Next</span></td>
+              <td>Worker inspection、结构指纹、allowlisted mapping/transform、provenance 与 existing real fixture equivalence。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-03 Learning Case Preview Replay and Candidate APIs</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>Learning case inspect/draft/preview/replay/diff/submit API，保持 candidate DRAFT。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-04 Office Mapping Wizard and Failed Import Flow</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>办公室 source preview、字段映射、转换控件、manual report 关联、双语及可访问性工作流。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-05 Completion Snapshot Approval and Profile Governance</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>已拆完 snapshot/replay eligibility、明确批准、ACTIVE + REVIEW_REQUIRED 0/3、pause/retire/versioning。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-06 Review Mode Evidence and Three Acceptance Trust Gate</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>Staged parse review、material correction classifier、连续 distinct-SHA streak 与 3/3 TRUSTED transaction。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-07 Trusted Auto Parse Drift and Fallback Integration</td>
+              <td><span class="badge deferred">Planned</span></td>
+              <td>可信自动提交、built-in precedence、collision/drift fallback、material correction demotion 和性能审计。</td>
+            </tr>
+            <tr>
+              <td>PARSER-PROFILE-08 Golden Sample Full Stack I18n Exit Gate</td>
+              <td><span class="badge deferred">Planned / Data Gate</span></td>
+              <td>一个新客户布局完整达到 TRUSTED 至少需要 4 份不同 SHA 的真实/脱敏 source + approved outcome pair；完成 Docker full-stack、i18n、视觉、RBAC 和业务签字。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
         <h2>当前验收建议</h2>
         <ul>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
@@ -1747,7 +1819,7 @@
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
-          <li>2026-07-15 复核后当前开发机没有新的代码 Task；WEB-OPS-01 至 09 已关闭，NATIVE-AUTH-01 已三次达到 Code Complete / External Verification Pending。缺少设备或真实样本时不要重复启动 supervisor。</li>
+          <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 已完成，当前下一 Task 为 02，必须逐 Task 使用 fresh supervised Session。首版批准不等于可信自动解析，连续 3 个 distinct-SHA 无实质修正证据不可跳过。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>
           <li>Windows 原生安装包/MSIX 路线已归档：P6-MOBILE-09 至 13 不得执行，监督器会以 exit code 78 拒绝。以后恢复时必须先取得产品批准、移除归档标记、恢复关联验收范围并同步任务索引和本报告。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>

@@ -12,6 +12,7 @@
     "remaining_work",
     "external_verification",
     "blockers",
+    "pitfalls",
     "next_action"
   ],
   "properties": {
@@ -57,6 +58,12 @@
       }
     },
     "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pitfalls": {
       "type": "array",
       "items": {
         "type": "string"

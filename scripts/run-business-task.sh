@@ -5,6 +5,8 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_root="$(cd -- "${script_dir}/.." && pwd)"
 launcher="${project_root}/scripts/run-business-agent.sh"
 terminal_schema="${project_root}/.codex/business-task-terminal.schema.json"
+handoff_writer="${project_root}/.codex/skills/bestar-handoff/scripts/write-handoff.sh"
+handoff_file="${BUSINESS_AGENT_HANDOFF_FILE:-${project_root}/HANDOFF.md}"
 
 usage() {
   printf 'Usage: %s <prompts/tasks/task-file.md>\n' "$0" >&2
@@ -23,6 +25,11 @@ fi
 
 if [[ ! -f "${terminal_schema}" ]]; then
   printf 'Missing terminal-state schema: %s\n' "${terminal_schema}" >&2
+  exit 66
+fi
+
+if [[ ! -f "${handoff_writer}" ]]; then
+  printf 'Missing project handoff writer: %s\n' "${handoff_writer}" >&2
   exit 66
 fi
 
@@ -152,6 +159,7 @@ supervisor_status='STARTING'
 supervisor_reason=''
 candidate_status=''
 validation_reason=''
+handoff_updated_at=''
 
 write_state() {
   local updated_at
@@ -163,6 +171,8 @@ write_state() {
     --arg status "${supervisor_status}" \
     --arg reason "${supervisor_reason}" \
     --arg execution_mode "${execution_mode}" \
+    --arg handoff_path "${handoff_file}" \
+    --arg handoff_updated_at "${handoff_updated_at}" \
     --arg updated_at "${updated_at}" \
     --argjson pid "$$" \
     --argjson turn "${turn_number}" \
@@ -174,6 +184,8 @@ write_state() {
       supervisor_status: $status,
       reason: $reason,
       execution_mode: $execution_mode,
+      handoff_path: $handoff_path,
+      handoff_updated_at: $handoff_updated_at,
       pid: $pid,
       turn: $turn,
       max_turns: $max_turns,
@@ -237,15 +249,17 @@ validate_result() {
   fi
 
   if ! jq -e '
+    def string_array: type == "array" and all(.[]; type == "string");
     type == "object" and
     (.task_id | type == "string") and
     (.status | type == "string") and
     (.summary | type == "string" and length > 0) and
-    (.changed_files | type == "array") and
-    (.tests | type == "array") and
-    (.remaining_work | type == "array") and
-    (.external_verification | type == "array") and
-    (.blockers | type == "array") and
+    (.changed_files | string_array) and
+    (.tests | string_array) and
+    (.remaining_work | string_array) and
+    (.external_verification | string_array) and
+    (.blockers | string_array) and
+    (.pitfalls | string_array) and
     (.next_action | type == "string")
   ' "${result_file}" >/dev/null 2>&1; then
     validation_reason='Final result does not match the required JSON contract.'
@@ -339,8 +353,51 @@ render_terminal_result() {
     (if (.blockers | length) > 0 then
       "Blockers:\n" + (.blockers | map("- " + .) | join("\n"))
     else empty end),
+    (if (.pitfalls | length) > 0 then
+      "Pitfalls:\n" + (.pitfalls | map("- " + .) | join("\n"))
+    else empty end),
     (if .next_action != "" then "Next action: " + .next_action else empty end)
   ' "${result_file}"
+}
+
+write_task_handoff() {
+  local result_file="$1"
+
+  if ! bash "${handoff_writer}" \
+    --result "${result_file}" \
+    --task-path "${task_relative_path}" \
+    --execution-mode "${execution_mode}" \
+    --session-id "${session_id}" \
+    --run-directory "${run_directory}" \
+    --output "${handoff_file}"; then
+    return 1
+  fi
+  handoff_updated_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+}
+
+write_start_handoff() {
+  local start_result="${run_directory}/start-handoff-result.json"
+
+  jq -n \
+    --arg task_id "${task_id}" \
+    --arg task_path "${task_relative_path}" \
+    '{
+      task_id: $task_id,
+      status: "CONTINUE",
+      summary: "The supervised Task was selected and its recovery snapshot was initialized.",
+      changed_files: [],
+      tests: [],
+      remaining_work: ["Read the named Task and complete its implementation and Definition of Done."],
+      external_verification: [],
+      blockers: [],
+      pitfalls: [
+        "Do not start another Task or treat this startup snapshot as implementation evidence.",
+        "Inspect and preserve the existing worktree before editing."
+      ],
+      next_action: ("Execute " + $task_id + " from " + $task_path + " through the current supervisor.")
+    }' >"${start_result}.tmp"
+  mv "${start_result}.tmp" "${start_result}"
+  write_task_handoff "${start_result}"
 }
 
 if [[ "${execution_mode}" == 'implementation-only' ]]; then
@@ -361,7 +418,8 @@ initial_prompt="$(printf '%s\n' \
   "Execution mode: ${execution_mode}." \
   "${execution_mode_prompt}" \
   'Use Chinese for progress updates and result text.' \
-  'Read AGENTS.md, prompts/agents/business-logic-agent.md, docs/runbooks/business-agent-execution.md, the named Task, and all relevant skills/docs.' \
+  'Read AGENTS.md, HANDOFF.md, .codex/skills/bestar-handoff/SKILL.md, prompts/agents/business-logic-agent.md, docs/runbooks/business-agent-execution.md, the named Task, and all relevant skills/docs.' \
+  'Verify HANDOFF.md against the current worktree and authoritative Task evidence; use it for orientation, never as proof.' \
   'Inspect and preserve every existing worktree change. Do not revert or overwrite unrelated work.' \
   "Fully execute Task ${task_id} from '${task_relative_path}'." \
   "${delivery_scope_prompt}" \
@@ -371,11 +429,20 @@ initial_prompt="$(printf '%s\n' \
   'Use DONE only after every current-environment acceptance criterion is complete.' \
   'Use CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING only when all repository work and automation are complete and only a named external check remains.' \
   'Use BLOCKED only for a proven external blocker allowed by the business-agent protocol.' \
+  'Populate pitfalls with concrete mistakes or recovery hazards the next Session must avoid; use an empty array only when none exist.' \
+  'Do not write secrets, credentials, private customer data, or unredacted personal data into the structured result.' \
   "Always return task_id exactly '${task_id}'."
 )"
 
 continuation_prompt=''
 turn_mode='initial'
+if ! write_start_handoff; then
+  supervisor_status='HANDOFF_FAILED'
+  supervisor_reason="Could not initialize ${handoff_file}."
+  write_state
+  printf '[supervisor] %s\n' "${supervisor_reason}" >&2
+  exit 74
+fi
 write_state
 
 while (( turn_number < max_turns )); do
@@ -428,12 +495,20 @@ while (( turn_number < max_turns )); do
   fi
 
   if (( codex_exit_code == 0 )) && validate_result "${result_file}"; then
+    if ! write_task_handoff "${result_file}"; then
+      supervisor_status='HANDOFF_FAILED'
+      supervisor_reason="Accepted ${candidate_status}, but could not update ${handoff_file}."
+      write_state
+      printf '[supervisor] %s\n' "${supervisor_reason}" >&2
+      exit 74
+    fi
     if [[ "${candidate_status}" != 'CONTINUE' ]]; then
       supervisor_status="${candidate_status}"
       supervisor_reason='Accepted a valid terminal result.'
       write_state
       printf '\n[supervisor] Accepted terminal state after %s turn(s).\n' "${turn_number}"
       render_terminal_result "${result_file}"
+      printf 'Handoff: %s\n' "${handoff_file}"
       printf 'Run artifacts: %s\n' "${run_directory}"
       exit 0
     fi
@@ -467,8 +542,10 @@ while (( turn_number < max_turns )); do
     "Supervisor reason: ${supervisor_reason}" \
     "Previous turn result: ${previous_result}" \
     'Inspect the current worktree, running containers, logs, and persisted artifacts, then continue immediately from the smallest missing acceptance criterion.' \
+    'Read the latest HANDOFF.md recovery snapshot, but verify it against the worktree and authoritative Task evidence before relying on it.' \
     'Do not repeat already verified work unless relevant source changed.' \
     'At the end of this turn, return the required JSON object. Use CONTINUE again if actionable work still remains; the supervisor will resume automatically.' \
+    'Keep pitfalls current and never include secrets or private business data in the result.' \
     "Always return task_id exactly '${task_id}'."
   )"
 

@@ -11,8 +11,11 @@ import { PrismaService } from './../src/prisma/prisma.service';
 import {
   authorizedRequest,
   configureAuthTestEnv,
+  hrManagerAuthHeader,
   installAuthMock,
   officeAuthHeader,
+  warehouseAuthHeader,
+  warehouseManagerAuthHeader,
 } from './auth-test-helpers';
 
 interface ImportRecord {
@@ -46,6 +49,7 @@ interface ContainerRecord {
   company?: string | null;
   sourceFormat: string;
   parserVersion: string | null;
+  parserSourceKind?: string;
   status: string;
   rawJson: unknown;
   warnings: unknown;
@@ -350,6 +354,8 @@ describe('ImportsController (e2e)', () => {
   let generatedFiles: GeneratedFileRecord[];
   let pallets: PalletRecord[];
   let palletEvents: PalletEventRecord[];
+  let learningCases: any[];
+  let profileAuditEvents: any[];
   let prisma: any;
   let originalStorageRoot: string | undefined;
 
@@ -365,6 +371,8 @@ describe('ImportsController (e2e)', () => {
     generatedFiles = [];
     pallets = [];
     palletEvents = [];
+    learningCases = [];
+    profileAuditEvents = [];
     prisma = createPrismaMock(
       records,
       containers,
@@ -373,6 +381,8 @@ describe('ImportsController (e2e)', () => {
       generatedFiles,
       pallets,
       palletEvents,
+      learningCases,
+      profileAuditEvents,
     );
     installAuthMock(prisma);
 
@@ -1298,6 +1308,211 @@ describe('ImportsController (e2e)', () => {
       });
   });
 
+  it('links a real unsupported upload to one learning case and manual result with RBAC and deletion protection', async () => {
+    const unsupportedFixture = resolve(
+      process.cwd(),
+      '..',
+      '..',
+      'samples',
+      'workform',
+      'Bestar_work_form.xlsx',
+    );
+    const uploaded = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/imports')
+      .attach('file', unsupportedFixture)
+      .expect(201);
+    const importFile = uploaded.body as ImportFileBody;
+
+    const parsed = await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/imports/${importFile.id}/parse`)
+      .expect(201);
+    expect(parsed.body.importFile.parseStatus).toBe('ERROR');
+    expect(parsed.body.containers).toEqual([]);
+
+    const invalidLearningRequest = await authorizedRequest(
+      app,
+      officeAuthHeader(),
+    )
+      .post('/api/parser-learning-cases')
+      .send({ importFileId: 123, unexpected: true })
+      .expect(400);
+    expect(invalidLearningRequest.body).toMatchObject({
+      code: 'PARSER_LEARNING_VALIDATION_FAILED',
+      message: 'PARSER_LEARNING_VALIDATION_FAILED',
+      details: { fields: ['unexpected'] },
+    });
+    const invalidManualLearningLink = await authorizedRequest(
+      app,
+      officeAuthHeader(),
+    )
+      .post('/api/containers/manual')
+      .send({
+        containerNo: 'INVALIDLINK01',
+        learningCaseId: 123,
+        destinations: [
+          { destinationCode: 'YEG1', cartons: 1, pallets: 1, volume: 0.1 },
+        ],
+      })
+      .expect(400);
+    expect(invalidManualLearningLink.body).toMatchObject({
+      code: 'PARSER_LEARNING_VALIDATION_FAILED',
+      message: 'PARSER_LEARNING_VALIDATION_FAILED',
+      details: { fields: ['learningCaseId'] },
+    });
+
+    const starts = await Promise.all([
+      authorizedRequest(app, officeAuthHeader())
+        .post('/api/parser-learning-cases')
+        .send({ importFileId: importFile.id }),
+      authorizedRequest(app, officeAuthHeader())
+        .post('/api/parser-learning-cases')
+        .send({ importFileId: importFile.id }),
+    ]);
+    expect(starts.map((response) => response.status)).toEqual([201, 201]);
+    expect(starts[0].body.id).toBe(starts[1].body.id);
+    expect(learningCases).toHaveLength(1);
+
+    await authorizedRequest(app, warehouseAuthHeader())
+      .post('/api/parser-learning-cases')
+      .send({ importFileId: importFile.id })
+      .expect(403);
+
+    const learningCaseId = starts[0].body.id as string;
+    await authorizedRequest(app)
+      .get(`/api/parser-learning-cases/${learningCaseId}`)
+      .expect(200);
+    await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/parser-learning-cases/${learningCaseId}`)
+      .expect(200);
+    for (const authorization of [
+      warehouseAuthHeader(),
+      hrManagerAuthHeader(),
+      warehouseManagerAuthHeader(),
+    ]) {
+      await authorizedRequest(app, authorization)
+        .get(`/api/parser-learning-cases/${learningCaseId}`)
+        .expect(403);
+    }
+
+    const manual = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/containers/manual')
+      .send({
+        containerNo: 'LEARN1234567',
+        learningCaseId,
+        destinations: [
+          { destinationCode: 'YEG1', cartons: 12, pallets: 2, volume: 1.2 },
+        ],
+      })
+      .expect(201);
+    expect(manual.body).toMatchObject({
+      container: {
+        importFileId: null,
+        parserVersion: 'manual-entry-v1',
+      },
+      learningCase: {
+        id: learningCaseId,
+        sourceImportId: importFile.id,
+        status: 'LINKED',
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        linkedContainer: {
+          id: manual.body.container.id,
+          parserSourceKind: 'MANUAL',
+          rawMetadata: expect.objectContaining({
+            source: 'manual-unloading-report',
+          }),
+        },
+      },
+    });
+
+    const read = await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/parser-learning-cases/${learningCaseId}`)
+      .expect(200);
+    expect(read.body).toMatchObject({
+      sourceImportId: importFile.id,
+      sourceImport: {
+        id: importFile.id,
+        parseStatus: 'ERROR',
+      },
+      linkedContainer: {
+        id: manual.body.container.id,
+        rawMetadata: expect.objectContaining({
+          source: 'manual-unloading-report',
+        }),
+      },
+    });
+
+    await authorizedRequest(app, officeAuthHeader())
+      .delete(`/api/imports/${importFile.id}`)
+      .send({ reason: 'UNSUPPORTED_LAYOUT' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body.code).toBe('IMPORT_USED_BY_PARSER_LEARNING');
+      });
+    await expect(stat(importFile.storedPath)).resolves.toBeDefined();
+
+    await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/parser-learning-cases/${learningCaseId}/unlink-container`)
+      .send({})
+      .expect(201)
+      .expect((response) => {
+        expect(response.body.status).toBe('DRAFT');
+      });
+    await authorizedRequest(app, officeAuthHeader())
+      .post(`/api/parser-learning-cases/${learningCaseId}/close`)
+      .send({ reasonCode: 'OBSOLETE_DRAFT' })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          status: 'CLOSED',
+          sourceImportId: importFile.id,
+          sourceImport: null,
+          linkedContainer: null,
+        });
+      });
+
+    const restarted = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/parser-learning-cases')
+      .send({ importFileId: importFile.id })
+      .expect(201);
+    const concurrentLinks = await Promise.all([
+      authorizedRequest(app, officeAuthHeader())
+        .post('/api/containers/manual')
+        .send({
+          containerNo: 'RACE1234561',
+          learningCaseId: restarted.body.id,
+          destinations: [{ destinationCode: 'YEG1', cartons: 1, pallets: 1 }],
+        }),
+      authorizedRequest(app, officeAuthHeader())
+        .post('/api/containers/manual')
+        .send({
+          containerNo: 'RACE1234562',
+          learningCaseId: restarted.body.id,
+          destinations: [{ destinationCode: 'YVR2', cartons: 1, pallets: 1 }],
+        }),
+    ]);
+    expect(concurrentLinks.map((response) => response.status).sort()).toEqual([
+      201, 409,
+    ]);
+    const racedCase = await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/parser-learning-cases/${restarted.body.id}`)
+      .expect(200);
+    expect(racedCase.body.status).toBe('LINKED');
+    expect(['RACE1234561', 'RACE1234562']).toContain(
+      racedCase.body.linkedContainer.containerNo,
+    );
+
+    expect(profileAuditEvents.map((event) => event.eventCode)).toEqual(
+      expect.arrayContaining([
+        'CASE_CREATED',
+        'CONTAINER_LINKED',
+        'IMPORT_DELETE_BLOCKED',
+        'CONTAINER_UNLINKED',
+        'CASE_CLOSED',
+      ]),
+    );
+  });
+
   it('rejects non-xlsx uploads and invalid list query DTOs', async () => {
     const textPath = join(storageRoot, 'not-a-plan.txt');
     await writeFile(textPath, 'not a real Excel file');
@@ -1324,6 +1539,8 @@ describe('ImportsController (e2e)', () => {
     generatedFileRecords: GeneratedFileRecord[],
     palletRecords: PalletRecord[],
     palletEventRecords: PalletEventRecord[],
+    parserLearningCaseRecords: any[],
+    parserProfileAuditEventRecords: any[],
   ) {
     let palletSequence = 0;
     const importContainerSummaries = (importFileId: string) =>
@@ -1529,6 +1746,7 @@ describe('ImportsController (e2e)', () => {
             company: data.company ?? null,
             sourceFormat: data.sourceFormat,
             parserVersion: data.parserVersion,
+            parserSourceKind: data.parserSourceKind ?? 'BUILT_IN',
             status: data.status,
             rawJson: data.rawJson,
             warnings: data.warnings,
@@ -1685,6 +1903,100 @@ describe('ImportsController (e2e)', () => {
             updatedAt: new Date('2026-06-26T00:01:00.000Z'),
           }),
         ),
+      },
+      parserLearningCase: {
+        findUnique: jest.fn(({ where }) => {
+          const record = parserLearningCaseRecords.find((item) =>
+            where.id !== undefined
+              ? item.id === where.id
+              : item.sourceImportId === where.sourceImportId,
+          );
+          return Promise.resolve(record ? learningCaseResponse(record) : null);
+        }),
+        create: jest.fn(({ data }) => {
+          if (
+            parserLearningCaseRecords.some(
+              (item) => item.sourceImportId === data.sourceImportId,
+            )
+          ) {
+            return Promise.reject(
+              Object.assign(new Error('P2002'), { code: 'P2002' }),
+            );
+          }
+          const now = new Date('2026-07-18T00:00:00.000Z');
+          const record = {
+            id: `learning-case-${parserLearningCaseRecords.length + 1}`,
+            sourceImportId: data.sourceImportId,
+            sourceImportReferenceId: data.sourceImportReferenceId,
+            sourceFileSha256: data.sourceFileSha256,
+            linkedContainerId: null,
+            status: 'DRAFT',
+            draftDefinition: null,
+            completionSnapshot: null,
+            replaySummary: null,
+            createdById: data.createdById,
+            updatedById: data.updatedById,
+            closedById: null,
+            closedAt: null,
+            createdAt: now,
+            updatedAt: now,
+          };
+          parserLearningCaseRecords.push(record);
+          return Promise.resolve(learningCaseResponse(record));
+        }),
+        updateMany: jest.fn(({ where, data }) => {
+          const record = parserLearningCaseRecords.find(
+            (item) =>
+              item.id === where.id &&
+              item.status === where.status &&
+              item.linkedContainerId === null &&
+              item.sourceImportId !== null,
+          );
+          if (!record) return Promise.resolve({ count: 0 });
+          if (
+            parserLearningCaseRecords.some(
+              (item) =>
+                item.id !== record.id &&
+                item.linkedContainerId === data.linkedContainerId,
+            )
+          ) {
+            return Promise.reject(
+              Object.assign(new Error('P2002'), { code: 'P2002' }),
+            );
+          }
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-07-18T00:01:00.000Z'),
+          });
+          return Promise.resolve({ count: 1 });
+        }),
+        update: jest.fn(({ where, data }) => {
+          const record = parserLearningCaseRecords.find(
+            (item) => item.id === where.id,
+          );
+          if (!record) throw new Error(`Learning case not found: ${where.id}`);
+          Object.assign(record, data, {
+            updatedAt: new Date('2026-07-18T00:02:00.000Z'),
+          });
+          return Promise.resolve(learningCaseResponse(record));
+        }),
+      },
+      parserProfileEvidence: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      parserProfileVersion: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      parserProfileAuditEvent: {
+        create: jest.fn(({ data }) => {
+          const record = {
+            id: `profile-audit-${parserProfileAuditEventRecords.length + 1}`,
+            ...data,
+            occurredAt: new Date('2026-07-18T00:00:00.000Z'),
+            createdAt: new Date('2026-07-18T00:00:00.000Z'),
+          };
+          parserProfileAuditEventRecords.push(record);
+          return Promise.resolve(record);
+        }),
       },
       generatedFile: {
         create: jest.fn(({ data }) => {
@@ -2020,6 +2332,33 @@ describe('ImportsController (e2e)', () => {
       },
     );
     prisma.$transaction = jest.fn((callback) => callback(prisma));
+
+    function learningCaseResponse(record: any) {
+      const sourceImport = importRecords.find(
+        (item) => item.id === record.sourceImportId,
+      );
+      const linkedContainer = containerRecords.find(
+        (item) => item.id === record.linkedContainerId,
+      );
+      return {
+        ...record,
+        sourceImport: sourceImport
+          ? {
+              id: sourceImport.id,
+              originalFilename: sourceImport.originalFilename,
+              format: sourceImport.format,
+              parseStatus: sourceImport.parseStatus,
+              rawMetadata: sourceImport.rawMetadata,
+            }
+          : null,
+        linkedContainer: linkedContainer
+          ? {
+              ...linkedContainer,
+              rawJson: linkedContainer.rawJson,
+            }
+          : null,
+      };
+    }
 
     return prisma;
   }

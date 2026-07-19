@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-15
+- 2026-07-18
 
 依据：
 - docs/reports/project-completion-status.html
@@ -13,6 +13,9 @@
 - docs/runbooks/native-scan-app-testing.md
 - docs/runbooks/native-scan-app-release.md
 - docs/reports/business-agent-execution-time-analysis-2026-07-15.html
+- docs/product/04-adaptive-parser-profiles.md
+- docs/adr/0004-approved-parser-profiles.md
+- HANDOFF.md
 
 状态判定规则：
 - 当前是否正在执行以及受监督终态，以 `.codex/business-agent-runs/*/state.json` 为准。
@@ -23,6 +26,10 @@
 
 结论：
 - P0-P3 Web/API/Worker 核心业务闭环已完成。
+- 2026-07-18 新增并确认 PARSER-PROFILE-01 至 08：失败导入正式关联手工结果，建立 deterministic workbook
+  fingerprint/mapping profile；首版必须由授权人员明确批准，批准后仍逐单复核，只有连续 3 个不同 SHA 且无实质
+  parser 修正的导入才进入 TRUSTED 自动解析。任何实质修正会清零当前连续证据；可信结果后续被实质修正会降回
+  REVIEW_REQUIRED。API/Worker 只返回 stable code/enum/raw evidence，全部 Web 状态严格进入 en/zh-CN catalog。
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
@@ -52,9 +59,9 @@
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
   `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
 - `NATIVE-AUTH-01` repository、Docker 自动化、真实数据库/HTTP 和 iOS 非破坏性已认证矩阵已完成；三次 supervisor
-  运行均返回 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。当前仍有 9 个活动未关闭 Task，均依赖真实样本、
+  运行均返回 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。既有 9 个活动未关闭 Task 仍依赖真实样本、
   打印/Excel、Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX P6 Task 已归档。
-  当前开发机没有新代码 Task。
+  当前开发机新增 8 个 parser-profile 代码任务，必须从 PARSER-PROFILE-01 顺序执行。
 - 新增 Windows PowerShell 入口 `scripts\run-business-agent.cmd`。当前无 Docker 的 Windows 主机必须用 `develop`
   implementation-only 模式，只完成业务实现、不运行任何测试/构建/服务/设备检查，且监督器会拒绝 `DONE`；完整验证
   仍交给具备环境的主机。
@@ -131,7 +138,7 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-15 20:27 MDT 复核）：
+当前执行队列（2026-07-18 MDT 复核）：
 
 ### A. 当前开发机立即执行
 
@@ -145,8 +152,25 @@ destination-first DOM/视觉顺序与权限/交互/双语视觉回归；`WEB-OPS
 createdAt/containerNo/status 六种稳定排序；`WEB-OPS-08` 已完成库存服务端分页、同口径排序、全局 totals、跨页
 selection 与自适应工作区；`WEB-OPS-09` 已完成 06-08 的 i18n、accessibility、RBAC、库存事务和视觉关闭门禁。
 `NATIVE-AUTH-01` 的 repository、Docker 自动化、真实 PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵也已完成；
-三次 supervisor 运行均合法停在 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。当前没有可在本开发机继续执行的
-代码 Task，且没有 active supervisor lock。不要第四次启动 `NATIVE-AUTH-01`，也不要重复 WEB-OPS 关闭任务。
+三次 supervisor 运行均合法停在 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。不要第四次启动
+`NATIVE-AUTH-01`，也不要重复 WEB-OPS 关闭任务。
+
+新确认的 parser-profile 开发线路必须逐个使用 fresh supervised Session：
+
+1. `PARSER-PROFILE-01Learning Case Linkage and Domain Schema.md`
+2. `PARSER-PROFILE-02Deterministic Workbook Fingerprint and Mapping Engine.md`
+3. `PARSER-PROFILE-03Learning Case Preview Replay and Candidate APIs.md`
+4. `PARSER-PROFILE-04Office Mapping Wizard and Failed Import Flow.md`
+5. `PARSER-PROFILE-05Completion Snapshot Approval and Profile Governance.md`
+6. `PARSER-PROFILE-06Review Mode Evidence and Three Acceptance Trust Gate.md`
+7. `PARSER-PROFILE-07Trusted Auto Parse Drift and Fallback Integration.md`
+8. `PARSER-PROFILE-08Golden Sample Full Stack I18n Exit Gate.md`
+
+01 至 07 可先使用现有真实 fixtures 完成通用实现和自动化；08 要让一个新客户布局真实进入 TRUSTED，至少需要
+4 份不同 SHA 的 source + approved outcome pair（1 份建立/批准，后续 3 份连续无实质修正证据）。
+`PARSER-PROFILE-01` 已完成 schema/migration、正式 learning-case/manual-result 关联、RBAC、审计、并发约束和
+import deletion blocker；当前下一 Task 是 `PARSER-PROFILE-02`，
+不得一次把多个 Task 放入同一 Session。
 
 ### B. 获得真实数据、打印环境或 Android/iOS 设备后
 
@@ -232,11 +256,12 @@ Deferred，按现场反馈再执行：
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
 2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
 3. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
-4. 当前开发机没有新的可执行代码 Task。`NATIVE-AUTH-01` 已连续三次合法返回 external pending；不要第四次重复运行。
-   iOS 当前源码 Release 已安装，只按现有报告人工补双语视觉与 online/offline logout、revoke/inactive；另收集 Android
-   Release matrix。Windows Credential Locker 证据已归档，不再采集。
-5. 下一 Task 由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有 iOS/Android 设备时按
-   runbook 完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate 已关闭时执行 `P5-PILOT-01`。
+4. 当前开发机先按 PARSER-PROFILE-01 至 08 顺序执行；01 已完成，下一 Task 是 02。不得把 01-08 合并到一个 Session，
+   不得在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。`NATIVE-AUTH-01` 已连续三次合法返回 external pending，
+   不要第四次重复运行；设备项只按现有报告人工补证据。
+5. Parser-profile 线路之外的下一 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行
+   `UNLOAD-PALLET-04`；只有 iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate
+   已关闭时执行 `P5-PILOT-01`。
 6. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
    不等待或启动 Windows App。
 7. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
