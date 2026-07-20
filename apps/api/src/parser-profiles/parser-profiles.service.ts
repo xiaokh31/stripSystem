@@ -32,6 +32,13 @@ const governanceInclude = {
     orderBy: { occurredAt: 'desc' as const },
     take: 1,
   },
+  evidence: {
+    include: {
+      importFile: { select: { fileSha256: true } },
+      reviewedBy: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { reviewedAt: 'asc' as const },
+  },
   sourceLearningCase: {
     include: {
       sourceImport: {
@@ -638,6 +645,16 @@ export class ParserProfilesService {
         eligible: eligibilityCodes.length === 0,
         codes: eligibilityCodes,
       },
+      evidenceTimeline: (record.evidence ?? []).map((item) => ({
+        id: item.id,
+        importFileShortSha: item.importFile.fileSha256.slice(0, 12),
+        outcome: item.outcome,
+        materialCorrection: item.materialCorrection,
+        streakAfter: item.streakAfter,
+        reason: item.reason,
+        reviewedBy: this.actor(item.reviewedBy),
+        reviewedAt: item.reviewedAt.toISOString(),
+      })),
     };
   }
 

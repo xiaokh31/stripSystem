@@ -38,6 +38,28 @@ export interface ParserProfileExecutionPayload {
   issues: ParserProfileIssue[];
 }
 
+export interface ParserProfileMatchCandidate {
+  profileId: string;
+  algorithmVersion: string;
+  hash: string;
+  matched: boolean;
+  reasons: Array<{
+    code: string;
+    matched: boolean;
+    params: Record<string, unknown>;
+  }>;
+  structuralEvidence: Record<string, unknown>;
+}
+
+export interface ParserProfileMatchPayload {
+  workerVersion: string;
+  inspection: Record<string, unknown> | null;
+  selectedProfileId: string | null;
+  issueCode: string | null;
+  candidates: ParserProfileMatchCandidate[];
+  issues: ParserProfileIssue[];
+}
+
 export interface ParserProfileParseResult {
   containerNo: string | null;
   formatType: string;
@@ -80,6 +102,19 @@ export class ParserProfileWorkerService {
       JSON.stringify(mappingDefinition),
       '--fingerprint-definition-json',
       JSON.stringify(fingerprintDefinition),
+    ]);
+  }
+
+  matchProfiles(
+    inputFile: string,
+    fingerprintDefinitions: Record<string, unknown>[],
+  ): Promise<ParserProfileMatchPayload> {
+    return this.run<ParserProfileMatchPayload>([
+      'profile-match',
+      '--input-file',
+      inputFile,
+      '--fingerprint-definitions-json',
+      JSON.stringify(fingerprintDefinitions),
     ]);
   }
 

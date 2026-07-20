@@ -125,6 +125,51 @@ Rules:
   `PARSER_LEARNING_VALIDATION_FAILED`; Web maps codes/enums through separate
   English and Chinese labels.
 
+### Parser Profile Review Gate
+
+```http
+GET /api/imports/:id/profile-review
+POST /api/imports/:id/profile-review/accept
+POST /api/imports/:id/profile-review/correct
+POST /api/imports/:id/profile-review/reject
+```
+
+Rules:
+- A unique match against an `ACTIVE + REVIEW_REQUIRED` exact profile version
+  stores an immutable staged snapshot and sets the import to
+  `REVIEW_REQUIRED`; it does not create a formal container, report, pallet, or
+  inventory record.
+- The snapshot pins the import SHA, profile/fingerprint/matcher/mapping/Worker
+  versions, canonical rows, provenance, warnings/errors, pallet policy,
+  destinations, and report preview.
+- Read requires both import and parser-profile read grants. Decisions require
+  `parser_profiles.review`, `containers.update`, and `corrections.create`.
+- Accept/correct locks the review, import, and exact profile-version rows.
+  Formal container/line/destination persistence, evidence, audit, streak, and
+  possible trust promotion commit in one transaction.
+- The staged-write transaction re-checks that the exact version is still
+  `ACTIVE + REVIEW_REQUIRED`. Match/execute failures are audit events; a
+  no-match/collision preserves built-in precedence, while execution failure
+  after a unique legal match is an explicit import error.
+- Parser errors block accept/correct from creating false-success formal data.
+  Corrected/final data is persisted separately and never overwrites staged
+  canonical, provenance, warning, or error evidence.
+- The server computes material correction from persisted staged data and the
+  allowlisted corrected canonical result. Clients never submit a material flag,
+  streak, or trust state.
+- A no-change acceptance from a distinct import SHA advances the consecutive
+  streak up to `3/3`. A material correction or rejection records actor/reason/
+  diff/time and resets the streak to zero without deleting history.
+- The third consecutive valid acceptance promotes only that exact profile
+  version to `TRUSTED`. Unique evidence plus row locks make repeat/concurrent
+  acceptance idempotent and prevent duplicate containers or `4/3`.
+- Reference, delivery, and package edits reset the streak only when the
+  server-calculated grouping or pallet outcome changes. Outcome-neutral edits
+  remain audited accepted evidence. Source/mapping changes continue through
+  explicit match rejection and the immutable-version fork workflow.
+- Responses expose stable codes/raw evidence, short SHA values, and bounded
+  previews; they do not expose storage paths or internal JSON instructions.
+
 ### Correction API
 
 ```http

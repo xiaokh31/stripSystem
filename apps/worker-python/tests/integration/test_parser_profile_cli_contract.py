@@ -67,6 +67,25 @@ def test_profile_cli_inspect_validate_and_execute_contracts_share_versions() -> 
         "workerVersion": "parser-profile-engine-v1",
     }
 
+    matched = runner.invoke(
+        app,
+        [
+            "profile-match",
+            "--input-file",
+            str(WORKBOOK),
+            "--fingerprint-definitions-json",
+            json.dumps([fingerprint], ensure_ascii=False),
+        ],
+    )
+    assert matched.exit_code == 0
+    match_payload = json.loads(matched.stdout)
+    assert match_payload["selectedProfileId"] == "fixture-unloading-sheet1-v1"
+    assert match_payload["issueCode"] is None
+    assert match_payload["issues"] == []
+    assert match_payload["candidates"][0]["matched"] is True
+    assert match_payload["candidates"][0]["hash"].startswith("sha256:")
+    assert "source_file" not in match_payload
+
     executed = runner.invoke(
         app,
         [
@@ -108,3 +127,29 @@ def test_profile_cli_returns_stable_definition_issues() -> None:
     codes = {issue["code"] for issue in payload["issues"]}
     assert "MAPPING_DEFINITION_INVALID" in codes
     assert "FINGERPRINT_VERSION_UNSUPPORTED" in codes
+
+
+def test_profile_match_collision_never_selects_a_profile() -> None:
+    definition = {
+        "profileId": "profile-a",
+        "algorithmVersion": "workbook-fingerprint-v1",
+        "workbookType": "OOXML_XLSX",
+        "sheet": {"name": "Sheet1"},
+        "anchors": [{"value": "运单号", "row": 6, "column": 1}],
+        "dataStart": {"rowOffsetFromHeader": 1},
+    }
+    duplicate = {**definition, "profileId": "profile-b"}
+    result = CliRunner().invoke(
+        app,
+        [
+            "profile-match",
+            "--input-file",
+            str(WORKBOOK),
+            "--fingerprint-definitions-json",
+            json.dumps([definition, duplicate], ensure_ascii=False),
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["selectedProfileId"] is None
+    assert payload["issueCode"] == "FINGERPRINT_PROFILE_COLLISION"

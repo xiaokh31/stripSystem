@@ -1662,6 +1662,13 @@ describe('ImportsController (e2e)', () => {
         }),
       },
       container: {
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            containerRecords.find(
+              (record) => record.importFileId === where.importFileId,
+            ) ?? null,
+          ),
+        ),
         findUnique: jest.fn(({ where, include }) => {
           const container =
             containerRecords.find((record) => record.id === where.id) ?? null;
@@ -2027,8 +2034,12 @@ describe('ImportsController (e2e)', () => {
       parserProfileEvidence: {
         findFirst: jest.fn().mockResolvedValue(null),
       },
+      parserProfileReview: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       parserProfileVersion: {
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       parserProfileAuditEvent: {
         create: jest.fn(({ data }) => {

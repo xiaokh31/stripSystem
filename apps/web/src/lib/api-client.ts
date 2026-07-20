@@ -1231,6 +1231,129 @@ export interface ParserProfileDetailResponse extends ParserProfileSummaryRespons
     sourceImportId: string;
   } | null;
   structuralAnchors: Record<string, unknown>;
+  evidenceTimeline: ParserProfileEvidenceTimelineItem[];
+}
+
+export type ParserProfileEvidenceOutcome =
+  | "ACCEPTED"
+  | "MATERIAL_CORRECTION"
+  | "REJECTED";
+
+export interface ParserProfileEvidenceTimelineItem {
+  id: string;
+  importFileShortSha: string;
+  outcome: ParserProfileEvidenceOutcome;
+  materialCorrection: boolean;
+  streakAfter: number;
+  reason: string | null;
+  reviewedBy: ParserProfileActorResponse;
+  reviewedAt: string;
+}
+
+export type ParserProfileReviewStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "CORRECTED"
+  | "REJECTED";
+
+export interface ParserProfileReviewLine {
+  rowNumber: number;
+  included: boolean;
+  destinationCode: string | null;
+  cartons: number | null;
+  volumeCbm: string | null;
+  packageType: string | null;
+  deliveryMethod: string | null;
+  waybillNo: string | null;
+  referenceNo: string | null;
+  poNumber: string | null;
+}
+
+export interface ParserProfileReviewResponse {
+  id: string;
+  importFileId: string;
+  sourceFileShortSha: string;
+  status: ParserProfileReviewStatus;
+  revision: number;
+  profile: {
+    id: string;
+    familyId: string;
+    stableName: string;
+    customerLabel: string | null;
+    version: number;
+    lifecycle: ParserProfileLifecycle;
+    trustState: ParserProfileTrustState;
+    trustStreak: number;
+    matcherVersion: string;
+    mappingVersion: string;
+    workerVersion: string;
+    parserVersion: string;
+  };
+  fingerprintHash: string;
+  matchReasons: Array<{
+    code: string;
+    matched: boolean;
+    params: Record<string, unknown>;
+  }>;
+  canonicalResult: {
+    containerNo: string;
+    lines: ParserProfileReviewLine[];
+  };
+  finalCanonicalResult: {
+    containerNo: string;
+    lines: ParserProfileReviewLine[];
+  } | null;
+  sourcePreview: {
+    sheets: Array<{
+      name: string | null;
+      index: number | null;
+      maxRow: number | null;
+      maxColumn: number | null;
+      sampleCells: Array<{
+        cell?: string;
+        row?: number;
+        column?: number;
+        value?: unknown;
+      }>;
+    }>;
+  };
+  provenance: Record<string, unknown>;
+  destinationSummary: Array<Record<string, unknown>>;
+  finalDestinationSummary: Array<Record<string, unknown>> | null;
+  reportPreview: Record<string, unknown>;
+  finalReportPreview: Record<string, unknown> | null;
+  warnings: Array<Record<string, unknown>>;
+  errors: Array<Record<string, unknown>>;
+  correctionDiff: Array<{
+    code: string;
+    field: string;
+    rowNumber?: number | null;
+    before?: unknown;
+    after?: unknown;
+    material: boolean;
+  }>;
+  decisionReason: string | null;
+  reviewedBy: { id: string; name: string | null } | null;
+  reviewedAt: string | null;
+  acceptedContainer: {
+    id: string;
+    containerNo: string;
+    status: string;
+  } | null;
+}
+
+export interface ParserProfileReviewDecisionRequest {
+  expectedRevision: number;
+  reason?: string | null;
+}
+
+export interface ParserProfileReviewCorrectRequest
+  extends ParserProfileReviewDecisionRequest {
+  reason: string;
+  canonicalResult: {
+    containerNo: string;
+    lines: ParserProfileReviewLine[];
+  };
 }
 
 export interface GovernParserProfileRequest {
@@ -2472,6 +2595,38 @@ export function governParserProfileVersion(
 ): Promise<ParserProfileDetailResponse> {
   return createApiClient(options).post<ParserProfileDetailResponse>(
     `/parser-profiles/versions/${encodeURIComponent(id)}/${action}`,
+    { ...body },
+  );
+}
+
+export function getParserProfileReview(
+  importFileId: string,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileReviewResponse> {
+  return createApiClient(options).get<ParserProfileReviewResponse>(
+    `/imports/${encodeURIComponent(importFileId)}/profile-review`,
+  );
+}
+
+export function decideParserProfileReview(
+  importFileId: string,
+  action: "accept" | "reject",
+  body: ParserProfileReviewDecisionRequest,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileReviewResponse> {
+  return createApiClient(options).post<ParserProfileReviewResponse>(
+    `/imports/${encodeURIComponent(importFileId)}/profile-review/${action}`,
+    { ...body },
+  );
+}
+
+export function correctParserProfileReview(
+  importFileId: string,
+  body: ParserProfileReviewCorrectRequest,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileReviewResponse> {
+  return createApiClient(options).post<ParserProfileReviewResponse>(
+    `/imports/${encodeURIComponent(importFileId)}/profile-review/correct`,
     { ...body },
   );
 }

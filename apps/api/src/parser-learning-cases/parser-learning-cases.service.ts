@@ -1461,7 +1461,7 @@ export class ParserLearningCasesService {
     tx: PrismaService | Prisma.TransactionClient = this.prisma,
     throwOnBlocked = true,
   ): Promise<ReturnType<ParserLearningCasesService['error']> | null> {
-    const [learningCase, evidence] = await Promise.all([
+    const [learningCase, evidence, review] = await Promise.all([
       tx.parserLearningCase.findUnique({
         where: { sourceImportId: importFileId },
         select: { id: true },
@@ -1470,8 +1470,12 @@ export class ParserLearningCasesService {
         where: { importFileId },
         select: { id: true, profileVersionId: true },
       }),
+      tx.parserProfileReview.findUnique({
+        where: { importFileId },
+        select: { id: true, profileVersionId: true, status: true },
+      }),
     ]);
-    if (!learningCase && !evidence) {
+    if (!learningCase && !evidence && !review) {
       return null;
     }
 
@@ -1480,12 +1484,14 @@ export class ParserLearningCasesService {
         eventCode: ParserProfileAuditEventCode.IMPORT_DELETE_BLOCKED,
         actorId: actor.id,
         learningCaseId: learningCase?.id,
-        profileVersionId: evidence?.profileVersionId,
+        profileVersionId: evidence?.profileVersionId ?? review?.profileVersionId,
         importFileId,
         metadata: {
           sourceImportId: importFileId,
           learningCaseId: learningCase?.id ?? null,
           profileEvidenceId: evidence?.id ?? null,
+          profileReviewId: review?.id ?? null,
+          profileReviewStatus: review?.status ?? null,
         },
       },
     });
@@ -1493,6 +1499,7 @@ export class ParserLearningCasesService {
       importFileId,
       learningCaseId: learningCase?.id ?? null,
       profileEvidenceId: evidence?.id ?? null,
+      profileReviewId: review?.id ?? null,
     });
     if (throwOnBlocked) {
       throw new ConflictException(blocked);

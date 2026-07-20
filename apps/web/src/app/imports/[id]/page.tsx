@@ -3,8 +3,11 @@ import {
   ApiClientError,
   getImportFile,
   getImportParseResult,
+  getParserProfileReview,
   type ImportFileResponse,
   type ImportParseResultResponse,
+  type ParserProfileReviewResponse,
+  type ApiClientOptions,
 } from "@/lib/api-client";
 import {
   ImportDetailActions,
@@ -23,9 +26,13 @@ import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { createTranslator } from "@/lib/i18n/translator";
-import { getServerApiOptions } from "@/lib/server-auth";
-import { getServerCurrentUser } from "@/lib/server-auth";
-import { canTrainParserProfiles } from "@/lib/permissions";
+import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import {
+  canDecideParserProfileReviews,
+  canReadParserProfiles,
+  canTrainParserProfiles,
+} from "@/lib/permissions";
+import { ParserProfileReviewPanel } from "@/components/parser-profiles/parser-profile-review-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +42,7 @@ type ImportDetailState =
       importFile: ImportFileResponse;
       parseResult: ImportParseResultResponse | null;
       parseResultError: ApiClientError | null;
+      profileReview: ParserProfileReviewResponse | null;
     }
   | {
       ok: false;
@@ -47,12 +55,17 @@ export default async function ImportDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const locale = await getServerLocale();
-  const { t } = createTranslator(locale);
-  const [state, currentUser] = await Promise.all([
-    loadImportDetail(id),
+  const [locale, currentUser, apiOptions] = await Promise.all([
+    getServerLocale(),
     getServerCurrentUser(),
+    getServerApiOptions(),
   ]);
+  const { t } = createTranslator(locale);
+  const state = await loadImportDetail(
+    id,
+    apiOptions,
+    canReadParserProfiles(currentUser),
+  );
 
   if (!state.ok) {
     return <ImportDetailError error={state.error} id={id} locale={locale} />;
@@ -156,6 +169,13 @@ export default async function ImportDetailPage({
 
       {showManualEntry ? <ManualReportEntryPanel href={manualHref} /> : null}
 
+      {state.profileReview ? (
+        <ParserProfileReviewPanel
+          canReview={canDecideParserProfileReviews(currentUser)}
+          initialReview={state.profileReview}
+        />
+      ) : null}
+
       <ParseResultSummary parseResult={parseSummary} />
 
       <IssueSection
@@ -169,12 +189,16 @@ export default async function ImportDetailPage({
   );
 }
 
-async function loadImportDetail(id: string): Promise<ImportDetailState> {
+async function loadImportDetail(
+  id: string,
+  apiOptions: ApiClientOptions,
+  canReadProfileReview: boolean,
+): Promise<ImportDetailState> {
   try {
-    const apiOptions = await getServerApiOptions();
     const importFile = await getImportFile(id, apiOptions);
     let parseResult: ImportParseResultResponse | null = null;
     let parseResultError: ApiClientError | null = null;
+    let profileReview: ParserProfileReviewResponse | null = null;
 
     try {
       parseResult = await getImportParseResult(id, apiOptions);
@@ -182,7 +206,24 @@ async function loadImportDetail(id: string): Promise<ImportDetailState> {
       parseResultError = toApiClientError(error);
     }
 
-    return { ok: true, importFile, parseResult, parseResultError };
+    if (canReadProfileReview && importFile.parseStatus === "REVIEW_REQUIRED") {
+      try {
+        profileReview = await getParserProfileReview(id, apiOptions);
+      } catch (error) {
+        const reviewError = toApiClientError(error);
+        if (reviewError.code !== "PARSER_PROFILE_REVIEW_NOT_FOUND") {
+          parseResultError = reviewError;
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      importFile,
+      parseResult,
+      parseResultError,
+      profileReview,
+    };
   } catch (error) {
     return { ok: false, error: toApiClientError(error) };
   }

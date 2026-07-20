@@ -61,6 +61,14 @@ enum ParserLearningCaseStatus {
 enum ParserProfileEvidenceOutcome {
   ACCEPTED
   MATERIAL_CORRECTION
+  REJECTED
+}
+
+enum ParserProfileReviewStatus {
+  PENDING
+  ACCEPTED
+  CORRECTED
+  REJECTED
 }
 
 enum ParserProfileAuditEventCode {
@@ -74,6 +82,9 @@ enum ParserProfileAuditEventCode {
   PROFILE_APPROVED
   EVIDENCE_ACCEPTED
   EVIDENCE_MATERIAL_CORRECTION
+  EVIDENCE_REJECTED
+  REVIEW_MATCH_FAILED
+  REVIEW_EXECUTION_FAILED
   PROFILE_TRUSTED
   PROFILE_PAUSED
   PROFILE_RESUMED
@@ -257,6 +268,7 @@ model User {
   parserLearningCasesUpdated    ParserLearningCase[]      @relation("ParserLearningCaseUpdatedBy")
   parserLearningCasesClosed     ParserLearningCase[]      @relation("ParserLearningCaseClosedBy")
   parserProfileEvidenceReviewed ParserProfileEvidence[]   @relation("ParserProfileEvidenceReviewedBy")
+  parserProfileReviewsReviewed  ParserProfileReview[]     @relation("ParserProfileReviewReviewedBy")
   parserProfileAuditEvents      ParserProfileAuditEvent[] @relation("ParserProfileAuditActor")
   createdAt                     DateTime                  @default(now()) @map("created_at")
   updatedAt                     DateTime                  @updatedAt @map("updated_at")
@@ -398,6 +410,7 @@ model ImportFile {
   correctionFeedback       CorrectionFeedback[]
   parserLearningCases      ParserLearningCase[]      @relation("LearningCaseSourceImport")
   parserProfileEvidence    ParserProfileEvidence[]
+  parserProfileReview      ParserProfileReview?
   parserProfileAuditEvents ParserProfileAuditEvent[]
   createdAt                DateTime                  @default(now()) @map("created_at")
   updatedAt                DateTime                  @updatedAt @map("updated_at")
@@ -440,6 +453,7 @@ model Container {
   correctionFeedback       CorrectionFeedback[]
   parserLearningCase       ParserLearningCase?
   parserProfileAuditEvents ParserProfileAuditEvent[]
+  parserProfileReview      ParserProfileReview?       @relation("ParserProfileReviewContainer")
   createdAt                DateTime                    @default(now()) @map("created_at")
   updatedAt                DateTime                    @updatedAt @map("updated_at")
 
@@ -494,6 +508,7 @@ model ParserProfileVersion {
   trustStreak           Int                       @default(0) @map("trust_streak")
   containers            Container[]
   evidence              ParserProfileEvidence[]
+  reviews               ParserProfileReview[]
   auditEvents           ParserProfileAuditEvent[]
   createdAt             DateTime                  @default(now()) @map("created_at")
   updatedAt             DateTime                  @updatedAt @map("updated_at")
@@ -561,6 +576,8 @@ model ParserProfileEvidence {
   materialCorrection Boolean                      @default(false) @map("material_correction")
   resultSnapshot     Json?                        @map("result_snapshot")
   correctionDiff     Json?                        @map("correction_diff")
+  streakAfter        Int                          @default(0) @map("streak_after")
+  reason             String?
   reviewedById       String                       @map("reviewed_by_id")
   reviewedBy         User                         @relation("ParserProfileEvidenceReviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   reviewedAt         DateTime                     @default(now()) @map("reviewed_at")
@@ -573,6 +590,49 @@ model ParserProfileEvidence {
   @@index([reviewedById])
   @@index([reviewedAt])
   @@map("parser_profile_evidence")
+}
+
+model ParserProfileReview {
+  id                 String                    @id @default(cuid())
+  importFileId       String                    @unique @map("import_file_id")
+  importFile         ImportFile                @relation(fields: [importFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  profileVersionId   String                    @map("profile_version_id")
+  profileVersion     ParserProfileVersion      @relation(fields: [profileVersionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceFileSha256   String                    @map("source_file_sha256")
+  status             ParserProfileReviewStatus @default(PENDING)
+  revision           Int                       @default(0)
+  fingerprintHash    String                    @map("fingerprint_hash")
+  matcherVersion     String                    @map("matcher_version")
+  mappingVersion     String                    @map("mapping_version")
+  workerVersion      String                    @map("worker_version")
+  parserVersion      String                    @map("parser_version")
+  builtInEvidence    Json?                     @map("built_in_evidence")
+  matchEvidence      Json                      @map("match_evidence")
+  sourcePreview      Json?                     @map("source_preview")
+  stagedResult       Json                      @map("staged_result")
+  finalResult        Json?                     @map("final_result")
+  destinationSummary Json                      @map("destination_summary")
+  finalDestinationSummary Json?                @map("final_destination_summary")
+  reportPreview      Json                      @map("report_preview")
+  finalReportPreview Json?                     @map("final_report_preview")
+  warnings           Json?
+  errors             Json?
+  provenance         Json?
+  correctionDiff     Json?                     @map("correction_diff")
+  decisionReason     String?                   @map("decision_reason")
+  acceptedContainerId String?                  @unique @map("accepted_container_id")
+  acceptedContainer  Container?                @relation("ParserProfileReviewContainer", fields: [acceptedContainerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedById       String?                   @map("reviewed_by_id")
+  reviewedBy         User?                     @relation("ParserProfileReviewReviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedAt         DateTime?                 @map("reviewed_at")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  @@index([profileVersionId, status])
+  @@index([sourceFileSha256])
+  @@index([reviewedById])
+  @@index([reviewedAt])
+  @@map("parser_profile_reviews")
 }
 
 model ParserProfileAuditEvent {

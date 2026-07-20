@@ -23,6 +23,8 @@ import {
   trustKey,
   type ParserProfileAction,
 } from "./parser-profile-labels";
+import { parserEvidenceOutcomeKey } from "./parser-profile-review-labels";
+import { formatOperationalDateTime } from "@/lib/date-time";
 
 type Action = ParserProfileAction;
 
@@ -156,6 +158,38 @@ export function ParserProfileGovernance({
               </table>
             </div>
           ) : <p className="text-sm text-[var(--muted)]">{t("i18n.parserProfiles.noBlockers")}</p>}
+        </EvidenceSection>
+
+        <EvidenceSection title={t("i18n.parserReview.evidenceTimeline")}>
+          {profile.evidenceTimeline.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <thead className="bg-[var(--surface-muted)] text-xs uppercase text-[var(--muted)]">
+                  <tr>
+                    <th className="px-3 py-2">{t("i18n.parserReview.sourceHash")}</th>
+                    <th className="px-3 py-2">{t("i18n.parserProfiles.result")}</th>
+                    <th className="px-3 py-2">{t("i18n.parserReview.reviewedBy")}</th>
+                    <th className="px-3 py-2">{t("i18n.parserReview.reviewedAt")}</th>
+                    <th className="px-3 py-2">{t("i18n.parserReview.streakAfter")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profile.evidenceTimeline.map((item) => (
+                    <tr className="border-t border-[var(--line-soft)] align-top" key={item.id}>
+                      <td className="px-3 py-3 font-data">{item.importFileShortSha}</td>
+                      <td className="break-words px-3 py-3">
+                        <p className="font-semibold">{t(parserEvidenceOutcomeKey(item.outcome))}</p>
+                        {item.reason ? <p className="mt-1 max-w-xl break-words text-xs text-[var(--muted)]">{item.reason}</p> : null}
+                      </td>
+                      <td className="px-3 py-3">{item.reviewedBy.name || "—"}</td>
+                      <td className="px-3 py-3">{formatOperationalDateTime(item.reviewedAt)}</td>
+                      <td className="px-3 py-3 font-semibold">{item.streakAfter}/3</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="text-sm text-[var(--muted)]">{t("i18n.parserReview.noEvidence")}</p>}
         </EvidenceSection>
       </div>
 

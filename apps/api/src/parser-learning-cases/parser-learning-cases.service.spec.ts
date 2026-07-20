@@ -795,6 +795,9 @@ function createPrismaMock() {
     parserProfileEvidence: {
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    parserProfileReview: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     parserProfileVersion: {
       findFirst: jest.fn().mockResolvedValue(null),
     },

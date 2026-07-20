@@ -54,6 +54,10 @@ describe('ImportsService', () => {
     lockImportLearningMutation: jest.Mock;
     assertImportDeletionAllowed: jest.Mock;
   };
+  let parserProfileReviews: {
+    hasReview: jest.Mock;
+    stageIfMatched: jest.Mock;
+  };
   let createdImportData:
     | {
         storedPath: string;
@@ -115,6 +119,10 @@ describe('ImportsService', () => {
       lockImportLearningMutation: jest.fn().mockResolvedValue(undefined),
       assertImportDeletionAllowed: jest.fn().mockResolvedValue(undefined),
     };
+    parserProfileReviews = {
+      hasReview: jest.fn().mockResolvedValue(false),
+      stageIfMatched: jest.fn().mockResolvedValue(false),
+    };
     service = new ImportsService(
       prisma,
       {
@@ -143,6 +151,7 @@ describe('ImportsService', () => {
         }),
       } as never,
       parserLearningCases as never,
+      parserProfileReviews as never,
     );
   });
 

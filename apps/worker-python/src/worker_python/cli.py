@@ -37,6 +37,7 @@ from worker_python.parser_profiles import (
     WorkbookInspectionError,
     execute_mapping,
     inspect_workbook,
+    rank_profile_matches,
     suggest_mappings,
 )
 from worker_python.reports import write_excel_report
@@ -487,6 +488,89 @@ def profile_validate(
                 "mappingSchemaVersion": MAPPING_SCHEMA_VERSION,
                 "fingerprintVersion": FINGERPRINT_ALGORITHM_VERSION,
                 "workerVersion": PROFILE_PARSER_VERSION,
+                "issues": issues,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("profile-match")
+def profile_match(
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Preserved OOXML workbook selected by the API.",
+    ),
+    fingerprint_definitions_json: str = typer.Option(
+        ...,
+        "--fingerprint-definitions-json",
+        help="Active parser-profile fingerprint definitions JSON array.",
+    ),
+) -> None:
+    issues: list[dict[str, object]] = []
+    definitions: list[FingerprintDefinition] = []
+    try:
+        raw_definitions = json.loads(fingerprint_definitions_json)
+        if not isinstance(raw_definitions, list):
+            raise ValueError("fingerprint definitions must be an array")
+        for index, candidate in enumerate(raw_definitions):
+            try:
+                definitions.append(FingerprintDefinition.validate_definition(candidate))
+            except ProfileDefinitionError as exc:
+                issues.extend(
+                    {
+                        **item.model_dump(mode="json"),
+                        "path": f"fingerprintDefinitions.{index}.{item.path or ''}".rstrip("."),
+                    }
+                    for item in exc.issues
+                )
+    except (json.JSONDecodeError, ValueError):
+        issues.append(
+            {
+                "code": "PROFILE_DEFINITION_JSON_INVALID",
+                "path": "fingerprintDefinitions",
+            }
+        )
+
+    try:
+        inspection = inspect_workbook(input_file)
+    except WorkbookInspectionError as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "workerVersion": PROFILE_PARSER_VERSION,
+                    "inspection": None,
+                    "selectedProfileId": None,
+                    "issueCode": "FINGERPRINT_INSPECTION_FAILED",
+                    "candidates": [],
+                    "issues": [
+                        *issues,
+                        *(item.model_dump(mode="json") for item in exc.issues),
+                    ],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return
+
+    ranked = rank_profile_matches(inspection, definitions)
+    typer.echo(
+        json.dumps(
+            {
+                "workerVersion": PROFILE_PARSER_VERSION,
+                "inspection": inspection.model_dump(mode="json"),
+                "selectedProfileId": ranked.selectedProfileId,
+                "issueCode": ranked.issueCode,
+                "candidates": [
+                    candidate.model_dump(mode="json")
+                    for candidate in ranked.candidates
+                ],
                 "issues": issues,
             },
             ensure_ascii=False,

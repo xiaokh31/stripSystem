@@ -33,6 +33,7 @@ import_files
   -> correction_feedback
   -> active parser_learning_cases
   -> parser_profile_evidence
+  -> optional parser_profile_reviews
 
 containers
   -> container_lines
@@ -74,6 +75,7 @@ parser_learning_cases
 
 parser_profile_versions
   -> parser_profile_evidence
+  -> parser_profile_reviews
   -> profile-mapped containers
 ```
 
@@ -147,6 +149,19 @@ accepted/material-correction outcome flags. `parser_profile_audit_events`
 records stable target ids, actor, event code, time, and structured metadata.
 It must not contain workbook contents, secrets, or local storage paths.
 Historical relationships use restrictive deletion rather than cascade.
+
+`parser_profile_reviews` is unique by import and keeps the staged-data boundary:
+source SHA, exact profile version, fingerprint and runtime versions, bounded
+source preview, canonical/provenance/warning evidence, destination/report
+previews, decision revision, material diff, reason, actor/time, and optional
+accepted container. Pending rows cannot point at a formal container. Accepted
+or corrected rows must point at exactly one formal container; rejected rows
+must not. Evidence stores `streak_after` in the checked `0..3` range, and an
+explicit rejection is material evidence that resets rather than deletes the
+history. `staged_result`, staged destinations, provenance, warnings, errors and
+report preview remain immutable after the decision; corrected output is stored
+separately in nullable `final_result`, `final_destination_summary` and
+`final_report_preview` columns.
 
 ### `container_lines`
 

@@ -9,6 +9,6 @@ import { ParserProfileWorkerService } from './parser-profile-worker.service';
   imports: [ConfigModule, PrismaModule],
   controllers: [ParserLearningCasesController],
   providers: [ParserLearningCasesService, ParserProfileWorkerService],
-  exports: [ParserLearningCasesService],
+  exports: [ParserLearningCasesService, ParserProfileWorkerService],
 })
 export class ParserLearningCasesModule {}

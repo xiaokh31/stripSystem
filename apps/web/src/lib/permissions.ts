@@ -20,6 +20,7 @@ export const ATTENDANCE_CREATE_PERMISSION = "attendance.create";
 export const ATTENDANCE_PARSE_PERMISSION = "attendance.parse";
 export const ATTENDANCE_GENERATE_PERMISSION = "attendance.generate";
 export const CORRECTIONS_CREATE_PERMISSION = "corrections.create";
+export const CONTAINERS_UPDATE_PERMISSION = "containers.update";
 export const UNLOADING_WAGE_READ_PERMISSION = "unloading_wage.read";
 export const UNLOADING_WAGE_CLASSIFY_PERMISSION = "unloading_wage.classify";
 export const UNLOADING_WAGE_COMPLETE_PERMISSION = "unloading_wage.complete";
@@ -192,6 +193,16 @@ export function canTrainParserProfiles(user: AuthUserResponse | null): boolean {
 
 export function canReviewParserProfiles(user: AuthUserResponse | null): boolean {
   return hasPermission(user, PARSER_PROFILES_REVIEW_PERMISSION);
+}
+
+export function canDecideParserProfileReviews(
+  user: AuthUserResponse | null,
+): boolean {
+  return hasAllPermissions(user, [
+    PARSER_PROFILES_REVIEW_PERMISSION,
+    CONTAINERS_UPDATE_PERMISSION,
+    CORRECTIONS_CREATE_PERMISSION,
+  ]);
 }
 
 export function canApproveParserProfiles(user: AuthUserResponse | null): boolean {

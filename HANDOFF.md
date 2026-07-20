@@ -4,60 +4,86 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-20T05:00:07Z`
+- Generated at: `2026-07-20T07:33:39Z`
 - Source: `business-task-supervisor`
-- Task: `PARSER-PROFILE-05`
-- Task file: `prompts/tasks/PARSER-PROFILE-05Completion Snapshot Approval and Profile Governance.md`
+- Task: `PARSER-PROFILE-06`
+- Task file: `prompts/tasks/PARSER-PROFILE-06Review Mode Evidence and Three Acceptance Trust Gate.md`
 - Status: `DONE`
 - Execution mode: `full`
-- Session: `019f7d9b-fffa-71f2-840c-14f5a1d765fc`
-- Git HEAD: `1596416`
+- Session: `019f7e50-e3a3-7f00-9df5-758e11f8212a`
+- Git HEAD: `bbaa638`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260720T034002Z-PARSER-PROFILE-05-34451`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260720T065737Z-PARSER-PROFILE-06-43712`
 
 ## 现在在做什么
 
-PARSER-PROFILE-05 is complete; no implementation or verification remains for this Task.
+PARSER-PROFILE-06 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- Task 05 已完成。首次拆柜完成会冻结 parser-relevant snapshot，并通过 durable outbox 异步重放；合法批准精确进入 ACTIVE + REVIEW_REQUIRED + 0/3。已交付审批资格、pause/resume/retire/fork、RBAC、双语治理页面、审计、历史 catch-up 和失败隔离。任务索引及完成报告已更新，当前环境无剩余验收项。
+- 已完成 PARSER-PROFILE-06 全部实现与 post-DONE remediation：强制 staged review 边界、服务端 material classifier、不可变 staged/final 快照、accept/correct/reject 审计、distinct-SHA 1/3–3/3 信任提升、并发幂等、RBAC、双语 UI、SSR/hydration、真实浏览器 200% zoom，以及任务索引和验证报告更新。未启动 PARSER-PROFILE-07。
 
 ### Changed files
 
 - .gitignore
+- HANDOFF.md
+- apps/api/package.json
 - apps/api/prisma/schema.prisma
-- apps/api/prisma/migrations/20260719040000_parser_profile_completion_governance/
-- apps/api/src/async-jobs/
-- apps/api/src/auth/route-permissions.ts
-- apps/api/src/corrections/
-- apps/api/src/parser-learning-cases/
-- apps/api/src/parser-profiles/
-- apps/api/src/unloading-wage/
-- apps/api/test/parser-learning-cases.e2e-spec.ts
-- apps/web/e2e/parser-learning-wizard.spec.ts
-- apps/web/src/app/parser-profiles/
-- apps/web/src/components/parser-profiles/
+- apps/api/prisma/migrations/20260720010000_parser_profile_review_trust_gate/migration.sql
+- apps/api/prisma/migrations/20260720020000_parser_profile_review_remediation/migration.sql
+- apps/api/src/imports/imports.module.ts
+- apps/api/src/imports/imports.service.spec.ts
+- apps/api/src/imports/imports.service.ts
+- apps/api/src/parser-learning-cases/parser-learning-cases.module.ts
+- apps/api/src/parser-learning-cases/parser-learning-cases.service.spec.ts
+- apps/api/src/parser-learning-cases/parser-learning-cases.service.ts
+- apps/api/src/parser-learning-cases/parser-profile-worker.service.ts
+- apps/api/src/parser-profiles/dto/parser-profile-review.dto.ts
+- apps/api/src/parser-profiles/parser-profile-material.spec.ts
+- apps/api/src/parser-profiles/parser-profile-material.ts
+- apps/api/src/parser-profiles/parser-profile-reviews.controller.spec.ts
+- apps/api/src/parser-profiles/parser-profile-reviews.controller.ts
+- apps/api/src/parser-profiles/parser-profile-reviews.service.spec.ts
+- apps/api/src/parser-profiles/parser-profile-reviews.service.ts
+- apps/api/src/parser-profiles/parser-profiles.module.ts
+- apps/api/src/parser-profiles/parser-profiles.service.ts
+- apps/api/test/imports.e2e-spec.ts
+- apps/api/test/parser-profile-reviews.e2e-spec.ts
+- apps/web/e2e/parser-profile-review.spec.ts
+- apps/web/src/app/imports/[id]/page.tsx
+- apps/web/src/components/parser-profiles/parser-profile-governance.tsx
+- apps/web/src/components/parser-profiles/parser-profile-review-labels.ts
+- apps/web/src/components/parser-profiles/parser-profile-review-panel.tsx
 - apps/web/src/lib/api-client.ts
 - apps/web/src/lib/i18n/locales/en.ts
 - apps/web/src/lib/i18n/locales/zh.ts
-- apps/web/tests/parser-profile-governance.test.ts
-- docs/reports/parser-profile-05-completion-governance-verification.md
+- apps/web/src/lib/permissions.ts
+- apps/web/tests/api-client-parser-profile-review.test.ts
+- apps/web/tests/parser-profile-review.test.ts
+- apps/worker-python/src/worker_python/cli.py
+- apps/worker-python/tests/integration/test_parser_profile_cli_contract.py
+- docs/architecture/02-data-model.md
+- docs/architecture/04-api-contracts.md
+- docs/reports/parser-profile-06-review-trust-verification.md
 - docs/reports/project-completion-status.html
 - prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
 
 ### Tests and verification actually run
 
-- API production build、lint、typecheck 通过
-- API unit：38/38 suites，301/301 tests 通过
-- API E2E：20/20 suites，119/119 tests 通过
-- Web production build、lint、typecheck 通过
-- Web unit/contract：240/240 tests 通过
-- Docker Chromium 真实工作簿治理流程：1/1 通过；双语、主题、390/768/1366/1920 和真实 200% zoom 截图复核通过
-- Worker pytest：171/171 tests 通过
-- 临时空 PostgreSQL 数据库成功应用全部 29 个 migrations，随后已删除；当前数据库 migration status 为 up to date
-- PostgreSQL、Redis、API、Web、nginx、Worker 均 healthy；nginx /api/health 显示 database/queue up、failed jobs 0
-- git diff --check 通过
+- API 最终聚焦回归：4 suites / 30 tests passed
+- API 全量单元测试：41 suites / 319 tests passed
+- API lint、TypeScript typecheck、production build：通过
+- 真实工作簿 Parser Profile E2E：1/1 passed；覆盖 5 个 distinct SHA、RBAC、修正清零、并发幂等和 3/3 TRUSTED
+- Imports 真实 fixture 回归：16/16 passed；相关 attendance 测试 3/3 passed
+- Web 全量单元测试：245/245 passed
+- Web lint、TypeScript typecheck、production build：通过
+- Worker 聚焦契约：2/2 passed；全量 pytest：172/172 passed
+- 空 PostgreSQL 数据库迁移：31/31 applied；final_* 字段核验通过
+- 当前运行数据库迁移状态：31 migrations，schema up to date
+- Playwright Chromium：1/1 passed；覆盖双语 SSR/hydration、主题、mobile、timeline 和真实 200% zoom
+- Docker 全栈 healthcheck：通过
+- git diff --check：通过
+- 临时验证数据库清理核对：残留数量 0
 
 ## 卡在哪里
 
@@ -75,15 +101,15 @@ PARSER-PROFILE-05 is complete; no implementation or verification remains for thi
 
 ## 下一步
 
-- 由监督器根据本结果更新 HANDOFF.md；下一 fresh supervised Session 只能执行 PARSER-PROFILE-06。
+- 由监督器写入终态 HANDOFF.md；后续仅在新的受监督会话中执行 PARSER-PROFILE-07。
 
 ## 不要再踩的坑
 
-- 批准仅得到 REVIEW_REQUIRED + 0/3；不得跳过 PARSER-PROFILE-06 的三次 distinct-SHA 信任门槛或提前标记 TRUSTED。
-- 未来匹配消费者尚属 PARSER-PROFILE-07；实现时必须在提交匹配结果前重新检查版本仍为 ACTIVE。
-- 完成快照和重放失败必须继续保持非阻断，不能把学习失败并入拆柜、库存或工资事务造成回滚。
-- Compose 运行容器不绑定宿主源码；后续补丁后必须重建镜像再把测试结果视为当前代码证据。
-- Task 05 报告依赖 .gitignore 的精确例外；不要恢复为被 docs/reports/* 忽略。
+- 不要改写已应用的 20260720010000 迁移；补救内容必须保留在后续 additive migration。
+- staged canonical/provenance/warning/error 是不可变证据；修正后的正式结果只能写入 final_* 字段。
+- 含 parser errors 的 review 必须阻止 accept/correct，不能静默清零错误或生成正式数据。
+- TRUSTED profile 的自动提交、漂移与 fallback 属于 PARSER-PROFILE-07，本任务不得提前实现。
+- 生产 API 容器中检查 Prisma 状态应使用 `pnpm --filter api exec prisma`，根目录 `pnpm exec prisma` 找不到工具。
 
 ## 新会话启动清单
 
@@ -95,7 +121,7 @@ PARSER-PROFILE-05 is complete; no implementation or verification remains for thi
 
 ## 权威参考
 
-- `prompts/tasks/PARSER-PROFILE-05Completion Snapshot Approval and Profile Governance.md`
+- `prompts/tasks/PARSER-PROFILE-06Review Mode Evidence and Three Acceptance Trust Gate.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

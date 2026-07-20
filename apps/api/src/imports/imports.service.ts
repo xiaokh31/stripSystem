@@ -52,6 +52,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
 import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
+import { ParserProfileReviewsService } from '../parser-profiles/parser-profile-reviews.service';
 
 type FileFormatValue = (typeof FileFormat)[keyof typeof FileFormat];
 type NullableJsonInput =
@@ -201,6 +202,7 @@ export class ImportsService {
     private readonly workerParser: WorkerParserService,
     private readonly palletPolicyResolver: PalletPolicyResolver,
     private readonly parserLearningCases: ParserLearningCasesService,
+    private readonly parserProfileReviews: ParserProfileReviewsService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
   }
@@ -433,9 +435,12 @@ export class ImportsService {
     id: string,
     actor: AuthenticatedUser,
   ): Promise<ImportParseResultResponseDto> {
-    void actor;
     const record = await this.findImportOrThrow(id);
     await this.assertStoredFileExists(record);
+
+    if (await this.parserProfileReviews.hasReview(id)) {
+      return this.getParseResult(id);
+    }
 
     await this.prisma.importFile.update({
       where: { id },
@@ -457,7 +462,14 @@ export class ImportsService {
     }
 
     try {
-      await this.persistParsePayload(record, payload);
+      const staged = await this.parserProfileReviews.stageIfMatched(
+        record,
+        payload,
+        actor,
+      );
+      if (!staged) {
+        await this.persistParsePayload(record, payload);
+      }
     } catch (error) {
       if (error instanceof ConflictException) {
         await this.restoreParseStatusAfterConflict(record, error);
