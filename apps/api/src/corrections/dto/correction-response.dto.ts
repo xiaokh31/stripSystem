@@ -51,6 +51,12 @@ export interface ContainerCorrectionResponseDto {
       }>;
     }>;
   } | null;
+  parserLearning: {
+    learningCaseId: string;
+    snapshotCreated: boolean;
+    replayJobId: string | null;
+    warningCodes: string[];
+  } | null;
 }
 
 export interface ContainerDestinationCorrectionResponseDto {

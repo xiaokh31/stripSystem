@@ -4,73 +4,60 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-18T16:31:02Z`
+- Generated at: `2026-07-20T05:00:07Z`
 - Source: `business-task-supervisor`
-- Task: `PARSER-PROFILE-01`
-- Task file: `prompts/tasks/PARSER-PROFILE-01Learning Case Linkage and Domain Schema.md`
+- Task: `PARSER-PROFILE-05`
+- Task file: `prompts/tasks/PARSER-PROFILE-05Completion Snapshot Approval and Profile Governance.md`
 - Status: `DONE`
 - Execution mode: `full`
-- Session: `019f75d0-1066-72e2-8cd2-e0fa2eb6e3a5`
-- Git HEAD: `6537b93`
+- Session: `019f7d9b-fffa-71f2-840c-14f5a1d765fc`
+- Git HEAD: `1596416`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260718T151957Z-PARSER-PROFILE-01-28370`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260720T034002Z-PARSER-PROFILE-05-34451`
 
 ## 现在在做什么
 
-PARSER-PROFILE-01 is complete; no implementation or verification remains for this Task.
+PARSER-PROFILE-05 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- 已完成 Learning Case 与 Parser Profile 领域基础：新增 3 个可前进迁移、正式 failed-import/manual-container 关系、不可变来源快照、profile evidence/audit、稳定 API、事务关联、删除保护、并发约束、精确 RBAC 与 Web 双语契约。普通手工录入保持兼容；任务索引及完成度报告已更新。所有现有工作树改动均已保留。
+- Task 05 已完成。首次拆柜完成会冻结 parser-relevant snapshot，并通过 durable outbox 异步重放；合法批准精确进入 ACTIVE + REVIEW_REQUIRED + 0/3。已交付审批资格、pause/resume/retire/fork、RBAC、双语治理页面、审计、历史 catch-up 和失败隔离。任务索引及完成报告已更新，当前环境无剩余验收项。
 
 ### Changed files
 
 - .gitignore
 - apps/api/prisma/schema.prisma
-- apps/api/prisma/migrations/20260718170000_parser_profile_foundation/migration.sql
-- apps/api/prisma/migrations/20260718173000_link_profile_versions_to_learning_cases/migration.sql
-- apps/api/prisma/migrations/20260718181500_protect_learning_case_source_snapshot/migration.sql
-- apps/api/src/parser-learning-cases/
-- apps/api/src/app.module.ts
-- apps/api/src/auth/default-rbac.ts
-- apps/api/src/auth/default-rbac.spec.ts
-- apps/api/src/auth/permissions.ts
+- apps/api/prisma/migrations/20260719040000_parser_profile_completion_governance/
+- apps/api/src/async-jobs/
 - apps/api/src/auth/route-permissions.ts
-- apps/api/src/corrections/corrections.module.ts
-- apps/api/src/corrections/corrections.service.ts
-- apps/api/src/corrections/corrections.service.spec.ts
-- apps/api/src/corrections/dto/correction-response.dto.ts
-- apps/api/src/corrections/dto/create-manual-container.dto.ts
-- apps/api/src/imports/imports.module.ts
-- apps/api/src/imports/imports.service.ts
-- apps/api/src/imports/imports.service.spec.ts
-- apps/api/test/imports.e2e-spec.ts
-- apps/web/src/lib/i18n/admin-labels.ts
+- apps/api/src/corrections/
+- apps/api/src/parser-learning-cases/
+- apps/api/src/parser-profiles/
+- apps/api/src/unloading-wage/
+- apps/api/test/parser-learning-cases.e2e-spec.ts
+- apps/web/e2e/parser-learning-wizard.spec.ts
+- apps/web/src/app/parser-profiles/
+- apps/web/src/components/parser-profiles/
+- apps/web/src/lib/api-client.ts
 - apps/web/src/lib/i18n/locales/en.ts
 - apps/web/src/lib/i18n/locales/zh.ts
-- apps/web/src/lib/i18n/status-labels.ts
-- apps/web/src/lib/permissions.ts
-- apps/web/tests/parser-profile-contract.test.ts
-- docs/architecture/02-data-model.md
-- docs/architecture/04-api-contracts.md
-- docs/architecture/09-account-role-permission-management.md
-- docs/reports/parser-profile-01-foundation-verification.md
+- apps/web/tests/parser-profile-governance.test.ts
+- docs/reports/parser-profile-05-completion-governance-verification.md
 - docs/reports/project-completion-status.html
 - prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
 
 ### Tests and verification actually run
 
-- API 全量 lint、typecheck、build 通过
-- API unit：35 suites、272 tests 通过
-- API E2E：19 suites、116 tests 通过；包含真实 Excel fixture、RBAC、并发、事务、稳定错误码及原文件删除保护
-- 最终 API 定向复验：ESLint、typecheck、corrections unit 26/26、imports 相关 E2E 19/19 通过
-- Web 全量 lint、typecheck、production build、225/225 tests 通过
-- Worker Python 全量 pytest：127/127 通过
-- Prisma 当前数据库与临时空库均成功部署 26 个迁移
-- PostgreSQL 唯一约束、外键、行锁串行化、来源快照不可变 trigger、回滚及删除保护探针通过
-- Standards 与 Spec 双轴审查通过，无 DONE 阻断项
-- git diff --check 及新增文件尾随空白检查通过
-- 任务专用临时数据库已删除并确认不存在
+- API production build、lint、typecheck 通过
+- API unit：38/38 suites，301/301 tests 通过
+- API E2E：20/20 suites，119/119 tests 通过
+- Web production build、lint、typecheck 通过
+- Web unit/contract：240/240 tests 通过
+- Docker Chromium 真实工作簿治理流程：1/1 通过；双语、主题、390/768/1366/1920 和真实 200% zoom 截图复核通过
+- Worker pytest：171/171 tests 通过
+- 临时空 PostgreSQL 数据库成功应用全部 29 个 migrations，随后已删除；当前数据库 migration status 为 up to date
+- PostgreSQL、Redis、API、Web、nginx、Worker 均 healthy；nginx /api/health 显示 database/queue up、failed jobs 0
+- git diff --check 通过
 
 ## 卡在哪里
 
@@ -88,15 +75,15 @@ PARSER-PROFILE-01 is complete; no implementation or verification remains for thi
 
 ## 下一步
 
-- 由监督器记录终态；后续使用新的 supervised Session 单独执行 PARSER-PROFILE-02。
+- 由监督器根据本结果更新 HANDOFF.md；下一 fresh supervised Session 只能执行 PARSER-PROFILE-06。
 
 ## 不要再踩的坑
 
-- API lint 脚本包含 --fix；后续不要重新带入其对无关文件产生的格式化修改。
-- Learning Case 写入与 import 删除必须继续共用 import 行锁协议，避免重新引入 TOCTOU。
-- 删除阻断审计必须先提交事务，再在事务外抛出 409，否则审计记录会随异常回滚。
-- 来源快照和 profile definition 由数据库 trigger 保护；不要修改已应用迁移，应通过新迁移演进。
-- 下一任务只能在新的监督会话执行 PARSER-PROFILE-02，不得在当前任务继续实现 fingerprint、mapping 或 replay。
+- 批准仅得到 REVIEW_REQUIRED + 0/3；不得跳过 PARSER-PROFILE-06 的三次 distinct-SHA 信任门槛或提前标记 TRUSTED。
+- 未来匹配消费者尚属 PARSER-PROFILE-07；实现时必须在提交匹配结果前重新检查版本仍为 ACTIVE。
+- 完成快照和重放失败必须继续保持非阻断，不能把学习失败并入拆柜、库存或工资事务造成回滚。
+- Compose 运行容器不绑定宿主源码；后续补丁后必须重建镜像再把测试结果视为当前代码证据。
+- Task 05 报告依赖 .gitignore 的精确例外；不要恢复为被 docs/reports/* 忽略。
 
 ## 新会话启动清单
 
@@ -108,7 +95,7 @@ PARSER-PROFILE-01 is complete; no implementation or verification remains for thi
 
 ## 权威参考
 
-- `prompts/tasks/PARSER-PROFILE-01Learning Case Linkage and Domain Schema.md`
+- `prompts/tasks/PARSER-PROFILE-05Completion Snapshot Approval and Profile Governance.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

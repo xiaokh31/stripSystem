@@ -15,6 +15,7 @@ export interface ManualContainerDraft {
   correctionNote: string;
   destinations: ManualDestinationDraft[];
   dockNo: string;
+  learningCaseId: string | null;
   reason: string;
 }
 
@@ -41,6 +42,7 @@ export function emptyManualDestinationDraft(): ManualDestinationDraft {
 
 export function defaultManualContainerDraft(
   sourceImportId?: string | null,
+  learningCaseId?: string | null,
 ): ManualContainerDraft {
   return {
     company: "",
@@ -50,6 +52,7 @@ export function defaultManualContainerDraft(
       : "Manual entry created by office.",
     destinations: [emptyManualDestinationDraft()],
     dockNo: "",
+    learningCaseId: learningCaseId ?? null,
     reason: sourceImportId
       ? `Original import ${sourceImportId} could not be parsed.`
       : "Original customer workbook could not be parsed.",
@@ -124,6 +127,9 @@ export function buildManualContainerRequest(
       correctionNote: nullableString(draft.correctionNote),
       destinations,
       dockNo: nullableString(draft.dockNo),
+      ...(draft.learningCaseId
+        ? { learningCaseId: draft.learningCaseId }
+        : {}),
       reason: nullableString(draft.reason),
     },
   };

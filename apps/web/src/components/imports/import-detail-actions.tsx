@@ -22,6 +22,8 @@ import {
   type ParseResultSummaryData,
 } from "./import-detail-flow";
 import type { MessageKey } from "@/lib/i18n/catalog";
+import { ParserLearningEntry } from "@/components/parser-learning/parser-learning-entry";
+import { shouldOfferParserLearning } from "./import-detail-flow";
 
 interface ParseFailure {
   code: string;
@@ -33,7 +35,9 @@ export function ImportDetailActions({
   importFile,
   initialParseResult,
   manualReportHref,
+  canTrainParserProfile,
 }: {
+  canTrainParserProfile: boolean;
   importFile: ImportFileResponse;
   initialParseResult: ParseResultSummaryData | null;
   manualReportHref: string;
@@ -54,6 +58,13 @@ export function ImportDetailActions({
     (parseResult !== null &&
       shouldOfferManualReportEntry({
         parseResult,
+        parseStatus: importFile.parseStatus,
+      }));
+  const showParserLearning =
+    canTrainParserProfile &&
+    (parseError !== null ||
+      shouldOfferParserLearning({
+        parseResult: currentResult,
         parseStatus: importFile.parseStatus,
       }));
 
@@ -135,6 +146,10 @@ export function ImportDetailActions({
       ) : null}
 
       <ParseResultSummary parseResult={currentResult} compact />
+
+      {showParserLearning ? (
+        <ParserLearningEntry importId={importFile.id} />
+      ) : null}
 
       {showManualEntry ? (
         <ManualReportEntryPanel href={manualReportHref} compact />

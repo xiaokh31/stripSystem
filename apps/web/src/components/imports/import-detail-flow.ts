@@ -68,6 +68,19 @@ export function shouldOfferManualReportEntry(input: {
   return false;
 }
 
+export function shouldOfferParserLearning(input: {
+  parseResult: ParseResultSummaryData | null;
+  parseStatus: string;
+}): boolean {
+  const status = input.parseResult?.parseStatus ?? input.parseStatus;
+  return (
+    status === "ERROR" ||
+    ((status === "PARSED" || status === "WARNING") &&
+      input.parseResult !== null &&
+      input.parseResult.containers.length === 0)
+  );
+}
+
 export function containerLinks(
   containers: readonly Pick<ContainerResponse, "id" | "containerNo" | "status">[],
   locale?: Locale,

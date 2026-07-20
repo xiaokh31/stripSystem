@@ -6,6 +6,9 @@ describe('parser-profile foundation migration', () => {
     '20260718170000_parser_profile_foundation',
     '20260718173000_link_profile_versions_to_learning_cases',
     '20260718181500_protect_learning_case_source_snapshot',
+    '20260719020000_parser_profile_learning_replay',
+    '20260719030000_parser_profile_replay_job_idempotency',
+    '20260719040000_parser_profile_completion_governance',
   ]
     .map((directory) =>
       readFileSync(
@@ -73,5 +76,22 @@ describe('parser-profile foundation migration', () => {
     expect(migration).not.toContain(
       "('WAREHOUSE_MANAGER', 'parser_profiles.read')",
     );
+  });
+
+  it('pins one completion outbox and validates profile governance state', () => {
+    expect(migration).toContain(
+      'parser_learning_cases_completion_replay_job_id_key',
+    );
+    expect(migration).toContain(
+      'parser_learning_cases_completion_snapshot_check',
+    );
+    expect(migration).toContain(
+      'parser_profile_versions_approval_state_check',
+    );
+    expect(migration).toContain(
+      'parser_profile_versions_trust_streak_check',
+    );
+    expect(migration).toContain("'PROFILE_RESUMED'");
+    expect(migration).toContain("'PROFILE_VERSION_FORKED'");
   });
 });

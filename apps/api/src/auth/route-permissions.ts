@@ -101,4 +101,9 @@ export const ROUTE_PERMISSIONS = {
     read: [PERMISSIONS.parserProfiles.read],
     train: [PERMISSIONS.parserProfiles.train],
   },
+  parserProfiles: {
+    read: [PERMISSIONS.parserProfiles.read],
+    train: [PERMISSIONS.parserProfiles.train],
+    approve: [PERMISSIONS.parserProfiles.approve],
+  },
 } as const;

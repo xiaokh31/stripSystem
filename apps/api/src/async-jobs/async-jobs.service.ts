@@ -37,6 +37,7 @@ interface AsyncJobRecord {
   importFileId: string | null;
   containerId: string | null;
   attendanceImportId: string | null;
+  parserLearningCaseId: string | null;
   generatedFileId: string | null;
   wageGeneratedFileId: string | null;
   actorUserId: string | null;
@@ -123,7 +124,10 @@ export class AsyncJobsService implements OnModuleDestroy {
     this.assertQueueEnabled();
 
     const idempotencyKey = this.idempotencyKey(input);
-    const existing = await this.findActiveByIdempotencyKey(idempotencyKey);
+    const existing = await this.findByIdempotencyKey(
+      idempotencyKey,
+      input.reuseTerminal === true,
+    );
     if (existing) {
       return this.toResponse(existing);
     }
@@ -142,6 +146,7 @@ export class AsyncJobsService implements OnModuleDestroy {
           importFileId: input.importFileId ?? null,
           containerId: input.containerId ?? null,
           attendanceImportId: input.attendanceImportId ?? null,
+          parserLearningCaseId: input.parserLearningCaseId ?? null,
           actorUserId: input.actor.id,
           maxAttempts,
           metadata: this.nullableJsonValue({
@@ -152,7 +157,10 @@ export class AsyncJobsService implements OnModuleDestroy {
       });
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
-        const raced = await this.findActiveByIdempotencyKey(idempotencyKey);
+        const raced = await this.findByIdempotencyKey(
+          idempotencyKey,
+          input.reuseTerminal === true,
+        );
         if (raced) {
           return this.toResponse(raced);
         }
@@ -166,6 +174,7 @@ export class AsyncJobsService implements OnModuleDestroy {
       targetType: input.targetType,
       targetId: input.targetId,
       actor: input.actor,
+      metadata: input.metadata,
     };
 
     try {
@@ -212,6 +221,76 @@ export class AsyncJobsService implements OnModuleDestroy {
     }
 
     return this.toResponse(record);
+  }
+
+  /**
+   * Dispatches an AsyncJob row that was written as a transactional outbox
+   * record by a business transaction. Repeated calls are safe because the
+   * Bull job id is the database job id.
+   */
+  async dispatchRecordedJob(payload: AsyncJobPayload): Promise<AsyncJobResponseDto> {
+    this.assertQueueEnabled();
+    let record = await this.findJobOrThrow(payload.asyncJobId);
+    if (
+      record.jobType !== payload.jobType ||
+      record.targetType !== payload.targetType ||
+      record.targetId !== payload.targetId
+    ) {
+      throw new ServiceUnavailableException({
+        code: 'ASYNC_JOB_OUTBOX_PAYLOAD_MISMATCH',
+        message: 'ASYNC_JOB_OUTBOX_PAYLOAD_MISMATCH',
+        details: { asyncJobId: payload.asyncJobId },
+      });
+    }
+    try {
+      const queue = this.getQueue();
+      const existingBullJob = record.bullJobId
+        ? await queue.getJob(record.bullJobId)
+        : null;
+      if (existingBullJob && record.status !== AsyncJobStatus.FAILED) {
+        return this.toResponse(record);
+      }
+      if (existingBullJob && record.status === AsyncJobStatus.FAILED) {
+        await existingBullJob.retry('failed');
+      }
+      const bullJob = existingBullJob ?? await queue.add(payload.jobType, payload, {
+        jobId: record.id,
+        attempts: record.maxAttempts,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: {
+          age: 7 * 24 * 60 * 60,
+          count: 1_000,
+        },
+        removeOnFail: false,
+      });
+      record = await this.prisma.asyncJob.update({
+        where: { id: record.id },
+        data: {
+          status: AsyncJobStatus.QUEUED,
+          bullJobId: bullJob.id ?? record.id,
+          lastError: null,
+          result: Prisma.JsonNull,
+          finishedAt: null,
+          cancelledAt: null,
+        },
+      });
+      return this.toResponse(record);
+    } catch (error) {
+      record = await this.prisma.asyncJob.update({
+        where: { id: record.id },
+        data: {
+          status: AsyncJobStatus.FAILED,
+          lastError: this.errorMessage(error),
+          result: this.nullableJsonValue({ code: 'QUEUE_ENQUEUE_FAILED' }),
+          finishedAt: new Date(),
+        },
+      });
+      throw new ServiceUnavailableException({
+        code: 'QUEUE_ENQUEUE_FAILED',
+        message: 'QUEUE_ENQUEUE_FAILED',
+        details: { job: this.toResponse(record) },
+      });
+    }
   }
 
   async getJob(id: string): Promise<AsyncJobResponseDto> {
@@ -413,20 +492,28 @@ export class AsyncJobsService implements OnModuleDestroy {
     return record;
   }
 
-  private async findActiveByIdempotencyKey(
+  private async findByIdempotencyKey(
     idempotencyKey: string,
+    includeTerminal = false,
   ): Promise<AsyncJobRecord | null> {
     return await this.prisma.asyncJob.findFirst({
       where: {
         idempotencyKey,
-        status: { in: ACTIVE_JOB_STATUSES },
+        ...(includeTerminal ? {} : { status: { in: ACTIVE_JOB_STATUSES } }),
       },
       orderBy: { queuedAt: 'desc' },
     });
   }
 
   private idempotencyKey(input: SubmitAsyncJobInput): string {
-    return `${input.jobType}:${input.targetType}:${input.targetId}`;
+    return [
+      input.jobType,
+      input.targetType,
+      input.targetId,
+      input.idempotencyScope,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(':');
   }
 
   private maxAttempts(value: number | undefined): number {
@@ -508,6 +595,7 @@ export class AsyncJobsService implements OnModuleDestroy {
       importFileId: record.importFileId,
       containerId: record.containerId,
       attendanceImportId: record.attendanceImportId,
+      parserLearningCaseId: record.parserLearningCaseId,
       generatedFileId: record.generatedFileId,
       wageGeneratedFileId: record.wageGeneratedFileId,
       actorUserId: record.actorUserId,

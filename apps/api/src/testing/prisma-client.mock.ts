@@ -7,3 +7,8 @@ export class PrismaClient {
     return Promise.resolve([{ connected: 1 }]);
   }
 }
+
+export const Prisma = {
+  JsonNull: null,
+  DbNull: null,
+} as const;

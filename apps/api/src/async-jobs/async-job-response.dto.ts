@@ -17,6 +17,7 @@ export interface AsyncJobResponseDto {
   importFileId: string | null;
   containerId: string | null;
   attendanceImportId: string | null;
+  parserLearningCaseId: string | null;
   generatedFileId: string | null;
   wageGeneratedFileId: string | null;
   actorUserId: string | null;

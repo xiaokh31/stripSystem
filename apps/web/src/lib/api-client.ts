@@ -1,4 +1,8 @@
 import { getBrowserAuthToken } from "./auth-token";
+import type {
+  ParserInspectResponse,
+  ParserPreviewResponse,
+} from "../components/parser-learning/parser-learning-flow";
 
 export interface ApiErrorResponse {
   code: string;
@@ -1014,7 +1018,228 @@ export interface CreateManualContainerRequest {
   correctionNote?: string | null;
   destinations: CreateManualContainerDestinationRequest[];
   dockNo?: string | null;
+  learningCaseId?: string | null;
   reason?: string | null;
+}
+
+export interface ParserLearningCaseResponse {
+  closedAt: string | null;
+  createdAt: string;
+  draftDefinition: unknown;
+  draftRevision: number;
+  id: string;
+  lastErrorCode: string | null;
+  latestProfileVersion: {
+    familyId: string;
+    id: string;
+    lifecycle: string;
+    mappingVersion: string;
+    matcherVersion: string;
+    sourceDraftRevision: number | null;
+    trustState: string;
+    version: number;
+  } | null;
+  linkedContainer: {
+    containerNo: string;
+    id: string;
+    parserSourceKind: string;
+    parserVersion: string | null;
+    sourceFormat: string;
+  } | null;
+  replaySummary: ParserReplaySummary | null;
+  sourceFileSha256: string;
+  sourceImport: {
+    format: string;
+    id: string;
+    originalFilename: string;
+    parseStatus: string;
+  } | null;
+  sourceImportId: string;
+  status: string;
+  updatedAt: string;
+}
+
+export interface SaveParserLearningDraftRequest {
+  expectedRevision: number;
+  fingerprintDefinition: Record<string, unknown>;
+  mappingDefinition: Record<string, unknown>;
+}
+
+export interface ParserReplaySummary {
+  artifactId: string;
+  asyncJobId: string;
+  blockingCodes: string[];
+  diffSummary: {
+    blockers: number;
+    compared: number;
+    equal: number;
+    materialDifferences: number;
+  };
+  draftRevision: number;
+  passed: boolean;
+}
+
+export interface ParserReplayJobResponse {
+  attempts: number;
+  finishedAt: string | null;
+  id: string;
+  lastErrorCode: string | null;
+  learningCaseId: string;
+  maxAttempts: number;
+  queuedAt: string;
+  result: {
+    generatedFile?: ParserReplayArtifactResponse;
+    replay?: ParserReplaySummary & { stale?: boolean };
+  } | null;
+  startedAt: string | null;
+  status: AsyncJobStatus;
+}
+
+export interface ParserReplayArtifactResponse {
+  createdAt: string;
+  downloadUrl: string | null;
+  errorCode: string | null;
+  fileSha256: string | null;
+  fileSizeBytes: string | null;
+  id: string;
+  learningCaseId: string;
+  mimeType: string | null;
+  status: string;
+  updatedAt: string;
+}
+
+export interface ParserReplayArtifactDocument {
+  artifactId: string;
+  blockingCodes: string[];
+  caseId: string;
+  contractVersion: string;
+  diff: {
+    items: Array<{
+      actual: unknown;
+      blocking: boolean;
+      code: string;
+      equal: boolean;
+      expected: unknown;
+      field: string;
+      key: string | null;
+      material: boolean;
+    }>;
+    summary: ParserReplaySummary["diffSummary"];
+  };
+  draftRevision: number;
+  passed: boolean;
+}
+
+export interface SubmitParserCandidateRequest {
+  customerLabel?: string | null;
+  replayArtifactId: string;
+  revision: number;
+  stableName: string;
+}
+
+export interface SubmitParserCandidateResponse {
+  learningCase: ParserLearningCaseResponse;
+  profileVersion: {
+    customerLabel: string | null;
+    familyId: string;
+    id: string;
+    lifecycle: "DRAFT";
+    sourceDraftRevision: number | null;
+    stableName: string | null;
+    trustState: "REVIEW_REQUIRED";
+    version: number;
+  };
+}
+
+export type ParserProfileLifecycle = "DRAFT" | "ACTIVE" | "PAUSED" | "RETIRED";
+export type ParserProfileTrustState = "REVIEW_REQUIRED" | "TRUSTED";
+
+export interface ParserProfileActorResponse {
+  email: string | null;
+  id: string;
+  name: string | null;
+}
+
+export interface ParserProfileSummaryResponse {
+  approvedAt: string | null;
+  approvedBy: ParserProfileActorResponse | null;
+  createdBy: ParserProfileActorResponse;
+  customerLabel: string | null;
+  familyId: string;
+  id: string;
+  lastReplay: {
+    blockingCodes: string[];
+    passed: boolean;
+    replayId: string | null;
+  } | null;
+  lifecycle: ParserProfileLifecycle;
+  lifecycleRevision: number;
+  stableName: string;
+  trustState: ParserProfileTrustState;
+  trustStreak: number;
+  updatedBy: ParserProfileActorResponse;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ParserProfileListResponse {
+  items: ParserProfileSummaryResponse[];
+  limit: number;
+  offset: number;
+}
+
+export interface ParserProfileDetailResponse extends ParserProfileSummaryResponse {
+  approvalEligibility: { codes: string[]; eligible: boolean };
+  approvalReason: string | null;
+  completionReplayJob: {
+    attempts: number;
+    errorCode: string | null;
+    finishedAt: string | null;
+    id: string;
+    maxAttempts: number;
+    status: string;
+  } | null;
+  completionSnapshot: Record<string, unknown> | null;
+  lifecycleReason: string | null;
+  mappingSummary: { containerMapped: boolean; mappedFields: string[] };
+  mappingVersion: string;
+  matcherVersion: string;
+  replay: {
+    blockingCodes: string[];
+    diff: Array<{
+      actual: unknown;
+      blocking: boolean;
+      code: string;
+      equal: boolean;
+      expected: unknown;
+      field: string;
+      key: string | null;
+      material: boolean;
+    }>;
+    diffSummary: ParserReplaySummary["diffSummary"] | null;
+    passed: boolean;
+    pinned: Record<string, unknown> | null;
+    replayId: string | null;
+  } | null;
+  sourceProvenance: {
+    learningCaseId: string;
+    linkedContainerId: string | null;
+    linkedContainerNo: string | null;
+    sourceDraftRevision: number | null;
+    sourceFileSha256: string;
+    sourceFilename: string | null;
+    sourceImportId: string;
+  } | null;
+  structuralAnchors: Record<string, unknown>;
+}
+
+export interface GovernParserProfileRequest {
+  expectedRevision: number;
+  reason: string;
+}
+
+export interface ApproveParserProfileRequest extends GovernParserProfileRequest {
+  replayId: string;
 }
 
 export interface CorrectionFeedbackResponse {
@@ -2119,6 +2344,138 @@ export function createManualContainer(
   );
 }
 
+export function startParserLearningCase(
+  importFileId: string,
+  options: ApiClientOptions = {},
+): Promise<ParserLearningCaseResponse> {
+  return createApiClient(options).post<ParserLearningCaseResponse>(
+    "/parser-learning-cases",
+    { importFileId },
+  );
+}
+
+export function getParserLearningCase(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ParserLearningCaseResponse> {
+  return createApiClient(options).get<ParserLearningCaseResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}`,
+  );
+}
+
+export function inspectParserLearningCase(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ParserInspectResponse> {
+  return createApiClient(options).post<ParserInspectResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/inspect`,
+  );
+}
+
+export function saveParserLearningDraft(
+  id: string,
+  body: SaveParserLearningDraftRequest,
+  options: ApiClientOptions = {},
+): Promise<ParserLearningCaseResponse> {
+  return createApiClient(options).put<ParserLearningCaseResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/draft`,
+    { ...body },
+  );
+}
+
+export function previewParserLearningDraft(
+  id: string,
+  revision: number,
+  options: ApiClientOptions = {},
+): Promise<ParserPreviewResponse> {
+  return createApiClient(options).post<ParserPreviewResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/preview`,
+    { revision },
+  );
+}
+
+export function queueParserLearningReplay(
+  id: string,
+  body: { idempotencyKey: string; revision: number },
+  options: ApiClientOptions = {},
+): Promise<ParserReplayJobResponse> {
+  return createApiClient(options).post<ParserReplayJobResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/replay`,
+    { ...body },
+  );
+}
+
+export function getParserLearningReplayJob(
+  id: string,
+  jobId: string,
+  options: ApiClientOptions = {},
+): Promise<ParserReplayJobResponse> {
+  return createApiClient(options).get<ParserReplayJobResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/replay-jobs/${encodeURIComponent(jobId)}`,
+  );
+}
+
+export function getParserLearningReplayArtifact(
+  id: string,
+  artifactId: string,
+  options: ApiClientOptions = {},
+): Promise<ParserReplayArtifactDocument> {
+  return createApiClient(options).get<ParserReplayArtifactDocument>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/replays/${encodeURIComponent(artifactId)}/download`,
+  );
+}
+
+export function submitParserLearningCandidate(
+  id: string,
+  body: SubmitParserCandidateRequest,
+  options: ApiClientOptions = {},
+): Promise<SubmitParserCandidateResponse> {
+  return createApiClient(options).post<SubmitParserCandidateResponse>(
+    `/parser-learning-cases/${encodeURIComponent(id)}/submit`,
+    { ...body },
+  );
+}
+
+export function listParserProfiles(
+  options: ApiClientOptions = {},
+): Promise<ParserProfileListResponse> {
+  return createApiClient(options).get<ParserProfileListResponse>(
+    "/parser-profiles",
+  );
+}
+
+export function getParserProfileVersion(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileDetailResponse> {
+  return createApiClient(options).get<ParserProfileDetailResponse>(
+    `/parser-profiles/versions/${encodeURIComponent(id)}`,
+  );
+}
+
+export function approveParserProfileVersion(
+  id: string,
+  body: ApproveParserProfileRequest,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileDetailResponse> {
+  return createApiClient(options).post<ParserProfileDetailResponse>(
+    `/parser-profiles/versions/${encodeURIComponent(id)}/approve`,
+    { ...body },
+  );
+}
+
+export function governParserProfileVersion(
+  id: string,
+  action: "fork" | "pause" | "resume" | "retire",
+  body: GovernParserProfileRequest,
+  options: ApiClientOptions = {},
+): Promise<ParserProfileDetailResponse> {
+  return createApiClient(options).post<ParserProfileDetailResponse>(
+    `/parser-profiles/versions/${encodeURIComponent(id)}/${action}`,
+    { ...body },
+  );
+}
+
 export function listCorrections(
   filters: CorrectionListFilters = {},
   options: ApiClientOptions = {},
@@ -2482,6 +2839,14 @@ export class ApiClient {
     options: Omit<ApiRequestOptions, "method" | "body"> = {},
   ): Promise<TResponse> {
     return this.request<TResponse>(path, { ...options, method: "POST", body });
+  }
+
+  put<TResponse>(
+    path: string,
+    body?: ApiRequestOptions["body"],
+    options: Omit<ApiRequestOptions, "method" | "body"> = {},
+  ): Promise<TResponse> {
+    return this.request<TResponse>(path, { ...options, method: "PUT", body });
   }
 
   patch<TResponse>(

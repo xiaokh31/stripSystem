@@ -47,6 +47,11 @@ const navItems: PermissionAwareNavItem[] = [
     requiredPermissions: ["containers.read"],
   },
   {
+    href: "/parser-profiles",
+    label: "Parser profiles",
+    requiredPermissions: ["parser_profiles.read"],
+  },
+  {
     href: "/inventory",
     label: "Inventory",
     requiredPermissions: [INVENTORY_READ_PERMISSION],

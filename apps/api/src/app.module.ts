@@ -16,6 +16,7 @@ import { LabelsModule } from './labels/labels.module';
 import { LoadJobsModule } from './load-jobs/load-jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ParserLearningCasesModule } from './parser-learning-cases/parser-learning-cases.module';
+import { ParserProfilesModule } from './parser-profiles/parser-profiles.module';
 import { ReportsModule } from './reports/reports.module';
 import { RolesModule } from './roles/roles.module';
 import { SettingsModule } from './settings/settings.module';
@@ -35,6 +36,7 @@ import { UsersModule } from './users/users.module';
     AttendanceModule,
     PrismaModule,
     ParserLearningCasesModule,
+    ParserProfilesModule,
     HealthModule,
     DashboardModule,
     ImportsModule,

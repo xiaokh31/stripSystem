@@ -17,9 +17,28 @@ from worker_python.batch import (
     run_batch,
 )
 from worker_python.imports import compute_sha256
-from worker_python.labels import generate_pallet_label_pdf, generate_print_calibration_pdf
-from worker_python.pallets import PalletConfig, calculate_pallets, inputs_from_parsed_result
+from worker_python.labels import (
+    generate_pallet_label_pdf,
+    generate_print_calibration_pdf,
+)
+from worker_python.pallets import (
+    PalletConfig,
+    calculate_pallets,
+    inputs_from_parsed_result,
+)
 from worker_python.parser import FormatType, detect_excel_format
+from worker_python.parser_profiles import (
+    FINGERPRINT_ALGORITHM_VERSION,
+    MAPPING_SCHEMA_VERSION,
+    PROFILE_PARSER_VERSION,
+    FingerprintDefinition,
+    MappingDefinition,
+    ProfileDefinitionError,
+    WorkbookInspectionError,
+    execute_mapping,
+    inspect_workbook,
+    suggest_mappings,
+)
 from worker_python.reports import write_excel_report
 from worker_python.task_reports import record_from_detection, record_from_parsed_result
 from worker_python.time_utils import operational_now
@@ -343,7 +362,9 @@ def parse_file(
                 inputs_from_parsed_result(parsed_result),
                 container_no=parsed_result.containerNo,
                 pallet_id_namespace=sha256[:12] if sha256 else None,
-                config=PalletConfig.from_policy(pallet_policy) if pallet_policy else PalletConfig(),
+                config=PalletConfig.from_policy(pallet_policy)
+                if pallet_policy
+                else PalletConfig(),
             )
             task_record = record_from_parsed_result(
                 original_file=source_path,
@@ -390,6 +411,173 @@ def parse_file(
                 sort_keys=True,
             )
         )
+
+
+@app.command("profile-inspect")
+def profile_inspect(
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Preserved OOXML workbook selected by the API.",
+    ),
+) -> None:
+    try:
+        inspection = inspect_workbook(input_file)
+        payload: dict[str, object] = {
+            "contractVersion": inspection.contractVersion,
+            "workerVersion": PROFILE_PARSER_VERSION,
+            "inspection": inspection.model_dump(mode="json"),
+            "candidateMappings": [
+                item.model_dump(mode="json") for item in suggest_mappings(inspection)
+            ],
+            "issues": [],
+        }
+    except WorkbookInspectionError as exc:
+        payload = {
+            "contractVersion": "workbook-inspection-v1",
+            "workerVersion": PROFILE_PARSER_VERSION,
+            "inspection": None,
+            "candidateMappings": [],
+            "issues": [item.model_dump(mode="json") for item in exc.issues],
+        }
+    typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+@app.command("profile-validate")
+def profile_validate(
+    mapping_definition_json: str = typer.Option(
+        ...,
+        "--mapping-definition-json",
+        help="Declarative parser-profile mapping JSON.",
+    ),
+    fingerprint_definition_json: str = typer.Option(
+        ...,
+        "--fingerprint-definition-json",
+        help="Declarative structural fingerprint JSON.",
+    ),
+) -> None:
+    issues: list[dict[str, object]] = []
+    try:
+        mapping_payload = _profile_json_object(mapping_definition_json)
+        MappingDefinition.validate_definition(mapping_payload)
+    except ProfileDefinitionError as exc:
+        issues.extend(item.model_dump(mode="json") for item in exc.issues)
+    except ValueError:
+        issues.append(
+            {"code": "PROFILE_DEFINITION_JSON_INVALID", "path": "mappingDefinition"}
+        )
+
+    try:
+        fingerprint_payload = _profile_json_object(fingerprint_definition_json)
+        FingerprintDefinition.validate_definition(fingerprint_payload)
+    except ProfileDefinitionError as exc:
+        issues.extend(item.model_dump(mode="json") for item in exc.issues)
+    except ValueError:
+        issues.append(
+            {"code": "PROFILE_DEFINITION_JSON_INVALID", "path": "fingerprintDefinition"}
+        )
+
+    typer.echo(
+        json.dumps(
+            {
+                "valid": not issues,
+                "mappingSchemaVersion": MAPPING_SCHEMA_VERSION,
+                "fingerprintVersion": FINGERPRINT_ALGORITHM_VERSION,
+                "workerVersion": PROFILE_PARSER_VERSION,
+                "issues": issues,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("profile-execute")
+def profile_execute(
+    input_file: Path = typer.Option(
+        ...,
+        "--input-file",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Preserved OOXML workbook selected by the API.",
+    ),
+    mapping_definition_json: str = typer.Option(
+        ...,
+        "--mapping-definition-json",
+        help="Validated declarative parser-profile mapping JSON.",
+    ),
+    replay_input_hash: str = typer.Option(
+        ...,
+        "--replay-input-hash",
+        help="API-pinned replay input hash.",
+    ),
+) -> None:
+    try:
+        definition = MappingDefinition.validate_definition(
+            _profile_json_object(mapping_definition_json)
+        )
+    except ProfileDefinitionError as exc:
+        typer.echo(
+            json.dumps(
+                {
+                    "workerVersion": PROFILE_PARSER_VERSION,
+                    "result": None,
+                    "issues": [item.model_dump(mode="json") for item in exc.issues],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return
+    except ValueError:
+        typer.echo(
+            json.dumps(
+                {
+                    "workerVersion": PROFILE_PARSER_VERSION,
+                    "result": None,
+                    "issues": [
+                        {
+                            "code": "PROFILE_DEFINITION_JSON_INVALID",
+                            "path": "mappingDefinition",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return
+
+    result = execute_mapping(
+        input_file,
+        definition,
+        replay_input_hash=replay_input_hash,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "workerVersion": PROFILE_PARSER_VERSION,
+                "result": result.model_dump(mode="json"),
+                "issues": [],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+def _profile_json_object(value: str) -> dict[str, Any]:
+    try:
+        candidate = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError("invalid profile JSON") from exc
+    if not isinstance(candidate, dict):
+        raise ValueError("profile JSON must be an object")
+    return candidate
 
 
 def _parse_payload(

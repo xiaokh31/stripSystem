@@ -188,6 +188,13 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+html:has([data-parser-learning-workspace="true"]),
+body:has([data-parser-learning-workspace="true"]),
+html:has([data-parser-profile-workspace="true"]),
+body:has([data-parser-profile-workspace="true"]) {
+  overflow-x: clip;
+}
+
 .theme-control {
   position: relative;
   display: inline-flex;

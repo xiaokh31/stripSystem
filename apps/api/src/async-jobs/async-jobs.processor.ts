@@ -12,6 +12,7 @@ import { ImportsService } from '../imports/imports.service';
 import { LabelsService } from '../labels/labels.service';
 import { ReportsService } from '../reports/reports.service';
 import { AsyncJobType } from '../generated/prisma/enums';
+import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
 
 interface ExceptionWithResponse {
   getResponse(): unknown;
@@ -29,6 +30,7 @@ export class AsyncJobsProcessor implements OnModuleInit, OnModuleDestroy {
     private readonly reportsService: ReportsService,
     private readonly labelsService: LabelsService,
     private readonly attendanceService: AttendanceService,
+    private readonly parserLearningCasesService: ParserLearningCasesService,
   ) {}
 
   onModuleInit(): void {
@@ -130,6 +132,13 @@ export class AsyncJobsProcessor implements OnModuleInit, OnModuleDestroy {
         return this.attendanceService.generateWageRecord(
           payload.targetId,
           payload.actor,
+        );
+      case AsyncJobType.PARSER_PROFILE_REPLAY:
+        return this.parserLearningCasesService.executeReplayJob(
+          payload.targetId,
+          payload.actor,
+          payload.asyncJobId,
+          payload.metadata,
         );
       default:
         throw new Error('Unsupported async job type.');

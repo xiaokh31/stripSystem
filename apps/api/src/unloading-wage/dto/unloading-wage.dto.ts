@@ -349,6 +349,7 @@ export interface PayContainerResponseDto {
   createdAt: string;
   updatedAt: string;
   inventorySync?: ContainerPalletInventorySyncSummaryDto[];
+  parserLearning?: ParserLearningCompletionDto[];
 }
 
 export interface ContainerUnloadingWageResponseDto {
@@ -378,6 +379,14 @@ export interface ContainerUnloadingWageResponseDto {
     note: string | null;
   }>;
   inventorySync?: ContainerPalletInventorySyncSummaryDto[];
+  parserLearning?: ParserLearningCompletionDto[];
+}
+
+export interface ParserLearningCompletionDto {
+  learningCaseId: string;
+  snapshotCreated: boolean;
+  replayJobId: string | null;
+  warningCodes: string[];
 }
 
 export interface ContainerPalletInventorySyncSummaryDto {

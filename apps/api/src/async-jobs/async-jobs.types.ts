@@ -5,6 +5,7 @@ export const ASYNC_JOB_TARGET_TYPES = {
   importFile: 'IMPORT_FILE',
   container: 'CONTAINER',
   attendanceImport: 'ATTENDANCE_IMPORT',
+  parserLearningCase: 'PARSER_LEARNING_CASE',
 } as const;
 
 export type AsyncJobTargetType =
@@ -16,6 +17,7 @@ export interface AsyncJobPayload {
   targetType: AsyncJobTargetType;
   targetId: string;
   actor: AuthenticatedUser;
+  metadata?: Record<string, unknown>;
 }
 
 export type AsyncJobTypeValue =
@@ -29,8 +31,11 @@ export interface SubmitAsyncJobInput {
   importFileId?: string | null;
   containerId?: string | null;
   attendanceImportId?: string | null;
+  parserLearningCaseId?: string | null;
   maxAttempts?: number;
   metadata?: Record<string, unknown>;
+  idempotencyScope?: string;
+  reuseTerminal?: boolean;
 }
 
 export interface AsyncJobGeneratedRefs {

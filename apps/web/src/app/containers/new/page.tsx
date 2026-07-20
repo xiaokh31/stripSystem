@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { ManualContainerForm } from "@/components/containers/manual-container-form";
+import { parserLearningErrorMessage } from "@/components/parser-learning/parser-learning-labels";
+import {
+  ApiClientError,
+  getParserLearningCase,
+  type ParserLearningCaseResponse,
+} from "@/lib/api-client";
 import { getServerLocale } from "@/lib/i18n/server";
 import { createTranslator } from "@/lib/i18n/translator";
+import { getServerApiOptions } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +18,25 @@ export default async function NewContainerPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const sourceImportId = firstQueryValue(params.fromImport);
+  const learningCaseId = firstQueryValue(params.learningCaseId);
+  let learningCase: ParserLearningCaseResponse | null = null;
+  let learningCaseError: string | null = null;
+  if (learningCaseId) {
+    try {
+      learningCase = await getParserLearningCase(
+        learningCaseId,
+        await getServerApiOptions(),
+      );
+    } catch (error) {
+      learningCaseError =
+        error instanceof ApiClientError
+          ? error.code
+          : "PARSER_LEARNING_CASE_NOT_FOUND";
+    }
+  }
+  const sourceImportId =
+    learningCase?.sourceImportId ??
+    (learningCaseId ? null : firstQueryValue(params.fromImport));
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
 
@@ -47,7 +72,30 @@ export default async function NewContainerPage({
         </div>
       </section>
 
-      <ManualContainerForm sourceImportId={sourceImportId} />
+      {learningCaseError ? (
+        <section
+          className="border border-red-200 bg-red-50 p-5 text-red-950"
+          role="alert"
+        >
+          <h2 className="font-semibold">
+            {t("i18n.parserLearning.manualLinkUnavailable")}
+          </h2>
+          <p className="mt-2 text-sm">
+            {parserLearningErrorMessage(learningCaseError, t)}
+          </p>
+          <Link
+            className="mt-4 inline-flex min-h-10 items-center border border-red-300 bg-white px-3 text-sm font-semibold"
+            href="/imports"
+          >
+            {t("Imports")}
+          </Link>
+        </section>
+      ) : (
+        <ManualContainerForm
+          learningCaseId={learningCase?.id ?? null}
+          sourceImportId={sourceImportId}
+        />
+      )}
     </main>
   );
 }

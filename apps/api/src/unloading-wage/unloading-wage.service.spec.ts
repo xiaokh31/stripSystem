@@ -45,6 +45,7 @@ describe('UnloadingWageService', () => {
   let generatedFiles: any[];
   let unloadingWorkers: any[];
   let palletInventorySync: any;
+  let parserLearningCases: any;
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'unloading-wage-service-'));
@@ -70,6 +71,9 @@ describe('UnloadingWageService', () => {
     workerSummaries = [];
     settlementLines = [];
     generatedFiles = [];
+    parserLearningCases = {
+      captureAndDispatchCompletion: jest.fn(() => Promise.resolve(null)),
+    };
     unloadingWorkers = [
       tempWorker('temp-worker-a', 'Prototype Worker A', 'TEMP-A'),
       tempWorker('temp-worker-b', 'Prototype Worker B', 'TEMP-B'),
@@ -422,14 +426,19 @@ describe('UnloadingWageService', () => {
         }),
       },
     };
-    service = new UnloadingWageService(prisma, palletInventorySync, {
-      getOrThrow: jest.fn((key: string) => {
-        if (key === 'app.storageRoot') {
-          return storageRoot;
-        }
-        throw new Error(`Unexpected config key ${key}`);
-      }),
-    } as unknown as ConfigService);
+    service = new UnloadingWageService(
+      prisma,
+      palletInventorySync,
+      parserLearningCases,
+      {
+        getOrThrow: jest.fn((key: string) => {
+          if (key === 'app.storageRoot') {
+            return storageRoot;
+          }
+          throw new Error(`Unexpected config key ${key}`);
+        }),
+      } as unknown as ConfigService,
+    );
   });
 
   it('lists active temporary unloading workers as worker options', async () => {
@@ -573,6 +582,10 @@ describe('UnloadingWageService', () => {
         correctedById: 'auth-office',
       }),
     });
+    expect(parserLearningCases.captureAndDispatchCompletion).toHaveBeenCalledWith(
+      'container-zcsu',
+      officeActor,
+    );
 
     const unloadersResponse = await service.updateContainerUnloaders(
       'container-zcsu',
@@ -806,6 +819,11 @@ describe('UnloadingWageService', () => {
       'P0-WORKER-A',
       'P0-WORKER-C',
     ]);
+    expect(
+      parserLearningCases.captureAndDispatchCompletion.mock.calls.map(
+        ([containerId]: [string]) => containerId,
+      ),
+    ).toEqual(['container-zcsu', 'container-txgu']);
   });
 
   it('generates a monthly settlement snapshot from container detail wage data and records JSON/HTML artifacts', async () => {

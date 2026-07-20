@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "parser-profile-mapping-v1",
+  "profileVersion": "fixture-standard-cn-sheet1-v1",
+  "formatType": "UNLOADING_PLAN_CN",
+  "sheet": {"name": "Sheet1"},
+  "header": {"row": 1, "rowCount": 1},
+  "dataRange": {"startRow": 2, "maxRows": 200},
+  "fields": {
+    "waybillNo": {"sources": [{"kind": "column", "header": "运单号"}]},
+    "fbaNo": {"sources": [{"kind": "column", "header": "客户单号"}]},
+    "poNumber": {"sources": [{"kind": "column", "header": "PO Number"}]},
+    "cartons": {
+      "sources": [{"kind": "column", "header": "件数"}],
+      "transforms": [{"op": "parse_integer", "groupSeparator": ","}]
+    },
+    "weight": {
+      "sources": [{"kind": "column", "header": "实际重量(KG)"}],
+      "transforms": [{"op": "parse_decimal", "groupSeparator": ","}]
+    },
+    "volumeCbm": {
+      "sources": [{"kind": "column", "header": "体积(m³)"}],
+      "transforms": [{"op": "parse_decimal", "groupSeparator": ","}]
+    },
+    "destinationCode": {"sources": [{"kind": "column", "header": "仓库代码"}]},
+    "deliveryMethod": {"sources": [{"kind": "column", "header": "服务名称"}]},
+    "note": {"sources": [{"kind": "column", "header": "内部备注"}]}
+  },
+  "rowPredicates": [
+    {"op": "skip_blank", "headers": ["运单号", "件数", "体积(m³)"]},
+    {
+      "op": "skip_summary",
+      "whenBlank": ["运单号", "仓库代码"],
+      "whenPresent": ["件数", "体积(m³)"]
+    },
+    {
+      "op": "exclude",
+      "source": {"kind": "column", "header": "运单号"},
+      "operator": "in",
+      "values": ["汇总", "合计", "总计", "TOTAL"]
+    }
+  ],
+  "groupBy": ["destinationCode", "packageType"]
+}

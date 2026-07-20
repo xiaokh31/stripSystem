@@ -473,12 +473,27 @@ export class CorrectionsService {
         return { container, corrections, inventorySync };
       });
 
+      const completionCapture = unloadInventorySyncRequested
+        ? await this.parserLearningCases.captureAndDispatchCompletion(
+            id,
+            actor,
+          )
+        : null;
+
       return {
         container: this.toContainerResponse(result.container),
         corrections: result.corrections.map((record) =>
           this.toCorrectionResponse(record),
         ),
         inventorySync: result.inventorySync,
+        parserLearning: completionCapture
+          ? {
+              learningCaseId: completionCapture.learningCaseId,
+              snapshotCreated: completionCapture.snapshotCreated,
+              replayJobId: completionCapture.replayJobId,
+              warningCodes: completionCapture.warningCodes,
+            }
+          : null,
       };
     } catch (error) {
       if (unloadInventorySyncRequested) {

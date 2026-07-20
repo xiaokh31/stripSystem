@@ -16,6 +16,7 @@ describe('AsyncJobsService', () => {
   let prisma: any;
   let service: AsyncJobsService;
   let queueAdd: jest.Mock;
+  let queueGetJob: jest.Mock;
 
   beforeEach(() => {
     prisma = {
@@ -43,8 +44,10 @@ describe('AsyncJobsService', () => {
       }),
     } as unknown as ConfigService);
     queueAdd = jest.fn();
+    queueGetJob = jest.fn();
     (service as unknown as { getQueue: () => unknown }).getQueue = () => ({
       add: queueAdd,
+      getJob: queueGetJob,
     });
   });
 
@@ -62,6 +65,43 @@ describe('AsyncJobsService', () => {
       status: 'running',
       idempotencyKey: 'UNLOADING_PARSE:IMPORT_FILE:import-1',
     });
+    expect(prisma.asyncJob.create).not.toHaveBeenCalled();
+    expect(queueAdd).not.toHaveBeenCalled();
+  });
+
+  it('reuses a terminal replay job when the caller owns a durable idempotency key', async () => {
+    const existing = asyncJobRecord({
+      id: 'job-completed',
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      parserLearningCaseId: 'case-1',
+      status: AsyncJobStatus.SUCCEEDED,
+    });
+    prisma.asyncJob.findFirst.mockResolvedValue(existing);
+
+    const response = await service.submitJob({
+      ...parseJobInput(),
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      parserLearningCaseId: 'case-1',
+      idempotencyScope: '1:request-0001',
+      reuseTerminal: true,
+    });
+
+    expect(response).toMatchObject({
+      id: 'job-completed',
+      status: 'succeeded',
+    });
+    expect(prisma.asyncJob.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          idempotencyKey:
+            'PARSER_PROFILE_REPLAY:PARSER_LEARNING_CASE:case-1:1:request-0001',
+        },
+      }),
+    );
     expect(prisma.asyncJob.create).not.toHaveBeenCalled();
     expect(queueAdd).not.toHaveBeenCalled();
   });
@@ -129,6 +169,66 @@ describe('AsyncJobsService', () => {
         }),
       }),
     );
+  });
+
+  it('re-dispatches a durable outbox row when its Bull job is missing', async () => {
+    const recorded = asyncJobRecord({
+      id: 'completion-job-1',
+      bullJobId: 'completion-job-1',
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      parserLearningCaseId: 'case-1',
+      status: AsyncJobStatus.QUEUED,
+    });
+    prisma.asyncJob.findUnique.mockResolvedValue(recorded);
+    prisma.asyncJob.update.mockResolvedValue(recorded);
+    queueGetJob.mockResolvedValue(null);
+    queueAdd.mockResolvedValue({ id: recorded.id });
+
+    await service.dispatchRecordedJob({
+      asyncJobId: recorded.id,
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      actor,
+      metadata: {
+        draftRevision: 1,
+        replayIdempotencyKey: 'completion-snapshot-1',
+      },
+    });
+
+    expect(queueGetJob).toHaveBeenCalledWith(recorded.id);
+    expect(queueAdd).toHaveBeenCalledWith(
+      AsyncJobType.PARSER_PROFILE_REPLAY,
+      expect.objectContaining({ asyncJobId: recorded.id }),
+      expect.objectContaining({ jobId: recorded.id }),
+    );
+  });
+
+  it('does not enqueue a duplicate when the durable Bull job still exists', async () => {
+    const recorded = asyncJobRecord({
+      id: 'completion-job-1',
+      bullJobId: 'completion-job-1',
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      parserLearningCaseId: 'case-1',
+      status: AsyncJobStatus.RUNNING,
+    });
+    prisma.asyncJob.findUnique.mockResolvedValue(recorded);
+    queueGetJob.mockResolvedValue({ id: recorded.id });
+
+    await service.dispatchRecordedJob({
+      asyncJobId: recorded.id,
+      jobType: AsyncJobType.PARSER_PROFILE_REPLAY,
+      targetType: ASYNC_JOB_TARGET_TYPES.parserLearningCase,
+      targetId: 'case-1',
+      actor,
+    });
+
+    expect(queueAdd).not.toHaveBeenCalled();
+    expect(prisma.asyncJob.update).not.toHaveBeenCalled();
   });
 
   it('returns disabled queue health without creating Redis or BullMQ clients', async () => {

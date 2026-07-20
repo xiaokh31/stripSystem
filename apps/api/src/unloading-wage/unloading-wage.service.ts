@@ -26,6 +26,7 @@ import {
   type ContainerPalletInventorySyncSummaryDto,
 } from '../pallet-inventory-sync/container-pallet-inventory-sync.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
 import {
   CompleteContainerUnloadingDto,
   CompleteUnloadingDto,
@@ -209,6 +210,7 @@ export class UnloadingWageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly palletInventorySync: ContainerPalletInventorySyncService,
+    private readonly parserLearningCases: ParserLearningCasesService,
     configService: ConfigService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
@@ -506,9 +508,14 @@ export class UnloadingWageService {
       throw error;
     }
 
+    const parserLearning = await this.captureParserLearningCompletions(
+      payContainer.sourceContainers,
+      actor,
+    );
     return {
       ...(await this.getContainerUnloadingWage(containerId)),
       inventorySync,
+      parserLearning,
     };
   }
 
@@ -804,9 +811,14 @@ export class UnloadingWageService {
       throw error;
     }
 
+    const parserLearning = await this.captureParserLearningCompletions(
+      existing.sourceContainers,
+      actor,
+    );
     return {
       ...(await this.getPayContainer(id)),
       inventorySync,
+      parserLearning,
     };
   }
 
@@ -1485,6 +1497,38 @@ export class UnloadingWageService {
     }
 
     return summaries;
+  }
+
+  private async captureParserLearningCompletions(
+    sourceContainers: Array<{ containerId: string }> | undefined,
+    actor: AuthenticatedUser,
+  ): Promise<
+    Array<{
+      learningCaseId: string;
+      snapshotCreated: boolean;
+      replayJobId: string | null;
+      warningCodes: string[];
+    }>
+  > {
+    const results: Array<{
+      learningCaseId: string;
+      snapshotCreated: boolean;
+      replayJobId: string | null;
+      warningCodes: string[];
+    }> = [];
+    for (const containerId of [
+      ...new Set((sourceContainers ?? []).map((item) => item.containerId)),
+    ]) {
+      const result =
+        await this.parserLearningCases.captureAndDispatchCompletion(
+          containerId,
+          actor,
+        );
+      if (result) {
+        results.push(result);
+      }
+    }
+    return results;
   }
 
   private settlementInputs(

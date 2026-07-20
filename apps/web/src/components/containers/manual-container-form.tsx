@@ -25,14 +25,19 @@ interface SaveState {
 const idleSaveState: SaveState = { message: "", status: "idle" };
 
 export function ManualContainerForm({
+  learningCaseId,
   sourceImportId,
 }: {
+  learningCaseId?: string | null;
   sourceImportId?: string | null;
 }) {
   const { format, t } = useI18n();
   const router = useRouter();
   const [draft, setDraft] = useState<ManualContainerDraft>(() => {
-    const initialDraft = defaultManualContainerDraft(sourceImportId);
+    const initialDraft = defaultManualContainerDraft(
+      sourceImportId,
+      learningCaseId,
+    );
     return {
       ...initialDraft,
       correctionNote: sourceImportId

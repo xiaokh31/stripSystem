@@ -316,6 +316,8 @@ test("localized component key boundaries retain their MessageKey contracts", () 
 test("rendered web modules import an explicit translator", () => {
   const exemptFiles = new Set([
     "src/app/admin/page.tsx",
+    // This route is an exact alias of the localized parser-profile detail page.
+    "src/app/parser-profiles/[id]/review/page.tsx",
     "src/app/reports/inventory/page.tsx",
   ]);
   const files = renderedSourceFiles();

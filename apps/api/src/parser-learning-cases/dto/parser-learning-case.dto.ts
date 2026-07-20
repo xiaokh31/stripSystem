@@ -95,12 +95,30 @@ export interface ParserLearningCaseResponseDto {
     rawMetadata: unknown;
   } | null;
   draftDefinition: unknown;
+  draftRevision: number;
   completionSnapshot: unknown;
   replaySummary: unknown;
+  lastErrorCode: string | null;
+  latestProfileVersion: {
+    id: string;
+    familyId: string;
+    version: number;
+    sourceDraftRevision: number | null;
+    lifecycle: string;
+    trustState: string;
+    mappingVersion: string;
+    matcherVersion: string;
+  } | null;
   createdById: string;
   updatedById: string;
   closedById: string | null;
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ParserLearningCaseListResponseDto {
+  items: ParserLearningCaseResponseDto[];
+  limit: number;
+  offset: number;
 }

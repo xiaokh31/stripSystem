@@ -6,7 +6,7 @@ import {
 } from "../src/components/containers/manual-container-flow";
 
 test("manual container draft builds POST /containers/manual payload", () => {
-  const draft = defaultManualContainerDraft("import-1");
+  const draft = defaultManualContainerDraft("import-1", "learning-case-1");
   draft.containerNo = " MANU1234567 ";
   draft.company = " Manual Customer ";
   draft.dockNo = " D7 ";
@@ -57,6 +57,7 @@ test("manual container draft builds POST /containers/manual payload", () => {
       },
     ],
     dockNo: "D7",
+    learningCaseId: "learning-case-1",
     reason: "Original import import-1 could not be parsed.",
   });
 });

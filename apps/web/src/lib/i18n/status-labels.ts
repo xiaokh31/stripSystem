@@ -3,6 +3,19 @@ import { createTranslator } from "./translator";
 
 type LocalizedLabel = Record<Locale, string>;
 
+export const PARSER_LEARNING_CASE_STATES = [
+  "OPEN",
+  "MAPPING",
+  "READY_FOR_REPLAY",
+  "REPLAY_FAILED",
+  "AWAITING_COMPLETION",
+  "AWAITING_APPROVAL",
+  "CLOSED",
+] as const;
+
+export type ParserLearningCaseState =
+  (typeof PARSER_LEARNING_CASE_STATES)[number];
+
 const containerLifecycleStatusLabels: Record<string, LocalizedLabel> = {
   CORRECTED: { en: "Corrected", "zh-CN": "已修正" },
   ERROR: { en: "Error", "zh-CN": "错误" },
@@ -183,6 +196,7 @@ const payClassificationLabels: Record<string, LocalizedLabel> = {
 
 const generatedAndImportStatusLabels: Record<string, LocalizedLabel> = {
   FAILED: { en: "Failed", "zh-CN": "失败" },
+  GENERATING: { en: "Generating", "zh-CN": "生成中" },
   GENERATED: { en: "Generated", "zh-CN": "已生成" },
   PARSED: { en: "Parsed", "zh-CN": "已解析" },
   PARSING: { en: "Parsing", "zh-CN": "解析中" },
@@ -191,10 +205,20 @@ const generatedAndImportStatusLabels: Record<string, LocalizedLabel> = {
   WARNING: { en: "Warning", "zh-CN": "警告" },
 };
 
-const parserLearningCaseStatusLabels: Record<string, LocalizedLabel> = {
+const parserLearningCaseStatusLabels: Record<
+  ParserLearningCaseState,
+  LocalizedLabel
+> = {
+  OPEN: { en: "Open", "zh-CN": "待处理" },
+  MAPPING: { en: "Mapping in progress", "zh-CN": "映射编辑中" },
+  READY_FOR_REPLAY: { en: "Ready for replay", "zh-CN": "可执行回放" },
+  REPLAY_FAILED: { en: "Replay needs attention", "zh-CN": "回放需要处理" },
+  AWAITING_COMPLETION: {
+    en: "Awaiting unloading completion",
+    "zh-CN": "等待卸柜完成",
+  },
+  AWAITING_APPROVAL: { en: "Awaiting approval", "zh-CN": "等待批准" },
   CLOSED: { en: "Closed", "zh-CN": "已关闭" },
-  DRAFT: { en: "Draft", "zh-CN": "草稿" },
-  LINKED: { en: "Manual result linked", "zh-CN": "已关联人工结果" },
 };
 
 const parserProfileLifecycleLabels: Record<string, LocalizedLabel> = {
@@ -215,7 +239,128 @@ const parserSourceKindLabels: Record<string, LocalizedLabel> = {
   PROFILE: { en: "Parser profile", "zh-CN": "解析配置" },
 };
 
-const parserProfileContractCodeLabels: Record<string, LocalizedLabel> = {
+export const PARSER_PROFILE_CONTRACT_CODES = [
+  "IMPORT_USED_BY_PARSER_LEARNING",
+  "PARSER_LEARNING_CASE_ALREADY_LINKED",
+  "PARSER_LEARNING_CASE_CLOSED",
+  "PARSER_LEARNING_CASE_HAS_PROFILE_DEPENDENCY",
+  "PARSER_LEARNING_CASE_LINK_CONFLICT",
+  "PARSER_LEARNING_CASE_NOT_FOUND",
+  "PARSER_LEARNING_CASE_REPLAY_RUNNING",
+  "PARSER_LEARNING_CASE_START_CONFLICT",
+  "PARSER_LEARNING_CONTAINER_ALREADY_LINKED",
+  "PARSER_LEARNING_CONTAINER_NOT_FOUND",
+  "PARSER_LEARNING_CONTAINER_NOT_MANUAL",
+  "PARSER_LEARNING_IMPORT_NOT_FOUND",
+  "PARSER_LEARNING_IMPORT_STATUS_NOT_ALLOWED",
+  "PARSER_LEARNING_VALIDATION_FAILED",
+  "PARSER_PROFILE_REQUEST_VALIDATION_FAILED",
+  "PARSER_PROFILE_TRAIN_FORBIDDEN",
+  "QUEUE_DISABLED",
+  "QUEUE_ENQUEUE_FAILED",
+  "QUEUE_UNAVAILABLE",
+  "PROFILE_CANDIDATE_FAMILY_CONFLICT",
+  "PROFILE_CANDIDATE_NOT_READY",
+  "PROFILE_DEFINITION_JSON_INVALID",
+  "PROFILE_DRAFT_NOT_FOUND",
+  "PROFILE_DRAFT_REVISION_CONFLICT",
+  "PROFILE_EVIDENCE_DETAIL_ROWS_UNVERIFIED",
+  "PROFILE_EVIDENCE_REFERENCE_UNVERIFIED",
+  "PROFILE_EVIDENCE_VOLUME_UNVERIFIED",
+  "PROFILE_MAPPING_DEFINITION_INVALID",
+  "PROFILE_MAPPING_REQUIRED_FIELD_MISSING",
+  "PROFILE_PREVIEW_STALE_RESULT",
+  "PROFILE_REPLAY_ARTIFACT_NOT_FOUND",
+  "PROFILE_REPLAY_ARTIFACT_NOT_READY",
+  "PROFILE_REPLAY_CARTONS_MISMATCH",
+  "PROFILE_REPLAY_CONTAINER_MISMATCH",
+  "PROFILE_REPLAY_DESTINATION_SET_MISMATCH",
+  "PROFILE_REPLAY_DETAIL_ROWS_MISMATCH",
+  "PROFILE_REPLAY_FIELD_MATCHED",
+  "PROFILE_REPLAY_JOB_NOT_FOUND",
+  "PROFILE_REPLAY_JOB_PAYLOAD_INVALID",
+  "PROFILE_REPLAY_MANUAL_RESULT_REQUIRED",
+  "PROFILE_REPLAY_MANUAL_SNAPSHOT_CHANGED",
+  "PROFILE_REPLAY_NOT_READY",
+  "PROFILE_REPLAY_PACKAGE_EVIDENCE_MISMATCH",
+  "PROFILE_REPLAY_QUEUE_FAILED",
+  "PROFILE_REPLAY_REFERENCE_EVIDENCE_MISMATCH",
+  "PROFILE_REPLAY_STALE_REVISION",
+  "PROFILE_REPLAY_VOLUME_MISMATCH",
+  "PROFILE_REPLAY_WORKER_FAILED",
+  "PROFILE_SOURCE_SHA_MISMATCH",
+  "PROFILE_SOURCE_STORAGE_PATH_NOT_FILE",
+  "PROFILE_SOURCE_WORKBOOK_NOT_FOUND",
+  "PROFILE_STORAGE_FILE_NOT_FOUND",
+  "PROFILE_STORAGE_PATH_INVALID",
+  "PROFILE_STORAGE_PATH_OUTSIDE_ROOT",
+  "PROFILE_WORKER_EMPTY_OUTPUT",
+  "PROFILE_WORKER_INVALID_OUTPUT",
+  "PROFILE_WORKER_INVOCATION_FAILED",
+  "WORKBOOK_NOT_FOUND",
+  "WORKBOOK_TYPE_UNSUPPORTED",
+  "WORKBOOK_READ_FAILED",
+  "WORKBOOK_ARCHIVE_ENTRY_LIMIT_EXCEEDED",
+  "WORKBOOK_ARCHIVE_ENTRY_COUNT_LIMIT_EXCEEDED",
+  "WORKBOOK_ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED",
+  "INSPECTION_SHEET_LIMIT_EXCEEDED",
+  "INSPECTION_ROW_LIMIT_EXCEEDED",
+  "INSPECTION_COLUMN_LIMIT_EXCEEDED",
+  "INSPECTION_CELL_LIMIT_EXCEEDED",
+  "INSPECTION_MERGED_RANGE_LIMIT_EXCEEDED",
+  "FORMULA_CACHED_VALUE_MISSING",
+  "FINGERPRINT_WORKBOOK_TYPE_MISMATCH",
+  "FINGERPRINT_SHEET_MISSING",
+  "FINGERPRINT_REQUIRED_ANCHOR_MISSING",
+  "FINGERPRINT_ANCHOR_MATCHED",
+  "FINGERPRINT_RELATIVE_COLUMN_MISMATCH",
+  "FINGERPRINT_COLUMN_TYPE_MISMATCH",
+  "FINGERPRINT_FORMULA_CACHE_MISSING",
+  "FINGERPRINT_DATA_START_MISMATCH",
+  "FINGERPRINT_DATA_STOP_MISMATCH",
+  "FINGERPRINT_PROFILE_COLLISION",
+  "FINGERPRINT_NO_MATCH",
+  "FINGERPRINT_DEFINITION_UNKNOWN_FIELD",
+  "FINGERPRINT_DEFINITION_INVALID",
+  "FINGERPRINT_SHEET_SELECTOR_INVALID",
+  "FINGERPRINT_VERSION_UNSUPPORTED",
+  "MAPPING_DEFINITION_UNKNOWN_FIELD",
+  "MAPPING_DEFINITION_INVALID",
+  "MAPPING_OPERATION_UNKNOWN",
+  "MAPPING_SOURCE_CELL_INVALID",
+  "MAPPING_REGEX_UNSAFE",
+  "MAPPING_REGEX_INVALID",
+  "MAPPING_DIVISOR_ZERO",
+  "MAPPING_CANONICAL_FIELD_UNKNOWN",
+  "MAPPING_CONTAINER_CONSTANT_FORBIDDEN",
+  "MAPPING_SHEET_SELECTOR_INVALID",
+  "MAPPING_SHEET_NOT_FOUND",
+  "MAPPING_SHEET_LIMIT_EXCEEDED",
+  "MAPPING_HEADER_NOT_FOUND",
+  "MAPPING_COLUMN_LIMIT_EXCEEDED",
+  "MAPPING_ROW_BUDGET_EXCEEDED",
+  "MAPPING_CELL_LIMIT_EXCEEDED",
+  "MAPPING_SOURCE_COLUMN_NOT_FOUND",
+  "MAPPING_TRANSFORM_FAILED",
+  "MAPPING_ROW_LIMIT_EXCEEDED",
+  "MAPPING_FORMULA_CACHE_MISSING",
+  "MAPPING_REGEX_TIMEOUT",
+  "MAPPING_REGEX_BUDGET_EXCEEDED",
+  "MAPPING_REGEX_INPUT_LIMIT_EXCEEDED",
+  "MAPPING_WORKBOOK_READ_FAILED",
+  "MISSING_CONTAINER_NO",
+  "MISSING_DESTINATION",
+  "MISSING_CARTONS",
+  "MISSING_VOLUME",
+  "ZERO_VOLUME_WITH_CARTONS",
+  "NEED_MANUAL_DESTINATION",
+  "HEADER_ALIAS_MATCH",
+] as const;
+
+export type ParserProfileContractCode =
+  (typeof PARSER_PROFILE_CONTRACT_CODES)[number];
+
+const parserProfileContractCodeLabels = parserProfileCodeCatalog({
   IMPORT_USED_BY_PARSER_LEARNING: {
     en: "Import is used by parser learning",
     "zh-CN": "导入文件正用于解析学习",
@@ -243,6 +388,10 @@ const parserProfileContractCodeLabels: Record<string, LocalizedLabel> = {
   PARSER_LEARNING_CASE_NOT_FOUND: {
     en: "Learning case not found",
     "zh-CN": "未找到学习案例",
+  },
+  PARSER_LEARNING_CASE_REPLAY_RUNNING: {
+    en: "Another replay is already running for this case",
+    "zh-CN": "此学习案例已有回放任务正在运行",
   },
   PARSER_LEARNING_CASE_START_CONFLICT: {
     en: "Learning case was created concurrently",
@@ -272,7 +421,176 @@ const parserProfileContractCodeLabels: Record<string, LocalizedLabel> = {
     en: "Parser training permission required",
     "zh-CN": "需要解析训练权限",
   },
-};
+  QUEUE_DISABLED: {
+    en: "Background processing is disabled",
+    "zh-CN": "后台处理当前已禁用",
+  },
+  QUEUE_ENQUEUE_FAILED: {
+    en: "Replay could not be added to the processing queue",
+    "zh-CN": "回放任务无法加入处理队列",
+  },
+  QUEUE_UNAVAILABLE: {
+    en: "Background processing is temporarily unavailable",
+    "zh-CN": "后台处理暂时不可用",
+  },
+  PROFILE_DRAFT_NOT_FOUND: {
+    en: "No saved mapping draft exists for this case",
+    "zh-CN": "此学习案例尚无已保存的映射草稿",
+  },
+  PROFILE_DRAFT_REVISION_CONFLICT: {
+    en: "The mapping draft changed; reload before saving",
+    "zh-CN": "映射草稿已变更，请重新加载后保存",
+  },
+  PROFILE_PREVIEW_STALE_RESULT: {
+    en: "Preview was based on an older mapping revision",
+    "zh-CN": "预览基于旧版映射，请重新执行",
+  },
+  PROFILE_REPLAY_ARTIFACT_NOT_FOUND: {
+    en: "Replay evidence file was not found",
+    "zh-CN": "未找到回放证据文件",
+  },
+  PROFILE_REPLAY_ARTIFACT_NOT_READY: {
+    en: "Replay evidence is not ready",
+    "zh-CN": "回放证据尚未就绪",
+  },
+  PROFILE_REPLAY_CARTONS_MISMATCH: {
+    en: "Carton totals differ from the manual result",
+    "zh-CN": "箱数合计与人工结果不一致",
+  },
+  PROFILE_REPLAY_CONTAINER_MISMATCH: {
+    en: "Container number differs from the manual result",
+    "zh-CN": "柜号与人工结果不一致",
+  },
+  PROFILE_REPLAY_DESTINATION_SET_MISMATCH: {
+    en: "Destination set differs from the manual result",
+    "zh-CN": "目的仓集合与人工结果不一致",
+  },
+  PROFILE_REPLAY_DETAIL_ROWS_MISMATCH: {
+    en: "Included detail rows differ from the manual result",
+    "zh-CN": "明细行范围与人工结果不一致",
+  },
+  PROFILE_REPLAY_FIELD_MATCHED: {
+    en: "Replay field matches the manual result",
+    "zh-CN": "回放字段与人工结果一致",
+  },
+  PROFILE_REPLAY_JOB_NOT_FOUND: {
+    en: "Replay job was not found for this case",
+    "zh-CN": "此学习案例未找到对应回放任务",
+  },
+  PROFILE_REPLAY_JOB_PAYLOAD_INVALID: {
+    en: "Replay job data is invalid",
+    "zh-CN": "回放任务数据无效",
+  },
+  PROFILE_REPLAY_MANUAL_RESULT_REQUIRED: {
+    en: "A linked manual result is required for replay",
+    "zh-CN": "回放前必须关联人工结果",
+  },
+  PROFILE_REPLAY_MANUAL_SNAPSHOT_CHANGED: {
+    en: "The manual result changed during replay",
+    "zh-CN": "回放期间人工结果已变更",
+  },
+  PROFILE_REPLAY_NOT_READY: {
+    en: "Mapping or manual evidence is not ready for replay",
+    "zh-CN": "映射或人工证据尚未达到回放条件",
+  },
+  PROFILE_REPLAY_PACKAGE_EVIDENCE_MISMATCH: {
+    en: "Package evidence differs from the manual result",
+    "zh-CN": "包装证据与人工结果不一致",
+  },
+  PROFILE_REPLAY_QUEUE_FAILED: {
+    en: "Replay queue submission failed",
+    "zh-CN": "回放任务提交失败",
+  },
+  PROFILE_REPLAY_REFERENCE_EVIDENCE_MISMATCH: {
+    en: "Reference evidence differs from the manual result",
+    "zh-CN": "参考证据与人工结果不一致",
+  },
+  PROFILE_REPLAY_STALE_REVISION: {
+    en: "Replay used an older mapping revision",
+    "zh-CN": "回放使用了旧版映射",
+  },
+  PROFILE_REPLAY_VOLUME_MISMATCH: {
+    en: "Volume totals differ from the manual result",
+    "zh-CN": "体积合计与人工结果不一致",
+  },
+  PROFILE_REPLAY_WORKER_FAILED: {
+    en: "Replay processing failed",
+    "zh-CN": "回放处理失败",
+  },
+  PROFILE_EVIDENCE_DETAIL_ROWS_UNVERIFIED: {
+    en: "Manual detail-row evidence is unavailable",
+    "zh-CN": "缺少可核验的人工明细行证据",
+  },
+  PROFILE_EVIDENCE_REFERENCE_UNVERIFIED: {
+    en: "Manual reference evidence is unavailable",
+    "zh-CN": "缺少可核验的人工参考证据",
+  },
+  PROFILE_EVIDENCE_VOLUME_UNVERIFIED: {
+    en: "Manual volume evidence is missing or zero",
+    "zh-CN": "人工体积证据缺失或为零",
+  },
+});
+
+function parserProfileCodeCatalog(
+  overrides: Partial<Record<ParserProfileContractCode, LocalizedLabel>>,
+): Record<ParserProfileContractCode, LocalizedLabel> {
+  return Object.fromEntries(
+    PARSER_PROFILE_CONTRACT_CODES.map((code) => [
+      code,
+      overrides[code] ?? genericParserProfileCodeLabel(code),
+    ]),
+  ) as Record<ParserProfileContractCode, LocalizedLabel>;
+}
+
+function genericParserProfileCodeLabel(
+  code: ParserProfileContractCode,
+): LocalizedLabel {
+  if (code.startsWith("FINGERPRINT_")) {
+    return {
+      en: "Workbook structure fingerprint issue",
+      "zh-CN": "工作簿结构指纹需要处理",
+    };
+  }
+  if (code.startsWith("MAPPING_") || code.startsWith("PROFILE_MAPPING_")) {
+    return { en: "Mapping definition issue", "zh-CN": "映射定义需要处理" };
+  }
+  if (
+    code.startsWith("PROFILE_REPLAY_") ||
+    code.startsWith("PROFILE_EVIDENCE_")
+  ) {
+    return { en: "Replay comparison result", "zh-CN": "回放比对结果" };
+  }
+  if (code.startsWith("INSPECTION_")) {
+    return {
+      en: "Workbook inspection limit reached",
+      "zh-CN": "工作簿检查达到限制",
+    };
+  }
+  if (code.startsWith("WORKBOOK_") || code.startsWith("FORMULA_")) {
+    return { en: "Workbook processing issue", "zh-CN": "工作簿处理需要处理" };
+  }
+  if (
+    code.startsWith("MISSING_") ||
+    code === "ZERO_VOLUME_WITH_CARTONS" ||
+    code === "NEED_MANUAL_DESTINATION" ||
+    code === "HEADER_ALIAS_MATCH"
+  ) {
+    return { en: "Source data validation result", "zh-CN": "来源数据验证结果" };
+  }
+  if (
+    code.startsWith("PROFILE_STORAGE_") ||
+    code.startsWith("PROFILE_SOURCE_")
+  ) {
+    return { en: "Source file access issue", "zh-CN": "来源文件访问需要处理" };
+  }
+  if (code.startsWith("PROFILE_WORKER_")) {
+    return { en: "Parser worker issue", "zh-CN": "解析工作进程需要处理" };
+  }
+  return {
+    en: "Parser profile request issue",
+    "zh-CN": "解析配置请求需要处理",
+  };
+}
 
 const generatedAndImportStatusAliases: Record<string, string> = {
   Failed: "FAILED",
@@ -345,6 +663,7 @@ const generatedFileTypeKeys: Record<string, MessageKey> = {
   EXCEL_REPORT: "Excel report",
   MONTHLY_UNLOADING_SUMMARY_XLSX: "Monthly unloading summary",
   PALLET_LABEL_PDF: "Label PDF",
+  PARSER_PROFILE_REPLAY_JSON: "Parser profile replay JSON",
   TASK_REPORT_HTML: "Task report",
   UNLOADING_WAGE_SETTLEMENT_JSON: "Settlement JSON",
   UNLOADING_WAGE_SETTLEMENT_XLSX: "Unloading wage settlement",
@@ -522,7 +841,9 @@ export function destinationTypeLabel(
   const key = destinationTypeKeys[normalized];
   return key
     ? t(key)
-    : format("i18n.destinationType.other", { value: destinationType?.trim() ?? "" });
+    : format("i18n.destinationType.other", {
+        value: destinationType?.trim() ?? "",
+      });
 }
 
 export function generatedFileTypeLabel(

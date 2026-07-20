@@ -24,6 +24,8 @@ import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { createTranslator } from "@/lib/i18n/translator";
 import { getServerApiOptions } from "@/lib/server-auth";
+import { getServerCurrentUser } from "@/lib/server-auth";
+import { canTrainParserProfiles } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,10 @@ export default async function ImportDetailPage({
   const { id } = await params;
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
-  const state = await loadImportDetail(id);
+  const [state, currentUser] = await Promise.all([
+    loadImportDetail(id),
+    getServerCurrentUser(),
+  ]);
 
   if (!state.ok) {
     return <ImportDetailError error={state.error} id={id} locale={locale} />;
@@ -134,6 +139,7 @@ export default async function ImportDetailPage({
         </div>
 
         <ImportDetailActions
+          canTrainParserProfile={canTrainParserProfiles(currentUser)}
           importFile={state.importFile}
           initialParseResult={parseSummary}
           manualReportHref={manualHref}

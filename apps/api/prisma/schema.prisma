@@ -49,8 +49,12 @@ enum ParserProfileTrustState {
 }
 
 enum ParserLearningCaseStatus {
-  DRAFT
-  LINKED
+  OPEN
+  MAPPING
+  READY_FOR_REPLAY
+  REPLAY_FAILED
+  AWAITING_COMPLETION
+  AWAITING_APPROVAL
   CLOSED
 }
 
@@ -72,7 +76,9 @@ enum ParserProfileAuditEventCode {
   EVIDENCE_MATERIAL_CORRECTION
   PROFILE_TRUSTED
   PROFILE_PAUSED
+  PROFILE_RESUMED
   PROFILE_RETIRED
+  PROFILE_VERSION_FORKED
   CASE_CLOSED
   IMPORT_DELETE_BLOCKED
 }
@@ -102,9 +108,11 @@ enum GeneratedFileType {
   TASK_REPORT_HTML
   CORRECTIONS_JSON
   MONTHLY_UNLOADING_SUMMARY_XLSX
+  PARSER_PROFILE_REPLAY_JSON
 }
 
 enum GeneratedFileStatus {
+  GENERATING
   GENERATED
   FAILED
   SUPERSEDED
@@ -116,6 +124,7 @@ enum AsyncJobType {
   UNLOADING_LABELS
   ATTENDANCE_PARSE
   WAGE_RECORD_GENERATION
+  PARSER_PROFILE_REPLAY
 }
 
 enum AsyncJobStatus {
@@ -466,6 +475,7 @@ model ParserProfileVersion {
   family                ParserProfileFamily       @relation(fields: [familyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   sourceLearningCaseId  String?                   @map("source_learning_case_id")
   sourceLearningCase    ParserLearningCase?       @relation(fields: [sourceLearningCaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceDraftRevision   Int?                      @map("source_draft_revision")
   version               Int
   lifecycle             ParserProfileLifecycle    @default(DRAFT)
   trustState            ParserProfileTrustState   @default(REVIEW_REQUIRED) @map("trust_state")
@@ -478,6 +488,10 @@ model ParserProfileVersion {
   approvedById          String?                   @map("approved_by_id")
   approvedBy            User?                     @relation("ParserProfileVersionApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   approvedAt            DateTime?                 @map("approved_at")
+  approvalReason        String?                   @map("approval_reason")
+  lifecycleReason       String?                   @map("lifecycle_reason")
+  lifecycleRevision     Int                       @default(0) @map("lifecycle_revision")
+  trustStreak           Int                       @default(0) @map("trust_streak")
   containers            Container[]
   evidence              ParserProfileEvidence[]
   auditEvents           ParserProfileAuditEvent[]
@@ -485,6 +499,7 @@ model ParserProfileVersion {
   updatedAt             DateTime                  @updatedAt @map("updated_at")
 
   @@unique([familyId, version])
+  @@unique([sourceLearningCaseId, sourceDraftRevision])
   @@index([lifecycle, trustState])
   @@index([sourceLearningCaseId])
   @@index([createdById])
@@ -501,10 +516,16 @@ model ParserLearningCase {
   sourceFileSha256        String                    @map("source_file_sha256")
   linkedContainerId       String?                   @unique @map("linked_container_id")
   linkedContainer         Container?                @relation(fields: [linkedContainerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  status                  ParserLearningCaseStatus  @default(DRAFT)
+  status                  ParserLearningCaseStatus  @default(OPEN)
   draftDefinition         Json?                     @map("draft_definition")
+  draftRevision           Int                       @default(0) @map("draft_revision")
   completionSnapshot      Json?                     @map("completion_snapshot")
+  completionSnapshotAt    DateTime?                 @map("completion_snapshot_at")
+  completionReplayJobId   String?                   @unique @map("completion_replay_job_id")
+  completionReplayJob     AsyncJob?                 @relation("ParserCompletionReplayJob", fields: [completionReplayJobId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   replaySummary           Json?                     @map("replay_summary")
+  activeReplayToken       String?                   @map("active_replay_token")
+  lastErrorCode           String?                   @map("last_error_code")
   createdById             String                    @map("created_by_id")
   createdBy               User                      @relation("ParserLearningCaseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   updatedById             String                    @map("updated_by_id")
@@ -514,6 +535,8 @@ model ParserLearningCase {
   closedAt                DateTime?                 @map("closed_at")
   auditEvents             ParserProfileAuditEvent[]
   profileVersions         ParserProfileVersion[]
+  generatedFiles          GeneratedFile[]           @relation("ParserLearningCaseGeneratedFiles")
+  asyncJobs               AsyncJob[]                @relation("ParserLearningCaseAsyncJobs")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
 
@@ -685,6 +708,9 @@ model GeneratedFile {
   importFile         ImportFile?          @relation(fields: [importFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   containerId        String?              @map("container_id")
   container          Container?           @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  parserLearningCaseId String?             @map("parser_learning_case_id")
+  parserLearningCase   ParserLearningCase? @relation("ParserLearningCaseGeneratedFiles", fields: [parserLearningCaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  idempotencyKey       String?             @unique @map("idempotency_key")
   fileType           GeneratedFileType    @map("file_type")
   storagePath        String               @map("storage_path")
   fileSha256         String?              @map("file_sha256")
@@ -701,6 +727,7 @@ model GeneratedFile {
 
   @@index([importFileId])
   @@index([containerId])
+  @@index([parserLearningCaseId])
   @@index([fileType])
   @@index([status])
   @@index([createdAt])
@@ -984,6 +1011,9 @@ model AsyncJob {
   container           Container?         @relation(fields: [containerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   attendanceImportId  String?            @map("attendance_import_id")
   attendanceImport    AttendanceImport?  @relation(fields: [attendanceImportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  parserLearningCaseId String?            @map("parser_learning_case_id")
+  parserLearningCase   ParserLearningCase? @relation("ParserLearningCaseAsyncJobs", fields: [parserLearningCaseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  completionReplayForCase ParserLearningCase? @relation("ParserCompletionReplayJob")
   generatedFileId     String?            @map("generated_file_id")
   generatedFile       GeneratedFile?     @relation(fields: [generatedFileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   wageGeneratedFileId String?            @map("wage_generated_file_id")
@@ -1009,6 +1039,7 @@ model AsyncJob {
   @@index([importFileId])
   @@index([containerId])
   @@index([attendanceImportId])
+  @@index([parserLearningCaseId])
   @@index([generatedFileId])
   @@index([wageGeneratedFileId])
   @@index([actorUserId])

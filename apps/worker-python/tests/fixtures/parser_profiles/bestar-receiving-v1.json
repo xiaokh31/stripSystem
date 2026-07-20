@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "parser-profile-mapping-v1",
+  "profileVersion": "fixture-bestar-receiving-v1",
+  "formatType": "BESTAR_RECEIVING",
+  "sheet": {"index": 0},
+  "header": {"row": 11, "rowCount": 1},
+  "dataRange": {"startRow": 12, "maxRows": 50},
+  "container": {
+    "scope": "workbook",
+    "sources": [{"kind": "cell", "cell": "D3"}],
+    "transforms": [{"op": "trim"}]
+  },
+  "metadataFields": {
+    "company": {
+      "scope": "workbook",
+      "sources": [{"kind": "cell", "cell": "D2"}],
+      "transforms": [{"op": "trim"}]
+    },
+    "poNumber": {
+      "scope": "workbook",
+      "sources": [{"kind": "cell", "cell": "H3"}]
+    },
+    "customer": {
+      "scope": "workbook",
+      "sources": [{"kind": "cell", "cell": "D7"}],
+      "transforms": [{"op": "trim"}]
+    },
+    "clearOrderNo": {
+      "scope": "workbook",
+      "sources": [{"kind": "cell", "cell": "D8"}]
+    }
+  },
+  "fields": {
+    "itemNo": {
+      "sources": [{"kind": "column", "header": "ITEM#"}],
+      "transforms": [{"op": "trim"}]
+    },
+    "description": {"sources": [{"kind": "column", "header": "DESCRIPTION"}]},
+    "cartons": {
+      "sources": [{"kind": "column", "header": "TOTAL # OF CARTONS"}],
+      "transforms": [{"op": "parse_integer"}]
+    },
+    "totalSkidCount": {
+      "sources": [{"kind": "column", "header": "TOTAL SKID COUNT"}],
+      "transforms": [{"op": "parse_integer"}]
+    },
+    "destinationCode": {"sources": [{"kind": "constant", "value": null}]}
+  },
+  "rowPredicates": [
+    {"op": "skip_blank", "headers": ["ITEM#", "TOTAL # OF CARTONS"]},
+    {
+      "op": "exclude",
+      "source": {"kind": "column", "header": "ITEM#"},
+      "operator": "in",
+      "values": ["TOTAL", "SUMMARY"]
+    }
+  ],
+  "groupBy": ["destinationCode"]
+}

@@ -1412,7 +1412,7 @@ describe('ImportsController (e2e)', () => {
       learningCase: {
         id: learningCaseId,
         sourceImportId: importFile.id,
-        status: 'LINKED',
+        status: 'OPEN',
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
         linkedContainer: {
@@ -1456,7 +1456,7 @@ describe('ImportsController (e2e)', () => {
       .send({})
       .expect(201)
       .expect((response) => {
-        expect(response.body.status).toBe('DRAFT');
+        expect(response.body.status).toBe('OPEN');
       });
     await authorizedRequest(app, officeAuthHeader())
       .post(`/api/parser-learning-cases/${learningCaseId}/close`)
@@ -1497,7 +1497,7 @@ describe('ImportsController (e2e)', () => {
     const racedCase = await authorizedRequest(app, officeAuthHeader())
       .get(`/api/parser-learning-cases/${restarted.body.id}`)
       .expect(200);
-    expect(racedCase.body.status).toBe('LINKED');
+    expect(racedCase.body.status).toBe('OPEN');
     expect(['RACE1234561', 'RACE1234562']).toContain(
       racedCase.body.linkedContainer.containerNo,
     );
@@ -1930,10 +1930,13 @@ describe('ImportsController (e2e)', () => {
             sourceImportReferenceId: data.sourceImportReferenceId,
             sourceFileSha256: data.sourceFileSha256,
             linkedContainerId: null,
-            status: 'DRAFT',
+            status: 'OPEN',
+            draftRevision: 0,
             draftDefinition: null,
             completionSnapshot: null,
             replaySummary: null,
+            activeReplayToken: null,
+            lastErrorCode: null,
             createdById: data.createdById,
             updatedById: data.updatedById,
             closedById: null,
@@ -1945,13 +1948,54 @@ describe('ImportsController (e2e)', () => {
           return Promise.resolve(learningCaseResponse(record));
         }),
         updateMany: jest.fn(({ where, data }) => {
-          const record = parserLearningCaseRecords.find(
-            (item) =>
-              item.id === where.id &&
-              item.status === where.status &&
-              item.linkedContainerId === null &&
-              item.sourceImportId !== null,
-          );
+          const record = parserLearningCaseRecords.find((item) => {
+            if (item.id !== where.id) return false;
+            if (
+              where.status?.not !== undefined &&
+              item.status === where.status.not
+            ) {
+              return false;
+            }
+            if (
+              typeof where.status === 'string' &&
+              item.status !== where.status
+            ) {
+              return false;
+            }
+            if (
+              where.linkedContainerId !== undefined &&
+              where.linkedContainerId !== null &&
+              where.linkedContainerId.not !== undefined &&
+              item.linkedContainerId === where.linkedContainerId.not
+            ) {
+              return false;
+            }
+            if (
+              where.linkedContainerId === null &&
+              item.linkedContainerId !== null
+            ) {
+              return false;
+            }
+            if (
+              where.sourceImportId?.not === null &&
+              item.sourceImportId === null
+            ) {
+              return false;
+            }
+            if (
+              where.draftRevision !== undefined &&
+              item.draftRevision !== where.draftRevision
+            ) {
+              return false;
+            }
+            if (
+              where.activeReplayToken !== undefined &&
+              item.activeReplayToken !== where.activeReplayToken
+            ) {
+              return false;
+            }
+            return true;
+          });
           if (!record) return Promise.resolve({ count: 0 });
           if (
             parserLearningCaseRecords.some(
@@ -2349,14 +2393,23 @@ describe('ImportsController (e2e)', () => {
               format: sourceImport.format,
               parseStatus: sourceImport.parseStatus,
               rawMetadata: sourceImport.rawMetadata,
+              storedPath: sourceImport.storedPath,
+              fileSha256: sourceImport.fileSha256,
             }
           : null,
         linkedContainer: linkedContainer
           ? {
               ...linkedContainer,
               rawJson: linkedContainer.rawJson,
+              destinations: destinationRecords.filter(
+                (destination) => destination.containerId === linkedContainer.id,
+              ),
+              lines: lineRecords.filter(
+                (line) => line.containerId === linkedContainer.id,
+              ),
             }
           : null,
+        profileVersions: [],
       };
     }
 

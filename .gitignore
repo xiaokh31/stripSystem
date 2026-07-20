@@ -50,6 +50,10 @@ docs/reports/*
 !docs/reports/web-ops-09-container-inventory-exit-gate.md
 !docs/reports/native-auth-01-revocable-session-verification.md
 !docs/reports/parser-profile-01-foundation-verification.md
+!docs/reports/parser-profile-02-worker-engine-verification.md
+!docs/reports/parser-profile-03-learning-replay-verification.md
+!docs/reports/parser-profile-04-office-wizard-verification.md
+!docs/reports/parser-profile-05-completion-governance-verification.md
 
 # macOS
 .DS_Store
@@ -93,6 +97,7 @@ storage/attendance_imports/*
 storage/attendance_original_files/*
 storage/unloading_wage_settlements/*
 storage/unloading_summary/*
+storage/parser-profile-replays/*
 
 # keep directory placeholders
 !storage/**/.gitkeep

@@ -66,6 +66,7 @@ describe('CorrectionsService', () => {
     parserLearningCases = {
       assertCanTrain: jest.fn(),
       linkContainerInTransaction: jest.fn(),
+      captureAndDispatchCompletion: jest.fn(() => Promise.resolve(null)),
     };
     service = new CorrectionsService(
       prisma as PrismaService,
@@ -834,6 +835,12 @@ describe('CorrectionsService', () => {
   });
 
   it('allows manual UNLOADED status and writes audit feedback', async () => {
+    parserLearningCases.captureAndDispatchCompletion.mockResolvedValue({
+      learningCaseId: 'case-1',
+      snapshotCreated: true,
+      replayJobId: 'completion-job-1',
+      warningCodes: [],
+    });
     const result = await service.updateContainer(
       'container-1',
       {
@@ -865,6 +872,16 @@ describe('CorrectionsService', () => {
         containerId: 'container-1',
       },
     );
+    expect(parserLearningCases.captureAndDispatchCompletion).toHaveBeenCalledWith(
+      'container-1',
+      officeActor,
+    );
+    expect(result.parserLearning).toEqual({
+      learningCaseId: 'case-1',
+      snapshotCreated: true,
+      replayJobId: 'completion-job-1',
+      warningCodes: [],
+    });
   });
 
   it('rejects manual LOADED status when pallets remain unloaded', async () => {

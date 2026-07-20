@@ -4,12 +4,26 @@ import { ParserLearningCasesController } from './parser-learning-cases.controlle
 
 describe('ParserLearningCasesController permissions', () => {
   it('uses read for lookup and train for every state-changing route', () => {
-    expect(
-      Reflect.getMetadata(REQUIRED_PERMISSIONS_KEY, routeHandler('get')),
-    ).toEqual([PERMISSIONS.parserProfiles.read]);
+    for (const route of [
+      routeHandler('list'),
+      routeHandler('get'),
+      routeHandler('replayJob'),
+      routeHandler('replays'),
+      routeHandler('downloadReplay'),
+    ]) {
+      expect(Reflect.getMetadata(REQUIRED_PERMISSIONS_KEY, route)).toEqual([
+        PERMISSIONS.parserProfiles.read,
+      ]);
+    }
 
     for (const route of [
       routeHandler('start'),
+      routeHandler('inspect'),
+      routeHandler('saveDraft'),
+      routeHandler('preview'),
+      routeHandler('replay'),
+      routeHandler('catchUpCompletion'),
+      routeHandler('submit'),
       routeHandler('linkContainer'),
       routeHandler('unlinkContainer'),
       routeHandler('close'),
