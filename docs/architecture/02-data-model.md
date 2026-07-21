@@ -105,7 +105,11 @@ Required semantics:
 - `parser_version`, `warning_count`, `error_count`, and `error_message` are
   required to explain parser outcomes.
 - `raw_metadata` stores detector and source metadata that does not belong in
-  first-class columns.
+  first-class columns. `parseSelection` uses the versioned
+  `parser-selection-v1` contract to preserve the selected source, stable reason,
+  outcome, bounded candidate count, duration, exact profile identity/runtime
+  versions, matched structural reasons, and automatic-commit decision without
+  storing workbook cell values.
 - Imports referenced by active learning cases or evidence cannot be deleted.
   Learning start and deletion lock the same import row; the blocker audit
   commits before `IMPORT_USED_BY_PARSER_LEARNING`, and no storage cleanup starts
@@ -149,6 +153,15 @@ accepted/material-correction outcome flags. `parser_profile_audit_events`
 records stable target ids, actor, event code, time, and structured metadata.
 It must not contain workbook contents, secrets, or local storage paths.
 Historical relationships use restrictive deletion rather than cascade.
+
+An `ACTIVE + TRUSTED` exact version may create a profile-mapped container only
+after the import and profile rows are locked and lifecycle, trust,
+`lifecycle_revision`, matcher version, and mapping version are rechecked. The
+transaction records `TRUSTED_AUTO_COMMITTED`; a state race records
+`TRUSTED_AUTO_FALLBACK` and leaves the import in review. A later material parser
+correction on that exact profile output records
+`TRUST_REVOKED_BY_MATERIAL_CORRECTION`, changes only the version trust state to
+`REVIEW_REQUIRED`, resets its streak to zero, and preserves historical imports.
 
 `parser_profile_reviews` is unique by import and keeps the staged-data boundary:
 source SHA, exact profile version, fingerprint and runtime versions, bounded

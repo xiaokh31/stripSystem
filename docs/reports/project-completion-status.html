@@ -370,7 +370,7 @@
           </dl>
           <dl class="metric">
             <dt>Parser Profiles</dt>
-            <dd>75%</dd>
+            <dd>87.5%</dd>
           </dl>
         </div>
         <p class="note">
@@ -392,8 +392,11 @@
           `1/3..3/3`、修正/拒绝清零、并发幂等与 exact-version TRUSTED transaction；post-DONE review 的 profile
           重锁、parser error false-success、失败审计、staged/final 不可变边界、conditional material classifier、完整修正面和
           SSR/timeline 缺口也已关闭。API 319 unit、Web 245 unit、Worker 172 tests、31 个空库迁移、真实工作簿
-          PostgreSQL/HTTP/Worker E2E 和双语/主题/mobile/真实浏览器 200% zoom 门禁均通过。当前下一 Task 为
-          PARSER-PROFILE-07，但本 Session 不得启动它。
+          PostgreSQL/HTTP/Worker E2E 和双语/主题/mobile/真实浏览器 200% zoom 门禁均通过。PARSER-PROFILE-07
+          已完成 unique trusted 自动提交、built-in fallback、collision/drift review、commit-time trust race 防护、
+          material correction demotion、bounded performance/observability 和双语来源 UI；API 327 unit/121 E2E、
+          Web 246 unit、Worker 173 tests、32 个迁移、真实工作簿与 Chromium 200% zoom 门禁均通过。当前下一 Task 为
+          PARSER-PROFILE-08，但本 Session 不得启动它。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
@@ -1812,8 +1815,8 @@
             </tr>
             <tr>
               <td>PARSER-PROFILE-07 Trusted Auto Parse Drift and Fallback Integration</td>
-              <td><span class="badge deferred">Planned</span></td>
-              <td>可信自动提交、built-in precedence、collision/drift fallback、material correction demotion 和性能审计。</td>
+              <td><span class="badge done">Complete</span></td>
+              <td>已完成 unique ACTIVE + TRUSTED exact match 的事务自动提交、built-in/no-match fallback、review profile staged flow、collision/drift 无 winner review、required-warning 阻断、queued lifecycle/trust/version 重锁复查、material correction exact-version demotion/reset、重试幂等和 versioned selection observability；API 327 unit/121 E2E、Web 246 unit、Worker 173 tests、32 个迁移、真实 fixture、索引/0.46 秒性能预算与 Chromium 双语/mobile/真实 200% zoom 门禁通过。详见 <code>docs/reports/parser-profile-07-trusted-auto-parse-verification.md</code>。</td>
             </tr>
             <tr>
               <td>PARSER-PROFILE-08 Golden Sample Full Stack I18n Exit Gate</td>
@@ -1834,7 +1837,7 @@
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
-          <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 06 已完成，当前下一 Task 为 07，必须逐 Task 使用 fresh supervised Session。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 才实现 TRUSTED 自动提交与 drift/fallback。</li>
+          <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，当前下一 Task 为 08，必须逐 Task 使用 fresh supervised Session。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>
           <li>Windows 原生安装包/MSIX 路线已归档：P6-MOBILE-09 至 13 不得执行，监督器会以 exit code 78 拒绝。以后恢复时必须先取得产品批准、移除归档标记、恢复关联验收范围并同步任务索引和本报告。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>

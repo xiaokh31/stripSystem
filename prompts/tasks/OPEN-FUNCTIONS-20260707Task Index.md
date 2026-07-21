@@ -30,7 +30,7 @@
   fingerprint/mapping profile；首版必须由授权人员明确批准，批准后仍逐单复核，只有连续 3 个不同 SHA 且无实质
   parser 修正的导入才进入 TRUSTED 自动解析。任何实质修正会清零当前连续证据；可信结果后续被实质修正会降回
   REVIEW_REQUIRED。API/Worker 只返回 stable code/enum/raw evidence，全部 Web 状态严格进入 en/zh-CN catalog。
-- PARSER-PROFILE-01/02/03/04/05/06 已完成：领域 schema、learning-case 关系、Worker bounded inspection、可解释结构指纹、
+- PARSER-PROFILE-01/02/03/04/05/06/07 已完成：领域 schema、learning-case 关系、Worker bounded inspection、可解释结构指纹、
   strict declarative mapping、provenance/unknown columns，以及 inspect/draft/preview/queued replay/structured diff/
   replay artifact/DRAFT candidate API、Office mapping wizard、failed-import/manual linkage、latest-write-wins 与双语无障碍
   浏览器门禁均已通过。PARSER-PROFILE-04 post-DONE 审查发现的 stale preview/replay、manual learningCase 查询吞错、
@@ -43,8 +43,10 @@
   PARSER-PROFILE-06 已交付 staged review boundary、服务端 material classifier、distinct-SHA 连续证据、并发幂等
   `3/3` 精确版本 TRUSTED transaction、RBAC、双语 UI 和真实浏览器 200% zoom 门禁；post-DONE remediation
   已补 exact profile 重锁、parser error 阻断、match/execute 失败审计、staged/final 不可变快照、conditional material
-  classifier、完整行修正面与 SSR/hydration timeline 证据。当前下一 Task 为
-  PARSER-PROFILE-07；本 Session 不得启动它。
+  classifier、完整行修正面与 SSR/hydration timeline 证据；PARSER-PROFILE-07 已交付 trusted 自动提交、built-in
+  fallback、collision/drift review、commit-time trust recheck、material correction demotion、selection observability 与
+  双语来源 UI，并通过真实工作簿、全 API E2E、Worker 性能和 Chromium 200% zoom 门禁。当前下一 Task 为
+  PARSER-PROFILE-08；本 Session 不得启动它。
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
@@ -76,8 +78,9 @@
 - `NATIVE-AUTH-01` repository、Docker 自动化、真实数据库/HTTP 和 iOS 非破坏性已认证矩阵已完成；三次 supervisor
   运行均返回 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。既有 9 个活动未关闭 Task 仍依赖真实样本、
   打印/Excel、Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX P6 Task 已归档。
-  当前开发机新增 8 个 parser-profile 代码任务，01 至 06 已完成；04 的 post-DONE review 缺口已通过 fresh supervised
-  remediation 关闭，05 的 completion snapshot/approval/governance 与 06 的 review/evidence/trust 门禁已通过。当前下一 Task 为 PARSER-PROFILE-07，
+  当前开发机新增 8 个 parser-profile 代码任务，01 至 07 已完成；04 的 post-DONE review 缺口已通过 fresh supervised
+  remediation 关闭，05 的 completion snapshot/approval/governance、06 的 review/evidence/trust 与 07 的 trusted
+  auto-parse/drift/fallback 门禁已通过。当前下一 Task 为 PARSER-PROFILE-08，
   本 Session 不得启动下一 Task。
 - 新增 Windows PowerShell 入口 `scripts\run-business-agent.cmd`。当前无 Docker 的 Windows 主机必须用 `develop`
   implementation-only 模式，只完成业务实现、不运行任何测试/构建/服务/设备检查，且监督器会拒绝 `DONE`；完整验证
@@ -195,7 +198,10 @@ remediation 和 Docker Web/Chromium 门禁；`PARSER-PROFILE-05` 已完成统一
 ACTIVE + REVIEW_REQUIRED + 0/3、pause/resume/retire/fork、RBAC、i18n 和 Docker/Chromium 门禁；
 `PARSER-PROFILE-06` 已完成 staged review、服务端 material diff、接受/修正/拒绝审计、distinct-SHA `1/3..3/3`、
 并发幂等和精确版本 TRUSTED 晋升，并通过真实工作簿 API 与 Chromium 双语/主题/mobile/真实 200% zoom 门禁。
-当前下一 Task 为 `PARSER-PROFILE-07`，不得在本 Session 启动下一 Task，也不得一次把多个 Task 放入同一 Session。
+`PARSER-PROFILE-07` 已完成 trusted automatic commit、built-in/no-match fallback、collision/drift review、queued trust
+recheck、material correction demotion、bounded selection observability、性能预算与双语来源 UI，并通过完整 Docker
+回归和真实浏览器门禁。当前下一 Task 为 `PARSER-PROFILE-08`，不得在本 Session 启动下一 Task，也不得一次把多个
+Task 放入同一 Session。
 
 ### B. 获得真实数据、打印环境或 Android/iOS 设备后
 
@@ -281,7 +287,7 @@ Deferred，按现场反馈再执行：
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
 2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
 3. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
-4. 当前开发机先按 PARSER-PROFILE-01 至 08 顺序执行；01 至 06 已完成，下一 Task 是 07。不得把 01-08 合并到一个 Session，
+4. 当前开发机先按 PARSER-PROFILE-01 至 08 顺序执行；01 至 07 已完成，下一 Task 是 08。不得把 01-08 合并到一个 Session，
    不得在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。`NATIVE-AUTH-01` 已连续三次合法返回 external pending，
    不要第四次重复运行；设备项只按现有报告人工补证据。
 5. Parser-profile 线路之外的下一 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行

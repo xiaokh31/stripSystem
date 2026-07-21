@@ -53,6 +53,8 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
   let hrManager: AuthTestUser;
   let profileVersionId: string;
   let familyId: string;
+  const extraProfileVersionIds: string[] = [];
+  const extraFamilyIds: string[] = [];
   const importIds: string[] = [];
   const containerIds: string[] = [];
 
@@ -142,8 +144,13 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
 
   afterAll(async () => {
     if (prisma) {
+      const actorIds = [office?.id, warehouse?.id, hrManager?.id].filter(
+        Boolean,
+      );
       await prisma.parserProfileAuditEvent.deleteMany({
-        where: { profileVersionId },
+        where: {
+          OR: [{ profileVersionId }, { actorId: { in: actorIds } }],
+        },
       });
       await prisma.parserProfileEvidence.deleteMany({
         where: { profileVersionId },
@@ -152,20 +159,38 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
         where: { profileVersionId },
       });
       if (containerIds.length) {
+        await prisma.correctionFeedback.deleteMany({
+          where: { containerId: { in: containerIds } },
+        });
         await prisma.containerLine.deleteMany({
           where: { containerId: { in: containerIds } },
         });
         await prisma.containerDestination.deleteMany({
           where: { containerId: { in: containerIds } },
         });
-        await prisma.container.deleteMany({ where: { id: { in: containerIds } } });
+        await prisma.container.deleteMany({
+          where: { id: { in: containerIds } },
+        });
       }
       if (importIds.length) {
-        await prisma.importFile.deleteMany({ where: { id: { in: importIds } } });
+        await prisma.importFile.deleteMany({
+          where: { id: { in: importIds } },
+        });
       }
-      await prisma.parserProfileVersion.deleteMany({ where: { id: profileVersionId } });
+      await prisma.parserProfileVersion.deleteMany({
+        where: { id: profileVersionId },
+      });
+      if (extraProfileVersionIds.length) {
+        await prisma.parserProfileVersion.deleteMany({
+          where: { id: { in: extraProfileVersionIds } },
+        });
+      }
       await prisma.parserProfileFamily.deleteMany({ where: { id: familyId } });
-      const actorIds = [office?.id, warehouse?.id, hrManager?.id].filter(Boolean);
+      if (extraFamilyIds.length) {
+        await prisma.parserProfileFamily.deleteMany({
+          where: { id: { in: extraFamilyIds } },
+        });
+      }
       await prisma.userRoleAssignment.deleteMany({
         where: { userId: { in: actorIds } },
       });
@@ -186,8 +211,12 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
 
     const first = await uploadAndStage(workbooks[0]);
     await assertReviewRbac(first.id);
-    expect(await prisma.container.count({ where: { importFileId: first.id } })).toBe(0);
-    expect(await prisma.generatedFile.count({ where: { importFileId: first.id } })).toBe(0);
+    expect(
+      await prisma.container.count({ where: { importFileId: first.id } }),
+    ).toBe(0);
+    expect(
+      await prisma.generatedFile.count({ where: { importFileId: first.id } }),
+    ).toBe(0);
     const firstAccepted = await officePost(
       `/api/imports/${first.id}/profile-review/accept`,
       { expectedRevision: 0 },
@@ -249,7 +278,9 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
       .set('Authorization', authHeaderFor(office))
       .attach('file', workbooks[2])
       .expect(409)
-      .expect((response) => expect(response.body.code).toBe('DUPLICATE_IMPORT'));
+      .expect((response) =>
+        expect(response.body.code).toBe('DUPLICATE_IMPORT'),
+      );
     const thirdAccepted = await officePost(
       `/api/imports/${third.id}/profile-review/accept`,
       { expectedRevision: 0 },
@@ -275,7 +306,9 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
         where: { profileVersionId, importFileId: fourth.id },
       }),
     ).toBe(1);
-    expect(await prisma.container.count({ where: { importFileId: fourth.id } })).toBe(1);
+    expect(
+      await prisma.container.count({ where: { importFileId: fourth.id } }),
+    ).toBe(1);
     await expectProfile('REVIEW_REQUIRED', 2);
 
     const fifth = await uploadAndStage(workbooks[4]);
@@ -293,7 +326,9 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
       include: { importFile: { select: { fileSha256: true } } },
       orderBy: { reviewedAt: 'asc' },
     });
-    expect(new Set(evidence.map((item) => item.importFile.fileSha256)).size).toBe(5);
+    expect(
+      new Set(evidence.map((item) => item.importFile.fileSha256)).size,
+    ).toBe(5);
     expect(evidence.map((item) => item.streakAfter)).toEqual([1, 0, 1, 2, 3]);
     expect(evidence.map((item) => item.outcome)).toEqual([
       'ACCEPTED',
@@ -315,7 +350,188 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
     expect(JSON.stringify(detail.body)).not.toContain(storageRoot);
   });
 
-  function deriveWorkbook(index: number): string {
+  it('auto-commits trusted matches idempotently, revokes trust on material correction, and blocks collision or drift', async () => {
+    await prisma.parserProfileVersion.update({
+      where: { id: profileVersionId },
+      data: {
+        lifecycle: 'ACTIVE',
+        trustState: 'TRUSTED',
+        trustStreak: 3,
+        lifecycleRevision: { increment: 1 },
+      },
+    });
+
+    const trustedWorkbook = deriveWorkbook(6);
+    const trustedUpload = await upload(trustedWorkbook);
+    const trustedParse = await officePost(
+      `/api/imports/${trustedUpload.id}/parse`,
+      {},
+    ).expect(201);
+    expect(trustedParse.body.importFile).toMatchObject({
+      parseStatus: expect.stringMatching(/^(PARSED|WARNING)$/),
+      parseSelection: {
+        source: 'TRUSTED_PROFILE',
+        reasonCode: 'PARSER_PROFILE_UNIQUE_TRUSTED_MATCH',
+        autoCommitted: true,
+        profile: { id: profileVersionId, version: 1 },
+      },
+    });
+    expect(trustedParse.body.containers).toHaveLength(1);
+    const trustedContainerId = trustedParse.body.containers[0].id;
+    containerIds.push(trustedContainerId);
+    const trustedContainer = await prisma.container.findUniqueOrThrow({
+      where: { id: trustedContainerId },
+      include: { destinations: true },
+    });
+    expect(trustedContainer).toMatchObject({
+      parserSourceKind: 'PROFILE',
+      parserProfileVersionId: profileVersionId,
+    });
+    expect(trustedContainer.destinations.length).toBeGreaterThan(0);
+    expect(trustedContainer.destinations[0].finalPallets).toBeGreaterThan(0);
+
+    await officePost(`/api/imports/${trustedUpload.id}/parse`, {}).expect(201);
+    expect(
+      await prisma.container.count({
+        where: { importFileId: trustedUpload.id },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.parserProfileAuditEvent.count({
+        where: {
+          importFileId: trustedUpload.id,
+          eventCode: 'TRUSTED_AUTO_COMMITTED',
+        },
+      }),
+    ).toBe(1);
+
+    const destination = trustedContainer.destinations[0];
+    await request(app.getHttpServer())
+      .patch(`/api/container-destinations/${destination.id}`)
+      .set('Authorization', authHeaderFor(office))
+      .send({
+        destinationCode: `${destination.destinationCode}-CORRECTED`,
+        reason: 'E2E material parser correction',
+      })
+      .expect(200);
+    await expectProfile('REVIEW_REQUIRED', 0);
+    expect(
+      await prisma.parserProfileAuditEvent.count({
+        where: {
+          importFileId: trustedUpload.id,
+          eventCode: 'TRUST_REVOKED_BY_MATERIAL_CORRECTION',
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.container.count({ where: { id: trustedContainerId } }),
+    ).toBe(1);
+
+    const postDemotion = await uploadAndStage(deriveWorkbook(7));
+    expect(
+      await prisma.container.count({
+        where: { importFileId: postDemotion.id },
+      }),
+    ).toBe(0);
+
+    await prisma.parserProfileVersion.update({
+      where: { id: profileVersionId },
+      data: {
+        trustState: 'TRUSTED',
+        trustStreak: 3,
+        lifecycleRevision: { increment: 1 },
+      },
+    });
+    const collisionFamilyId = `pp07-collision-family-${runId}`;
+    const collisionProfileId = `pp07-collision-profile-${runId}`;
+    extraFamilyIds.push(collisionFamilyId);
+    extraProfileVersionIds.push(collisionProfileId);
+    const sourceProfile = await prisma.parserProfileVersion.findUniqueOrThrow({
+      where: { id: profileVersionId },
+    });
+    await prisma.parserProfileFamily.create({
+      data: {
+        id: collisionFamilyId,
+        stableName: `pp07-collision-${runId}`,
+        createdById: office.id,
+      },
+    });
+    await prisma.parserProfileVersion.create({
+      data: {
+        id: collisionProfileId,
+        familyId: collisionFamilyId,
+        version: 1,
+        lifecycle: 'ACTIVE',
+        trustState: 'TRUSTED',
+        trustStreak: 3,
+        mappingDefinition: sourceProfile.mappingDefinition,
+        fingerprintDefinition: sourceProfile.fingerprintDefinition,
+        matcherVersion: sourceProfile.matcherVersion,
+        mappingVersion: sourceProfile.mappingVersion,
+        createdById: office.id,
+        approvedById: office.id,
+        approvedAt: new Date(),
+        approvalReason: 'E2E collision',
+        lifecycleReason: 'E2E collision',
+      },
+    });
+    const collisionUpload = await upload(deriveWorkbook(8));
+    const collisionParse = await officePost(
+      `/api/imports/${collisionUpload.id}/parse`,
+      {},
+    ).expect(201);
+    expect(collisionParse.body.importFile).toMatchObject({
+      parseStatus: 'REVIEW_REQUIRED',
+      parseSelection: {
+        source: 'AMBIGUOUS',
+        reasonCode: 'FINGERPRINT_PROFILE_COLLISION',
+        autoCommitted: false,
+      },
+    });
+    expect(collisionParse.body.containers).toEqual([]);
+
+    await prisma.parserProfileVersion.update({
+      where: { id: collisionProfileId },
+      data: { lifecycle: 'PAUSED', lifecycleRevision: { increment: 1 } },
+    });
+    const driftUpload = await upload(deriveWorkbook(9, true));
+    const driftParse = await officePost(
+      `/api/imports/${driftUpload.id}/parse`,
+      {},
+    ).expect(201);
+    expect(driftParse.body.importFile).toMatchObject({
+      parseStatus: 'REVIEW_REQUIRED',
+      parseSelection: {
+        source: 'DRIFT',
+        reasonCode: 'FINGERPRINT_STRUCTURAL_DRIFT',
+        autoCommitted: false,
+      },
+    });
+    expect(driftParse.body.containers).toEqual([]);
+
+    await prisma.parserProfileVersion.update({
+      where: { id: profileVersionId },
+      data: { lifecycle: 'PAUSED', lifecycleRevision: { increment: 1 } },
+    });
+    const pausedUpload = await upload(deriveWorkbook(10));
+    const pausedParse = await officePost(
+      `/api/imports/${pausedUpload.id}/parse`,
+      {},
+    ).expect(201);
+    expect(pausedParse.body.importFile.parseSelection).toMatchObject({
+      source: 'BUILT_IN',
+      reasonCode: 'PARSER_SELECTION_NO_ACTIVE_PROFILE',
+      autoCommitted: false,
+    });
+    expect(
+      pausedParse.body.containers.every(
+        (container: { parserSourceKind?: string }) =>
+          container.parserSourceKind !== 'PROFILE',
+      ),
+    ).toBe(true);
+  });
+
+  function deriveWorkbook(index: number, drift = false): string {
     const target = join(fixtureDir, `pp06-${index}.xlsx`);
     const script = [
       'from openpyxl import load_workbook',
@@ -326,6 +542,7 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
       'sheet.title="PP06Review"',
       'sheet["B3"]=container_no',
       "sheet['A7']='{}-PP06-{}'.format(sheet['A7'].value,suffix)",
+      drift ? "sheet['A6']='运单号-DRIFT'" : 'pass',
       'book.save(target)',
       'book.close()',
     ].join(';');
@@ -347,18 +564,15 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
   }
 
   async function uploadAndStage(workbook: string): Promise<{ id: string }> {
-    const uploaded = await request(app.getHttpServer())
-      .post('/api/imports')
-      .set('Authorization', authHeaderFor(office))
-      .attach('file', workbook)
-      .expect(201);
-    importIds.push(uploaded.body.id);
-    const parsed = await officePost(`/api/imports/${uploaded.body.id}/parse`, {})
-      .expect(201);
+    const uploaded = await upload(workbook);
+    const parsed = await officePost(
+      `/api/imports/${uploaded.id}/parse`,
+      {},
+    ).expect(201);
     expect(parsed.body.importFile.parseStatus).toBe('REVIEW_REQUIRED');
     expect(parsed.body.containers).toEqual([]);
     const review = await officeGet(
-      `/api/imports/${uploaded.body.id}/profile-review`,
+      `/api/imports/${uploaded.id}/profile-review`,
     ).expect(200);
     expect(review.body).toMatchObject({
       sourceFileShortSha: expect.stringMatching(/^[a-f0-9]{12}$/),
@@ -369,6 +583,16 @@ describe('Parser profile review trust gate with real-fixture-derived workbooks (
       },
     });
     expect(review.body).not.toHaveProperty('storedPath');
+    return uploaded;
+  }
+
+  async function upload(workbook: string): Promise<{ id: string }> {
+    const uploaded = await request(app.getHttpServer())
+      .post('/api/imports')
+      .set('Authorization', authHeaderFor(office))
+      .attach('file', workbook)
+      .expect(201);
+    importIds.push(uploaded.body.id);
     return { id: uploaded.body.id };
   }
 

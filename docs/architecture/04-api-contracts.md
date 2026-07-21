@@ -170,6 +170,28 @@ Rules:
 - Responses expose stable codes/raw evidence, short SHA values, and bounded
   previews; they do not expose storage paths or internal JSON instructions.
 
+### Trusted Parser Selection
+
+`POST /api/imports/:id/parse` keeps duplicate/original-file checks first, runs
+the existing built-in detector, and compares at most 100 `ACTIVE` profile
+versions from the indexed lifecycle/trust candidate set. Selection precedence
+is deterministic:
+
+- one exact `TRUSTED` match with no blocker error or required-field warning is
+  transactionally committed as a `PROFILE` container;
+- one `REVIEW_REQUIRED` match, or a trusted result with a blocker warning, is
+  staged through the review gate above;
+- no active profile/no match continues through the unchanged built-in parser;
+- collision or structural drift sets the import to `REVIEW_REQUIRED`, creates
+  no formal container, and exposes profile/learning-case actions;
+- paused/retired/demoted/revision-changed versions cannot commit from queued
+  stale state.
+
+Import responses expose a nullable structured `parseSelection` value. Its
+source/reason/outcome/version fields are stable machine values; localized
+summaries belong only to the Web catalogs. Match audit metadata is bounded and
+must never include source workbook content, local paths, or credentials.
+
 ### Correction API
 
 ```http

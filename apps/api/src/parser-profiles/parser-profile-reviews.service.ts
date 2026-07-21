@@ -25,6 +25,7 @@ import {
 import {
   ParserProfileWorkerService,
   type ParserProfileExecutionPayload,
+  type ParserProfileMatchCandidate,
   type ParserProfileMatchPayload,
 } from '../parser-learning-cases/parser-profile-worker.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,15 +35,27 @@ import type {
   ParserReviewCorrectDto,
   ParserReviewDecisionDto,
 } from './dto/parser-profile-review.dto';
-import {
-  classifyParserMaterialCorrection,
-} from './parser-profile-material';
+import { classifyParserMaterialCorrection } from './parser-profile-material';
 
 interface StageImportRecord {
   id: string;
   storedPath: string;
   fileSha256: string;
   originalFilename: string;
+}
+
+interface ProfileCandidateRecord {
+  id: string;
+  familyId: string;
+  version: number;
+  lifecycle: string;
+  trustState: string;
+  lifecycleRevision: number;
+  fingerprintDefinition: unknown;
+  mappingDefinition: unknown;
+  matcherVersion: string;
+  mappingVersion: string;
+  family: { stableName: string; customerLabel: string | null };
 }
 
 interface CanonicalLine extends Record<string, unknown> {
@@ -87,6 +100,18 @@ const reviewInclude = {
   acceptedContainer: { select: { id: true, containerNo: true, status: true } },
 } as const;
 
+const AUTO_COMMIT_BLOCKING_WARNING_CODES = new Set([
+  'FORMULA_CACHED_VALUE_MISSING',
+  'MAPPING_FORMULA_CACHE_MISSING',
+  'MISSING_CARTONS',
+  'MISSING_CONTAINER_NO',
+  'MISSING_DESTINATION',
+  'MISSING_VOLUME',
+  'NEED_MANUAL_DESTINATION',
+]);
+
+const PROFILE_CANDIDATE_LIMIT = 100;
+
 type ReviewRecord = Prisma.ParserProfileReviewGetPayload<{
   include: typeof reviewInclude;
 }>;
@@ -104,6 +129,7 @@ export class ParserProfileReviewsService {
     builtInPayload: WorkerParsePayload,
     actor: AuthenticatedUser,
   ): Promise<boolean> {
+    const startedAt = Date.now();
     const existing = await this.prisma.parserProfileReview.findUnique({
       where: { importFileId: importFile.id },
       include: reviewInclude,
@@ -112,26 +138,56 @@ export class ParserProfileReviewsService {
 
     const existingContainer = await this.prisma.container.findFirst({
       where: { importFileId: importFile.id },
-      select: { id: true },
+      select: {
+        id: true,
+        parserSourceKind: true,
+        sourceFormat: true,
+        parserVersion: true,
+        warnings: true,
+        errors: true,
+      },
     });
+    if (existingContainer?.parserSourceKind === ParserSourceKind.PROFILE) {
+      await this.restoreCommittedProfileStatus(
+        importFile.id,
+        existingContainer,
+      );
+      return true;
+    }
     if (existingContainer) return false;
 
-    const profiles = await this.prisma.parserProfileVersion.findMany({
+    const profiles = (await this.prisma.parserProfileVersion.findMany({
       where: {
         lifecycle: ParserProfileLifecycle.ACTIVE,
-        trustState: ParserProfileTrustState.REVIEW_REQUIRED,
       },
       select: {
         id: true,
         familyId: true,
         version: true,
+        lifecycle: true,
+        trustState: true,
+        lifecycleRevision: true,
         fingerprintDefinition: true,
         mappingDefinition: true,
         matcherVersion: true,
         mappingVersion: true,
+        family: { select: { stableName: true, customerLabel: true } },
       },
-    });
-    if (profiles.length === 0) return false;
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+      take: PROFILE_CANDIDATE_LIMIT,
+    })) as ProfileCandidateRecord[];
+    if (profiles.length === 0) {
+      await this.persistSelection(importFile, {
+        source: 'BUILT_IN',
+        reasonCode: 'PARSER_SELECTION_NO_ACTIVE_PROFILE',
+        outcome: 'FALLBACK_BUILT_IN',
+        candidateCount: 0,
+        durationMs: Date.now() - startedAt,
+        autoCommitted: false,
+        builtInEvidence: this.builtInEvidence(builtInPayload),
+      });
+      return false;
+    }
 
     let match: ParserProfileMatchPayload;
     try {
@@ -151,9 +207,39 @@ export class ParserProfileReviewsService {
         { candidateProfileIds: profiles.map((profile) => profile.id) },
         false,
       );
+      await this.persistSelection(importFile, {
+        source: 'PROFILE_FALLBACK',
+        reasonCode: this.exceptionCode(error, 'PARSER_PROFILE_MATCH_FAILED'),
+        outcome: 'FALLBACK_BUILT_IN',
+        candidateCount: profiles.length,
+        durationMs: Date.now() - startedAt,
+        autoCommitted: false,
+        builtInEvidence: this.builtInEvidence(builtInPayload),
+      });
       return false;
     }
-    if (match.issues.length > 0 || !match.selectedProfileId || match.issueCode) {
+    if (
+      !match.selectedProfileId &&
+      (match.issueCode === 'FINGERPRINT_PROFILE_COLLISION' ||
+        match.issueCode === 'FINGERPRINT_STRUCTURAL_DRIFT')
+    ) {
+      await this.persistSelectionReviewFallback(
+        importFile,
+        actor,
+        match,
+        builtInPayload,
+        match.issueCode === 'FINGERPRINT_PROFILE_COLLISION'
+          ? 'AMBIGUOUS'
+          : 'DRIFT',
+        startedAt,
+      );
+      return true;
+    }
+    if (
+      match.issues.length > 0 ||
+      !match.selectedProfileId ||
+      match.issueCode
+    ) {
       await this.persistAttemptFailure(
         importFile,
         actor,
@@ -169,9 +255,21 @@ export class ParserProfileReviewsService {
         },
         false,
       );
+      await this.persistSelection(importFile, {
+        source: 'BUILT_IN',
+        reasonCode: match.issueCode ?? 'PARSER_PROFILE_MATCH_INVALID',
+        outcome: 'FALLBACK_BUILT_IN',
+        candidateCount: match.candidates.length,
+        durationMs: Date.now() - startedAt,
+        autoCommitted: false,
+        builtInEvidence: this.builtInEvidence(builtInPayload),
+        candidates: this.candidateSummaries(match),
+      });
       return false;
     }
-    const profile = profiles.find((item) => item.id === match.selectedProfileId);
+    const profile = profiles.find(
+      (item) => item.id === match.selectedProfileId,
+    );
     const candidate = match.candidates.find(
       (item) => item.profileId === match.selectedProfileId,
     );
@@ -184,6 +282,16 @@ export class ParserProfileReviewsService {
         { selectedProfileId: match.selectedProfileId },
         false,
       );
+      await this.persistSelection(importFile, {
+        source: 'PROFILE_FALLBACK',
+        reasonCode: 'PARSER_PROFILE_MATCH_SELECTION_INVALID',
+        outcome: 'FALLBACK_BUILT_IN',
+        candidateCount: match.candidates.length,
+        durationMs: Date.now() - startedAt,
+        autoCommitted: false,
+        builtInEvidence: this.builtInEvidence(builtInPayload),
+        candidates: this.candidateSummaries(match),
+      });
       return false;
     }
 
@@ -270,6 +378,12 @@ export class ParserProfileReviewsService {
     const errors = Array.isArray(executionResult.errors)
       ? executionResult.errors
       : [];
+    const blockingWarningCodes = warnings
+      .map((warning) => this.string(this.object(warning).code))
+      .filter(
+        (code): code is string =>
+          code !== null && AUTO_COMMIT_BLOCKING_WARNING_CODES.has(code),
+      );
     const stagedResult = {
       ...canonicalResult,
       rawMetadata: executionResult.rawMetadata ?? {},
@@ -288,6 +402,28 @@ export class ParserProfileReviewsService {
       },
     };
 
+    if (
+      profile.trustState === ParserProfileTrustState.TRUSTED &&
+      errors.length === 0 &&
+      blockingWarningCodes.length === 0
+    ) {
+      return this.commitTrustedResult({
+        importFile,
+        actor,
+        profile,
+        match,
+        candidate,
+        execution,
+        canonicalResult,
+        destinations,
+        warnings,
+        errors,
+        stagedResult,
+        builtInPayload,
+        startedAt,
+      });
+    }
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.lockImport(tx, importFile.id);
@@ -297,7 +433,9 @@ export class ParserProfileReviewsService {
         });
         if (!current || current.fileSha256 !== importFile.fileSha256) {
           throw new ConflictException(
-            this.error('PARSER_REVIEW_SOURCE_CHANGED', { importFileId: importFile.id }),
+            this.error('PARSER_REVIEW_SOURCE_CHANGED', {
+              importFileId: importFile.id,
+            }),
           );
         }
         const duplicate = await tx.parserProfileReview.findUnique({
@@ -323,6 +461,7 @@ export class ParserProfileReviewsService {
           select: {
             lifecycle: true,
             trustState: true,
+            lifecycleRevision: true,
             matcherVersion: true,
             mappingVersion: true,
           },
@@ -330,7 +469,8 @@ export class ParserProfileReviewsService {
         if (
           !currentProfile ||
           currentProfile.lifecycle !== ParserProfileLifecycle.ACTIVE ||
-          currentProfile.trustState !== ParserProfileTrustState.REVIEW_REQUIRED ||
+          currentProfile.trustState !== profile.trustState ||
+          currentProfile.lifecycleRevision !== profile.lifecycleRevision ||
           currentProfile.matcherVersion !== profile.matcherVersion ||
           currentProfile.mappingVersion !== profile.mappingVersion
         ) {
@@ -348,7 +488,27 @@ export class ParserProfileReviewsService {
               }),
             },
           });
-          return false;
+          await tx.importFile.update({
+            where: { id: importFile.id },
+            data: {
+              parseStatus: ParseStatus.REVIEW_REQUIRED,
+              errorMessage: 'PARSER_PROFILE_STATE_CHANGED_BEFORE_COMMIT',
+              rawMetadata: this.json({
+                parseSelection: this.selection({
+                  source: 'PROFILE_FALLBACK',
+                  reasonCode: 'PARSER_PROFILE_STATE_CHANGED_BEFORE_COMMIT',
+                  outcome: 'REVIEW_REQUIRED',
+                  candidateCount: match.candidates.length,
+                  durationMs: Date.now() - startedAt,
+                  autoCommitted: false,
+                  builtInEvidence: this.builtInEvidence(builtInPayload),
+                  candidates: this.candidateSummaries(match),
+                  profile: this.profileSelection(profile),
+                }),
+              }),
+            },
+          });
+          return true;
         }
         await tx.parserProfileReview.create({
           data: {
@@ -361,7 +521,9 @@ export class ParserProfileReviewsService {
             mappingVersion: profile.mappingVersion,
             workerVersion: execution.workerVersion,
             parserVersion: canonicalResult.parserVersion,
-            builtInEvidence: this.nullableJson(builtInPayload.detection ?? null),
+            builtInEvidence: this.nullableJson(
+              builtInPayload.detection ?? null,
+            ),
             matchEvidence: this.json({
               selectedProfileId: match.selectedProfileId,
               issueCode: match.issueCode,
@@ -371,7 +533,9 @@ export class ParserProfileReviewsService {
             sourcePreview: this.nullableJson(match.inspection),
             stagedResult: this.json(stagedResult),
             destinationSummary: this.json(destinations),
-            reportPreview: this.json(this.reportPreview(canonicalResult, destinations)),
+            reportPreview: this.json(
+              this.reportPreview(canonicalResult, destinations),
+            ),
             warnings: this.nullableJson(warnings),
             errors: this.nullableJson(errors),
             provenance: this.nullableJson(executionResult.provenance ?? {}),
@@ -385,8 +549,32 @@ export class ParserProfileReviewsService {
             parserVersion: canonicalResult.parserVersion,
             warningCount: warnings.length,
             errorCount: errors.length,
-            errorMessage: errors.length > 0 ? 'PARSER_PROFILE_REVIEW_HAS_ERRORS' : null,
+            errorMessage:
+              errors.length > 0 ? 'PARSER_PROFILE_REVIEW_HAS_ERRORS' : null,
             rawMetadata: this.json({
+              parseSelection: this.selection({
+                source: 'PROFILE_REVIEW',
+                reasonCode:
+                  blockingWarningCodes.length > 0
+                    ? 'PARSER_PROFILE_REQUIRED_WARNING_REVIEW'
+                    : profile.trustState === ParserProfileTrustState.TRUSTED
+                      ? 'PARSER_PROFILE_TRUSTED_RESULT_REVIEW_REQUIRED'
+                      : 'PARSER_PROFILE_REVIEW_REQUIRED',
+                outcome: 'REVIEW_REQUIRED',
+                candidateCount: match.candidates.length,
+                durationMs: Date.now() - startedAt,
+                autoCommitted: false,
+                builtInEvidence: this.builtInEvidence(builtInPayload),
+                candidates: this.candidateSummaries(match),
+                profile: this.profileSelection(profile),
+                fingerprintHash: candidate.hash,
+                matchReasons: candidate.reasons,
+                matcherVersion: profile.matcherVersion,
+                mappingVersion: profile.mappingVersion,
+                workerVersion: execution.workerVersion,
+                parserVersion: canonicalResult.parserVersion,
+                blockingWarningCodes,
+              }),
               profileReview: {
                 profileVersionId: profile.id,
                 fingerprintHash: candidate.hash,
@@ -414,8 +602,497 @@ export class ParserProfileReviewsService {
     }
   }
 
+  private async commitTrustedResult(input: {
+    importFile: StageImportRecord;
+    actor: AuthenticatedUser;
+    profile: ProfileCandidateRecord;
+    match: ParserProfileMatchPayload;
+    candidate: ParserProfileMatchCandidate;
+    execution: ParserProfileExecutionPayload;
+    canonicalResult: CanonicalResult;
+    destinations: DestinationSnapshot[];
+    warnings: unknown[];
+    errors: unknown[];
+    stagedResult: Record<string, unknown>;
+    builtInPayload: WorkerParsePayload;
+    startedAt: number;
+  }): Promise<boolean> {
+    const selectionInput = {
+      source: 'TRUSTED_PROFILE',
+      reasonCode: 'PARSER_PROFILE_UNIQUE_TRUSTED_MATCH',
+      outcome: 'AUTO_COMMITTED',
+      candidateCount: input.match.candidates.length,
+      durationMs: Date.now() - input.startedAt,
+      autoCommitted: true,
+      builtInEvidence: this.builtInEvidence(input.builtInPayload),
+      candidates: this.candidateSummaries(input.match),
+      profile: this.profileSelection(input.profile),
+      fingerprintHash: input.candidate.hash,
+      matchReasons: input.candidate.reasons,
+      matcherVersion: input.profile.matcherVersion,
+      mappingVersion: input.profile.mappingVersion,
+      workerVersion: input.execution.workerVersion,
+      parserVersion: input.canonicalResult.parserVersion,
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockImport(tx, input.importFile.id);
+      const currentImport = await tx.importFile.findUnique({
+        where: { id: input.importFile.id, deletedAt: null },
+        select: { id: true, fileSha256: true },
+      });
+      if (
+        !currentImport ||
+        currentImport.fileSha256 !== input.importFile.fileSha256
+      ) {
+        throw new ConflictException(
+          this.error('PARSER_REVIEW_SOURCE_CHANGED', {
+            importFileId: input.importFile.id,
+          }),
+        );
+      }
+      const existingContainer = await tx.container.findFirst({
+        where: { importFileId: input.importFile.id },
+        select: {
+          id: true,
+          sourceFormat: true,
+          parserVersion: true,
+          parserSourceKind: true,
+          warnings: true,
+          errors: true,
+        },
+      });
+      if (existingContainer?.parserSourceKind === ParserSourceKind.PROFILE) {
+        const existingWarnings = this.array(existingContainer.warnings);
+        const existingErrors = this.array(existingContainer.errors);
+        await tx.importFile.update({
+          where: { id: input.importFile.id },
+          data: {
+            format: this.fileFormat(existingContainer.sourceFormat),
+            parseStatus:
+              existingErrors.length > 0
+                ? ParseStatus.ERROR
+                : existingWarnings.length > 0
+                  ? ParseStatus.WARNING
+                  : ParseStatus.PARSED,
+            parserVersion: existingContainer.parserVersion,
+            warningCount: existingWarnings.length,
+            errorCount: existingErrors.length,
+            errorMessage:
+              existingErrors.length > 0
+                ? 'PARSER_PROFILE_COMMITTED_RESULT_HAS_ERRORS'
+                : null,
+          },
+        });
+        return true;
+      }
+      if (existingContainer) {
+        throw new ConflictException(
+          this.error('PARSER_REVIEW_FORMAL_RESULT_EXISTS', {
+            importFileId: input.importFile.id,
+            containerId: existingContainer.id,
+          }),
+        );
+      }
+
+      await this.lockVersion(tx, input.profile.id);
+      const currentProfile = await tx.parserProfileVersion.findUnique({
+        where: { id: input.profile.id },
+        select: {
+          id: true,
+          familyId: true,
+          lifecycle: true,
+          trustState: true,
+          lifecycleRevision: true,
+          matcherVersion: true,
+          mappingVersion: true,
+        },
+      });
+      const remainsTrusted =
+        currentProfile?.lifecycle === ParserProfileLifecycle.ACTIVE &&
+        currentProfile.trustState === ParserProfileTrustState.TRUSTED &&
+        currentProfile.lifecycleRevision === input.profile.lifecycleRevision &&
+        currentProfile.matcherVersion === input.profile.matcherVersion &&
+        currentProfile.mappingVersion === input.profile.mappingVersion;
+
+      if (!remainsTrusted) {
+        const reasonCode = 'PARSER_PROFILE_STATE_CHANGED_BEFORE_COMMIT';
+        const fallbackSelection = this.selection({
+          ...selectionInput,
+          source: 'PROFILE_FALLBACK',
+          reasonCode,
+          outcome: 'REVIEW_REQUIRED',
+          autoCommitted: false,
+          durationMs: Date.now() - input.startedAt,
+        });
+        await tx.parserProfileAuditEvent.create({
+          data: {
+            eventCode: ParserProfileAuditEventCode.TRUSTED_AUTO_FALLBACK,
+            actorId: input.actor.id,
+            profileFamilyId: input.profile.familyId,
+            profileVersionId: input.profile.id,
+            importFileId: input.importFile.id,
+            metadata: this.json({
+              code: reasonCode,
+              selectedLifecycleRevision: input.profile.lifecycleRevision,
+              currentLifecycleRevision:
+                currentProfile?.lifecycleRevision ?? null,
+              lifecycle: currentProfile?.lifecycle ?? null,
+              trustState: currentProfile?.trustState ?? null,
+            }),
+          },
+        });
+
+        if (currentProfile?.lifecycle === ParserProfileLifecycle.ACTIVE) {
+          await tx.parserProfileReview.create({
+            data: {
+              importFileId: input.importFile.id,
+              profileVersionId: input.profile.id,
+              sourceFileSha256: input.importFile.fileSha256,
+              status: ParserProfileReviewStatus.PENDING,
+              fingerprintHash: input.candidate.hash,
+              matcherVersion: input.profile.matcherVersion,
+              mappingVersion: input.profile.mappingVersion,
+              workerVersion: input.execution.workerVersion,
+              parserVersion: input.canonicalResult.parserVersion,
+              builtInEvidence: this.nullableJson(
+                input.builtInPayload.detection ?? null,
+              ),
+              matchEvidence: this.json({
+                selectedProfileId: input.match.selectedProfileId,
+                issueCode: input.match.issueCode,
+                reasons: input.candidate.reasons,
+                structuralEvidence: input.candidate.structuralEvidence,
+              }),
+              sourcePreview: this.nullableJson(input.match.inspection),
+              stagedResult: this.json(input.stagedResult),
+              destinationSummary: this.json(input.destinations),
+              reportPreview: this.json(
+                this.reportPreview(input.canonicalResult, input.destinations),
+              ),
+              warnings: this.nullableJson(input.warnings),
+              errors: this.nullableJson(input.errors),
+              provenance: this.nullableJson(
+                this.object(input.execution.result).provenance ?? {},
+              ),
+            },
+          });
+        }
+        await tx.importFile.update({
+          where: { id: input.importFile.id },
+          data: {
+            format: this.fileFormat(input.canonicalResult.formatType),
+            parseStatus: ParseStatus.REVIEW_REQUIRED,
+            parserVersion: input.canonicalResult.parserVersion,
+            warningCount: input.warnings.length,
+            errorCount: input.errors.length,
+            errorMessage: reasonCode,
+            rawMetadata: this.json({
+              parseSelection: fallbackSelection,
+              warnings: input.warnings,
+              errors: input.errors,
+            }),
+          },
+        });
+        return true;
+      }
+
+      const container = await tx.container.create({
+        data: {
+          importFileId: input.importFile.id,
+          containerNo: input.canonicalResult.containerNo,
+          company: input.canonicalResult.company,
+          sourceFormat: this.fileFormat(input.canonicalResult.formatType),
+          parserVersion: input.canonicalResult.parserVersion,
+          parserSourceKind: ParserSourceKind.PROFILE,
+          parserProfileVersionId: input.profile.id,
+          status: ContainerStatus.PARSED,
+          rawJson: this.json({
+            ...input.stagedResult,
+            provenance: this.object(input.execution.result).provenance ?? {},
+            parseSelection: this.selection(selectionInput),
+          }),
+          warnings: this.nullableJson(input.warnings),
+          errors: this.nullableJson(input.errors),
+        },
+      });
+      const includedLines = input.canonicalResult.lines.filter(
+        (line) => line.included,
+      );
+      if (includedLines.length > 0) {
+        await tx.containerLine.createMany({
+          data: includedLines.map((line) => ({
+            containerId: container.id,
+            lineNo: line.rowNumber,
+            destinationCode: line.destinationCode,
+            destinationType: line.deliveryMethod,
+            cartons: line.cartons,
+            volume: line.volumeCbm,
+            rawJson: this.json({
+              ...this.object(line.raw_json),
+              canonical: this.canonicalLinePublic(line),
+              provenance: line.provenance ?? null,
+            }),
+            warnings: this.nullableJson(line.warnings ?? []),
+            errors: this.nullableJson(line.errors ?? []),
+          })),
+        });
+      }
+      if (input.destinations.length > 0) {
+        await tx.containerDestination.createMany({
+          data: input.destinations.map((destination) => ({
+            containerId: container.id,
+            destinationCode: destination.destinationCode,
+            destinationType: destination.destinationType,
+            packageType: destination.packageType,
+            cartons: destination.cartons,
+            volume: destination.volumeCbm,
+            calculatedPallets: destination.calculatedPallets,
+            manualPallets: null,
+            finalPallets: destination.finalPallets,
+            palletRuleCode: destination.palletRuleCode,
+            calculationBasisCbm: destination.calculationBasisCbm,
+            roundingMode: destination.roundingMode,
+            palletPolicySnapshot: this.json(destination.palletPolicySnapshot),
+            note: null,
+            warnings: this.nullableJson(destination.warnings),
+            errors: this.nullableJson([]),
+          })),
+        });
+      }
+      const selection = this.selection({
+        ...selectionInput,
+        durationMs: Date.now() - input.startedAt,
+      });
+      await tx.importFile.update({
+        where: { id: input.importFile.id },
+        data: {
+          format: this.fileFormat(input.canonicalResult.formatType),
+          parseStatus:
+            input.warnings.length > 0
+              ? ParseStatus.WARNING
+              : ParseStatus.PARSED,
+          parserVersion: input.canonicalResult.parserVersion,
+          warningCount: input.warnings.length,
+          errorCount: 0,
+          errorMessage: null,
+          rawMetadata: this.json({
+            parseSelection: selection,
+            warnings: input.warnings,
+            errors: [],
+          }),
+        },
+      });
+      await tx.parserProfileAuditEvent.create({
+        data: {
+          eventCode: ParserProfileAuditEventCode.TRUSTED_AUTO_COMMITTED,
+          actorId: input.actor.id,
+          profileFamilyId: input.profile.familyId,
+          profileVersionId: input.profile.id,
+          importFileId: input.importFile.id,
+          containerId: container.id,
+          metadata: this.json({
+            code: 'PARSER_PROFILE_UNIQUE_TRUSTED_MATCH',
+            candidateCount: input.match.candidates.length,
+            fingerprintHash: input.candidate.hash,
+            matcherVersion: input.profile.matcherVersion,
+            mappingVersion: input.profile.mappingVersion,
+            workerVersion: input.execution.workerVersion,
+            parserVersion: input.canonicalResult.parserVersion,
+            durationMs: Date.now() - input.startedAt,
+            outcome: 'AUTO_COMMITTED',
+          }),
+        },
+      });
+      return true;
+    });
+  }
+
+  private async persistSelectionReviewFallback(
+    importFile: StageImportRecord,
+    actor: AuthenticatedUser,
+    match: ParserProfileMatchPayload,
+    builtInPayload: WorkerParsePayload,
+    source: 'AMBIGUOUS' | 'DRIFT',
+    startedAt: number,
+  ): Promise<void> {
+    const reasonCode =
+      match.issueCode ??
+      (source === 'AMBIGUOUS'
+        ? 'FINGERPRINT_PROFILE_COLLISION'
+        : 'FINGERPRINT_STRUCTURAL_DRIFT');
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockImport(tx, importFile.id);
+      await tx.parserProfileAuditEvent.create({
+        data: {
+          eventCode: ParserProfileAuditEventCode.REVIEW_MATCH_FAILED,
+          actorId: actor.id,
+          importFileId: importFile.id,
+          metadata: this.json({
+            code: reasonCode,
+            blocksBuiltIn: true,
+            candidateCount: match.candidates.length,
+            candidates: this.candidateSummaries(match),
+          }),
+        },
+      });
+      await tx.importFile.update({
+        where: { id: importFile.id },
+        data: {
+          parseStatus: ParseStatus.REVIEW_REQUIRED,
+          warningCount: 1,
+          errorCount: 0,
+          errorMessage: null,
+          rawMetadata: this.json({
+            parseSelection: this.selection({
+              source,
+              reasonCode,
+              outcome: 'REVIEW_REQUIRED',
+              candidateCount: match.candidates.length,
+              durationMs: Date.now() - startedAt,
+              autoCommitted: false,
+              builtInEvidence: this.builtInEvidence(builtInPayload),
+              candidates: this.candidateSummaries(match),
+            }),
+            warnings: [{ code: reasonCode }],
+            errors: [],
+          }),
+        },
+      });
+    });
+  }
+
+  private async persistSelection(
+    importFile: StageImportRecord,
+    input: Record<string, unknown>,
+  ): Promise<void> {
+    const current = await this.prisma.importFile.findUnique({
+      where: { id: importFile.id, deletedAt: null },
+      select: { rawMetadata: true },
+    });
+    if (!current) return;
+    await this.prisma.importFile.update({
+      where: { id: importFile.id },
+      data: {
+        rawMetadata: this.json({
+          ...this.object(current.rawMetadata),
+          parseSelection: this.selection(input),
+        }),
+      },
+    });
+  }
+
+  private selection(input: Record<string, unknown>): Record<string, unknown> {
+    return {
+      contractVersion: 'parser-selection-v1',
+      source: input.source ?? 'PROFILE_FALLBACK',
+      reasonCode: input.reasonCode ?? 'PARSER_SELECTION_UNAVAILABLE',
+      outcome: input.outcome ?? 'REVIEW_REQUIRED',
+      candidateCount: input.candidateCount ?? 0,
+      durationMs: input.durationMs ?? 0,
+      autoCommitted: input.autoCommitted === true,
+      builtInEvidence: input.builtInEvidence ?? null,
+      candidates: input.candidates ?? [],
+      profile: input.profile ?? null,
+      fingerprintHash: input.fingerprintHash ?? null,
+      matchReasons: input.matchReasons ?? [],
+      matcherVersion: input.matcherVersion ?? null,
+      mappingVersion: input.mappingVersion ?? null,
+      workerVersion: input.workerVersion ?? null,
+      parserVersion: input.parserVersion ?? null,
+      blockingWarningCodes: input.blockingWarningCodes ?? [],
+    };
+  }
+
+  private profileSelection(
+    profile: ProfileCandidateRecord,
+  ): Record<string, unknown> {
+    return {
+      id: profile.id,
+      familyId: profile.familyId,
+      stableName: profile.family.stableName,
+      customerLabel: profile.family.customerLabel,
+      version: profile.version,
+      lifecycle: profile.lifecycle,
+      trustState: profile.trustState,
+      lifecycleRevision: profile.lifecycleRevision,
+    };
+  }
+
+  private candidateSummaries(
+    match: ParserProfileMatchPayload,
+  ): Array<Record<string, unknown>> {
+    return match.candidates
+      .slice(0, PROFILE_CANDIDATE_LIMIT)
+      .map((candidate) => ({
+        profileId: candidate.profileId,
+        matched: candidate.matched,
+        fingerprintHash: candidate.hash,
+        reasonCodes: candidate.reasons.map((reason) => reason.code),
+      }));
+  }
+
+  private builtInEvidence(
+    payload: WorkerParsePayload,
+  ): Record<string, unknown> {
+    const detection = this.object(payload.detection);
+    return {
+      formatType: this.string(detection.format_type ?? detection.formatType),
+      confidence:
+        typeof detection.confidence === 'number' ? detection.confidence : null,
+      parserVersion: this.string(payload.parsed_result?.parserVersion),
+      taskStatus: this.string(payload.task_status),
+    };
+  }
+
   async getByImport(importFileId: string): Promise<unknown> {
-    return this.toResponse(await this.findReviewOrThrow(this.prisma, importFileId));
+    return this.toResponse(
+      await this.findReviewOrThrow(this.prisma, importFileId),
+    );
+  }
+
+  async hasCommittedProfileResult(importFileId: string): Promise<boolean> {
+    return Boolean(
+      await this.prisma.container.findFirst({
+        where: {
+          importFileId,
+          parserSourceKind: ParserSourceKind.PROFILE,
+        },
+        select: { id: true },
+      }),
+    );
+  }
+
+  private async restoreCommittedProfileStatus(
+    importFileId: string,
+    container: {
+      sourceFormat: string;
+      parserVersion: string | null;
+      warnings: unknown;
+      errors: unknown;
+    },
+  ): Promise<void> {
+    const warnings = this.array(container.warnings);
+    const errors = this.array(container.errors);
+    await this.prisma.importFile.update({
+      where: { id: importFileId },
+      data: {
+        format: this.fileFormat(container.sourceFormat),
+        parseStatus:
+          errors.length > 0
+            ? ParseStatus.ERROR
+            : warnings.length > 0
+              ? ParseStatus.WARNING
+              : ParseStatus.PARSED,
+        parserVersion: container.parserVersion,
+        warningCount: warnings.length,
+        errorCount: errors.length,
+        errorMessage:
+          errors.length > 0
+            ? 'PARSER_PROFILE_COMMITTED_RESULT_HAS_ERRORS'
+            : null,
+      },
+    });
   }
 
   async hasReview(importFileId: string): Promise<boolean> {
@@ -584,7 +1261,10 @@ export class ParserProfileReviewsService {
         : staged;
       this.assertNoParserErrors(review.errors, corrected);
       const policy = this.policyFromStaged(review.stagedResult);
-      const stagedDestinations = this.destinationSnapshots(staged.lines, policy);
+      const stagedDestinations = this.destinationSnapshots(
+        staged.lines,
+        policy,
+      );
       const destinations = this.destinationSnapshots(corrected.lines, policy);
       const diff = correctedInput
         ? classifyParserMaterialCorrection(staged, corrected, {
@@ -736,7 +1416,10 @@ export class ParserProfileReviewsService {
             profileVersionId: profile.id,
             importFileId,
             containerId: container.id,
-            metadata: { streakAfter: 3, trustState: ParserProfileTrustState.TRUSTED },
+            metadata: {
+              streakAfter: 3,
+              trustState: ParserProfileTrustState.TRUSTED,
+            },
           },
         });
       }
@@ -789,7 +1472,9 @@ export class ParserProfileReviewsService {
           reviewedById: actor.id,
           reviewedAt: new Date(),
           finalDestinationSummary: this.json(destinations),
-          finalReportPreview: this.json(this.reportPreview(corrected, destinations)),
+          finalReportPreview: this.json(
+            this.reportPreview(corrected, destinations),
+          ),
         },
         include: reviewInclude,
       });
@@ -919,11 +1604,17 @@ export class ParserProfileReviewsService {
     );
   }
 
-  private async lockImport(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  private async lockImport(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<void> {
     await tx.$queryRaw`SELECT "id" FROM "import_files" WHERE "id" = ${id} FOR UPDATE`;
   }
 
-  private async lockVersion(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  private async lockVersion(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<void> {
     await tx.$queryRaw`SELECT "id" FROM "parser_profile_versions" WHERE "id" = ${id} FOR UPDATE`;
   }
 
@@ -954,7 +1645,9 @@ export class ParserProfileReviewsService {
     return {
       ...line,
       rowNumber:
-        Number.isSafeInteger(rowNumber) && rowNumber > 0 ? rowNumber : index + 1,
+        Number.isSafeInteger(rowNumber) && rowNumber > 0
+          ? rowNumber
+          : index + 1,
       included: line.included !== false,
       destinationCode: this.string(line.destinationCode),
       cartons: this.nullableInt(line.cartons),
@@ -971,7 +1664,9 @@ export class ParserProfileReviewsService {
     staged: CanonicalResult,
     input: ParserReviewCorrectDto['canonicalResult'],
   ): CanonicalResult {
-    const stagedByRow = new Map(staged.lines.map((line) => [line.rowNumber, line]));
+    const stagedByRow = new Map(
+      staged.lines.map((line) => [line.rowNumber, line]),
+    );
     return {
       ...staged,
       containerNo: input.containerNo,
@@ -1074,7 +1769,10 @@ export class ParserProfileReviewsService {
   ): boolean {
     const groups = (items: DestinationSnapshot[]) =>
       items
-        .map((item) => `${item.destinationCode}\u0000${item.destinationType ?? ''}`)
+        .map(
+          (item) =>
+            `${item.destinationCode}\u0000${item.destinationType ?? ''}`,
+        )
         .sort();
     return this.stable(groups(before)) !== this.stable(groups(after));
   }
@@ -1193,9 +1891,13 @@ export class ParserProfileReviewsService {
     };
   }
 
-  private fileFormat(value: string): typeof FileFormat[keyof typeof FileFormat] {
-    if (value === FileFormat.UNLOADING_PLAN_CN) return FileFormat.UNLOADING_PLAN_CN;
-    if (value === FileFormat.BESTAR_RECEIVING) return FileFormat.BESTAR_RECEIVING;
+  private fileFormat(
+    value: string,
+  ): (typeof FileFormat)[keyof typeof FileFormat] {
+    if (value === FileFormat.UNLOADING_PLAN_CN)
+      return FileFormat.UNLOADING_PLAN_CN;
+    if (value === FileFormat.BESTAR_RECEIVING)
+      return FileFormat.BESTAR_RECEIVING;
     return FileFormat.UNKNOWN;
   }
 
@@ -1255,7 +1957,9 @@ export class ParserProfileReviewsService {
   private nullableJson(
     value: unknown,
   ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput {
-    return value === null || value === undefined ? Prisma.JsonNull : this.json(value);
+    return value === null || value === undefined
+      ? Prisma.JsonNull
+      : this.json(value);
   }
 
   private uniqueConstraint(error: unknown): boolean {

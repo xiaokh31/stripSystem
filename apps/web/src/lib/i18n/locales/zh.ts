@@ -1840,11 +1840,13 @@ export const zhMessages = {
   "Collapse unloading wage section": "收起拆柜工资信息",
   "Expand unloading wage section": "展开拆柜工资信息",
   "i18n.parserLearning.entryTitle": "为此工作簿建立解析模板",
-  "i18n.parserLearning.entryDescription": "在保留失败导入和手工报告正式关联的同时，打开可恢复的字段映射工作区。",
+  "i18n.parserLearning.entryDescription":
+    "在保留失败导入和手工报告正式关联的同时，打开可恢复的字段映射工作区。",
   "i18n.parserLearning.openWizard": "建立解析模板",
   "i18n.parserLearning.starting": "正在打开映射工作区",
   "i18n.parserLearning.loading": "正在加载已保留工作簿的预览…",
-  "i18n.parserLearning.emptyWorkbook": "此工作簿没有可预览的单元格。请返回导入并继续建立手工报告。",
+  "i18n.parserLearning.emptyWorkbook":
+    "此工作簿没有可预览的单元格。请返回导入并继续建立手工报告。",
   "i18n.parserLearning.continueManualReport": "继续建立关联手工报告",
   "i18n.parserLearning.inspectionIssues": "工作簿预览提示",
   "i18n.parserLearning.permissionDenied": "当前账号没有建立解析模板的权限。",
@@ -1874,7 +1876,8 @@ export const zhMessages = {
   "i18n.parserLearning.nextSourcePage": "下一页源数据",
   "i18n.parserLearning.page": "第 {current} / {total} 页",
   "i18n.parserLearning.row": "行",
-  "i18n.parserLearning.mappingInstruction": "为每个源表头选择对应的业务字段。系统建议在人工确认前始终保持未确认状态。",
+  "i18n.parserLearning.mappingInstruction":
+    "为每个源表头选择对应的业务字段。系统建议在人工确认前始终保持未确认状态。",
   "i18n.parserLearning.canonicalField": "业务字段",
   "i18n.parserLearning.sourceHeader": "源表头",
   "i18n.parserLearning.transform": "取值处理",
@@ -1916,7 +1919,8 @@ export const zhMessages = {
   "i18n.parserLearning.previewErrors": "{count} 条错误",
   "i18n.parserLearning.destinationTotals": "目的仓汇总",
   "i18n.parserLearning.lines": "明细行",
-  "i18n.parserLearning.manualDescription": "创建或打开将与当前映射对账的手工卸柜报告。正式关系保存在此教学案例中。",
+  "i18n.parserLearning.manualDescription":
+    "创建或打开将与当前映射对账的手工卸柜报告。正式关系保存在此教学案例中。",
   "i18n.parserLearning.openManualReport": "打开关联手工报告",
   "i18n.parserLearning.createManualReport": "创建关联手工报告",
   "i18n.parserLearning.sourceImportLink": "关联源导入：{id}",
@@ -1926,7 +1930,8 @@ export const zhMessages = {
   "i18n.parserLearning.replayError": "对账未完成。当前映射仍是草稿，可以重试。",
   "i18n.parserLearning.replayMatched": "映射结果与现有手工证据一致。",
   "i18n.parserLearning.replayMismatch": "提交草稿前仍有差异需要复核。",
-  "i18n.parserLearning.replaySummary": "共 {compared} 项检查，{differences} 项实质差异",
+  "i18n.parserLearning.replaySummary":
+    "共 {compared} 项检查，{differences} 项实质差异",
   "i18n.parserLearning.comparisonItem": "对账项",
   "i18n.parserLearning.result": "结果",
   "i18n.parserLearning.scope": "目的仓或范围",
@@ -1942,8 +1947,10 @@ export const zhMessages = {
   "i18n.parserLearning.customerLabel": "客户标签（可选）",
   "i18n.parserLearning.submitDraft": "提交草稿候选",
   "i18n.parserLearning.submittedDraft": "草稿候选已提交",
-  "i18n.parserLearning.notApprovedNotice": "提交只会创建草稿候选，不代表已批准或可信。",
-  "i18n.parserLearning.awaitingCompletionNotice": "草稿正在等待卸柜完成证据，尚未批准，也不可信。",
+  "i18n.parserLearning.notApprovedNotice":
+    "提交只会创建草稿候选，不代表已批准或可信。",
+  "i18n.parserLearning.awaitingCompletionNotice":
+    "草稿正在等待卸柜完成证据，尚未批准，也不可信。",
   "i18n.parserLearning.saveBlocked": "完成必填控件后才能保存。",
   "i18n.parserLearning.saveError": "草稿保存失败。",
   "i18n.parserLearning.savePending": "更改正在等待必填确认。",
@@ -1951,16 +1958,20 @@ export const zhMessages = {
   "i18n.parserLearning.saved": "草稿已保存",
   "i18n.parserLearning.saving": "正在保存草稿…",
   "i18n.parserLearning.retrySave": "重试保存",
-  "i18n.parserLearning.reloadMerge": "请重新加载页面查看较新草稿，再重新应用未保存的更改。",
+  "i18n.parserLearning.reloadMerge":
+    "请重新加载页面查看较新草稿，再重新应用未保存的更改。",
   "i18n.parserLearning.revision": "已保存版本 {revision}",
-  "i18n.parserLearning.validationCount": "仍有 {count} 个必填控件需要处理。预览时会聚焦第一个控件。",
+  "i18n.parserLearning.validationCount":
+    "仍有 {count} 个必填控件需要处理。预览时会聚焦第一个控件。",
   "i18n.parserLearning.validation.sheet": "请选择工作表。",
   "i18n.parserLearning.validation.headerRow": "请输入有效的表头起始行。",
-  "i18n.parserLearning.validation.dataStartRow": "请输入位于表头之后的数据起始行。",
+  "i18n.parserLearning.validation.dataStartRow":
+    "请输入位于表头之后的数据起始行。",
   "i18n.parserLearning.validation.containerCell": "请选择包含柜号的源单元格。",
   "i18n.parserLearning.validation.mappingRequired": "请选择源表头。",
   "i18n.parserLearning.validation.confirmationRequired": "请确认此必填映射。",
-  "i18n.parserLearning.validation.transformInvalid": "请使用有效数值或对照行完成此取值规则。",
+  "i18n.parserLearning.validation.transformInvalid":
+    "请使用有效数值或对照行完成此取值规则。",
   "i18n.parserLearning.validation.controlInvalid": "请检查此必填控件。",
   "i18n.parserLearning.manualLinkUnavailable": "无法打开关联教学案例",
   "i18n.parserLearning.field.containerNo": "柜号来源",
@@ -1982,8 +1993,10 @@ export const zhMessages = {
   "i18n.parserLearning.transform.multiply": "乘以指定数值",
   "i18n.parserLearning.transform.divide": "除以指定数值",
   "i18n.parserLearning.transform.lookup": "使用对照行",
-  "i18n.parserLearning.suggestion.exactHeader": "源表头与已知业务表头完全一致，保存前仍需人工确认。",
-  "i18n.parserLearning.suggestion.reviewRequired": "这是未确认候选，请与高亮源单元格核对。",
+  "i18n.parserLearning.suggestion.exactHeader":
+    "源表头与已知业务表头完全一致，保存前仍需人工确认。",
+  "i18n.parserLearning.suggestion.reviewRequired":
+    "这是未确认候选，请与高亮源单元格核对。",
   "i18n.parserLearning.status.open": "尚未开始映射",
   "i18n.parserLearning.status.mapping": "正在映射",
   "i18n.parserLearning.status.readyForReplay": "可开始对账",
@@ -1992,29 +2005,48 @@ export const zhMessages = {
   "i18n.parserLearning.status.awaitingApproval": "等待授权批准",
   "i18n.parserLearning.status.closed": "教学案例已关闭",
   "i18n.parserLearning.status.unknown": "教学案例状态不可用",
-  "i18n.parserLearning.code.startFailed": "无法打开映射工作区，请从失败导入重试。",
-  "i18n.parserLearning.code.importNotEligible": "此导入不是可建立教学案例的失败或不支持状态。",
-  "i18n.parserLearning.code.validationFailed": "请处理第一个未完成或无效的控件。",
-  "i18n.parserLearning.code.revisionConflict": "另一个请求已修改此草稿，请重新加载并合并后再保存。",
-  "i18n.parserLearning.code.mappingInvalid": "所选映射或取值规则无效，请检查高亮控件。",
-  "i18n.parserLearning.code.previewStale": "此预览属于旧草稿，已丢弃。请重新运行预览。",
-  "i18n.parserLearning.code.replayNotReady": "请先保存必填映射并关联手工报告，再开始对账。",
-  "i18n.parserLearning.code.workerUnavailable": "工作簿处理暂不可用。草稿已安全保存，请重试此操作。",
-  "i18n.parserLearning.code.sourceUnavailable": "已保留的源工作簿不可用，请返回导入并联系管理员。",
-  "i18n.parserLearning.code.workbookReadFailed": "无法检查已保留工作簿，原始文件不会被修改。",
-  "i18n.parserLearning.code.workbookUnsupported": "此工作簿类型无法检查，请继续使用关联手工报告。",
-  "i18n.parserLearning.code.inspectionLimit": "预览已达到安全限制，请使用当前受限数据或继续手工作业。",
-  "i18n.parserLearning.code.formulaCachedValueMissing": "公式单元格没有已保存结果，可能需要人工确认。",
-  "i18n.parserLearning.code.learningCaseUnavailable": "关联教学案例不可用。请返回导入列表，并从失败导入重新打开。",
-  "i18n.parserLearning.code.missingContainerNo": "映射的源单元格中没有找到柜号。",
+  "i18n.parserLearning.code.startFailed":
+    "无法打开映射工作区，请从失败导入重试。",
+  "i18n.parserLearning.code.importNotEligible":
+    "此导入不是可建立教学案例的失败或不支持状态。",
+  "i18n.parserLearning.code.validationFailed":
+    "请处理第一个未完成或无效的控件。",
+  "i18n.parserLearning.code.revisionConflict":
+    "另一个请求已修改此草稿，请重新加载并合并后再保存。",
+  "i18n.parserLearning.code.mappingInvalid":
+    "所选映射或取值规则无效，请检查高亮控件。",
+  "i18n.parserLearning.code.previewStale":
+    "此预览属于旧草稿，已丢弃。请重新运行预览。",
+  "i18n.parserLearning.code.replayNotReady":
+    "请先保存必填映射并关联手工报告，再开始对账。",
+  "i18n.parserLearning.code.workerUnavailable":
+    "工作簿处理暂不可用。草稿已安全保存，请重试此操作。",
+  "i18n.parserLearning.code.sourceUnavailable":
+    "已保留的源工作簿不可用，请返回导入并联系管理员。",
+  "i18n.parserLearning.code.workbookReadFailed":
+    "无法检查已保留工作簿，原始文件不会被修改。",
+  "i18n.parserLearning.code.workbookUnsupported":
+    "此工作簿类型无法检查，请继续使用关联手工报告。",
+  "i18n.parserLearning.code.inspectionLimit":
+    "预览已达到安全限制，请使用当前受限数据或继续手工作业。",
+  "i18n.parserLearning.code.formulaCachedValueMissing":
+    "公式单元格没有已保存结果，可能需要人工确认。",
+  "i18n.parserLearning.code.learningCaseUnavailable":
+    "关联教学案例不可用。请返回导入列表，并从失败导入重新打开。",
+  "i18n.parserLearning.code.missingContainerNo":
+    "映射的源单元格中没有找到柜号。",
   "i18n.parserLearning.code.missingDestination": "映射的数据行缺少目的仓。",
   "i18n.parserLearning.code.missingCartons": "映射的数据行缺少有效箱数或件数。",
   "i18n.parserLearning.code.missingVolume": "映射的数据行缺少有效体积。",
-  "i18n.parserLearning.code.zeroVolumeWithCartons": "映射行有箱数但体积为零，需要确认。",
-  "i18n.parserLearning.code.manualDestinationRequired": "目的仓无法标准化，需要人工复核。",
-  "i18n.parserLearning.code.candidateNotReady": "提交草稿前必须有通过的对账结果和有效模板名称。",
+  "i18n.parserLearning.code.zeroVolumeWithCartons":
+    "映射行有箱数但体积为零，需要确认。",
+  "i18n.parserLearning.code.manualDestinationRequired":
+    "目的仓无法标准化，需要人工复核。",
+  "i18n.parserLearning.code.candidateNotReady":
+    "提交草稿前必须有通过的对账结果和有效模板名称。",
   "i18n.parserLearning.code.issueUnavailable": "工作簿问题详情不可用。",
-  "i18n.parserLearning.code.unknownError": "此操作无法完成，已保存草稿仍可继续使用。",
+  "i18n.parserLearning.code.unknownError":
+    "此操作无法完成，已保存草稿仍可继续使用。",
   "i18n.parserLearning.diff.containerMismatch": "柜号不一致",
   "i18n.parserLearning.diff.detailRowsMismatch": "包含的数据行不一致",
   "i18n.parserLearning.diff.detailRowsUnverified": "数据行需要手工证据",
@@ -2029,7 +2061,8 @@ export const zhMessages = {
   "i18n.parserLearning.diff.unavailable": "对账详情不可用",
   "Parser profiles": "解析模板",
   "i18n.parserProfiles.title": "解析模板治理",
-  "i18n.parserProfiles.subtitle": "复核不可变的拆柜完成证据，并管理已批准的工作簿模板。",
+  "i18n.parserProfiles.subtitle":
+    "复核不可变的拆柜完成证据，并管理已批准的工作簿模板。",
   "i18n.parserProfiles.empty": "暂无解析模板版本。",
   "i18n.parserProfiles.permissionDenied": "当前账号没有查看解析模板的权限。",
   "i18n.parserProfiles.version": "版本",
@@ -2055,13 +2088,16 @@ export const zhMessages = {
   "i18n.parserProfiles.eligible": "可批准",
   "i18n.parserProfiles.notEligible": "批准条件尚未满足",
   "i18n.parserProfiles.approve": "批准模板",
-  "i18n.parserProfiles.approveConfirm": "确认批准这个不可变版本？批准后只会进入“每次需复核”，证据连续数为 0/3，不会立即自动解析后续工作簿。",
+  "i18n.parserProfiles.approveConfirm":
+    "确认批准这个不可变版本？批准后只会进入“每次需复核”，证据连续数为 0/3，不会立即自动解析后续工作簿。",
   "i18n.parserProfiles.pause": "暂停模板",
   "i18n.parserProfiles.resume": "恢复模板",
   "i18n.parserProfiles.retire": "退役模板",
   "i18n.parserProfiles.fork": "创建草稿版本",
-  "i18n.parserProfiles.pauseImpact": "暂停后立即排除新的模板匹配，同时保留全部证据。",
-  "i18n.parserProfiles.retireImpact": "退役后永久排除新的模板匹配，同时保留历史记录。",
+  "i18n.parserProfiles.pauseImpact":
+    "暂停后立即排除新的模板匹配，同时保留全部证据。",
+  "i18n.parserProfiles.retireImpact":
+    "退役后永久排除新的模板匹配，同时保留历史记录。",
   "i18n.parserProfiles.reason": "原因",
   "i18n.parserProfiles.reasonRequired": "继续前请填写审计原因。",
   "i18n.parserProfiles.cancel": "取消",
@@ -2083,7 +2119,8 @@ export const zhMessages = {
   "i18n.parserProfiles.code.snapshot": "必须先形成完整的首次拆柜完成快照。",
   "i18n.parserProfiles.code.provenance": "必填映射字段必须带有来源证据。",
   "i18n.parserProfiles.code.replay": "必须有绑定当前快照和草稿版本的通过重放。",
-  "i18n.parserProfiles.code.stale": "提交版本或重放已经过期，请刷新并重放当前草稿。",
+  "i18n.parserProfiles.code.stale":
+    "提交版本或重放已经过期，请刷新并重放当前草稿。",
   "i18n.parserProfiles.code.conflict": "另一个启用版本具有相同匹配范围。",
   "i18n.parserProfiles.snapshotContainer": "柜号",
   "i18n.parserProfiles.snapshotDestinations": "目的仓",
@@ -2094,7 +2131,8 @@ export const zhMessages = {
   "i18n.parserProfiles.result": "结果",
   "i18n.parserReview.eyebrow": "强制解析复核",
   "i18n.parserReview.title": "待复核解析",
-  "i18n.parserReview.subtitle": "当前模板结果仅暂存。获授权人员接受这份精确结果之前，不会产生正式柜子、托盘、报告或库存记录。",
+  "i18n.parserReview.subtitle":
+    "当前模板结果仅暂存。获授权人员接受这份精确结果之前，不会产生正式柜子、托盘、报告或库存记录。",
   "i18n.parserReview.profile": "匹配模板",
   "i18n.parserReview.sourceHash": "来源短哈希",
   "i18n.parserReview.matcherVersion": "匹配器版本",
@@ -2110,7 +2148,8 @@ export const zhMessages = {
   "i18n.parserReview.cell": "单元格",
   "i18n.parserReview.sourceValue": "来源值",
   "i18n.parserReview.canonicalRows": "暂存标准数据行",
-  "i18n.parserReview.stagedImmutable": "原始暂存数据行与来源保持不可变；接受后的修正结果另行保存。",
+  "i18n.parserReview.stagedImmutable":
+    "原始暂存数据行与来源保持不可变；接受后的修正结果另行保存。",
   "i18n.parserReview.row": "来源行",
   "i18n.parserReview.diffRow": "{field} · 来源行 {row}",
   "i18n.parserReview.includeRowAria": "在修正结果中包含此来源行",
@@ -2130,7 +2169,8 @@ export const zhMessages = {
   "i18n.parserReview.totalPallets": "总托盘数",
   "i18n.parserReview.requiredWarnings": "警告与必查项",
   "i18n.parserReview.noWarnings": "暂存结果没有解析警告或错误。",
-  "i18n.parserReview.errorsBlockCommit": "暂存结果含解析错误，不能转为正式数据；请拒绝本次匹配并进入人工或学习流程。",
+  "i18n.parserReview.errorsBlockCommit":
+    "暂存结果含解析错误，不能转为正式数据；请拒绝本次匹配并进入人工或学习流程。",
   "i18n.parserReview.issue.missingDestination": "目的仓缺失，需要复核。",
   "i18n.parserReview.issue.missingCartons": "箱数或件数缺失。",
   "i18n.parserReview.issue.missingVolume": "体积证据缺失。",
@@ -2142,7 +2182,8 @@ export const zhMessages = {
   "i18n.parserReview.submitCorrection": "复核并提交修正",
   "i18n.parserReview.cancelCorrection": "放弃未保存修改",
   "i18n.parserReview.reject": "拒绝模板匹配",
-  "i18n.parserReview.readOnly": "你可以查看证据，但当前账号不能作出解析复核决定。",
+  "i18n.parserReview.readOnly":
+    "你可以查看证据，但当前账号不能作出解析复核决定。",
   "i18n.parserReview.openContainer": "打开已接受柜子",
   "i18n.parserReview.reason": "审计原因",
   "i18n.parserReview.optional": "选填",
@@ -2152,11 +2193,14 @@ export const zhMessages = {
   "i18n.parserReview.forbidden": "当前账号无权作出解析复核决定。",
   "i18n.parserReview.actionFailed": "复核决定未保存，暂存结果保持不变。",
   "i18n.parserReview.dialog.accept.title": "接受这份暂存解析？",
-  "i18n.parserReview.dialog.accept.description": "系统会原子创建正式柜子和目的仓记录。若来源哈希不同且解析字段未变，本次接受会让证据连续数增加一次。",
+  "i18n.parserReview.dialog.accept.description":
+    "系统会原子创建正式柜子和目的仓记录。若来源哈希不同且解析字段未变，本次接受会让证据连续数增加一次。",
   "i18n.parserReview.dialog.correct.title": "接受这份解析修正结果？",
-  "i18n.parserReview.dialog.correct.description": "服务端会把修正字段与不可变暂存结果比较。实质变更会把连续数重置为 0/3；非实质变更仍可计为已接受证据。",
+  "i18n.parserReview.dialog.correct.description":
+    "服务端会把修正字段与不可变暂存结果比较。实质变更会把连续数重置为 0/3；非实质变更仍可计为已接受证据。",
   "i18n.parserReview.dialog.reject.title": "拒绝这次模板匹配？",
-  "i18n.parserReview.dialog.reject.description": "不会创建正式柜子。拒绝及原因会保留在证据历史中，连续数重置为 0/3。",
+  "i18n.parserReview.dialog.reject.description":
+    "不会创建正式柜子。拒绝及原因会保留在证据历史中，连续数重置为 0/3。",
   "i18n.parserReview.status.PENDING": "等待复核",
   "i18n.parserReview.status.ACCEPTED": "无修改接受",
   "i18n.parserReview.status.CORRECTED": "修正后接受",
@@ -2183,4 +2227,50 @@ export const zhMessages = {
   "i18n.parserReview.field.sourceSelection": "来源选择",
   "i18n.parserReview.field.mappingDefinition": "映射定义",
   "i18n.parserReview.field.other": "解析相关字段",
+  "i18n.parserSelection.eyebrow": "解析来源",
+  "i18n.parserSelection.source.BUILT_IN": "内置解析器",
+  "i18n.parserSelection.source.PROFILE_REVIEW": "模板复核",
+  "i18n.parserSelection.source.TRUSTED_PROFILE": "可信模板",
+  "i18n.parserSelection.source.PROFILE_FALLBACK": "模板安全回退",
+  "i18n.parserSelection.source.AMBIGUOUS": "模板匹配冲突",
+  "i18n.parserSelection.source.DRIFT": "工作簿结构漂移",
+  "i18n.parserSelection.source.unknown": "解析来源不可用",
+  "i18n.parserSelection.reason.uniqueTrusted":
+    "唯一启用且可信的模板满足全部必要结构条件，并在提交前再次通过信任状态校验，因此规范结果已自动写入。",
+  "i18n.parserSelection.reason.noActiveProfile":
+    "没有可参与匹配的启用模板，现有内置解析器链路继续作为权威结果。",
+  "i18n.parserSelection.reason.noMatch":
+    "没有已批准模板匹配此工作簿结构，因此继续使用内置解析器。",
+  "i18n.parserSelection.reason.collision":
+    "多个已批准模板同时匹配，系统未自动选择胜者；请复核模板或创建新的学习案例。",
+  "i18n.parserSelection.reason.drift":
+    "工作簿接近已批准布局，但必要结构条件发生变化；正式写入业务数据前必须复核。",
+  "i18n.parserSelection.reason.stateChanged":
+    "解析期间所选模板的生命周期或信任状态已变化；结果已转为复核，没有自动提交。",
+  "i18n.parserSelection.reason.reviewRequired":
+    "匹配到的已批准模板要求办公室人员复核后才能成为正式结果。",
+  "i18n.parserSelection.reason.requiredWarning":
+    "可信结果包含必要字段警告，系统已停止自动提交并将结果暂存复核。",
+  "i18n.parserSelection.reason.trustedReview":
+    "可信结果未满足自动提交契约，因此已暂存等待复核。",
+  "i18n.parserSelection.reason.other":
+    "解析器记录了稳定的回退原因；可打开诊断信息或查看模板操作。",
+  "i18n.parserSelection.automatic": "已自动提交",
+  "i18n.parserSelection.notAutomatic": "未自动提交",
+  "i18n.parserSelection.profile": "所选模板",
+  "i18n.parserSelection.noProfile": "未选择模板",
+  "i18n.parserSelection.candidates": "已检查候选数",
+  "i18n.parserSelection.duration": "模板处理耗时",
+  "i18n.parserSelection.durationValue": "{duration} 毫秒",
+  "i18n.parserSelection.outcome": "处理结果",
+  "i18n.parserSelection.outcome.autoCommitted": "已写入正式业务数据",
+  "i18n.parserSelection.outcome.reviewRequired": "需要人工复核",
+  "i18n.parserSelection.outcome.fallback": "使用内置或人工回退",
+  "i18n.parserSelection.versionValue": "第 {version} 版",
+  "i18n.parserSelection.matchReasons": "已匹配结构锚点",
+  "i18n.parserSelection.match.anchor": "必要锚点已匹配",
+  "i18n.parserSelection.match.other": "必要结构条件已匹配",
+  "i18n.parserSelection.openProfiles": "复核解析模板",
+  "i18n.parserSelection.createLearningCase": "创建新的学习案例",
+  "i18n.parserSelection.diagnostics": "技术诊断信息",
 } satisfies Record<MessageKey, string>;

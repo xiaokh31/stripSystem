@@ -375,3 +375,24 @@ workbook and field mapping cannot establish a profile.
    remains intact.
 8. Every state and action is auditable, permissioned and fully localized with
    no bilingual visible output.
+
+## Trusted Production Parse Contract
+
+PARSER-PROFILE-07 connects the trust gate to the normal import path. The
+built-in detector still runs and remains the fallback, but a unique exact
+structural match from an explicit `ACTIVE + TRUSTED` profile may take
+precedence over a broad built-in detection. The server persists why that path
+was selected and rechecks the exact profile under lock immediately before
+formal data is written.
+
+Collision and structural drift never choose a winner. Required-field/formula
+cache blockers, parser errors, and queued lifecycle/trust changes stop automatic
+commit and move the import to review/manual handling. Retry is idempotent: a
+committed profile result is returned without replacing its container or adding
+another commit audit event.
+
+Any later correction to parser-material container or destination fields on a
+trusted profile result immediately demotes that exact version to
+`REVIEW_REQUIRED` and resets `3/3` to `0/3`; physical pallet-count overrides do
+not revoke parser trust. Historical imports and correction/audit evidence are
+never rewritten.

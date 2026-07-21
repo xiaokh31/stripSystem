@@ -56,6 +56,7 @@ describe('ImportsService', () => {
   };
   let parserProfileReviews: {
     hasReview: jest.Mock;
+    hasCommittedProfileResult: jest.Mock;
     stageIfMatched: jest.Mock;
   };
   let createdImportData:
@@ -121,6 +122,7 @@ describe('ImportsService', () => {
     };
     parserProfileReviews = {
       hasReview: jest.fn().mockResolvedValue(false),
+      hasCommittedProfileResult: jest.fn().mockResolvedValue(false),
       stageIfMatched: jest.fn().mockResolvedValue(false),
     };
     service = new ImportsService(
@@ -229,6 +231,24 @@ describe('ImportsService', () => {
       ConflictException,
     );
     expect(prisma.importFile.create).not.toHaveBeenCalled();
+  });
+
+  it('returns an already committed profile result without invoking or replacing parser data', async () => {
+    const record = importRecord({
+      parseStatus: 'PARSED',
+      parserVersion: 'parser-profile-engine-v1',
+      storedPath: fixturePath,
+    });
+    prisma.importFile.findUnique.mockResolvedValue(record);
+    prisma.container.findMany.mockResolvedValue([]);
+    parserProfileReviews.hasCommittedProfileResult.mockResolvedValue(true);
+
+    const result = await service.parse(record.id, officeActor);
+
+    expect(result.importFile.parseStatus).toBe('PARSED');
+    expect(workerParser.parseFile).not.toHaveBeenCalled();
+    expect(parserProfileReviews.stageIfMatched).not.toHaveBeenCalled();
+    expect(prisma.container.deleteMany).not.toHaveBeenCalled();
   });
 
   it('releases a deleted duplicate SHA-256 before creating a new import', async () => {

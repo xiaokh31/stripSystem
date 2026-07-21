@@ -6,7 +6,11 @@ describe('ParserProfileReviewsService', () => {
     email: 'office@example.com',
     name: 'Office',
     roles: ['OFFICE'],
-    permissions: ['parser_profiles.review', 'containers.update', 'corrections.create'],
+    permissions: [
+      'parser_profiles.review',
+      'containers.update',
+      'corrections.create',
+    ],
   };
   let prisma: any;
   let worker: any;
@@ -46,7 +50,11 @@ describe('ParserProfileReviewsService', () => {
             ...data,
             revision: review.revision + 1,
             acceptedContainer: data.acceptedContainerId
-              ? { id: data.acceptedContainerId, containerNo: 'TEST1234567', status: 'PARSED' }
+              ? {
+                  id: data.acceptedContainerId,
+                  containerNo: 'TEST1234567',
+                  status: 'PARSED',
+                }
               : null,
             reviewedBy: { id: actor.id, name: actor.name },
             reviewedAt: new Date('2026-07-20T00:00:00Z'),
@@ -55,7 +63,9 @@ describe('ParserProfileReviewsService', () => {
       },
       parserProfileVersion: {
         findMany: jest.fn().mockResolvedValue([]),
-        findUnique: jest.fn().mockImplementation(() => Promise.resolve(profile)),
+        findUnique: jest
+          .fn()
+          .mockImplementation(() => Promise.resolve(profile)),
         update: jest.fn().mockResolvedValue(profile),
       },
       parserProfileEvidence: {
@@ -80,6 +90,7 @@ describe('ParserProfileReviewsService', () => {
       .mockResolvedValueOnce(null);
     prisma.parserProfileVersion.findMany.mockResolvedValue([
       {
+        ...profile,
         id: profile.id,
         familyId: profile.familyId,
         version: 1,
@@ -101,7 +112,9 @@ describe('ParserProfileReviewsService', () => {
           algorithmVersion: 'workbook-fingerprint-v1',
           hash: 'sha256:fingerprint',
           matched: true,
-          reasons: [{ code: 'FINGERPRINT_ANCHOR_MATCHED', matched: true, params: {} }],
+          reasons: [
+            { code: 'FINGERPRINT_ANCHOR_MATCHED', matched: true, params: {} },
+          ],
           structuralEvidence: {},
         },
       ],
@@ -159,7 +172,10 @@ describe('ParserProfileReviewsService', () => {
     });
     expect(prisma.parserProfileVersion.update).toHaveBeenCalledWith({
       where: { id: profile.id },
-      data: expect.objectContaining({ trustStreak: 1, trustState: 'REVIEW_REQUIRED' }),
+      data: expect.objectContaining({
+        trustStreak: 1,
+        trustState: 'REVIEW_REQUIRED',
+      }),
     });
     expect(response.acceptedContainer.id).toBe('container-1');
   });
@@ -235,7 +251,10 @@ describe('ParserProfileReviewsService', () => {
     });
     expect(prisma.parserProfileVersion.update).toHaveBeenCalledWith({
       where: { id: profile.id },
-      data: expect.objectContaining({ trustStreak: 0, trustState: 'REVIEW_REQUIRED' }),
+      data: expect.objectContaining({
+        trustStreak: 0,
+        trustState: 'REVIEW_REQUIRED',
+      }),
     });
     expect(prisma.parserProfileReview.update).toHaveBeenCalledWith({
       where: { id: review.id },
@@ -301,6 +320,7 @@ describe('ParserProfileReviewsService', () => {
       .mockResolvedValueOnce(null);
     prisma.parserProfileVersion.findMany.mockResolvedValue([
       {
+        ...profile,
         id: profile.id,
         familyId: profile.familyId,
         version: 1,
@@ -326,7 +346,7 @@ describe('ParserProfileReviewsService', () => {
 
     await expect(
       service.stageIfMatched(stageImport(), { detection: {} }, actor),
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
     expect(prisma.parserProfileReview.create).not.toHaveBeenCalled();
     expect(prisma.parserProfileAuditEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -336,12 +356,220 @@ describe('ParserProfileReviewsService', () => {
         }),
       }),
     });
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({ parseStatus: 'REVIEW_REQUIRED' }),
+    });
+  });
+
+  it('auto-commits only a unique trusted match and records pinned selection evidence', async () => {
+    profile.trustState = 'TRUSTED';
+    profile.trustStreak = 3;
+    prisma.parserProfileReview.findUnique.mockResolvedValueOnce(null);
+    prisma.parserProfileVersion.findMany.mockResolvedValue([
+      {
+        ...profile,
+        fingerprintDefinition: validFingerprint(profile.id),
+        mappingDefinition: { profileVersion: 'profile-v1' },
+      },
+    ]);
+    worker.matchProfiles.mockResolvedValue(matchedPayload(profile.id));
+    worker.executeMapping.mockResolvedValue({
+      workerVersion: 'parser-profile-engine-v1',
+      issues: [],
+      result: canonicalWorkerResult(),
+    });
+
+    await expect(
+      service.stageIfMatched(
+        stageImport(),
+        { detection: { format_type: 'UNLOADING_PLAN_CN', confidence: 0.8 } },
+        actor,
+      ),
+    ).resolves.toBe(true);
+
+    expect(prisma.container.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        parserSourceKind: 'PROFILE',
+        parserProfileVersionId: profile.id,
+      }),
+    });
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({
+        parseStatus: 'PARSED',
+        rawMetadata: expect.objectContaining({
+          parseSelection: expect.objectContaining({
+            source: 'TRUSTED_PROFILE',
+            reasonCode: 'PARSER_PROFILE_UNIQUE_TRUSTED_MATCH',
+            autoCommitted: true,
+          }),
+        }),
+      }),
+    });
+    expect(prisma.parserProfileAuditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ eventCode: 'TRUSTED_AUTO_COMMITTED' }),
+    });
+    expect(prisma.parserProfileReview.create).not.toHaveBeenCalled();
+  });
+
+  it('rechecks queued trust state under lock and stages instead of committing stale trust', async () => {
+    profile.trustState = 'TRUSTED';
+    profile.trustStreak = 3;
+    prisma.parserProfileReview.findUnique.mockResolvedValueOnce(null);
+    prisma.parserProfileVersion.findMany.mockResolvedValue([
+      {
+        ...profile,
+        fingerprintDefinition: validFingerprint(profile.id),
+        mappingDefinition: { profileVersion: 'profile-v1' },
+      },
+    ]);
+    prisma.parserProfileVersion.findUnique.mockResolvedValue({
+      ...profile,
+      trustState: 'REVIEW_REQUIRED',
+      trustStreak: 0,
+      lifecycleRevision: profile.lifecycleRevision + 1,
+    });
+    worker.matchProfiles.mockResolvedValue(matchedPayload(profile.id));
+    worker.executeMapping.mockResolvedValue({
+      workerVersion: 'parser-profile-engine-v1',
+      issues: [],
+      result: canonicalWorkerResult(),
+    });
+
+    await expect(
+      service.stageIfMatched(stageImport(), { detection: {} }, actor),
+    ).resolves.toBe(true);
+
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.parserProfileReview.create).toHaveBeenCalledTimes(1);
+    expect(prisma.parserProfileAuditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ eventCode: 'TRUSTED_AUTO_FALLBACK' }),
+    });
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({
+        parseStatus: 'REVIEW_REQUIRED',
+        errorMessage: 'PARSER_PROFILE_STATE_CHANGED_BEFORE_COMMIT',
+      }),
+    });
+  });
+
+  it('stages trusted output with required-field warnings instead of auto-committing', async () => {
+    profile.trustState = 'TRUSTED';
+    profile.trustStreak = 3;
+    prisma.parserProfileReview.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    prisma.parserProfileVersion.findMany.mockResolvedValue([
+      {
+        ...profile,
+        fingerprintDefinition: validFingerprint(profile.id),
+        mappingDefinition: { profileVersion: 'profile-v1' },
+      },
+    ]);
+    worker.matchProfiles.mockResolvedValue(matchedPayload(profile.id));
+    worker.executeMapping.mockResolvedValue({
+      workerVersion: 'parser-profile-engine-v1',
+      issues: [],
+      result: {
+        ...canonicalWorkerResult(),
+        warnings: [{ code: 'MISSING_VOLUME' }],
+      },
+    });
+
+    await expect(
+      service.stageIfMatched(stageImport(), { detection: {} }, actor),
+    ).resolves.toBe(true);
+
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.parserProfileReview.create).toHaveBeenCalledTimes(1);
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({
+        parseStatus: 'REVIEW_REQUIRED',
+        rawMetadata: expect.objectContaining({
+          parseSelection: expect.objectContaining({
+            reasonCode: 'PARSER_PROFILE_REQUIRED_WARNING_REVIEW',
+            blockingWarningCodes: ['MISSING_VOLUME'],
+          }),
+        }),
+      }),
+    });
+  });
+
+  it('never chooses a winner for collision or drift and holds the import for review', async () => {
+    prisma.parserProfileReview.findUnique.mockResolvedValueOnce(null);
+    prisma.parserProfileVersion.findMany.mockResolvedValue([
+      {
+        ...profile,
+        fingerprintDefinition: validFingerprint(profile.id),
+        mappingDefinition: { profileVersion: 'profile-v1' },
+      },
+    ]);
+    worker.matchProfiles.mockResolvedValue({
+      workerVersion: 'parser-profile-engine-v1',
+      selectedProfileId: null,
+      issueCode: 'FINGERPRINT_STRUCTURAL_DRIFT',
+      issues: [],
+      inspection: { sheets: [] },
+      candidates: [
+        {
+          ...matchedPayload(profile.id).candidates[0],
+          matched: false,
+          reasons: [
+            {
+              code: 'FINGERPRINT_REQUIRED_ANCHOR_MISSING',
+              matched: false,
+              params: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(
+      service.stageIfMatched(stageImport(), { detection: {} }, actor),
+    ).resolves.toBe(true);
+    expect(worker.executeMapping).not.toHaveBeenCalled();
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({
+        parseStatus: 'REVIEW_REQUIRED',
+        rawMetadata: expect.objectContaining({
+          parseSelection: expect.objectContaining({ source: 'DRIFT' }),
+        }),
+      }),
+    });
+  });
+
+  it('bounds the active profile candidate query and leaves no-match on built-in path', async () => {
+    prisma.parserProfileReview.findUnique.mockResolvedValueOnce(null);
+    prisma.parserProfileVersion.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.stageIfMatched(stageImport(), { detection: {} }, actor),
+    ).resolves.toBe(false);
+    expect(prisma.parserProfileVersion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 100 }),
+    );
+    expect(prisma.container.create).not.toHaveBeenCalled();
+    expect(prisma.importFile.update).toHaveBeenCalledWith({
+      where: { id: 'import-1' },
+      data: expect.objectContaining({
+        rawMetadata: expect.objectContaining({
+          parseSelection: expect.objectContaining({ source: 'BUILT_IN' }),
+        }),
+      }),
+    });
   });
 
   it('persists profile execution failure and blocks a silent built-in commit', async () => {
     prisma.parserProfileReview.findUnique.mockResolvedValueOnce(null);
     prisma.parserProfileVersion.findMany.mockResolvedValue([
       {
+        ...profile,
         id: profile.id,
         familyId: profile.familyId,
         version: 1,
@@ -435,6 +663,7 @@ function profileRecord() {
     lifecycle: 'ACTIVE',
     trustState: 'REVIEW_REQUIRED',
     trustStreak: 0,
+    lifecycleRevision: 0,
     matcherVersion: 'workbook-fingerprint-v1',
     mappingVersion: 'parser-profile-mapping-v1',
     family: {

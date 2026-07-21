@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AuthUserResponse } from "../src/lib/api-client";
+import { LOCALE_MESSAGES, type MessageKey } from "../src/lib/i18n/catalog";
 import {
   canApproveParserProfiles,
   canReadParserProfiles,
@@ -22,6 +23,30 @@ import {
   permissionCategoryLabel,
   permissionDescriptionLabel,
 } from "../src/lib/i18n/admin-labels";
+
+test("trusted auto-parse selection copy stays typed, bilingual, and single-language", () => {
+  const keys = [
+    "i18n.parserSelection.source.BUILT_IN",
+    "i18n.parserSelection.source.PROFILE_REVIEW",
+    "i18n.parserSelection.source.TRUSTED_PROFILE",
+    "i18n.parserSelection.source.AMBIGUOUS",
+    "i18n.parserSelection.source.DRIFT",
+    "i18n.parserSelection.reason.uniqueTrusted",
+    "i18n.parserSelection.reason.collision",
+    "i18n.parserSelection.reason.stateChanged",
+    "i18n.parserSelection.createLearningCase",
+  ] as const satisfies readonly MessageKey[];
+
+  for (const key of keys) {
+    const english = LOCALE_MESSAGES.en[key];
+    const chinese = LOCALE_MESSAGES["zh-CN"][key];
+    assert.notEqual(english, chinese);
+    assert.doesNotMatch(english, /[\u3400-\u9fff]/u);
+    assert.match(chinese, /[\u3400-\u9fff]/u);
+    assert.doesNotMatch(english, /\s\/\s/);
+    assert.doesNotMatch(chinese, /\s\/\s/);
+  }
+});
 
 test("parser-profile stable enums and codes have separate English and Chinese labels", () => {
   const contracts: Array<[string, string]> = [

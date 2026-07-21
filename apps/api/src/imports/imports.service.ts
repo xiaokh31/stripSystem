@@ -441,6 +441,9 @@ export class ImportsService {
     if (await this.parserProfileReviews.hasReview(id)) {
       return this.getParseResult(id);
     }
+    if (await this.parserProfileReviews.hasCommittedProfileResult(id)) {
+      return this.getParseResult(id);
+    }
 
     await this.prisma.importFile.update({
       where: { id },
@@ -1051,6 +1054,13 @@ export class ImportsService {
 
     await this.prisma.$transaction(async (tx) => {
       await this.deleteExistingParsedContainers(tx, record.id);
+      const currentImport = await tx.importFile.findUnique({
+        where: { id: record.id },
+        select: { rawMetadata: true },
+      });
+      const parseSelection = this.objectValue(
+        this.objectValue(currentImport?.rawMetadata).parseSelection,
+      );
 
       const updatedImport = await tx.importFile.update({
         where: { id: record.id },
@@ -1065,6 +1075,7 @@ export class ImportsService {
               ? this.firstIssueMessage(errors, payload)
               : null,
           rawMetadata: this.nullableJsonValue({
+            parseSelection,
             storedPath: record.storedPath,
             workerSourceFile: payload.source_file,
             workerSha256: payload.sha256,
@@ -1090,6 +1101,7 @@ export class ImportsService {
           containerNo,
           sourceFormat: format,
           parserVersion,
+          parserSourceKind: 'BUILT_IN',
           status: ContainerStatus.PARSED,
           rawJson: this.jsonValue(parsedResult),
           warnings: this.nullableJsonValue(warnings),
@@ -1444,12 +1456,70 @@ export class ImportsService {
       warningCount: record.warningCount,
       errorCount: record.errorCount,
       errorMessage: record.errorMessage,
+      parseSelection: this.parseSelection(record.rawMetadata),
       deletedAt: this.toIsoStringOrNull(record.deletedAt ?? null),
       deletedById: record.deletedById ?? null,
       deleteReason: record.deleteReason ?? null,
       containers: this.importContainerSummaries(record.containers ?? []),
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
+    };
+  }
+
+  private parseSelection(
+    value: unknown,
+  ): ImportFileResponseDto['parseSelection'] {
+    const selection = this.objectValue(this.objectValue(value).parseSelection);
+    const contractVersion = this.stringOrNull(selection.contractVersion);
+    const source = this.stringOrNull(selection.source);
+    const reasonCode = this.stringOrNull(selection.reasonCode);
+    const outcome = this.stringOrNull(selection.outcome);
+    if (!contractVersion || !source || !reasonCode || !outcome) return null;
+
+    const profileValue = this.objectValue(selection.profile);
+    const profileId = this.stringOrNull(profileValue.id);
+    const familyId = this.stringOrNull(profileValue.familyId);
+    const stableName = this.stringOrNull(profileValue.stableName);
+    const version = Number(profileValue.version);
+    const profile =
+      profileId && familyId && stableName && Number.isSafeInteger(version)
+        ? {
+            id: profileId,
+            familyId,
+            stableName,
+            customerLabel: this.stringOrNull(profileValue.customerLabel),
+            version,
+            lifecycle: this.stringOrNull(profileValue.lifecycle) ?? 'ACTIVE',
+            trustState:
+              this.stringOrNull(profileValue.trustState) ?? 'REVIEW_REQUIRED',
+          }
+        : null;
+
+    return {
+      contractVersion,
+      source,
+      reasonCode,
+      outcome,
+      candidateCount: this.intValue(selection.candidateCount, 0),
+      durationMs: this.intValue(selection.durationMs, 0),
+      autoCommitted: selection.autoCommitted === true,
+      profile,
+      matchReasons: this.unknownArray(selection.matchReasons)
+        .map((reason) => this.objectValue(reason))
+        .map((reason) => ({
+          code:
+            this.stringOrNull(reason.code) ?? 'PARSER_MATCH_REASON_UNAVAILABLE',
+          matched: reason.matched === true,
+          params: this.objectValue(reason.params),
+        })),
+      blockingWarningCodes: this.unknownArray(selection.blockingWarningCodes)
+        .map((code) => this.stringOrNull(code))
+        .filter((code): code is string => code !== null),
+      fingerprintHash: this.stringOrNull(selection.fingerprintHash),
+      matcherVersion: this.stringOrNull(selection.matcherVersion),
+      mappingVersion: this.stringOrNull(selection.mappingVersion),
+      workerVersion: this.stringOrNull(selection.workerVersion),
+      parserVersion: this.stringOrNull(selection.parserVersion),
     };
   }
 
@@ -1813,6 +1883,12 @@ export class ImportsService {
 
   private unknownArray(value: unknown): unknown[] {
     return Array.isArray(value) ? value : [];
+  }
+
+  private objectValue(value: unknown): Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   }
 
   private rawMetadataArray(value: unknown, key: string): unknown[] {

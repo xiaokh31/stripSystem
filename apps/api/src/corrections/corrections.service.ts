@@ -25,6 +25,9 @@ import {
   ContainerStatus,
   CorrectionTargetType,
   FileFormat,
+  ParserProfileAuditEventCode,
+  ParserProfileTrustState,
+  ParserSourceKind,
 } from '../generated/prisma/enums';
 import {
   effectiveContainerStatus,
@@ -66,6 +69,8 @@ interface ContainerRecord {
   company: string | null;
   sourceFormat?: string;
   parserVersion?: string | null;
+  parserSourceKind?: string;
+  parserProfileVersionId?: string | null;
   status: string;
   payClassification?: string | null;
   payTrailerNumber?: string | null;
@@ -469,15 +474,19 @@ export class CorrectionsService {
                 correctedById,
               )
             : [];
+        await this.revokeTrustedProfileForMaterialCorrection(
+          tx,
+          id,
+          actor.id,
+          changes.filter((change) => change.fieldName === 'containerNo'),
+          corrections.map((correction) => correction.id),
+        );
 
         return { container, corrections, inventorySync };
       });
 
       const completionCapture = unloadInventorySyncRequested
-        ? await this.parserLearningCases.captureAndDispatchCompletion(
-            id,
-            actor,
-          )
+        ? await this.parserLearningCases.captureAndDispatchCompletion(id, actor)
         : null;
 
       return {
@@ -582,6 +591,21 @@ export class CorrectionsService {
           dto.reason,
           dto.correctionNote,
           correctedById,
+        );
+        await this.revokeTrustedProfileForMaterialCorrection(
+          tx,
+          existing.containerId,
+          actor.id,
+          changes.filter((change) =>
+            [
+              'destinationCode',
+              'destinationType',
+              'cartons',
+              'volume',
+              'packageType',
+            ].includes(change.fieldName),
+          ),
+          corrections.map((correction) => correction.id),
         );
 
         return { containerDestination, corrections };
@@ -733,6 +757,13 @@ export class CorrectionsService {
           dto.correctionNote,
           correctedById,
         );
+        await this.revokeTrustedProfileForMaterialCorrection(
+          tx,
+          containerId,
+          actor.id,
+          [change],
+          corrections.map((correction) => correction.id),
+        );
 
         return { containerDestination, corrections };
       });
@@ -808,6 +839,13 @@ export class CorrectionsService {
         'Destination removed from actual unloading data',
         null,
         correctedById,
+      );
+      await this.revokeTrustedProfileForMaterialCorrection(
+        tx,
+        existing.containerId,
+        actor.id,
+        [change],
+        records.map((record) => record.id),
       );
       await tx.pallet.deleteMany({
         where: { containerDestinationId: existing.id },
@@ -926,6 +964,73 @@ export class CorrectionsService {
     }
 
     return records;
+  }
+
+  private async revokeTrustedProfileForMaterialCorrection(
+    tx: Prisma.TransactionClient,
+    containerId: string,
+    actorId: string,
+    materialChanges: Change[],
+    correctionFeedbackIds: string[],
+  ): Promise<void> {
+    if (materialChanges.length === 0) return;
+    const container = await tx.container.findUnique({
+      where: { id: containerId },
+      select: {
+        importFileId: true,
+        parserSourceKind: true,
+        parserProfileVersionId: true,
+      },
+    });
+    if (
+      container?.parserSourceKind !== ParserSourceKind.PROFILE ||
+      !container.parserProfileVersionId
+    ) {
+      return;
+    }
+
+    await tx.$queryRaw`SELECT "id" FROM "parser_profile_versions" WHERE "id" = ${container.parserProfileVersionId} FOR UPDATE`;
+    const profile = await tx.parserProfileVersion.findUnique({
+      where: { id: container.parserProfileVersionId },
+      select: {
+        id: true,
+        familyId: true,
+        trustState: true,
+        trustStreak: true,
+      },
+    });
+    if (!profile || profile.trustState !== ParserProfileTrustState.TRUSTED) {
+      return;
+    }
+
+    await tx.parserProfileVersion.update({
+      where: { id: profile.id },
+      data: {
+        trustState: ParserProfileTrustState.REVIEW_REQUIRED,
+        trustStreak: 0,
+        lifecycleRevision: { increment: 1 },
+      },
+    });
+    await tx.parserProfileAuditEvent.create({
+      data: {
+        eventCode:
+          ParserProfileAuditEventCode.TRUST_REVOKED_BY_MATERIAL_CORRECTION,
+        actorId,
+        profileFamilyId: profile.familyId,
+        profileVersionId: profile.id,
+        importFileId: container.importFileId,
+        containerId,
+        metadata: this.nullableJsonValue({
+          code: 'TRUST_REVOKED_BY_MATERIAL_CORRECTION',
+          fieldNames: materialChanges.map((change) => change.fieldName).sort(),
+          correctionFeedbackIds,
+          previousTrustState: profile.trustState,
+          previousTrustStreak: profile.trustStreak,
+          trustState: ParserProfileTrustState.REVIEW_REQUIRED,
+          trustStreak: 0,
+        }),
+      },
+    });
   }
 
   private async toManualDestinationCreateInput(

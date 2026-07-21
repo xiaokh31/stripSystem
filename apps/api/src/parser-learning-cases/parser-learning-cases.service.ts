@@ -216,6 +216,7 @@ export class ParserLearningCasesService {
             fileSha256: true,
             format: true,
             parseStatus: true,
+            rawMetadata: true,
           },
         });
         if (!sourceImport) {
@@ -224,7 +225,11 @@ export class ParserLearningCasesService {
           );
         }
         if (
-          !this.isEligibleImport(sourceImport.format, sourceImport.parseStatus)
+          !this.isEligibleImport(
+            sourceImport.format,
+            sourceImport.parseStatus,
+            sourceImport.rawMetadata,
+          )
         ) {
           throw new BadRequestException(
             this.error('PARSER_LEARNING_IMPORT_STATUS_NOT_ALLOWED', {
@@ -379,11 +384,7 @@ export class ParserLearningCasesService {
     }
 
     const snapshotAt = new Date();
-    const snapshot = await this.buildCompletionSnapshot(
-      tx,
-      record,
-      snapshotAt,
-    );
+    const snapshot = await this.buildCompletionSnapshot(tx, record, snapshotAt);
     const profileVersion = record.profileVersions[0] ?? null;
     const draftRevision = profileVersion?.sourceDraftRevision ?? null;
     const createdJob = draftRevision
@@ -1484,7 +1485,8 @@ export class ParserLearningCasesService {
         eventCode: ParserProfileAuditEventCode.IMPORT_DELETE_BLOCKED,
         actorId: actor.id,
         learningCaseId: learningCase?.id,
-        profileVersionId: evidence?.profileVersionId ?? review?.profileVersionId,
+        profileVersionId:
+          evidence?.profileVersionId ?? review?.profileVersionId,
         importFileId,
         metadata: {
           sourceImportId: importFileId,
@@ -1817,9 +1819,8 @@ export class ParserLearningCasesService {
     const frozen = this.objectValue(record.completionSnapshot);
     if (frozen) {
       const detailRows = Array.isArray(frozen.detailRows)
-        ? frozen.detailRows.filter(
-            (item): item is Record<string, unknown> =>
-              Boolean(this.objectValue(item)),
+        ? frozen.detailRows.filter((item): item is Record<string, unknown> =>
+            Boolean(this.objectValue(item)),
           )
         : [];
       const destinations = Array.isArray(frozen.destinations)
@@ -2406,10 +2407,21 @@ export class ParserLearningCasesService {
     return record;
   }
 
-  private isEligibleImport(format: string, parseStatus: string): boolean {
+  private isEligibleImport(
+    format: string,
+    parseStatus: string,
+    rawMetadata?: unknown,
+  ): boolean {
+    const selection = this.objectValue(
+      this.objectValue(rawMetadata)?.parseSelection,
+    );
+    const reviewFallbackSource = this.nonEmptyString(selection?.source);
     return (
       parseStatus === 'ERROR' ||
       parseStatus === 'WARNING' ||
+      (parseStatus === 'REVIEW_REQUIRED' &&
+        (reviewFallbackSource === 'AMBIGUOUS' ||
+          reviewFallbackSource === 'DRIFT')) ||
       (parseStatus === 'NOT_PARSED' && format === 'UNKNOWN')
     );
   }

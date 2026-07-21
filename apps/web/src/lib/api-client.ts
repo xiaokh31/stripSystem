@@ -839,12 +839,43 @@ export interface ImportFileResponse {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  parseSelection: ImportParseSelectionResponse | null;
   deletedAt: string | null;
   deletedById: string | null;
   deleteReason: string | null;
   containers: ImportFileContainerSummaryResponse[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ImportParseSelectionResponse {
+  contractVersion: string;
+  source: string;
+  reasonCode: string;
+  outcome: string;
+  candidateCount: number;
+  durationMs: number;
+  autoCommitted: boolean;
+  profile: {
+    id: string;
+    familyId: string;
+    stableName: string;
+    customerLabel: string | null;
+    version: number;
+    lifecycle: string;
+    trustState: string;
+  } | null;
+  matchReasons: Array<{
+    code: string;
+    matched: boolean;
+    params: unknown;
+  }>;
+  blockingWarningCodes: string[];
+  fingerprintHash: string | null;
+  matcherVersion: string | null;
+  mappingVersion: string | null;
+  workerVersion: string | null;
+  parserVersion: string | null;
 }
 
 export interface ImportFileContainerSummaryResponse {
@@ -1347,8 +1378,7 @@ export interface ParserProfileReviewDecisionRequest {
   reason?: string | null;
 }
 
-export interface ParserProfileReviewCorrectRequest
-  extends ParserProfileReviewDecisionRequest {
+export interface ParserProfileReviewCorrectRequest extends ParserProfileReviewDecisionRequest {
   reason: string;
   canonicalResult: {
     containerNo: string;
@@ -1525,8 +1555,7 @@ export interface PalletStatsResponse {
   remainingPallets: number;
 }
 
-export interface ContainerDetailInventoryDestinationResponse
-  extends PalletStatsResponse {
+export interface ContainerDetailInventoryDestinationResponse extends PalletStatsResponse {
   containerDestinationId: string;
   destinationCode: string;
   destinationType: string | null;
@@ -1540,8 +1569,7 @@ export interface ContainerSummaryItemResponse extends PalletStatsResponse {
   status: string;
 }
 
-export interface ContainerDetailInventorySummaryResponse
-  extends ContainerSummaryItemResponse {
+export interface ContainerDetailInventorySummaryResponse extends ContainerSummaryItemResponse {
   destinations: ContainerDetailInventoryDestinationResponse[];
 }
 

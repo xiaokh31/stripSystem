@@ -18,12 +18,41 @@ export interface ImportFileResponseDto {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  parseSelection: ImportParseSelectionDto | null;
   deletedAt: string | null;
   deletedById: string | null;
   deleteReason: string | null;
   containers: ImportFileContainerSummaryDto[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ImportParseSelectionProfileDto {
+  id: string;
+  familyId: string;
+  stableName: string;
+  customerLabel: string | null;
+  version: number;
+  lifecycle: string;
+  trustState: string;
+}
+
+export interface ImportParseSelectionDto {
+  contractVersion: string;
+  source: string;
+  reasonCode: string;
+  outcome: string;
+  candidateCount: number;
+  durationMs: number;
+  autoCommitted: boolean;
+  profile: ImportParseSelectionProfileDto | null;
+  matchReasons: Array<{ code: string; matched: boolean; params: unknown }>;
+  blockingWarningCodes: string[];
+  fingerprintHash: string | null;
+  matcherVersion: string | null;
+  mappingVersion: string | null;
+  workerVersion: string | null;
+  parserVersion: string | null;
 }
 
 export interface ImportFileListResponseDto {

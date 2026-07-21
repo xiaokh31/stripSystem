@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from time import perf_counter
 
 import pytest
 
 from worker_python.imports import compute_sha256
 from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
-from worker_python.parser_profiles import execute_mapping
+from worker_python.parser_profiles import (
+    FingerprintDefinition,
+    execute_mapping,
+    inspect_workbook,
+    rank_profile_matches,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -18,6 +24,41 @@ PROFILE_DIR = (
 UNLOADING_FIXTURE = FIXTURE_DIR / "CAAU8011090 UNLOADING PLAN.xlsx"
 BESTAR_FIXTURE = FIXTURE_DIR / "137675 JXJU3246131  PO#3404  BESTAR.xlsx"
 STANDARD_FIXTURE = FIXTURE_DIR / "Unloading Plan SMCU1012780.xlsx"
+PROFILE_SELECTION_OVERHEAD_BUDGET_SECONDS = 2.5
+
+
+def test_real_fixture_profile_selection_stays_within_bounded_overhead_budget() -> (
+    None
+):
+    base = {
+        "algorithmVersion": "workbook-fingerprint-v1",
+        "workbookType": "OOXML_XLSX",
+        "sheet": {"name": "Sheet1"},
+        "anchors": [
+            {"value": "运单号", "required": True, "row": 6, "column": 1},
+            {"value": "箱数/件数", "required": True, "row": 6, "column": 4},
+            {"value": "体积", "required": True, "row": 6, "column": 6},
+        ],
+        "requiredRelativeColumns": [
+            {"anchor": "运单号", "header": "箱数/件数", "offset": 3},
+            {"anchor": "运单号", "header": "体积", "offset": 5},
+        ],
+        "dataStart": {"rowOffsetFromHeader": 1},
+    }
+    definitions = [
+        FingerprintDefinition.model_validate(
+            {**base, "profileId": f"bounded-profile-{index:03d}"}
+        )
+        for index in range(100)
+    ]
+
+    started = perf_counter()
+    inspection = inspect_workbook(UNLOADING_FIXTURE)
+    ranked = rank_profile_matches(inspection, definitions)
+    elapsed = perf_counter() - started
+
+    assert len(ranked.candidates) == 100
+    assert elapsed < PROFILE_SELECTION_OVERHEAD_BUDGET_SECONDS
 
 
 def test_real_unloading_plan_profile_reconciles_with_builtin_canonical_contract() -> (

@@ -53,6 +53,7 @@ docs/reports/*
 !docs/reports/parser-profile-02-worker-engine-verification.md
 !docs/reports/parser-profile-03-learning-replay-verification.md
 !docs/reports/parser-profile-04-office-wizard-verification.md
+!docs/reports/parser-profile-07-trusted-auto-parse-verification.md
 !docs/reports/parser-profile-05-completion-governance-verification.md
 !docs/reports/parser-profile-06-review-trust-verification.md
 

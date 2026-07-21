@@ -273,10 +273,15 @@ def rank_profile_matches(
     )
     matched = [candidate for candidate in candidates if candidate.matched]
     if not matched:
+        issue_code = (
+            "FINGERPRINT_STRUCTURAL_DRIFT"
+            if any(_is_structural_drift(candidate) for candidate in candidates)
+            else "FINGERPRINT_NO_MATCH"
+        )
         return RankedMatches(
             candidates=tuple(candidates),
             selectedProfileId=None,
-            issueCode="FINGERPRINT_NO_MATCH",
+            issueCode=issue_code,
         )
     if len(matched) > 1:
         return RankedMatches(
@@ -288,6 +293,17 @@ def rank_profile_matches(
         candidates=tuple(candidates),
         selectedProfileId=matched[0].profileId,
         issueCode=None,
+    )
+
+
+def _is_structural_drift(candidate: StructuralFingerprint) -> bool:
+    """Treat a same-workbook/same-sheet near miss as drift, never as a winner."""
+    mismatch_codes = {reason.code for reason in candidate.reasons if not reason.matched}
+    return bool(mismatch_codes) and not mismatch_codes.intersection(
+        {
+            "FINGERPRINT_WORKBOOK_TYPE_MISMATCH",
+            "FINGERPRINT_SHEET_MISSING",
+        }
     )
 
 

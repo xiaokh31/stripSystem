@@ -135,6 +135,13 @@ def test_required_anchor_movement_is_drift_not_filename_or_data_match(
     )
     assert "CAAU8011090" not in result.hash
 
+    ranked = rank_profile_matches(
+        inspect_workbook(moved),
+        [FingerprintDefinition.model_validate(_definition())],
+    )
+    assert ranked.selectedProfileId is None
+    assert ranked.issueCode == "FINGERPRINT_STRUCTURAL_DRIFT"
+
 
 def test_profile_ranking_is_stable_and_collision_never_selects_a_winner() -> None:
     inspection = inspect_workbook(LAYOUT_A)
@@ -212,6 +219,11 @@ def test_fingerprint_rejects_declared_type_and_formula_cache_drift(
         reason.code == "FINGERPRINT_FORMULA_CACHE_MISSING"
         for reason in formula_result.reasons
     )
+    ranked_formula = rank_profile_matches(
+        inspect_workbook(formula_drift),
+        [FingerprintDefinition.model_validate(definition)],
+    )
+    assert ranked_formula.issueCode == "FINGERPRINT_STRUCTURAL_DRIFT"
 
 
 def test_fingerprint_matches_data_markers_and_reports_stop_marker_drift(

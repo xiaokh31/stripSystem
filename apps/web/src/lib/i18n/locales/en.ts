@@ -1984,14 +1984,18 @@ export const enMessages = {
   "Collapse unloading wage section": "Collapse unloading wage section",
   "Expand unloading wage section": "Expand unloading wage section",
   "i18n.parserLearning.entryTitle": "Teach this workbook layout",
-  "i18n.parserLearning.entryDescription": "Open a resumable mapping workspace while keeping the failed import and manual report together.",
+  "i18n.parserLearning.entryDescription":
+    "Open a resumable mapping workspace while keeping the failed import and manual report together.",
   "i18n.parserLearning.openWizard": "Build parser template",
   "i18n.parserLearning.starting": "Opening mapping workspace",
   "i18n.parserLearning.loading": "Loading the preserved workbook preview…",
-  "i18n.parserLearning.emptyWorkbook": "This workbook has no previewable cells. Return to the import and continue with a manual report.",
-  "i18n.parserLearning.continueManualReport": "Continue with linked manual report",
+  "i18n.parserLearning.emptyWorkbook":
+    "This workbook has no previewable cells. Return to the import and continue with a manual report.",
+  "i18n.parserLearning.continueManualReport":
+    "Continue with linked manual report",
   "i18n.parserLearning.inspectionIssues": "Workbook preview notes",
-  "i18n.parserLearning.permissionDenied": "You do not have permission to build parser templates.",
+  "i18n.parserLearning.permissionDenied":
+    "You do not have permission to build parser templates.",
   "i18n.parserLearning.eyebrow": "Workbook mapping workspace",
   "i18n.parserLearning.title": "Build a parser template",
   "i18n.parserLearning.sourceWorkbook": "Preserved source workbook",
@@ -2018,7 +2022,8 @@ export const enMessages = {
   "i18n.parserLearning.nextSourcePage": "Next source rows",
   "i18n.parserLearning.page": "Page {current} of {total}",
   "i18n.parserLearning.row": "Row",
-  "i18n.parserLearning.mappingInstruction": "Choose the business field represented by each source header. Suggested matches stay unconfirmed until you review them.",
+  "i18n.parserLearning.mappingInstruction":
+    "Choose the business field represented by each source header. Suggested matches stay unconfirmed until you review them.",
   "i18n.parserLearning.canonicalField": "Business field",
   "i18n.parserLearning.sourceHeader": "Source header",
   "i18n.parserLearning.transform": "Value handling",
@@ -2033,7 +2038,8 @@ export const enMessages = {
   "i18n.parserLearning.optional": "Optional",
   "i18n.parserLearning.transformAndRows": "Value and data row rules",
   "i18n.parserLearning.rowRules": "Row handling",
-  "i18n.parserLearning.skipBlank": "Skip rows where mapped required fields are blank",
+  "i18n.parserLearning.skipBlank":
+    "Skip rows where mapped required fields are blank",
   "i18n.parserLearning.skipSummary": "Skip summary-style rows",
   "i18n.parserLearning.stopHeader": "Stop marker header",
   "i18n.parserLearning.stopValue": "Stop marker value",
@@ -2053,24 +2059,32 @@ export const enMessages = {
   "i18n.parserLearning.addLookupRow": "Add lookup row",
   "i18n.parserLearning.runPreview": "Run result preview",
   "i18n.parserLearning.previewRunning": "Running result preview…",
-  "i18n.parserLearning.previewIdle": "Save a complete mapping, then run a bounded result preview.",
-  "i18n.parserLearning.previewError": "The result preview did not finish. Review the status above and retry.",
+  "i18n.parserLearning.previewIdle":
+    "Save a complete mapping, then run a bounded result preview.",
+  "i18n.parserLearning.previewError":
+    "The result preview did not finish. Review the status above and retry.",
   "i18n.parserLearning.previewRows": "{count} canonical row(s)",
   "i18n.parserLearning.previewWarnings": "{count} warning(s)",
   "i18n.parserLearning.previewErrors": "{count} error(s)",
   "i18n.parserLearning.destinationTotals": "Destination totals",
   "i18n.parserLearning.lines": "Lines",
-  "i18n.parserLearning.manualDescription": "Create or open the manual unloading report that will be compared with this mapping. The relationship is saved with this learning case.",
+  "i18n.parserLearning.manualDescription":
+    "Create or open the manual unloading report that will be compared with this mapping. The relationship is saved with this learning case.",
   "i18n.parserLearning.openManualReport": "Open linked manual report",
   "i18n.parserLearning.createManualReport": "Create linked manual report",
   "i18n.parserLearning.sourceImportLink": "Linked source import: {id}",
   "i18n.parserLearning.runReplay": "Compare with manual result",
   "i18n.parserLearning.replayRunning": "Comparing results…",
-  "i18n.parserLearning.replayIdle": "Link a manual result and save the mapping before comparing results.",
-  "i18n.parserLearning.replayError": "The comparison did not finish. The mapping remains a draft and can be retried.",
-  "i18n.parserLearning.replayMatched": "The mapped result matches the available manual evidence.",
-  "i18n.parserLearning.replayMismatch": "Differences need review before this draft can be submitted.",
-  "i18n.parserLearning.replaySummary": "{compared} check(s), {differences} material difference(s)",
+  "i18n.parserLearning.replayIdle":
+    "Link a manual result and save the mapping before comparing results.",
+  "i18n.parserLearning.replayError":
+    "The comparison did not finish. The mapping remains a draft and can be retried.",
+  "i18n.parserLearning.replayMatched":
+    "The mapped result matches the available manual evidence.",
+  "i18n.parserLearning.replayMismatch":
+    "Differences need review before this draft can be submitted.",
+  "i18n.parserLearning.replaySummary":
+    "{compared} check(s), {differences} material difference(s)",
   "i18n.parserLearning.comparisonItem": "Comparison",
   "i18n.parserLearning.result": "Result",
   "i18n.parserLearning.scope": "Destination or scope",
@@ -2086,27 +2100,39 @@ export const enMessages = {
   "i18n.parserLearning.customerLabel": "Customer label (optional)",
   "i18n.parserLearning.submitDraft": "Submit draft candidate",
   "i18n.parserLearning.submittedDraft": "Draft candidate submitted",
-  "i18n.parserLearning.notApprovedNotice": "Submission creates a draft candidate only. It is not approved or trusted.",
-  "i18n.parserLearning.awaitingCompletionNotice": "The draft is awaiting unloading completion evidence. It is not approved or trusted.",
-  "i18n.parserLearning.saveBlocked": "Complete the required controls before saving.",
+  "i18n.parserLearning.notApprovedNotice":
+    "Submission creates a draft candidate only. It is not approved or trusted.",
+  "i18n.parserLearning.awaitingCompletionNotice":
+    "The draft is awaiting unloading completion evidence. It is not approved or trusted.",
+  "i18n.parserLearning.saveBlocked":
+    "Complete the required controls before saving.",
   "i18n.parserLearning.saveError": "Draft save failed.",
-  "i18n.parserLearning.savePending": "Changes are waiting for required confirmations.",
+  "i18n.parserLearning.savePending":
+    "Changes are waiting for required confirmations.",
   "i18n.parserLearning.saveStale": "A newer draft revision is already saved.",
   "i18n.parserLearning.saved": "Draft saved",
   "i18n.parserLearning.saving": "Saving draft…",
   "i18n.parserLearning.retrySave": "Retry saving",
-  "i18n.parserLearning.reloadMerge": "Reload this page to review the newer draft, then reapply any unsaved changes.",
+  "i18n.parserLearning.reloadMerge":
+    "Reload this page to review the newer draft, then reapply any unsaved changes.",
   "i18n.parserLearning.revision": "Saved revision {revision}",
-  "i18n.parserLearning.validationCount": "{count} required control(s) still need attention. Preview will focus the first one.",
+  "i18n.parserLearning.validationCount":
+    "{count} required control(s) still need attention. Preview will focus the first one.",
   "i18n.parserLearning.validation.sheet": "Choose a worksheet.",
   "i18n.parserLearning.validation.headerRow": "Enter a valid header start row.",
-  "i18n.parserLearning.validation.dataStartRow": "Enter a data start row after the header.",
-  "i18n.parserLearning.validation.containerCell": "Choose the source cell containing the container number.",
+  "i18n.parserLearning.validation.dataStartRow":
+    "Enter a data start row after the header.",
+  "i18n.parserLearning.validation.containerCell":
+    "Choose the source cell containing the container number.",
   "i18n.parserLearning.validation.mappingRequired": "Choose a source header.",
-  "i18n.parserLearning.validation.confirmationRequired": "Confirm this required mapping.",
-  "i18n.parserLearning.validation.transformInvalid": "Complete this value rule with a valid number or lookup row.",
-  "i18n.parserLearning.validation.controlInvalid": "Review this required control.",
-  "i18n.parserLearning.manualLinkUnavailable": "The linked learning case could not be opened",
+  "i18n.parserLearning.validation.confirmationRequired":
+    "Confirm this required mapping.",
+  "i18n.parserLearning.validation.transformInvalid":
+    "Complete this value rule with a valid number or lookup row.",
+  "i18n.parserLearning.validation.controlInvalid":
+    "Review this required control.",
+  "i18n.parserLearning.manualLinkUnavailable":
+    "The linked learning case could not be opened",
   "i18n.parserLearning.field.containerNo": "Container number source",
   "i18n.parserLearning.field.destinationCode": "Destination",
   "i18n.parserLearning.field.cartons": "Cartons / pieces",
@@ -2126,56 +2152,86 @@ export const enMessages = {
   "i18n.parserLearning.transform.multiply": "Multiply by number",
   "i18n.parserLearning.transform.divide": "Divide by number",
   "i18n.parserLearning.transform.lookup": "Use lookup rows",
-  "i18n.parserLearning.suggestion.exactHeader": "The source header exactly matches a known business header. Confirm it before saving.",
-  "i18n.parserLearning.suggestion.reviewRequired": "This is an unconfirmed candidate. Compare it with the highlighted source cell.",
+  "i18n.parserLearning.suggestion.exactHeader":
+    "The source header exactly matches a known business header. Confirm it before saving.",
+  "i18n.parserLearning.suggestion.reviewRequired":
+    "This is an unconfirmed candidate. Compare it with the highlighted source cell.",
   "i18n.parserLearning.status.open": "Mapping not started",
   "i18n.parserLearning.status.mapping": "Mapping in progress",
   "i18n.parserLearning.status.readyForReplay": "Ready to compare",
   "i18n.parserLearning.status.replayFailed": "Comparison needs review",
-  "i18n.parserLearning.status.awaitingCompletion": "Awaiting completion evidence",
+  "i18n.parserLearning.status.awaitingCompletion":
+    "Awaiting completion evidence",
   "i18n.parserLearning.status.awaitingApproval": "Awaiting authorized approval",
   "i18n.parserLearning.status.closed": "Learning case closed",
   "i18n.parserLearning.status.unknown": "Learning case status unavailable",
-  "i18n.parserLearning.code.startFailed": "The mapping workspace could not be opened. Retry from the failed import.",
-  "i18n.parserLearning.code.importNotEligible": "This import is not in a failed or unsupported state that can start a learning case.",
-  "i18n.parserLearning.code.validationFailed": "Review the first incomplete or invalid control.",
-  "i18n.parserLearning.code.revisionConflict": "This draft changed in another request. Reload and merge before saving again.",
-  "i18n.parserLearning.code.mappingInvalid": "The selected mapping or value rule is not valid. Review the highlighted controls.",
-  "i18n.parserLearning.code.previewStale": "This preview belongs to an older draft and was discarded. Run preview again.",
-  "i18n.parserLearning.code.replayNotReady": "Save the required mappings and link a manual report before comparing results.",
-  "i18n.parserLearning.code.workerUnavailable": "Workbook processing is temporarily unavailable. The draft is safe; retry this action.",
-  "i18n.parserLearning.code.sourceUnavailable": "The preserved source workbook is unavailable. Return to the import and contact an administrator.",
-  "i18n.parserLearning.code.workbookReadFailed": "The preserved workbook could not be inspected. The original file remains unchanged.",
-  "i18n.parserLearning.code.workbookUnsupported": "This workbook type cannot be inspected. Continue with the linked manual report.",
-  "i18n.parserLearning.code.inspectionLimit": "The preview reached a safety limit. Use the bounded rows shown or continue manually.",
-  "i18n.parserLearning.code.formulaCachedValueMissing": "A formula cell has no saved result value and may need manual confirmation.",
-  "i18n.parserLearning.code.learningCaseUnavailable": "The linked learning case is unavailable. Return to Imports and reopen it from the failed import.",
-  "i18n.parserLearning.code.missingContainerNo": "No container number was found in the mapped source cell.",
-  "i18n.parserLearning.code.missingDestination": "A mapped data row has no destination.",
-  "i18n.parserLearning.code.missingCartons": "A mapped data row has no valid carton or piece count.",
-  "i18n.parserLearning.code.missingVolume": "A mapped data row has no valid volume.",
-  "i18n.parserLearning.code.zeroVolumeWithCartons": "A mapped row has cartons but zero volume and needs confirmation.",
-  "i18n.parserLearning.code.manualDestinationRequired": "The destination could not be normalized and needs manual review.",
-  "i18n.parserLearning.code.candidateNotReady": "A passing comparison and valid template name are required before submitting the draft.",
-  "i18n.parserLearning.code.issueUnavailable": "Workbook issue details are unavailable.",
-  "i18n.parserLearning.code.unknownError": "This action could not be completed. The saved draft remains available.",
+  "i18n.parserLearning.code.startFailed":
+    "The mapping workspace could not be opened. Retry from the failed import.",
+  "i18n.parserLearning.code.importNotEligible":
+    "This import is not in a failed or unsupported state that can start a learning case.",
+  "i18n.parserLearning.code.validationFailed":
+    "Review the first incomplete or invalid control.",
+  "i18n.parserLearning.code.revisionConflict":
+    "This draft changed in another request. Reload and merge before saving again.",
+  "i18n.parserLearning.code.mappingInvalid":
+    "The selected mapping or value rule is not valid. Review the highlighted controls.",
+  "i18n.parserLearning.code.previewStale":
+    "This preview belongs to an older draft and was discarded. Run preview again.",
+  "i18n.parserLearning.code.replayNotReady":
+    "Save the required mappings and link a manual report before comparing results.",
+  "i18n.parserLearning.code.workerUnavailable":
+    "Workbook processing is temporarily unavailable. The draft is safe; retry this action.",
+  "i18n.parserLearning.code.sourceUnavailable":
+    "The preserved source workbook is unavailable. Return to the import and contact an administrator.",
+  "i18n.parserLearning.code.workbookReadFailed":
+    "The preserved workbook could not be inspected. The original file remains unchanged.",
+  "i18n.parserLearning.code.workbookUnsupported":
+    "This workbook type cannot be inspected. Continue with the linked manual report.",
+  "i18n.parserLearning.code.inspectionLimit":
+    "The preview reached a safety limit. Use the bounded rows shown or continue manually.",
+  "i18n.parserLearning.code.formulaCachedValueMissing":
+    "A formula cell has no saved result value and may need manual confirmation.",
+  "i18n.parserLearning.code.learningCaseUnavailable":
+    "The linked learning case is unavailable. Return to Imports and reopen it from the failed import.",
+  "i18n.parserLearning.code.missingContainerNo":
+    "No container number was found in the mapped source cell.",
+  "i18n.parserLearning.code.missingDestination":
+    "A mapped data row has no destination.",
+  "i18n.parserLearning.code.missingCartons":
+    "A mapped data row has no valid carton or piece count.",
+  "i18n.parserLearning.code.missingVolume":
+    "A mapped data row has no valid volume.",
+  "i18n.parserLearning.code.zeroVolumeWithCartons":
+    "A mapped row has cartons but zero volume and needs confirmation.",
+  "i18n.parserLearning.code.manualDestinationRequired":
+    "The destination could not be normalized and needs manual review.",
+  "i18n.parserLearning.code.candidateNotReady":
+    "A passing comparison and valid template name are required before submitting the draft.",
+  "i18n.parserLearning.code.issueUnavailable":
+    "Workbook issue details are unavailable.",
+  "i18n.parserLearning.code.unknownError":
+    "This action could not be completed. The saved draft remains available.",
   "i18n.parserLearning.diff.containerMismatch": "Container number differs",
   "i18n.parserLearning.diff.detailRowsMismatch": "Included data rows differ",
-  "i18n.parserLearning.diff.detailRowsUnverified": "Data rows need manual evidence",
+  "i18n.parserLearning.diff.detailRowsUnverified":
+    "Data rows need manual evidence",
   "i18n.parserLearning.diff.destinationMismatch": "Destination set differs",
   "i18n.parserLearning.diff.cartonsMismatch": "Carton totals differ",
   "i18n.parserLearning.diff.volumeMismatch": "Volume totals differ",
   "i18n.parserLearning.diff.volumeUnverified": "Volume evidence is incomplete",
   "i18n.parserLearning.diff.packageMismatch": "Package evidence differs",
   "i18n.parserLearning.diff.referenceMismatch": "Reference evidence differs",
-  "i18n.parserLearning.diff.referenceUnverified": "Reference evidence needs review",
+  "i18n.parserLearning.diff.referenceUnverified":
+    "Reference evidence needs review",
   "i18n.parserLearning.diff.matched": "Business value matches",
   "i18n.parserLearning.diff.unavailable": "Comparison detail is unavailable",
   "Parser profiles": "Parser profiles",
   "i18n.parserProfiles.title": "Parser profile governance",
-  "i18n.parserProfiles.subtitle": "Review immutable completion evidence and control approved workbook templates.",
+  "i18n.parserProfiles.subtitle":
+    "Review immutable completion evidence and control approved workbook templates.",
   "i18n.parserProfiles.empty": "No parser profile versions are available.",
-  "i18n.parserProfiles.permissionDenied": "You do not have permission to view parser profiles.",
+  "i18n.parserProfiles.permissionDenied":
+    "You do not have permission to view parser profiles.",
   "i18n.parserProfiles.version": "Version",
   "i18n.parserProfiles.lifecycle": "Lifecycle",
   "i18n.parserProfiles.trust": "Trust",
@@ -2199,20 +2255,26 @@ export const enMessages = {
   "i18n.parserProfiles.eligible": "Eligible for approval",
   "i18n.parserProfiles.notEligible": "Approval requirements are not complete",
   "i18n.parserProfiles.approve": "Approve profile",
-  "i18n.parserProfiles.approveConfirm": "Approve this immutable version? Approval activates it only in review-required mode with an evidence streak of 0/3. It will not parse future workbooks automatically.",
+  "i18n.parserProfiles.approveConfirm":
+    "Approve this immutable version? Approval activates it only in review-required mode with an evidence streak of 0/3. It will not parse future workbooks automatically.",
   "i18n.parserProfiles.pause": "Pause profile",
   "i18n.parserProfiles.resume": "Resume profile",
   "i18n.parserProfiles.retire": "Retire profile",
   "i18n.parserProfiles.fork": "Create draft version",
-  "i18n.parserProfiles.pauseImpact": "Pausing immediately excludes this version from new matching while preserving all evidence.",
-  "i18n.parserProfiles.retireImpact": "Retiring permanently excludes this version from new matching while preserving history.",
+  "i18n.parserProfiles.pauseImpact":
+    "Pausing immediately excludes this version from new matching while preserving all evidence.",
+  "i18n.parserProfiles.retireImpact":
+    "Retiring permanently excludes this version from new matching while preserving history.",
   "i18n.parserProfiles.reason": "Reason",
-  "i18n.parserProfiles.reasonRequired": "Enter an audit reason before continuing.",
+  "i18n.parserProfiles.reasonRequired":
+    "Enter an audit reason before continuing.",
   "i18n.parserProfiles.cancel": "Cancel",
   "i18n.parserProfiles.confirm": "Confirm action",
   "i18n.parserProfiles.actionSucceeded": "Profile governance action completed.",
-  "i18n.parserProfiles.forbidden": "Your account is not authorized to approve or govern parser profiles.",
-  "i18n.parserProfiles.actionFailed": "The profile action could not be completed. Refresh the evidence and try again.",
+  "i18n.parserProfiles.forbidden":
+    "Your account is not authorized to approve or govern parser profiles.",
+  "i18n.parserProfiles.actionFailed":
+    "The profile action could not be completed. Refresh the evidence and try again.",
   "i18n.parserProfiles.lifecycle.DRAFT": "Draft",
   "i18n.parserProfiles.lifecycle.ACTIVE": "Active",
   "i18n.parserProfiles.lifecycle.PAUSED": "Paused",
@@ -2222,13 +2284,20 @@ export const enMessages = {
   "i18n.parserProfiles.replayPassed": "Passed",
   "i18n.parserProfiles.replayFailed": "Failed",
   "i18n.parserProfiles.replayReview": "Needs review",
-  "i18n.parserProfiles.code.generic": "This approval requirement is not complete.",
-  "i18n.parserProfiles.code.source": "The preserved source workbook and SHA must be readable.",
-  "i18n.parserProfiles.code.snapshot": "A complete first unloading snapshot is required.",
-  "i18n.parserProfiles.code.provenance": "Required mapped fields must include source provenance.",
-  "i18n.parserProfiles.code.replay": "A passing replay pinned to this snapshot and draft version is required.",
-  "i18n.parserProfiles.code.stale": "The submitted version or replay is stale. Refresh and replay the current draft.",
-  "i18n.parserProfiles.code.conflict": "Another active version has the same matcher scope.",
+  "i18n.parserProfiles.code.generic":
+    "This approval requirement is not complete.",
+  "i18n.parserProfiles.code.source":
+    "The preserved source workbook and SHA must be readable.",
+  "i18n.parserProfiles.code.snapshot":
+    "A complete first unloading snapshot is required.",
+  "i18n.parserProfiles.code.provenance":
+    "Required mapped fields must include source provenance.",
+  "i18n.parserProfiles.code.replay":
+    "A passing replay pinned to this snapshot and draft version is required.",
+  "i18n.parserProfiles.code.stale":
+    "The submitted version or replay is stale. Refresh and replay the current draft.",
+  "i18n.parserProfiles.code.conflict":
+    "Another active version has the same matcher scope.",
   "i18n.parserProfiles.snapshotContainer": "Container",
   "i18n.parserProfiles.snapshotDestinations": "Destinations",
   "i18n.parserProfiles.snapshotCorrections": "Parser-relevant corrections",
@@ -2238,7 +2307,8 @@ export const enMessages = {
   "i18n.parserProfiles.result": "Result",
   "i18n.parserReview.eyebrow": "Required parser review",
   "i18n.parserReview.title": "Review-required parse",
-  "i18n.parserReview.subtitle": "This profile result is staged only. No container, pallets, report, or inventory record becomes official until an authorized reviewer accepts this exact result.",
+  "i18n.parserReview.subtitle":
+    "This profile result is staged only. No container, pallets, report, or inventory record becomes official until an authorized reviewer accepts this exact result.",
   "i18n.parserReview.profile": "Matched profile",
   "i18n.parserReview.sourceHash": "Source short hash",
   "i18n.parserReview.matcherVersion": "Matcher version",
@@ -2254,16 +2324,19 @@ export const enMessages = {
   "i18n.parserReview.cell": "Cell",
   "i18n.parserReview.sourceValue": "Source value",
   "i18n.parserReview.canonicalRows": "Staged canonical rows",
-  "i18n.parserReview.stagedImmutable": "The original staged rows and provenance remain immutable. The accepted corrected result is stored separately.",
+  "i18n.parserReview.stagedImmutable":
+    "The original staged rows and provenance remain immutable. The accepted corrected result is stored separately.",
   "i18n.parserReview.row": "Source row",
   "i18n.parserReview.diffRow": "{field} · Source row {row}",
-  "i18n.parserReview.includeRowAria": "Include this source row in the corrected result",
+  "i18n.parserReview.includeRowAria":
+    "Include this source row in the corrected result",
   "i18n.parserReview.rowActions": "Row actions",
   "i18n.parserReview.addRow": "Add corrected row",
   "i18n.parserReview.removeRow": "Remove row",
   "i18n.parserReview.removeRowAria": "Remove corrected source row {row}",
   "i18n.parserReview.provenance": "Mapped field provenance",
-  "i18n.parserReview.noProvenance": "No displayable field provenance is available.",
+  "i18n.parserReview.noProvenance":
+    "No displayable field provenance is available.",
   "i18n.parserReview.materialDiff": "Material parser changes",
   "i18n.parserReview.material": "material",
   "i18n.parserReview.nonMaterial": "non-material",
@@ -2274,33 +2347,46 @@ export const enMessages = {
   "i18n.parserReview.totalPallets": "Total pallets",
   "i18n.parserReview.requiredWarnings": "Warnings and required checks",
   "i18n.parserReview.noWarnings": "No parser warnings or errors are staged.",
-  "i18n.parserReview.errorsBlockCommit": "Parser errors are staged. This result cannot become official; reject the match and continue through the manual or learning flow.",
-  "i18n.parserReview.issue.missingDestination": "A destination is missing and requires review.",
+  "i18n.parserReview.errorsBlockCommit":
+    "Parser errors are staged. This result cannot become official; reject the match and continue through the manual or learning flow.",
+  "i18n.parserReview.issue.missingDestination":
+    "A destination is missing and requires review.",
   "i18n.parserReview.issue.missingCartons": "Carton or piece count is missing.",
   "i18n.parserReview.issue.missingVolume": "Volume evidence is missing.",
-  "i18n.parserReview.issue.zeroVolume": "Volume is zero while cartons are present.",
-  "i18n.parserReview.issue.destinationType": "Destination type needs confirmation.",
+  "i18n.parserReview.issue.zeroVolume":
+    "Volume is zero while cartons are present.",
+  "i18n.parserReview.issue.destinationType":
+    "Destination type needs confirmation.",
   "i18n.parserReview.issue.other": "A staged parser issue requires review.",
   "i18n.parserReview.accept": "Accept without parser changes",
   "i18n.parserReview.correct": "Correct parser fields",
   "i18n.parserReview.submitCorrection": "Review and submit correction",
   "i18n.parserReview.cancelCorrection": "Discard unsaved edits",
   "i18n.parserReview.reject": "Reject profile match",
-  "i18n.parserReview.readOnly": "You may read this evidence, but your account cannot decide parser reviews.",
+  "i18n.parserReview.readOnly":
+    "You may read this evidence, but your account cannot decide parser reviews.",
   "i18n.parserReview.openContainer": "Open accepted container",
   "i18n.parserReview.reason": "Audit reason",
   "i18n.parserReview.optional": "optional",
   "i18n.parserReview.reasonOptional": "{reason} ({optional})",
-  "i18n.parserReview.reasonRequired": "Enter an audit reason for a correction or rejection.",
-  "i18n.parserReview.refreshRequired": "Another decision changed this review. Refresh before continuing.",
-  "i18n.parserReview.forbidden": "Your account is not authorized to decide parser reviews.",
-  "i18n.parserReview.actionFailed": "The review decision was not saved. The staged result remains unchanged.",
+  "i18n.parserReview.reasonRequired":
+    "Enter an audit reason for a correction or rejection.",
+  "i18n.parserReview.refreshRequired":
+    "Another decision changed this review. Refresh before continuing.",
+  "i18n.parserReview.forbidden":
+    "Your account is not authorized to decide parser reviews.",
+  "i18n.parserReview.actionFailed":
+    "The review decision was not saved. The staged result remains unchanged.",
   "i18n.parserReview.dialog.accept.title": "Accept this staged parse?",
-  "i18n.parserReview.dialog.accept.description": "This creates the official container and destination records atomically. If the source hash is distinct and no parser field changed, this acceptance advances the evidence streak by one.",
-  "i18n.parserReview.dialog.correct.title": "Accept this corrected parser result?",
-  "i18n.parserReview.dialog.correct.description": "The server compares the corrected fields with the immutable staged result. Material changes reset the streak to 0/3; non-material changes may still count as accepted evidence.",
+  "i18n.parserReview.dialog.accept.description":
+    "This creates the official container and destination records atomically. If the source hash is distinct and no parser field changed, this acceptance advances the evidence streak by one.",
+  "i18n.parserReview.dialog.correct.title":
+    "Accept this corrected parser result?",
+  "i18n.parserReview.dialog.correct.description":
+    "The server compares the corrected fields with the immutable staged result. Material changes reset the streak to 0/3; non-material changes may still count as accepted evidence.",
   "i18n.parserReview.dialog.reject.title": "Reject this profile match?",
-  "i18n.parserReview.dialog.reject.description": "No official container will be created. The rejection and reason remain in evidence history, and the consecutive streak resets to 0/3.",
+  "i18n.parserReview.dialog.reject.description":
+    "No official container will be created. The rejection and reason remain in evidence history, and the consecutive streak resets to 0/3.",
   "i18n.parserReview.status.PENDING": "Awaiting review",
   "i18n.parserReview.status.ACCEPTED": "Accepted without changes",
   "i18n.parserReview.status.CORRECTED": "Corrected and accepted",
@@ -2309,7 +2395,8 @@ export const enMessages = {
   "i18n.parserReview.evidence.MATERIAL_CORRECTION": "Material correction",
   "i18n.parserReview.evidence.REJECTED": "Rejected",
   "i18n.parserReview.evidenceTimeline": "Trust evidence timeline",
-  "i18n.parserReview.noEvidence": "No later workbook review evidence has been recorded.",
+  "i18n.parserReview.noEvidence":
+    "No later workbook review evidence has been recorded.",
   "i18n.parserReview.streakAfter": "Streak after event",
   "i18n.parserReview.reviewedBy": "Reviewer",
   "i18n.parserReview.reviewedAt": "Reviewed at",
@@ -2327,6 +2414,52 @@ export const enMessages = {
   "i18n.parserReview.field.sourceSelection": "Source selection",
   "i18n.parserReview.field.mappingDefinition": "Mapping definition",
   "i18n.parserReview.field.other": "Parser-relevant field",
+  "i18n.parserSelection.eyebrow": "Parse source",
+  "i18n.parserSelection.source.BUILT_IN": "Built-in parser",
+  "i18n.parserSelection.source.PROFILE_REVIEW": "Profile review",
+  "i18n.parserSelection.source.TRUSTED_PROFILE": "Trusted profile",
+  "i18n.parserSelection.source.PROFILE_FALLBACK": "Profile fallback",
+  "i18n.parserSelection.source.AMBIGUOUS": "Ambiguous profile match",
+  "i18n.parserSelection.source.DRIFT": "Workbook structure drift",
+  "i18n.parserSelection.source.unknown": "Parse source unavailable",
+  "i18n.parserSelection.reason.uniqueTrusted":
+    "One active trusted profile matched every required structural condition, so the canonical result was committed automatically after a final trust-state check.",
+  "i18n.parserSelection.reason.noActiveProfile":
+    "No active parser profile was eligible, so the existing built-in parser path remained authoritative.",
+  "i18n.parserSelection.reason.noMatch":
+    "No approved profile matched this workbook structure, so processing continued through the built-in parser.",
+  "i18n.parserSelection.reason.collision":
+    "More than one approved profile matched. No winner was chosen; review the profiles or create a new learning case.",
+  "i18n.parserSelection.reason.drift":
+    "The workbook is close to an approved layout but a required structural condition changed. Review it before committing business data.",
+  "i18n.parserSelection.reason.stateChanged":
+    "The selected profile changed lifecycle or trust state while parsing. The result was held for review and was not committed automatically.",
+  "i18n.parserSelection.reason.reviewRequired":
+    "The matched approved profile requires an office review before its result becomes official.",
+  "i18n.parserSelection.reason.requiredWarning":
+    "The trusted result contains a required-field warning, so automatic commit was stopped and the result was staged for review.",
+  "i18n.parserSelection.reason.trustedReview":
+    "The trusted result was staged for review because it did not satisfy the automatic-commit contract.",
+  "i18n.parserSelection.reason.other":
+    "The parser recorded a stable fallback reason. Open diagnostics or review the available profile actions.",
+  "i18n.parserSelection.automatic": "Automatically committed",
+  "i18n.parserSelection.notAutomatic": "Not automatically committed",
+  "i18n.parserSelection.profile": "Selected profile",
+  "i18n.parserSelection.noProfile": "No profile selected",
+  "i18n.parserSelection.candidates": "Candidates checked",
+  "i18n.parserSelection.duration": "Profile overhead",
+  "i18n.parserSelection.durationValue": "{duration} ms",
+  "i18n.parserSelection.outcome": "Outcome",
+  "i18n.parserSelection.outcome.autoCommitted": "Official data committed",
+  "i18n.parserSelection.outcome.reviewRequired": "Review required",
+  "i18n.parserSelection.outcome.fallback": "Built-in or manual fallback",
+  "i18n.parserSelection.versionValue": "version {version}",
+  "i18n.parserSelection.matchReasons": "Matched structural anchors",
+  "i18n.parserSelection.match.anchor": "Required anchor matched",
+  "i18n.parserSelection.match.other": "Required structural condition matched",
+  "i18n.parserSelection.openProfiles": "Review parser profiles",
+  "i18n.parserSelection.createLearningCase": "Create a new learning case",
+  "i18n.parserSelection.diagnostics": "Technical diagnostics",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

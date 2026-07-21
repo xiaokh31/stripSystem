@@ -10,11 +10,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import {
-  authHeaders,
-  E2E_BASE_URL,
-  loginThroughApi,
-} from "./helpers";
+import { authHeaders, E2E_BASE_URL, loginThroughApi } from "./helpers";
 
 const OUTPUT_DIR = "test-results/parser-profile-06";
 
@@ -39,7 +35,9 @@ test("staged review stays bilingual and responsive while accept, correct, and re
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("response", (response) => {
     if (response.status() >= 500) {
-      serverErrors.push(`${response.status()} ${new URL(response.url()).pathname}`);
+      serverErrors.push(
+        `${response.status()} ${new URL(response.url()).pathname}`,
+      );
     }
   });
 
@@ -54,12 +52,39 @@ test("staged review stays bilingual and responsive while accept, correct, and re
     await expect(
       page.getByRole("heading", { name: "Review-required parse" }),
     ).toBeVisible();
-    await expect(page.getByText("Awaiting review", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Profile review" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("PARSER-PROFILE-06 browser fixture · version 1", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "The matched approved profile requires an office review before its result becomes official.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Required anchor matched", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("PARSER_PROFILE_REVIEW_REQUIRED", { exact: true }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByText("Awaiting review", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("1/3", { exact: true })).toBeVisible();
-    await expect(page.getByText("Required structural anchor matched")).toBeVisible();
+    await expect(
+      page.getByText("Required structural anchor matched"),
+    ).toBeVisible();
     await expect(page.getByText("YEG1", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Volume is zero while cartons are present.")).toBeVisible();
-    await expect(page.getByText("/workspace/storage/private.xlsx")).toHaveCount(0);
+    await expect(
+      page.getByText("Volume is zero while cartons are present."),
+    ).toBeVisible();
+    await expect(page.getByText("/workspace/storage/private.xlsx")).toHaveCount(
+      0,
+    );
     await assertReviewGeometry(page);
     await page.screenshot({
       fullPage: true,
@@ -74,7 +99,11 @@ test("staged review stays bilingual and responsive while accept, correct, and re
     expect(zhSsrHtml).not.toContain("Review-required parse");
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await expect(page.getByRole("heading", { name: "待复核解析" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "待复核解析" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "模板复核" })).toBeVisible();
+    await expect(page.getByText("Profile review")).toHaveCount(0);
     await expect(page.getByText("等待复核", { exact: true })).toBeVisible();
     await expect(page.getByText("Review-required parse")).toHaveCount(0);
     await assertReviewGeometry(page);
@@ -100,21 +129,33 @@ test("staged review stays bilingual and responsive while accept, correct, and re
       page.getByRole("heading", { name: "Accept this staged parse?" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Confirm" }).click();
-    await expect(page.getByText("Accepted without changes", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Accepted without changes", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("2/3", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open accepted container" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open accepted container" }),
+    ).toBeVisible();
 
     await page.goto(`/imports/${fixture.correctImportId}`, {
       waitUntil: "networkidle",
     });
     await page.getByRole("button", { name: "Correct parser fields" }).click();
-    await expect(page.getByRole("button", { name: "Add corrected row" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Add corrected row" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Remove corrected source row 7" }),
     ).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Delivery / grouping" })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Reference" })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "PO number" })).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Delivery / grouping" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Reference" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "PO number" }),
+    ).toBeVisible();
     await page.locator('input[value="YEG1"]').fill("YYC4");
     await page
       .getByRole("button", { name: "Review and submit correction" })
@@ -122,9 +163,13 @@ test("staged review stays bilingual and responsive while accept, correct, and re
     await expect(
       page.getByText(/material changes reset the streak to 0\/3/i),
     ).toBeVisible();
-    await page.locator("#parser-review-reason").fill("Source row belongs to YYC4");
+    await page
+      .locator("#parser-review-reason")
+      .fill("Source row belongs to YYC4");
     await page.getByRole("button", { name: "Confirm" }).click();
-    await expect(page.getByText("Corrected and accepted", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Corrected and accepted", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("0/3", { exact: true })).toBeVisible();
     await expect(page.getByText("Destination · Source row 7")).toBeVisible();
 
@@ -132,9 +177,13 @@ test("staged review stays bilingual and responsive while accept, correct, and re
       waitUntil: "networkidle",
     });
     await page.getByRole("button", { name: "Reject profile match" }).click();
-    await page.locator("#parser-review-reason").fill("Workbook layout does not match");
+    await page
+      .locator("#parser-review-reason")
+      .fill("Workbook layout does not match");
     await page.getByRole("button", { name: "Confirm" }).click();
-    await expect(page.getByText("Profile match rejected", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Profile match rejected", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("0/3", { exact: true })).toBeVisible();
 
     const profileResponse = await page.goto(
@@ -148,7 +197,9 @@ test("staged review stays bilingual and responsive while accept, correct, and re
       page.getByRole("heading", { name: "Trust evidence timeline" }),
     ).toBeVisible();
     await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
-    await expect(page.getByText("Material correction", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Material correction", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("Rejected", { exact: true })).toBeVisible();
     for (const shortSha of fixture.shortShas) {
       await expect(page.getByText(shortSha, { exact: true })).toBeVisible();
@@ -184,14 +235,20 @@ async function setPresentation(
   theme: "dark" | "light",
 ) {
   await context.addCookies([
-    { name: "bestar_locale", sameSite: "Lax", url: E2E_BASE_URL, value: locale },
+    {
+      name: "bestar_locale",
+      sameSite: "Lax",
+      url: E2E_BASE_URL,
+      value: locale,
+    },
     { name: "bestar_theme", sameSite: "Lax", url: E2E_BASE_URL, value: theme },
   ]);
 }
 
 async function assertReviewGeometry(page: Page) {
-  const geometry = await page.locator('[data-parser-profile-review="true"]').evaluate(
-    (panel) => ({
+  const geometry = await page
+    .locator('[data-parser-profile-review="true"]')
+    .evaluate((panel) => ({
       clippedActions: [...panel.querySelectorAll<HTMLElement>("button, a")]
         .filter((element) => element.offsetParent !== null)
         .filter(
@@ -202,10 +259,30 @@ async function assertReviewGeometry(page: Page) {
         .map((element) => element.textContent?.trim()),
       panelRight: Math.round(panel.getBoundingClientRect().right),
       viewportWidth: document.documentElement.clientWidth,
-    }),
-  );
+    }));
   expect(geometry.clippedActions).toEqual([]);
   expect(geometry.panelRight).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+  const selectionGeometry = await page
+    .locator('[data-parser-selection="true"]')
+    .evaluate((panel) => ({
+      clippedContent: [
+        ...panel.querySelectorAll<HTMLElement>("a, dd, li, span"),
+      ]
+        .filter((element) => element.offsetParent !== null)
+        .filter(
+          (element) =>
+            element.scrollWidth > element.clientWidth + 1 ||
+            element.getBoundingClientRect().right >
+              document.documentElement.clientWidth + 1,
+        )
+        .map((element) => element.textContent?.trim()),
+      panelRight: Math.round(panel.getBoundingClientRect().right),
+      viewportWidth: document.documentElement.clientWidth,
+    }));
+  expect(selectionGeometry.clippedContent).toEqual([]);
+  expect(selectionGeometry.panelRight).toBeLessThanOrEqual(
+    selectionGeometry.viewportWidth + 1,
+  );
 }
 
 async function captureRealBrowserZoom(
@@ -229,7 +306,8 @@ async function captureRealBrowserZoom(
   });
   try {
     const worker =
-      context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+      context.serviceWorkers()[0] ??
+      (await context.waitForEvent("serviceworker"));
     await context.addCookies([
       {
         httpOnly: false,
@@ -271,7 +349,9 @@ async function captureRealBrowserZoom(
       return {
         innerWidth: window.innerWidth,
         maxPageScrollX,
-        panelRight: panel ? Math.round(panel.getBoundingClientRect().right) : null,
+        panelRight: panel
+          ? Math.round(panel.getBoundingClientRect().right)
+          : null,
       };
     });
     expect(dimensions.innerWidth).toBe(683);
@@ -286,7 +366,9 @@ async function captureRealBrowserZoom(
         "review-en-light-1366x768-real-browser-zoom-200.png",
       ),
     });
-    await zoomPage.getByRole("button", { name: "Reject profile match" }).click();
+    await zoomPage
+      .getByRole("button", { name: "Reject profile match" })
+      .click();
     const dialog = zoomPage.getByRole("dialog");
     await dialog
       .locator("#parser-review-reason")
@@ -296,9 +378,9 @@ async function captureRealBrowserZoom(
     const dialogGeometry = await dialog.evaluate((element) => ({
       clientWidth: document.documentElement.clientWidth,
       dialogRight: Math.round(element.getBoundingClientRect().right),
-      overflowingControls: [...element.querySelectorAll<HTMLElement>(
-        "button, textarea",
-      )]
+      overflowingControls: [
+        ...element.querySelectorAll<HTMLElement>("button, textarea"),
+      ]
         .filter(
           (control) =>
             control.getBoundingClientRect().right >
@@ -340,13 +422,13 @@ async function setRealBrowserZoom(
         query(queryInfo: object): Promise<Array<{ id?: number; url?: string }>>;
         setZoom(tabId: number, factor: number): Promise<void>;
       };
-      const tabsApi = (
-        globalThis as unknown as { chrome: { tabs: TabsApi } }
-      ).chrome.tabs;
+      const tabsApi = (globalThis as unknown as { chrome: { tabs: TabsApi } })
+        .chrome.tabs;
       const tabId = (await tabsApi.query({})).find(
         (tab) => tab.url === url,
       )?.id;
-      if (tabId === undefined) throw new Error(`No browser tab found for ${url}`);
+      if (tabId === undefined)
+        throw new Error(`No browser tab found for ${url}`);
       await tabsApi.setZoom(tabId, targetFactor);
       const applied = await tabsApi.getZoom(tabId);
       if (Math.abs(applied - targetFactor) > 0.001) {
@@ -463,7 +545,39 @@ INSERT INTO import_files (
   ${sql(`/workspace/storage/private-${item.decision}.xlsx`)}, ${sql(item.sha)},
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 1024,
   'UNLOADING_PLAN_CN', 'UPLOADED', 'REVIEW_REQUIRED',
-  'parser-profile-engine-v1', 1, 0, '{}'::jsonb, ${sql(actorId)}, NOW(), NOW()
+  'parser-profile-engine-v1', 1, 0, ${json({
+    parseSelection: {
+      contractVersion: "parser-selection-v1",
+      source: "PROFILE_REVIEW",
+      reasonCode: "PARSER_PROFILE_REVIEW_REQUIRED",
+      outcome: "REVIEW_REQUIRED",
+      candidateCount: 1,
+      durationMs: 118,
+      autoCommitted: false,
+      profile: {
+        id: profileVersionId,
+        familyId,
+        stableName: `pp06-web-${suffix}`,
+        customerLabel: "PARSER-PROFILE-06 browser fixture",
+        version: 1,
+        lifecycle: "ACTIVE",
+        trustState: "REVIEW_REQUIRED",
+      },
+      fingerprintHash: `fingerprint-${suffix}`,
+      matchReasons: [
+        {
+          code: "FINGERPRINT_ANCHOR_MATCHED",
+          matched: true,
+          params: { cell: "A6" },
+        },
+      ],
+      matcherVersion: "workbook-fingerprint-v1",
+      mappingVersion: "parser-profile-mapping-v1",
+      workerVersion: "parser-profile-engine-v1",
+      parserVersion: "parser-profile-engine-v1",
+      blockingWarningCodes: [],
+    },
+  })}, ${sql(actorId)}, NOW(), NOW()
 );
 INSERT INTO parser_profile_reviews (
   id, import_file_id, profile_version_id, source_file_sha256, status, revision,
@@ -477,7 +591,20 @@ INSERT INTO parser_profile_reviews (
   'parser-profile-mapping-v1', 'parser-profile-engine-v1',
   'parser-profile-engine-v1',
   ${json({ reasons: [{ code: "FINGERPRINT_ANCHOR_MATCHED", matched: true, params: { cell: "A6" } }] })},
-  ${json({ sheets: [{ name: "PP06Review", index: 0, maxRow: 7, maxColumn: 6, sampleCells: [{ cell: "A6", row: 6, column: 1, value: "运单号" }, { cell: "C7", row: 7, column: 3, value: "YEG1" }] }] })},
+  ${json({
+    sheets: [
+      {
+        name: "PP06Review",
+        index: 0,
+        maxRow: 7,
+        maxColumn: 6,
+        sampleCells: [
+          { cell: "A6", row: 6, column: 1, value: "运单号" },
+          { cell: "C7", row: 7, column: 3, value: "YEG1" },
+        ],
+      },
+    ],
+  })},
   ${json(staged)}, ${json(destinations)},
   ${json({ containerNo: item.containerNo, destinationCount: 1, totalCartons: 10 + index, totalVolumeCbm: "0.000", totalPallets: 4 })},
   ${json([{ code: "ZERO_VOLUME_WITH_CARTONS" }])}, '[]'::jsonb,

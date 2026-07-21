@@ -33,6 +33,7 @@ import {
   canTrainParserProfiles,
 } from "@/lib/permissions";
 import { ParserProfileReviewPanel } from "@/components/parser-profiles/parser-profile-review-panel";
+import { ParserSelectionPanel } from "@/components/imports/parser-selection-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -169,6 +170,15 @@ export default async function ImportDetailPage({
 
       {showManualEntry ? <ManualReportEntryPanel href={manualHref} /> : null}
 
+      {state.importFile.parseSelection ? (
+        <ParserSelectionPanel
+          canTrain={canTrainParserProfiles(currentUser)}
+          importId={state.importFile.id}
+          locale={locale}
+          selection={state.importFile.parseSelection}
+        />
+      ) : null}
+
       {state.profileReview ? (
         <ParserProfileReviewPanel
           canReview={canDecideParserProfileReviews(currentUser)}
@@ -248,13 +258,7 @@ function DetailRow({
   );
 }
 
-function StatusBadge({
-  locale,
-  status,
-}: {
-  locale: Locale;
-  status: string;
-}) {
+function StatusBadge({ locale, status }: { locale: Locale; status: string }) {
   const tone = statusTone(status);
   const styles = {
     amber: "border-amber-200 bg-amber-50 text-amber-800",
@@ -295,7 +299,9 @@ function IssueSection({
           {t("Warnings and errors")}
         </h2>
         <p className="mt-3 text-sm text-zinc-600">
-          {t("No parser warnings or errors are currently recorded for this import.")}
+          {t(
+            "No parser warnings or errors are currently recorded for this import.",
+          )}
         </p>
       </section>
     );

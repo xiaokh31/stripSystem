@@ -137,6 +137,57 @@ describe('CorrectionsService', () => {
     ]);
   });
 
+  it('demotes a trusted profile version after a material destination correction', async () => {
+    const container = containersFixture(prisma)[0];
+    container.parserSourceKind = 'PROFILE';
+    container.parserProfileVersionId = 'profile-v1';
+
+    await service.updateContainerDestination(
+      'destination-1',
+      {
+        destinationCode: 'YYC4',
+        reason: 'Source destination was corrected',
+      },
+      officeActor,
+    );
+
+    expect(prisma.parserProfileVersion.update).toHaveBeenCalledWith({
+      where: { id: 'profile-v1' },
+      data: {
+        trustState: 'REVIEW_REQUIRED',
+        trustStreak: 0,
+        lifecycleRevision: { increment: 1 },
+      },
+    });
+    expect(prisma.parserProfileAuditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventCode: 'TRUST_REVOKED_BY_MATERIAL_CORRECTION',
+        actorId: officeActor.id,
+        containerId: container.id,
+        metadata: expect.objectContaining({
+          code: 'TRUST_REVOKED_BY_MATERIAL_CORRECTION',
+          fieldNames: expect.arrayContaining(['destinationCode']),
+          trustStreak: 0,
+        }),
+      }),
+    });
+  });
+
+  it('keeps trusted state for a physical pallet override without parser field changes', async () => {
+    const container = containersFixture(prisma)[0];
+    container.parserSourceKind = 'PROFILE';
+    container.parserProfileVersionId = 'profile-v1';
+
+    await service.updateContainerDestination(
+      'destination-1',
+      { manualPallets: 7, reason: 'Physical handling split' },
+      officeActor,
+    );
+
+    expect(prisma.parserProfileVersion.update).not.toHaveBeenCalled();
+    expect(prisma.parserProfileAuditEvent.create).not.toHaveBeenCalled();
+  });
+
   it('rejects zero manualPallets and tells the user to delete empty destinations', async () => {
     await expect(
       service.updateContainerDestination(
@@ -872,10 +923,9 @@ describe('CorrectionsService', () => {
         containerId: 'container-1',
       },
     );
-    expect(parserLearningCases.captureAndDispatchCompletion).toHaveBeenCalledWith(
-      'container-1',
-      officeActor,
-    );
+    expect(
+      parserLearningCases.captureAndDispatchCompletion,
+    ).toHaveBeenCalledWith('container-1', officeActor);
     expect(result.parserLearning).toEqual({
       learningCaseId: 'case-1',
       snapshotCreated: true,
@@ -1151,6 +1201,12 @@ describe('CorrectionsService', () => {
       updatedAt: new Date('2026-06-26T00:00:00.000Z'),
     };
     const corrections: any[] = [];
+    const profile = {
+      id: 'profile-v1',
+      familyId: 'family-1',
+      trustState: 'TRUSTED',
+      trustStreak: 3,
+    };
     let manualDestinationCount = 0;
     containers[0].destinations = [destination];
 
@@ -1262,6 +1318,23 @@ describe('CorrectionsService', () => {
           corrections.push(record);
           return Promise.resolve(record);
         }),
+      },
+      parserProfileVersion: {
+        findUnique: jest.fn().mockResolvedValue(profile),
+        update: jest.fn(({ data }) => {
+          Object.assign(profile, data, {
+            lifecycleRevision:
+              typeof data.lifecycleRevision === 'object'
+                ? ((profile as any).lifecycleRevision ?? 1)
+                : data.lifecycleRevision,
+          });
+          return Promise.resolve(profile);
+        }),
+      },
+      parserProfileAuditEvent: {
+        create: jest.fn(({ data }) =>
+          Promise.resolve({ id: 'audit-1', ...data }),
+        ),
       },
     };
 
