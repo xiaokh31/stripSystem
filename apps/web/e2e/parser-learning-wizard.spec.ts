@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   chromium,
   expect,
@@ -81,18 +82,19 @@ test("real failed import can be mapped, resumed, linked, replayed, and submitted
     }
   });
 
-  const adminToken = await loginThroughApi(page, request);
-  const actors = await prepareActors(request, adminToken);
   const containerNo = uniquePolicyContainerNo();
-  const workbookPath = await createDerivedUnsupportedWorkbook(
-    testInfo,
-    containerNo,
-  );
-  const importId = await createFailedImport(
-    request,
-    adminToken,
-    workbookPath,
-  );
+  try {
+    const adminToken = await loginThroughApi(page, request);
+    const actors = await prepareActors(request, adminToken);
+    const workbookPath = await createDerivedUnsupportedWorkbook(
+      testInfo,
+      containerNo,
+    );
+    const importId = await createFailedImport(
+      request,
+      adminToken,
+      workbookPath,
+    );
 
   await assertMutationRbac(request, importId, actors);
   await setPresentation(page, "en", "light");
@@ -470,10 +472,220 @@ test("real failed import can be mapped, resumed, linked, replayed, and submitted
       2,
     )}\n`,
   );
-  expect(browserErrors).toEqual([]);
-  expect(expectedConflictConsole).toHaveLength(1);
-  expect(serverErrors).toEqual([]);
+    expect(browserErrors).toEqual([]);
+    expect(expectedConflictConsole).toHaveLength(1);
+    expect(serverErrors).toEqual([]);
+  } finally {
+    await cleanupLearningFixture(containerNo);
+  }
 });
+
+async function cleanupLearningFixture(containerNo: string): Promise<void> {
+  const sourceFilename = `${containerNo} unsupported warehouse split.xlsx`;
+  const storagePaths = runSql(
+    String.raw`
+COPY (
+  SELECT stored_path
+  FROM import_files
+  WHERE original_filename = :'source_filename'
+  UNION
+  SELECT generated_files.storage_path
+  FROM generated_files
+  JOIN parser_learning_cases
+    ON parser_learning_cases.id = generated_files.parser_learning_case_id
+  JOIN import_files
+    ON import_files.id = parser_learning_cases.source_import_id
+  WHERE import_files.original_filename = :'source_filename'
+) TO STDOUT;
+`,
+    ["-v", `source_filename=${sourceFilename}`],
+  )
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  runSql(
+    String.raw`
+BEGIN;
+CREATE TEMP TABLE parser_exit_import_ids ON COMMIT DROP AS
+  SELECT id FROM import_files WHERE original_filename = :'source_filename';
+CREATE TEMP TABLE parser_exit_container_ids ON COMMIT DROP AS
+  SELECT id FROM containers WHERE container_no = :'container_no';
+CREATE TEMP TABLE parser_exit_case_ids ON COMMIT DROP AS
+  SELECT id
+  FROM parser_learning_cases
+  WHERE source_import_id IN (SELECT id FROM parser_exit_import_ids)
+     OR linked_container_id IN (SELECT id FROM parser_exit_container_ids);
+CREATE TEMP TABLE parser_exit_version_ids ON COMMIT DROP AS
+  SELECT id
+  FROM parser_profile_versions
+  WHERE source_learning_case_id IN (SELECT id FROM parser_exit_case_ids);
+CREATE TEMP TABLE parser_exit_family_ids ON COMMIT DROP AS
+  SELECT DISTINCT family_id
+  FROM parser_profile_versions
+  WHERE id IN (SELECT id FROM parser_exit_version_ids);
+CREATE TEMP TABLE parser_exit_generated_ids ON COMMIT DROP AS
+  SELECT id
+  FROM generated_files
+  WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+     OR container_id IN (SELECT id FROM parser_exit_container_ids)
+     OR parser_learning_case_id IN (SELECT id FROM parser_exit_case_ids);
+
+UPDATE parser_learning_cases
+SET completion_replay_job_id = NULL
+WHERE id IN (SELECT id FROM parser_exit_case_ids);
+DELETE FROM correction_feedback
+WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+   OR container_id IN (SELECT id FROM parser_exit_container_ids)
+   OR container_line_id IN (
+     SELECT id FROM container_lines
+     WHERE container_id IN (SELECT id FROM parser_exit_container_ids)
+   )
+   OR container_destination_id IN (
+     SELECT id FROM container_destinations
+     WHERE container_id IN (SELECT id FROM parser_exit_container_ids)
+   )
+   OR generated_file_id IN (SELECT id FROM parser_exit_generated_ids);
+DELETE FROM parser_profile_audit_events
+WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+   OR container_id IN (SELECT id FROM parser_exit_container_ids)
+   OR learning_case_id IN (SELECT id FROM parser_exit_case_ids)
+   OR profile_version_id IN (SELECT id FROM parser_exit_version_ids)
+   OR profile_family_id IN (SELECT family_id FROM parser_exit_family_ids);
+DELETE FROM parser_profile_evidence
+WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+   OR profile_version_id IN (SELECT id FROM parser_exit_version_ids);
+DELETE FROM parser_profile_reviews
+WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+   OR profile_version_id IN (SELECT id FROM parser_exit_version_ids)
+   OR accepted_container_id IN (SELECT id FROM parser_exit_container_ids);
+DELETE FROM async_jobs
+WHERE import_file_id IN (SELECT id FROM parser_exit_import_ids)
+   OR container_id IN (SELECT id FROM parser_exit_container_ids)
+   OR parser_learning_case_id IN (SELECT id FROM parser_exit_case_ids)
+   OR generated_file_id IN (SELECT id FROM parser_exit_generated_ids);
+DELETE FROM generated_files WHERE id IN (SELECT id FROM parser_exit_generated_ids);
+DELETE FROM parser_profile_versions WHERE id IN (SELECT id FROM parser_exit_version_ids);
+DELETE FROM parser_learning_cases WHERE id IN (SELECT id FROM parser_exit_case_ids);
+DELETE FROM pallet_events
+WHERE pallet_id IN (
+  SELECT pallets.id
+  FROM pallets
+  JOIN container_destinations
+    ON container_destinations.id = pallets.container_destination_id
+  WHERE container_destinations.container_id IN (SELECT id FROM parser_exit_container_ids)
+);
+DELETE FROM pallets
+WHERE container_destination_id IN (
+  SELECT id FROM container_destinations
+  WHERE container_id IN (SELECT id FROM parser_exit_container_ids)
+);
+DELETE FROM container_lines WHERE container_id IN (SELECT id FROM parser_exit_container_ids);
+DELETE FROM container_destinations WHERE container_id IN (SELECT id FROM parser_exit_container_ids);
+DELETE FROM containers WHERE id IN (SELECT id FROM parser_exit_container_ids);
+DELETE FROM import_files WHERE id IN (SELECT id FROM parser_exit_import_ids);
+DELETE FROM parser_profile_families
+WHERE id IN (SELECT family_id FROM parser_exit_family_ids);
+DO $cleanup$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM generated_files
+    WHERE id IN (SELECT id FROM parser_exit_generated_ids)
+  ) OR EXISTS (
+    SELECT 1 FROM parser_profile_versions
+    WHERE id IN (SELECT id FROM parser_exit_version_ids)
+  ) OR EXISTS (
+    SELECT 1 FROM parser_learning_cases
+    WHERE id IN (SELECT id FROM parser_exit_case_ids)
+  ) OR EXISTS (
+    SELECT 1 FROM containers
+    WHERE id IN (SELECT id FROM parser_exit_container_ids)
+  ) OR EXISTS (
+    SELECT 1 FROM import_files
+    WHERE id IN (SELECT id FROM parser_exit_import_ids)
+  ) OR EXISTS (
+    SELECT 1 FROM parser_profile_families
+    WHERE id IN (SELECT family_id FROM parser_exit_family_ids)
+  ) THEN
+    RAISE EXCEPTION 'Parser E2E fixture cleanup left database residue';
+  END IF;
+END
+$cleanup$;
+COMMIT;
+`,
+    [
+      "-v",
+      `source_filename=${sourceFilename}`,
+      "-v",
+      `container_no=${containerNo}`,
+    ],
+  );
+
+  for (const storagePath of storagePaths) {
+    const resolvedPath = path.resolve(storagePath);
+    if (!resolvedPath.startsWith("/workspace/storage/")) {
+      throw new Error(`Refusing to remove parser E2E path outside storage: ${resolvedPath}`);
+    }
+    try {
+      await unlink(resolvedPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+
+  const residue = runSql(
+    String.raw`
+COPY (
+  SELECT
+    (SELECT COUNT(*) FROM import_files WHERE original_filename = :'source_filename')::text
+    || '|' ||
+    (SELECT COUNT(*) FROM containers WHERE container_no = :'container_no')::text
+    || '|' ||
+    (SELECT COUNT(*) FROM parser_profile_families
+      WHERE stable_name = :'stable_name')::text
+) TO STDOUT;
+`,
+    [
+      "-v",
+      `source_filename=${sourceFilename}`,
+      "-v",
+      `container_no=${containerNo}`,
+      "-v",
+      `stable_name=layout-${containerNo}`,
+    ],
+  );
+  expect(residue.trim()).toBe("0|0|0");
+}
+
+function runSql(input: string, variables: string[]): string {
+  const result = spawnSync(
+    "psql",
+    [
+      "-h",
+      requiredEnv("POSTGRES_HOST"),
+      "-U",
+      requiredEnv("POSTGRES_USER"),
+      "-d",
+      requiredEnv("POSTGRES_DB"),
+      "-v",
+      "ON_ERROR_STOP=1",
+      ...variables,
+    ],
+    {
+      encoding: "utf8",
+      env: { ...process.env, PGPASSWORD: requiredEnv("POSTGRES_PASSWORD") },
+      input,
+    },
+  );
+  expect(result.status, result.stderr).toBe(0);
+  return result.stdout;
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required for parser E2E cleanup.`);
+  return value;
+}
 
 async function prepareActors(
   request: APIRequestContext,

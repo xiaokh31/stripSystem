@@ -41,6 +41,7 @@ docs/runbooks/*
 !docs/runbooks/monitoring-alerting-siem.md
 !docs/runbooks/business-agent-execution.md
 !docs/runbooks/fresh-windows-agent-onboarding.md
+!docs/runbooks/parser-profile-operations.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html
@@ -56,6 +57,7 @@ docs/reports/*
 !docs/reports/parser-profile-07-trusted-auto-parse-verification.md
 !docs/reports/parser-profile-05-completion-governance-verification.md
 !docs/reports/parser-profile-06-review-trust-verification.md
+!docs/reports/parser-profile-08-golden-sample-full-stack-verification.md
 
 # macOS
 .DS_Store

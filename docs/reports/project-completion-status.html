@@ -395,8 +395,10 @@
           PostgreSQL/HTTP/Worker E2E 和双语/主题/mobile/真实浏览器 200% zoom 门禁均通过。PARSER-PROFILE-07
           已完成 unique trusted 自动提交、built-in fallback、collision/drift review、commit-time trust race 防护、
           material correction demotion、bounded performance/observability 和双语来源 UI；API 327 unit/121 E2E、
-          Web 246 unit、Worker 173 tests、32 个迁移、真实工作簿与 Chromium 200% zoom 门禁均通过。当前下一 Task 为
-          PARSER-PROFILE-08，但本 Session 不得启动它。
+          Web 246 unit、Worker 173 tests、32 个迁移、真实工作簿与 Chromium 200% zoom 门禁均通过。PARSER-PROFILE-08
+          已完成当前环境 full-stack、负向/RBAC、严格 i18n、视觉、性能、迁移、清理和文档门禁；因业务尚未提供同一
+          新客户布局的 4 组不同 SHA source + approved outcome pair，以及初次批准和三次连续无实质修正复核签字，状态为
+          Code complete / External data gate，不能标记 Complete，也不启动下一 Task。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
@@ -1820,8 +1822,8 @@
             </tr>
             <tr>
               <td>PARSER-PROFILE-08 Golden Sample Full Stack I18n Exit Gate</td>
-              <td><span class="badge deferred">Planned / Data Gate</span></td>
-              <td>一个新客户布局完整达到 TRUSTED 至少需要 4 份不同 SHA 的真实/脱敏 source + approved outcome pair；完成 Docker full-stack、i18n、视觉、RBAC 和业务签字。</td>
+              <td><span class="badge deferred">Code complete / External data gate</span></td>
+              <td>当前环境 Docker full-stack、负向/RBAC、严格 i18n、双语主题/mobile/真实 200% zoom、性能、迁移、健康与精确清理门禁均通过，并新增双语运维手册。尚缺同一新客户布局 4 份不同 SHA 的真实/明确脱敏 source + approved outcome pair，以及初次批准和三次连续无实质修正复核签字，不能标 Complete。详见 <code>docs/reports/parser-profile-08-golden-sample-full-stack-verification.md</code> 与 <code>docs/runbooks/parser-profile-operations.md</code>。</td>
             </tr>
           </tbody>
         </table>
@@ -1837,7 +1839,7 @@
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 04 已完成；后续只按现场反馈新增具体 dashboard bugfix。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
-          <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，当前下一 Task 为 08，必须逐 Task 使用 fresh supervised Session。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
+          <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等待 4 组真实/明确脱敏 golden pair 与业务签字，不得重跑开发或启动下一 Task。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>
           <li>Windows 原生安装包/MSIX 路线已归档：P6-MOBILE-09 至 13 不得执行，监督器会以 exit code 78 拒绝。以后恢复时必须先取得产品批准、移除归档标记、恢复关联验收范围并同步任务索引和本报告。</li>
           <li>P5-PILOT-01 已补目标机 gate：本机 rehearsal 已完成，但必须在目标 Windows 11 主机填写 `docs/runbooks/pilot-run-checklist.md` 的 “P5-PILOT-01 Target Deployment Gate”，再关闭该项。</li>
