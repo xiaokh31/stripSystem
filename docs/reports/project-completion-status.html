@@ -402,12 +402,13 @@
           不阻塞用户于 2026-07-20 新批准的 WEB-BRAND-01 至 03。
           WEB-BRAND-01 已把用户提供的 wordmark、compact mark、favicon 与 Apple touch icon 规范到
           <code>apps/web/public/images/logos/</code>，完成 typed frozen asset map、BrandLogo、browser metadata identity、
-          starter 清理与 Docker/nginx/Chromium 门禁；02 接入 desktop rail、mobile Shell 与 login，03 关闭严格 i18n、
-          theme、accessibility、performance 和高信号视觉门禁。
+          starter 清理与 Docker/nginx/Chromium 门禁；WEB-BRAND-02 已接入 desktop rail、responsive mobile Shell 与
+          anonymous login，并以 7 张已查看截图和真实 200% zoom 关闭 placement 门禁；03 继续关闭严格 i18n、theme、
+          accessibility、performance 和最终高信号视觉门禁。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。WEB-BRAND-01 已关闭，剩余 02/03 可在当前 Docker 开发机按顺序执行；此前尚未关闭的
+          Android/iOS 外部设备验收。WEB-BRAND-01/02 已关闭，当前 Docker 开发机下一项只执行 03；此前尚未关闭的
           9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
           Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
@@ -1522,9 +1523,9 @@
             </tr>
             <tr>
               <td>Web corporate logo integration</td>
-              <td><span class="badge partial">01 Done / 02 Ready</span></td>
-              <td>WEB-BRAND-01 已完成 3 个 228x50 wordmark、64x64 compact mark、180x180 Apple touch icon 和 16/32px favicon 的 canonical contract 与 browser identity；Shell/login 可见接入尚未开始。</td>
-              <td>下一项只执行 WEB-BRAND-02，再由 03 关闭 en/zh-CN、light/dark/system、无裁剪/重复/CLS 和高信号视觉门禁；不修改 Native 或 Excel/PDF/label 模板。</td>
+              <td><span class="badge partial">01/02 Done / 03 Ready</span></td>
+              <td>WEB-BRAND-01 已完成 canonical asset/browser identity；02 已完成 desktop rail、responsive top Shell、anonymous login 和 320px compact fallback，并通过 254 unit、Chromium 7/7、healthcheck 与逐图检查。</td>
+              <td>下一项只执行 WEB-BRAND-03，关闭 en/zh-CN、light/dark/system、无裁剪/重复/CLS、asset request、a11y、performance 和最终高信号视觉门禁；不修改 Native 或 Excel/PDF/label 模板。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>
@@ -1864,12 +1865,12 @@
             </tr>
             <tr>
               <td>WEB-BRAND-02 Office Shell and Login Brand Integration</td>
-              <td><span class="badge partial">Ready</span></td>
-              <td>desktop rail 使用一个 on-dark full wordmark，tablet/mobile 与 anonymous Shell 使用 top identity，320px 使用 compact fallback；保留 health、clock、roles、theme、locale、login/logout、nav/RBAC 全部行为。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>desktop rail 使用一个 on-dark full wordmark，tablet/mobile 与 anonymous Shell 使用 top identity，320px 使用 compact fallback；health、clock、roles、theme、locale、login/logout、nav/RBAC 全部保持。Docker lint/typecheck/254 unit/build、auth/dashboard 5/5、focused Chromium 2/2、7 张原分辨率截图检查、healthcheck 和 diff check 通过。</td>
             </tr>
             <tr>
               <td>WEB-BRAND-03 I18n Theme Accessibility Performance Visual Exit Gate</td>
-              <td><span class="badge partial">Blocked by 02</span></td>
+              <td><span class="badge partial">Ready</span></td>
               <td>关闭 en/zh-CN、light/dark/system、320-2560px、125%/200% zoom、asset endpoint、a11y、无重复请求/无 CLS 和浏览器视觉门禁；最终截图不超过 18 张并逐张原分辨率查看。</td>
             </tr>
           </tbody>
@@ -1885,7 +1886,7 @@
           <li>AGENT-AUTONOMY-01 已修正并增加终态监督；完整 Task 只使用 `scripts/run-business-agent.sh task '&lt;task-file&gt;'`，不要直接 prompt、原始 `exec`、手工 `resume` 或复用其他 Task 会话。项目 execpolicy 及宿主强制的凭据、外部发布和生产部署边界仍必须保留。</li>
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 06 与 WEB-OPS-01 至 09 已完成；不要为 WEB-BRAND 重做 Dashboard 信息架构。</li>
-          <li>WEB-BRAND-01 已完成且不得重跑；当前开发机下一项为 <code>WEB-BRAND-02Office Shell and Login Brand Integration.md</code>，完成后再以 fresh Session 执行 03。</li>
+          <li>WEB-BRAND-01/02 已完成且不得重跑；当前开发机下一项只以 fresh Session 执行 <code>WEB-BRAND-03I18n Theme Accessibility Performance Visual Exit Gate.md</code>。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
           <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等待 4 组真实/明确脱敏 golden pair 与业务签字，不得重跑 parser 开发。该外部 gate 不阻塞已批准的 WEB-BRAND。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>

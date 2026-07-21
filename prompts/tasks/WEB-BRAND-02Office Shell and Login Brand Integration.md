@@ -127,3 +127,40 @@ git diff --check
 - 列出现有 Shell/login 行为回归、Docker 测试、截图绝对路径和已知限制。
 - 更新本 Task、任务索引、完成度报告和 `HANDOFF.md` 的真实终态。
 - 下一推荐任务固定为 `WEB-BRAND-03I18n Theme Accessibility Performance Visual Exit Gate.md`。
+
+## 执行结果（2026-07-20）
+
+状态：**Done**。
+
+### Placement 与无障碍策略
+
+- authenticated desktop 的 256px rail 使用原生 228x50 `onDark` wordmark，并保留本地化
+  `Manifest Control Room` descriptor；desktop operational header 不再重复 corporate identity。
+- authenticated `lg` 以下与 anonymous Shell 在 top identity touchpoint 使用同一 `onDark` wordmark；CSS viewport
+  小于 360px（包括放大后空间不足）由 `<picture>` 选择原生 64x64 compact mark，390px 保持完整字标。
+- 每个可见 placement 只有一个 meaningful image，typed locale translator 提供 `Bestar Service CCA` alt；descriptor
+  不重复公司名称。logo 没有伪装为 link/button，keyboard/nav 顺序未改变。
+- `/login` 保持紧凑认证工具，表单继续显示 Authentication、Sign in、Email、Password、API health 和原 error/session
+  行为；企业 identity 只由相邻 top Shell 提供，表单内没有第二个 logo。
+
+### 自动化与浏览器证据
+
+- Docker Web production image/build、lint、typecheck、254/254 unit tests 全部通过；`scripts/healthcheck.sh` 与
+  `git diff --check` 通过。
+- Docker Chromium `auth-login.spec.ts` + `dashboard.spec.ts` 5/5 通过，覆盖真实登录 redirect、持久 cookie、role/RBAC、
+  health/clock、theme/locale、nav active state、Dashboard desktop/mobile overflow 和 lifecycle 双语回归。
+- 新增 `brand-shell.spec.ts`，2/2 通过；浏览器实际断言每个 viewport 只有一个可见 Shell identity、图片已加载、
+  `currentSrc` 在 320px 为 compact mark、其余为 on-dark wordmark，原生 CSS geometry 为 64x64 或 228x50，且无
+  document overflow。临时本地 E2E administrator 已精确清理，数据库残留为 0。
+- 7 张最终截图位于
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-brand-02/`，覆盖 authenticated desktop rail、390px top Shell、
+  anonymous login desktop/mobile、双方 320px compact fallback、en-light、zh-CN-dark 和真实 Chromium 200% zoom。
+  7/7 已按原始分辨率实际查看，未见裁切、拉伸、重叠、错误语言、重复可见 logo 或页面级横向溢出。
+
+### 范围与限制
+
+- 未修改 API、数据库 schema、Worker、Native、权限、业务状态、Excel/PDF/label template；不需要 migration。
+- supplied full wordmark 只有 228x50 raster；真实 200% zoom 会由浏览器正常放大现有 approved artwork，本任务没有
+  伪造高分辨率/vector master。除此之外无已知 WEB-BRAND-02 限制。
+- 下一 fresh supervised Task 固定为 `WEB-BRAND-03I18n Theme Accessibility Performance Visual Exit Gate.md`；
+  本 Session 未启动 03。

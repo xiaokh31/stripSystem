@@ -20,7 +20,7 @@ test("anonymous login keeps one responsive corporate identity", async ({
   await setPresentation(page.context(), "en", "light");
   await page.setViewportSize({ height: 768, width: 1366 });
   await page.goto("/login");
-  await assertSingleVisibleBrand(page, "wordmark-dimensional.png", 228, 50);
+  await assertSingleVisibleBrand(page, "wordmark-on-dark.png", 228, 50);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   await expect(page.getByLabel("Email")).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
@@ -34,7 +34,7 @@ test("anonymous login keeps one responsive corporate identity", async ({
   await setPresentation(page.context(), "zh-CN", "dark");
   await page.setViewportSize({ height: 844, width: 390 });
   await page.goto("/login");
-  await assertSingleVisibleBrand(page, "wordmark-dimensional.png", 228, 50);
+  await assertSingleVisibleBrand(page, "wordmark-on-dark.png", 228, 50);
   await expect(page.getByRole("heading", { name: "登录" })).toBeVisible();
   await expect(page.getByLabel("邮箱")).toBeVisible();
   await assertNoDocumentOverflow(page);
@@ -68,7 +68,7 @@ test("authenticated shell places the wordmark in rail or responsive top shell", 
   await page.goto("/");
   await expect(page.locator('[data-shell-brand="desktop-rail"]')).toBeVisible();
   await expect(page.locator('[data-shell-brand="top"]')).toBeHidden();
-  await assertSingleVisibleBrand(page, "wordmark-dimensional.png", 228, 50);
+  await assertSingleVisibleBrand(page, "wordmark-on-dark.png", 228, 50);
   await expect(
     page
       .locator('[data-shell-brand="desktop-rail"]')
@@ -87,7 +87,7 @@ test("authenticated shell places the wordmark in rail or responsive top shell", 
   await page.goto("/");
   await expect(page.locator('[data-shell-brand="desktop-rail"]')).toBeHidden();
   await expect(page.locator('[data-shell-brand="top"]')).toBeVisible();
-  await assertSingleVisibleBrand(page, "wordmark-dimensional.png", 228, 50);
+  await assertSingleVisibleBrand(page, "wordmark-on-dark.png", 228, 50);
   await expect(
     page
       .locator('[data-shell-brand="top"]')
@@ -192,7 +192,7 @@ async function verifyDesktopZoom(token: string, userDataDir: string): Promise<vo
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto("/");
     await setRealBrowserZoom(page, worker, 2, 1366);
-    await assertSingleVisibleBrand(page, "wordmark-dimensional.png", 228, 50);
+    await assertSingleVisibleBrand(page, "wordmark-on-dark.png", 228, 50);
     await assertNoDocumentOverflow(page);
     await captureBrowserViewport(
       page,
