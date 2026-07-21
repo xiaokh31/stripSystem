@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-18
+- 2026-07-20
 
 依据：
 - docs/reports/project-completion-status.html
@@ -14,6 +14,7 @@
 - docs/runbooks/native-scan-app-release.md
 - docs/reports/business-agent-execution-time-analysis-2026-07-15.html
 - docs/product/04-adaptive-parser-profiles.md
+- docs/product/05-web-corporate-brand-assets.md
 - docs/adr/0004-approved-parser-profiles.md
 - HANDOFF.md
 
@@ -49,7 +50,7 @@
   双语来源 UI，并通过真实工作簿、全 API E2E、Worker 性能和 Chromium 200% zoom 门禁。PARSER-PROFILE-08 已复跑
   full-stack、负向/RBAC/i18n/视觉/性能/清理退出门禁并新增 verification report 与双语操作 runbook；因尚未提供同一
   新客户布局的 4 组不同 SHA source + approved outcome pair 及初次批准/三次连续复核业务签字，不能标记 Done。
-  本 Session 不启动其他 Task。
+  该 parser Task 不再重复启动；其外部数据验收独立保留，不阻塞用户于 2026-07-20 新批准的 WEB-BRAND 开发线路。
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
@@ -75,6 +76,10 @@
 - 新增柜子/库存运营优化 WEB-OPS-06 至 09：两个页面共享可访问的柜号模糊联想；柜子索引增加创建时间和
   时间/柜号/状态六种稳定排序；库存页增加 5/10/20/50 服务端分页、同口径排序、global totals 和内容驱动高度；
   最终以不超过 36 张高信号截图完成双语、主题、RBAC、库存事务和视觉关闭门禁。
+- 2026-07-20 新增 Web 企业品牌资源线路 WEB-BRAND-01 至 03；WEB-BRAND-01 已完成 canonical artwork、typed
+  frozen asset map、共享 BrandLogo、favicon/16/32/Apple metadata identity、starter SVG 清理与 Docker/nginx/
+  Chromium 门禁。下一项为 WEB-BRAND-02 Shell/login 接入，随后由 03 关闭 i18n/theme/accessibility/performance/
+  visual 门禁。不得把 alternate logo 强塞进业务面板，也不得在没有高分辨率 master 时伪造 192/512 PWA icon。
 - Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
   `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
@@ -84,7 +89,7 @@
   当前开发机新增 8 个 parser-profile 代码任务，01 至 07 已完成；04 的 post-DONE review 缺口已通过 fresh supervised
   remediation 关闭，05 的 completion snapshot/approval/governance、06 的 review/evidence/trust 与 07 的 trusted
   auto-parse/drift/fallback 门禁已通过。PARSER-PROFILE-08 的仓库与自动化门禁也已完成，只等待 4 组真实/明确脱敏
-  golden pair 和业务签字；不得重跑开发或启动下一 Task。
+  golden pair 和业务签字；不得重跑该 parser 开发。WEB-BRAND 是用户另行批准的新线路，可使用独立 fresh Session 执行。
 - 新增 Windows PowerShell 入口 `scripts\run-business-agent.cmd`。当前无 Docker 的 Windows 主机必须用 `develop`
   implementation-only 模式，只完成业务实现、不运行任何测试/构建/服务/设备检查，且监督器会拒绝 `DONE`；完整验证
   仍交给具备环境的主机。
@@ -161,7 +166,7 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-18 MDT 复核）：
+当前执行队列（2026-07-20 MDT 复核）：
 
 ### A. 当前开发机立即执行
 
@@ -178,7 +183,18 @@ selection 与自适应工作区；`WEB-OPS-09` 已完成 06-08 的 i18n、access
 三次 supervisor 运行均合法停在 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。不要第四次启动
 `NATIVE-AUTH-01`，也不要重复 WEB-OPS 关闭任务。
 
-新确认的 parser-profile 开发线路必须逐个使用 fresh supervised Session：
+当前唯一无需外部样本/设备即可执行的新开发线路必须逐个使用 fresh supervised Session；WEB-BRAND-01 已完成，
+不得重跑：
+
+1. `WEB-BRAND-02Office Shell and Login Brand Integration.md`
+2. `WEB-BRAND-03I18n Theme Accessibility Performance Visual Exit Gate.md`
+
+严格按 02 -> 03 执行，一次只运行一个 Task。01 已规范 `images/logs` typo、共享 semantic logo contract 与
+favicon/touch identity；02 接入 desktop rail、tablet/mobile top Shell 和 anonymous login；03 使用不超过 18 张
+高信号截图关闭 en/zh-CN、light/dark/system、320-2560px、125%/200% zoom、a11y、asset request 和无 CLS 门禁。
+本线路不修改 API、数据库、Native 或 Excel/PDF/label 模板。
+
+已完成开发、只剩外部数据验收的 parser-profile 线路如下，不得重跑 01 至 08 的仓库开发：
 
 1. `PARSER-PROFILE-01Learning Case Linkage and Domain Schema.md`
 2. `PARSER-PROFILE-02Deterministic Workbook Fingerprint and Mapping Engine.md`
@@ -205,7 +221,7 @@ ACTIVE + REVIEW_REQUIRED + 0/3、pause/resume/retire/fork、RBAC、i18n 和 Dock
 recheck、material correction demotion、bounded selection observability、性能预算与双语来源 UI，并通过完整 Docker
 回归和真实浏览器门禁。`PARSER-PROFILE-08` 已完成当前环境 full-stack/i18n/视觉/性能/清理自动化和运维/验证文档，
 但缺少 4 组真实/明确脱敏 golden pair 与初次批准、三次连续无实质修正复核签字，保持
-`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`；不得启动下一 Task，也不得一次把多个 Task 放入同一 Session。
+`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`；不得再次启动 parser Task，也不得一次把多个 WEB-BRAND Task 放入同一 Session。
 
 ### B. 获得真实数据、打印环境或 Android/iOS 设备后
 
@@ -281,6 +297,8 @@ Deferred，按现场反馈再执行：
 - WEB-DASHBOARD-00 后台视觉方向 brief：完成；WEB-DASHBOARD-01 真实 dashboard API：完成；WEB-DASHBOARD-02 Shell visual system：完成；WEB-DASHBOARD-03 首页运营中控台 UI：完成；WEB-DASHBOARD-04 dashboard QA/i18n/full-stack role smoke：完成。
 - 持久化登录：完成；AUTH-SESSION-01 已关闭，默认 400 天长会话并保留后端实时账号/权限校验。
 - 柜子库存人工消库存：完成；INVENTORY-ADJUST-01 至 03 已覆盖 API/RBAC/audit/统计、Web/i18n 与 Docker full-stack regression。
+- Web 企业 logo：WEB-BRAND-01 资源 contract/browser identity 已完成；下一项 WEB-BRAND-02，之后执行
+  WEB-BRAND-03，严格 i18n 为每个 Task 的发布硬门禁。
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile；macOS/Linux 使用 `scripts/run-business-agent.sh task '<task-file>'`，
@@ -289,20 +307,22 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
-3. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
-4. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
-   不得重跑开发、启动下一 Task，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。`NATIVE-AUTH-01` 已连续三次合法返回 external pending，
-   不要第四次重复运行；设备项只按现有报告人工补证据。
-5. Parser-profile 线路之外的下一 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行
-   `UNLOAD-PALLET-04`；只有 iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate
-   已关闭时执行 `P5-PILOT-01`。
-6. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
+2. WEB-BRAND-01 已达到受监督 DONE，不得重跑；当前下一项为
+   `WEB-BRAND-02Office Shell and Login Brand Integration.md`，之后执行 WEB-BRAND-03。不得并行编辑同一 checkout，
+   也不得跳过最终视觉/i18n 门禁。
+3. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
+4. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
+5. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
+   不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞已批准的 WEB-BRAND。
+   `NATIVE-AUTH-01` 已连续三次合法返回 external pending，不要第四次重复运行；设备项只按现有报告人工补证据。
+6. WEB-BRAND 之外的 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
+   iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate 已关闭时执行 `P5-PILOT-01`。
+7. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
    不等待或启动 Windows App。
-7. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+8. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
    `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
-8. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
+9. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
    不要重复开发。
-9. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
-10. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。
-11. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
+10. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
+11. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。
+12. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。

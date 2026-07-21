@@ -22,6 +22,7 @@ docs/architecture/*
 !docs/product/
 !docs/product/01-cross-platform-mobile-scan-app.md
 !docs/product/04-adaptive-parser-profiles.md
+!docs/product/05-web-corporate-brand-assets.md
 !docs/runbooks/
 docs/runbooks/*
 !docs/runbooks/local-deployment.md
@@ -157,6 +158,7 @@ prompts/tasks/*
 !prompts/tasks/DOCKER-CACHE*.md
 !prompts/tasks/WEB-OPS*.md
 !prompts/tasks/PARSER-PROFILE*.md
+!prompts/tasks/WEB-BRAND*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

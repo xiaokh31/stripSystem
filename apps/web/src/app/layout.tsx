@@ -6,6 +6,7 @@ import {
   type OfficeShellHealth,
 } from "@/components/layout/office-shell";
 import { getApiHealth } from "@/lib/api-client";
+import { getBrandIconMetadata } from "@/lib/brand-assets";
 import { getServerLocale } from "@/lib/i18n/server";
 import { createTranslator } from "@/lib/i18n/translator";
 import { getServerCurrentUser } from "@/lib/server-auth";
@@ -23,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("Bestar Warehouse Office"),
     description: t("Office console for Bestar warehouse unloading operations"),
+    icons: getBrandIconMetadata(),
   };
 }
 

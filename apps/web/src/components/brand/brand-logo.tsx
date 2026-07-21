@@ -1,0 +1,70 @@
+import Image from "next/image";
+import {
+  BRAND_ASSETS,
+  type BrandLogoVariant,
+} from "../../lib/brand-assets";
+import type { Locale, MessageKey } from "../../lib/i18n/catalog";
+import { createTranslator } from "../../lib/i18n/translator";
+
+type BrandLogoAccessibility =
+  | {
+      accessibility: "decorative";
+      accessibleName?: never;
+    }
+  | {
+      accessibility: "meaningful";
+      accessibleName: MessageKey;
+      locale: Locale;
+    };
+
+export type BrandLogoProps = BrandLogoAccessibility & {
+  preload?: boolean;
+  responsiveCompact?: boolean;
+  variant: BrandLogoVariant;
+};
+
+export function BrandLogo(props: BrandLogoProps) {
+  const asset = BRAND_ASSETS[props.variant];
+  const alt =
+    props.accessibility === "meaningful"
+      ? createTranslator(props.locale).t(props.accessibleName)
+      : "";
+
+  const image = (
+    <Image
+      alt={alt}
+      className={props.responsiveCompact ? "shell-brand-logo-responsive" : undefined}
+      data-brand-logo={props.variant}
+      height={asset.naturalHeight}
+      preload={props.preload ?? false}
+      sizes={
+        props.responsiveCompact
+          ? `(max-width: 359px) ${BRAND_ASSETS.icon.naturalWidth}px, ${asset.naturalWidth}px`
+          : `${asset.naturalWidth}px`
+      }
+      src={asset.src}
+      style={
+        props.responsiveCompact
+          ? undefined
+          : { height: "auto", maxWidth: "100%", width: asset.naturalWidth }
+      }
+      width={asset.naturalWidth}
+    />
+  );
+
+  if (!props.responsiveCompact) {
+    return image;
+  }
+
+  return (
+    <picture data-brand-logo-responsive="true">
+      <source
+        height={BRAND_ASSETS.icon.naturalHeight}
+        media="(max-width: 359px)"
+        srcSet={BRAND_ASSETS.icon.src}
+        width={BRAND_ASSETS.icon.naturalWidth}
+      />
+      {image}
+    </picture>
+  );
+}

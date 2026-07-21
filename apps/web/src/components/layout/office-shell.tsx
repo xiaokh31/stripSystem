@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { StatusPill } from "@/components/dashboard";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { InventorySyncRefreshListener } from "@/components/inventory/inventory-sync-refresh";
@@ -110,11 +111,18 @@ export function OfficeShell({
       {currentUser ? <InventorySyncRefreshListener /> : null}
       {currentUser ? (
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-black/20 bg-[var(--dock-steel)] text-white lg:flex">
-          <div className="border-b border-white/10 px-4 py-5">
-            <p className="text-xs font-semibold text-zinc-300">
-              {t("Bestar Service CCA")}
-            </p>
-            <p className="font-control mt-2 text-xl font-semibold">
+          <div
+            className="border-b border-white/10 px-3 py-5"
+            data-shell-brand="desktop-rail"
+          >
+            <BrandLogo
+              accessibility="meaningful"
+              accessibleName="Bestar Service CCA"
+              locale={locale}
+              preload
+              variant="onDark"
+            />
+            <p className="font-control mt-3 text-sm font-semibold text-zinc-200">
               {t("Manifest Control Room")}
             </p>
           </div>
@@ -137,14 +145,21 @@ export function OfficeShell({
         <header className="sticky top-0 z-30 border-b border-[var(--line-soft)] bg-[var(--dock-steel)] text-white shadow-sm">
           <div className="flex w-full flex-col">
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-zinc-300">
-                  {t("Bestar Service CCA")}
-                </p>
-                <p className="font-control mt-1 text-lg font-semibold sm:hidden">
+              <div
+                className={currentUser ? "min-w-0 lg:hidden" : "min-w-0"}
+                data-shell-brand="top"
+              >
+                <BrandLogo
+                  accessibility="meaningful"
+                  accessibleName="Bestar Service CCA"
+                  locale={locale}
+                  responsiveCompact
+                  variant="onDark"
+                />
+                <p className="font-control mt-2 text-sm font-semibold text-zinc-200 sm:hidden">
                   {t("Manifest Control Room")}
                 </p>
-                <p className="font-control mt-1 hidden text-lg font-semibold sm:block lg:hidden">
+                <p className="font-control mt-2 hidden text-sm font-semibold text-zinc-200 sm:block">
                   {t("Warehouse Office")}
                 </p>
               </div>
@@ -172,8 +187,8 @@ export function OfficeShell({
               </div>
             ) : null}
           </div>
-      </header>
-      {children}
+        </header>
+        {children}
       </div>
     </div>
   );
