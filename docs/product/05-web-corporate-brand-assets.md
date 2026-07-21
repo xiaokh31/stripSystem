@@ -4,7 +4,7 @@
 
 - Product requirement accepted: 2026-07-20.
 - Scope: Bestar Office Web only.
-- Delivery tasks: `WEB-BRAND-01` through `WEB-BRAND-03`.
+- Delivery tasks: `WEB-BRAND-01` through `WEB-BRAND-04`.
 - Strict `en` / `zh-CN` localization remains a release gate.
 
 ## Problem
@@ -14,7 +14,8 @@ rail and top header, while the browser still uses the original starter favicon.
 The newly supplied Bestar logo files were originally placed under
 `apps/web/public/images/logs/` without a canonical naming contract, surface rules,
 Shell/login integration or browser icon metadata. WEB-BRAND-01 closed the asset
-and browser-identity portion; Shell/login placement remains in WEB-BRAND-02.
+and browser-identity portion, WEB-BRAND-02 closed Shell/login placement, and
+WEB-BRAND-04 removed the dark matte exposed by the supplied on-dark wordmark.
 
 Simply inserting one image would leave duplicate branding, dark-theme contrast
 failures, narrow-screen clipping, layout shifts and stale generic browser
@@ -43,7 +44,7 @@ the table below preserves the supplied filenames for audit mapping.
 
 | Source file | Actual dimensions | Observed role | Product decision |
 | --- | ---: | --- | --- |
-| `logo-dark.png` | 228 x 50 | Blue symbol with white BESTAR wordmark | Full wordmark on dark surfaces |
+| `logo-dark.png` | 228 x 50 | Blue symbol with white BESTAR wordmark over a mostly opaque dark matte | Full wordmark color source on dark surfaces; apply the approved transparent alternate's matching alpha contour so the Shell remains visible through its background |
 | `logo-white.png` | 228 x 50 | Blue symbol with dark BESTAR wordmark | Full wordmark on light surfaces |
 | `logo.png` | 228 x 50 | Dimensional gray/black legacy wordmark | Preserve as an approved alternate; do not scatter it through operational UI |
 | `logo-icon.png` | 64 x 64 | Compact Bestar mark | Compact Web identity at or below its native size |
@@ -96,6 +97,9 @@ or every page section.
   cover`.
 - Do not recolor, filter, add a new shadow, place the mark inside a circular
   badge, or use the logo as a translucent background decoration.
+- The on-dark Shell placement must be visually transparent outside the symbol
+  and letters. A black or differently colored rectangular image matte is not an
+  acceptable part of the Shell identity.
 - Render the 64px compact mark at no more than its native dimensions.
 - Give every rendered image explicit dimensions or an aspect-ratio box to
   prevent cumulative layout shift.
@@ -131,6 +135,9 @@ or every page section.
    while preserving each file's actual dimensions and intended use.
 6. Existing login, session, navigation, RBAC, health, clock and theme behavior
    remains authoritative; branding cannot change those workflows.
+7. The approved dimensional alternate may supply only its matching transparent
+   alpha contour to the on-dark wordmark. Its gray/black color pixels must not
+   replace the corporate blue symbol or white BESTAR wordmark.
 
 ## Data And Component Concepts
 
@@ -201,12 +208,17 @@ I18n is a hard gate even though image pixels themselves are not translated.
    tablet/mobile Shell and unauthenticated login without changing operations.
 3. **WEB-BRAND-03**: close i18n, theme, accessibility, responsive, metadata,
    performance and visual regression gates in Docker full stack.
+4. **WEB-BRAND-04**: remove the supplied on-dark wordmark's opaque matte while
+   preserving its color, 228x50 geometry, compact fallback and all prior gates.
 
-Delivery status: all three phases reached supervised Done on 2026-07-20.
+Delivery status: all four phases reached Done on 2026-07-20.
 WEB-BRAND-03 corrected the semantic on-dark/on-light asset mapping and closed
 the final gate with 255 unit tests, Chromium 3/3 plus 5/5 regression tests, and
-10 original-resolution visual inspections. The absent 192/512px PWA master
-remains outside this requirement rather than an open blocker.
+10 original-resolution visual inspections. WEB-BRAND-04 then corrected the
+on-dark asset's visible matte with its approved matching transparent contour;
+256 unit tests, Chromium 3/3 plus 5/5 regressions and the same 10-view visual
+matrix passed. The absent 192/512px PWA master remains outside this requirement
+rather than an open blocker.
 
 ## Acceptance Criteria
 
@@ -215,17 +227,19 @@ remains outside this requirement rather than an open blocker.
    have one clear top-Shell identity.
 3. The Shell never stretches, crops, duplicates or hides the logo behind other
    controls.
-4. Light, dark and system theme paths select a contrast-safe asset from the
+4. The dark Shell is visible through every area outside the on-dark symbol and
+   wordmark; no rectangular image matte is visible.
+5. Light, dark and system theme paths select a contrast-safe asset from the
    first rendered frame.
-5. English and Chinese locale switching remains explicit and single-language,
+6. English and Chinese locale switching remains explicit and single-language,
    with no hydration flash or unmanaged accessible text.
-6. Existing navigation, route-active state, health, user/roles, RBAC, logout,
+7. Existing navigation, route-active state, health, user/roles, RBAC, logout,
    theme and language controls are behaviorally unchanged.
-7. No generic Next.js/Vercel starter image remains referenced or shipped when
+8. No generic Next.js/Vercel starter image remains referenced or shipped when
    it is confirmed unused.
-8. Web lint, typecheck, unit tests, production build, focused Docker Playwright,
+9. Web lint, typecheck, unit tests, production build, focused Docker Playwright,
    asset endpoint checks, screenshots and `git diff --check` pass.
-9. No API, database, Worker, payroll, inventory, scanning or report-template
+10. No API, database, Worker, payroll, inventory, scanning or report-template
    behavior changes.
 
 ## Testing Decisions
@@ -243,8 +257,9 @@ remains outside this requirement rather than an open blocker.
 
 ## Assumptions And Open Questions
 
-- The observed logo colors and transparent backgrounds are approved corporate
-  artwork.
+- The observed logo colors are approved corporate artwork. The compact mark and
+  dimensional alternate provide real transparent alpha; the full light/dark
+  files contain visible mattes and must not be assumed transparent.
 - `logo-dark.png` means "for a dark surface" and `logo-white.png` means "for a
   light surface", based on inspected pixels rather than filename alone.
 - A vector/high-resolution master has not been supplied. If future PWA stores,

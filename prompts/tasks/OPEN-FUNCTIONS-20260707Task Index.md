@@ -76,11 +76,12 @@
 - 新增柜子/库存运营优化 WEB-OPS-06 至 09：两个页面共享可访问的柜号模糊联想；柜子索引增加创建时间和
   时间/柜号/状态六种稳定排序；库存页增加 5/10/20/50 服务端分页、同口径排序、global totals 和内容驱动高度；
   最终以不超过 36 张高信号截图完成双语、主题、RBAC、库存事务和视觉关闭门禁。
-- 2026-07-20 新增 Web 企业品牌资源线路 WEB-BRAND-01 至 03；WEB-BRAND-01 已完成 canonical artwork、typed
+- 2026-07-20 新增 Web 企业品牌资源线路 WEB-BRAND-01 至 04；WEB-BRAND-01 已完成 canonical artwork、typed
   frozen asset map、共享 BrandLogo、favicon/16/32/Apple metadata identity、starter SVG 清理与 Docker/nginx/
   Chromium 门禁；WEB-BRAND-02 已完成 desktop rail、responsive top Shell、anonymous login、320px compact fallback
   与 Docker/Chromium 门禁；WEB-BRAND-03 已修复 semantic asset map，完成 i18n/theme/a11y/performance/network/
-  CLS/visual 关闭门禁，通过 255 unit、Chromium 3/3 + 5/5、10 张逐图检查、build/healthcheck。不得把
+  CLS/visual 关闭门禁；WEB-BRAND-04 已修复 on-dark wordmark 的不透明矩形底色，同时保持原色、geometry 与 compact
+  fallback，通过 256 unit、Chromium 3/3 + 5/5、10 张逐图检查、build/healthcheck。不得把
   alternate logo 强塞进业务面板，也不得在没有高分辨率 master 时伪造 192/512 PWA icon。
 - Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
@@ -185,11 +186,12 @@ selection 与自适应工作区；`WEB-OPS-09` 已完成 06-08 的 i18n、access
 三次 supervisor 运行均合法停在 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。不要第四次启动
 `NATIVE-AUTH-01`，也不要重复 WEB-OPS 关闭任务。
 
-WEB-BRAND-01/02/03 已全部达到受监督 Done，不得重跑；本企业品牌线路没有剩余开发 Task。01 已规范
+WEB-BRAND-01/02/03/04 已全部达到 Done，不得重跑；本企业品牌线路没有剩余开发 Task。01 已规范
 `images/logs` typo、共享 semantic logo contract 与 favicon/touch identity；02 已接入 desktop rail、
 tablet/mobile top Shell 和 anonymous login；03 以 10 张高信号截图关闭 en/zh-CN、light/dark/system、
-320-2560px、125%/200% zoom、a11y、asset request 和无 CLS 门禁。本线路未修改 API、数据库、Native 或
-Excel/PDF/label 模板，也未伪造 192/512 PWA icon。
+320-2560px、125%/200% zoom、a11y、asset request 和无 CLS 门禁；04 去除了左上角 on-dark wordmark 的黑色矩形
+底块，并保留 320px 原生透明 compact mark。本线路未修改 API、数据库、Native 或 Excel/PDF/label 模板，也未伪造
+192/512 PWA icon。
 
 已完成开发、只剩外部数据验收的 parser-profile 线路如下，不得重跑 01 至 08 的仓库开发：
 
@@ -294,8 +296,9 @@ Deferred，按现场反馈再执行：
 - WEB-DASHBOARD-00 后台视觉方向 brief：完成；WEB-DASHBOARD-01 真实 dashboard API：完成；WEB-DASHBOARD-02 Shell visual system：完成；WEB-DASHBOARD-03 首页运营中控台 UI：完成；WEB-DASHBOARD-04 dashboard QA/i18n/full-stack role smoke：完成。
 - 持久化登录：完成；AUTH-SESSION-01 已关闭，默认 400 天长会话并保留后端实时账号/权限校验。
 - 柜子库存人工消库存：完成；INVENTORY-ADJUST-01 至 03 已覆盖 API/RBAC/audit/统计、Web/i18n 与 Docker full-stack regression。
-- Web 企业 logo：WEB-BRAND-01 资源 contract/browser identity、WEB-BRAND-02 Shell/login placement 与
-  WEB-BRAND-03 strict i18n/theme/a11y/performance/visual exit gate 已全部完成。
+- Web 企业 logo：WEB-BRAND-01 资源 contract/browser identity、WEB-BRAND-02 Shell/login placement、
+  WEB-BRAND-03 strict i18n/theme/a11y/performance/visual exit gate 与 WEB-BRAND-04 transparent Shell wordmark
+  regression 已全部完成。
 
 给业务开发 agent 的建议执行顺序：
 1. 后续 Task 都先安装最新 business-agent profile；macOS/Linux 使用 `scripts/run-business-agent.sh task '<task-file>'`，
@@ -304,7 +307,7 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. WEB-BRAND-01/02/03 已达到受监督 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
+2. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
 3. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
 4. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。

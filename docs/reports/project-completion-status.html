@@ -399,17 +399,19 @@
           已完成当前环境 full-stack、负向/RBAC、严格 i18n、视觉、性能、迁移、清理和文档门禁；因业务尚未提供同一
           新客户布局的 4 组不同 SHA source + approved outcome pair，以及初次批准和三次连续无实质修正复核签字，状态为
           Code complete / External data gate，不能标记 Complete；该 parser Task 不再重复运行，但其外部数据门禁
-          不阻塞用户于 2026-07-20 新批准的 WEB-BRAND-01 至 03。
+          不阻塞用户于 2026-07-20 新批准的 WEB-BRAND-01 至 04。
           WEB-BRAND-01 已把用户提供的 wordmark、compact mark、favicon 与 Apple touch icon 规范到
           <code>apps/web/public/images/logos/</code>，完成 typed frozen asset map、BrandLogo、browser metadata identity、
           starter 清理与 Docker/nginx/Chromium 门禁；WEB-BRAND-02 已接入 desktop rail、responsive mobile Shell 与
           anonymous login，并以 7 张已查看截图和真实 200% zoom 关闭 placement 门禁；WEB-BRAND-03 已修复
           semantic on-dark/on-light asset map，并以 255 unit、Chromium 3/3 + 5/5、10 张逐图检查关闭严格 i18n、theme、
-          accessibility、performance、network、CLS 和最终高信号视觉门禁。
+          accessibility、performance、network、CLS 和最终高信号视觉门禁；WEB-BRAND-04 已去除 on-dark wordmark
+          的黑色矩形底块，以 256 unit、Chromium 3/3 + 5/5 和同一 10-view 矩阵确认透明 Shell、compact fallback 与
+          既有行为均保持。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。WEB-BRAND-01/02/03 已全部关闭且不得重跑；此前尚未关闭的
+          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 已全部关闭且不得重跑；此前尚未关闭的
           9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
           Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
@@ -1525,8 +1527,8 @@
             <tr>
               <td>Web corporate logo integration</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-BRAND-01 已完成 canonical asset/browser identity；02 已完成 desktop rail、responsive top Shell、anonymous login 和 320px compact fallback；03 已修复 semantic asset map，并以 255 unit、Chromium 3/3 + 5/5、10 张原分辨率逐图检查关闭 i18n/theme/a11y/performance/network/CLS 门禁。</td>
-              <td>01/02/03 已关闭且不得重跑；未提供 192/512px 或 vector master，PWA store/install icon 明确不在本需求范围，不是 blocker，也未宣称完成。</td>
+              <td>WEB-BRAND-01 已完成 canonical asset/browser identity；02 已完成 desktop rail、responsive top Shell、anonymous login 和 320px compact fallback；03 已关闭 i18n/theme/a11y/performance/network/CLS 门禁；04 已使用批准的透明轮廓去除 on-dark wordmark 黑色矩形底块，并以 256 unit、Chromium 3/3 + 5/5、10 张原分辨率逐图检查关闭回归。</td>
+              <td>01/02/03/04 已关闭且不得重跑；未提供 192/512px 或 vector master，PWA store/install icon 明确不在本需求范围，不是 blocker，也未宣称完成。</td>
             </tr>
             <tr>
               <td>Persistent browser login session</td>
@@ -1874,6 +1876,11 @@
               <td><span class="badge done">Done</span></td>
               <td>已修复 onDark/onLight semantic asset map；en/zh-CN、light/dark/system、320/390/768/1366/1920/2560、真实 125%/200% zoom、asset endpoint/network、a11y、无重复请求/无 CLS 和 clock render boundary 全部通过。Docker lint/typecheck/255 unit/build、Chromium 3/3 + 5/5、10 张逐图检查、healthcheck 和 diff check 通过。</td>
             </tr>
+            <tr>
+              <td>WEB-BRAND-04 Transparent Shell Wordmark Background Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>确认供应的 on-dark RGBA 实际带近乎不透明黑色 matte；现保留蓝白原图并使用同 geometry 的 approved transparent alternate alpha contour，仅在 full wordmark 去底，320px compact mark 继续使用原生透明资源。Docker lint/typecheck/256 unit/build、Chromium 3/3 + 5/5、10 张逐图检查、healthcheck 和 diff check 通过；无新增可见文案或 i18n contract 变更。</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -1887,7 +1894,7 @@
           <li>AGENT-AUTONOMY-01 已修正并增加终态监督；完整 Task 只使用 `scripts/run-business-agent.sh task '&lt;task-file&gt;'`，不要直接 prompt、原始 `exec`、手工 `resume` 或复用其他 Task 会话。项目 execpolicy 及宿主强制的凭据、外部发布和生产部署边界仍必须保留。</li>
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
           <li>后台体验升级 WEB-DASHBOARD-00 至 06 与 WEB-OPS-01 至 09 已完成；不要为 WEB-BRAND 重做 Dashboard 信息架构。</li>
-          <li>WEB-BRAND-01/02/03 已全部完成且不得重跑；后续品牌范围若扩展到 PWA 192/512 icon、Native 或 Excel/PDF/label，必须另立 Task 并取得 approved master/范围决定。</li>
+          <li>WEB-BRAND-01/02/03/04 已全部完成且不得重跑；04 已关闭透明底现场回归。后续品牌范围若扩展到 PWA 192/512 icon、Native 或 Excel/PDF/label，必须另立 Task 并取得 approved master/范围决定。</li>
           <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
           <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等待 4 组真实/明确脱敏 golden pair 与业务签字，不得重跑 parser 开发。该外部 gate 不阻塞已批准的 WEB-BRAND。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>

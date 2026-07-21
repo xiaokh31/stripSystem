@@ -111,6 +111,11 @@ test("brand logo variants keep native geometry and explicit alt behavior", () =>
     assert.match(meaningfulHtml, new RegExp(`height="${asset.naturalHeight}"`));
     assert.match(meaningfulHtml, new RegExp(`data-brand-logo="${variant}"`));
     assert.doesNotMatch(meaningfulHtml, /object-fit:cover|filter:/);
+    if (variant === "onDark") {
+      assert.match(meaningfulHtml, /class="brand-logo-transparent-on-dark"/);
+    } else {
+      assert.doesNotMatch(meaningfulHtml, /brand-logo-transparent-on-dark/);
+    }
   }
 
   assert.equal(BRAND_ASSETS.onDark.naturalWidth / BRAND_ASSETS.onDark.naturalHeight, 228 / 50);
@@ -133,7 +138,10 @@ test("responsive shell logo selects the compact supplied mark below 360px", () =
   assert.match(html, /<picture data-brand-logo-responsive="true">/);
   assert.match(html, /media="\(max-width: 359px\)"/);
   assert.match(html, /srcSet="\/images\/logos\/compact-mark\.png"/);
-  assert.match(html, /class="shell-brand-logo-responsive"/);
+  assert.match(
+    html,
+    /class="brand-logo-transparent-on-dark shell-brand-logo-responsive"/,
+  );
   assert.match(html, /alt="Bestar Service CCA"/);
   assert.equal((html.match(/alt="Bestar Service CCA"/g) ?? []).length, 1);
 });
@@ -150,6 +158,23 @@ test("brand rendering has no client theme selector, listener, timer, or asset sw
   );
   assert.doesNotMatch(componentSource, /wordmark-(?:on-dark|on-light|dimensional)/);
   assert.match(componentSource, /const asset = BRAND_ASSETS\[props\.variant\]/);
+});
+
+test("on-dark wordmark uses the approved transparent alpha mask and resets it for compact mode", () => {
+  const styles = fs.readFileSync(
+    path.join(process.cwd(), "src/app/globals.css"),
+    "utf8",
+  );
+
+  assert.match(
+    styles,
+    /\.brand-logo-transparent-on-dark\s*\{[\s\S]*mask-image:\s*url\("\/images\/logos\/wordmark-dimensional\.png"\)/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 359px\)[\s\S]*\.brand-logo-transparent-on-dark\.shell-brand-logo-responsive\s*\{[\s\S]*mask-image:\s*none/,
+  );
+  assert.doesNotMatch(styles, /mix-blend-mode|background(?:-color)?:\s*(?:black|#000)/);
 });
 
 test("browser icon metadata uses only canonical typed asset URLs", () => {

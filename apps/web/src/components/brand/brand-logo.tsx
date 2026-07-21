@@ -25,6 +25,12 @@ export type BrandLogoProps = BrandLogoAccessibility & {
 
 export function BrandLogo(props: BrandLogoProps) {
   const asset = BRAND_ASSETS[props.variant];
+  const className = [
+    props.variant === "onDark" ? "brand-logo-transparent-on-dark" : null,
+    props.responsiveCompact ? "shell-brand-logo-responsive" : null,
+  ]
+    .filter(Boolean)
+    .join(" ") || undefined;
   const alt =
     props.accessibility === "meaningful"
       ? createTranslator(props.locale).t(props.accessibleName)
@@ -33,7 +39,7 @@ export function BrandLogo(props: BrandLogoProps) {
   const image = (
     <Image
       alt={alt}
-      className={props.responsiveCompact ? "shell-brand-logo-responsive" : undefined}
+      className={className}
       data-brand-logo={props.variant}
       height={asset.naturalHeight}
       preload={props.preload ?? false}

@@ -188,6 +188,17 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+.brand-logo-transparent-on-dark {
+  -webkit-mask-image: url("/images/logos/wordmark-dimensional.png");
+  mask-image: url("/images/logos/wordmark-dimensional.png");
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
 .shell-brand-logo-responsive {
   display: block;
   width: 228px;
@@ -196,6 +207,11 @@ body {
 }
 
 @media (max-width: 359px) {
+  .brand-logo-transparent-on-dark.shell-brand-logo-responsive {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
   .shell-brand-logo-responsive {
     width: 64px;
     height: 64px;

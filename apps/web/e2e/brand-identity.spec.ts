@@ -296,10 +296,16 @@ test("WEB-BRAND-03 closes responsive, locale, theme, accessibility, request, and
     ).toEqual([]);
     expect(
       imageRequests.filter((url) =>
-        /wordmark-(?:on-light|dimensional)\.png/i.test(decodeURIComponent(url)),
+        /wordmark-on-light\.png/i.test(decodeURIComponent(url)),
       ),
-      "fixed dark Shell must not request light-surface or alternate wordmarks",
+      "fixed dark Shell must not request the light-surface wordmark",
     ).toEqual([]);
+    expect(
+      imageRequests.some((url) =>
+        /wordmark-dimensional\.png/i.test(decodeURIComponent(url)),
+      ),
+      "fixed dark Shell must load the approved transparent alpha mask",
+    ).toBe(true);
     expect(browserErrors, "console/hydration/missing-translation errors").toEqual([]);
     expect(pageErrors, "page errors").toEqual([]);
     expect(failedRequests, "broken requests").toEqual([]);
@@ -353,10 +359,12 @@ async function assertVisualCase(
   const metrics = await logo.evaluate((image) => {
     const element = image as HTMLImageElement;
     const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
     return {
       asset: new URL(element.currentSrc).pathname,
       complete: element.complete,
       height: box.height,
+      maskImage: style.maskImage || style.getPropertyValue("-webkit-mask-image"),
       naturalHeight: element.naturalHeight,
       naturalWidth: element.naturalWidth,
       width: box.width,
@@ -370,6 +378,9 @@ async function assertVisualCase(
     expect(metrics.naturalHeight).toBe(64);
     expect(metrics.width).toBeLessThanOrEqual(metrics.naturalWidth);
     expect(metrics.height).toBeLessThanOrEqual(metrics.naturalHeight);
+    expect(metrics.maskImage).toBe("none");
+  } else {
+    expect(metrics.maskImage).toContain("wordmark-dimensional.png");
   }
   expect(metrics.width).toBeCloseTo(expectedCompact ? 64 : 228, 0);
   expect(metrics.height).toBeCloseTo(expectedCompact ? 64 : 50, 0);
