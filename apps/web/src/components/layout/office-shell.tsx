@@ -164,7 +164,10 @@ export function OfficeShell({
                 </p>
               </div>
 
-              <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <div
+                className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2"
+                data-shell-actions="true"
+              >
                 <OperationalStatus health={health} locale={locale} />
                 <UserCluster currentUser={currentUser} locale={locale} />
                 <ThemeControl initialTheme={theme} />
@@ -244,7 +247,10 @@ function UserCluster({
   const { t } = createTranslator(locale);
   if (!currentUser) {
     return (
-      <div className="hidden border border-white/10 bg-white/5 px-3 py-2 text-xs sm:block">
+      <div
+        className="hidden border border-white/10 bg-white/5 px-3 py-2 text-xs sm:block"
+        data-shell-user-cluster="anonymous"
+      >
         <p className="font-semibold text-zinc-300">{t("Current user")}</p>
         <p className="mt-1">{t("No active session")}</p>
       </div>
@@ -254,7 +260,10 @@ function UserCluster({
   const userName = currentUser.name ?? currentUser.email ?? currentUser.id;
 
   return (
-    <div className="min-w-0 border border-white/10 bg-white/5 px-3 py-2 text-xs">
+    <div
+      className="min-w-0 border border-white/10 bg-white/5 px-3 py-2 text-xs"
+      data-shell-user-cluster="authenticated"
+    >
       <p className="font-semibold text-zinc-300">{t("Current user")}</p>
       <p
         className="mt-1 max-w-48 truncate font-semibold"

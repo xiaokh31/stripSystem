@@ -109,3 +109,45 @@ git diff --check
 - 列出 asset endpoint、network request、CLS/geometry、a11y、locale/theme/viewport/zoom 结果。
 - 列出 Docker tests、准确通过数量、截图绝对路径和逐图检查结论。
 - 更新 `HANDOFF.md`；已知限制没有则明确写“无 WEB-BRAND 范围内已知限制”。
+
+## 执行结果（2026-07-20）
+
+状态：**Done**。
+
+### Standards / Spec 与实际修复
+
+- Standards：保持 Docker-only、typed i18n、真实 nginx/full-stack、真实 auth/RBAC 与现有 Manifest Control Room
+  视觉系统；无 API、schema、migration、Worker、Native 或业务 contract 变更。临时 E2E ADMIN 与多角色长 identity
+  均在 `finally`/shell trap 中精确清理，最终 `e2e-web-brand-03-%` 账号残留为 0。
+- Spec：修复 `BRAND_ASSETS.onDark` / `onLight` 错误共用 dimensional alternate 的缺陷，恢复
+  `wordmark-on-dark.png` / `wordmark-on-light.png` 的 surface 语义；静态门禁新增 exact path/hash、metadata/BrandLogo
+  i18n boundary，以及无 logo theme listener/timer/asset swap 断言。
+- focused Chromium 覆盖 anonymous `/login`、authenticated `/`、authenticated `/settings`，en/zh-CN、
+  light/dark/system、320/390/768/1366/1920/2560 与真实 125%/200% zoom，并覆盖 ADMIN 和四角色长 identity。
+
+### Asset、i18n、几何、a11y 与性能证据
+
+- `/favicon.ico`、16px、32px、Apple touch icon、on-dark wordmark 和 compact mark 经 nginx 均为 HTTP 200 与正确
+  image MIME；metadata 3/3 focused tests 同时验证 link、body 非空、favicon 内容一致和 starter SVG 404。
+- 最终网络只出现 compact mark 与 on-dark wordmark 的本地同源请求；on-light/dimensional/starter/external image
+  request、broken brand request、console error、pageerror、hydration warning 和 missing translation 均为 0。
+- 10/10 geometry 记录的 logo box 固定为 64x64 或 228x50，rendered ratio 正确、非零且不与 actions/nav/user
+  cluster 相交；`documentScrollWidth === documentClientWidth`，brand layout shift 为 0。
+- 每个可见 placement 恰有一个 `Bestar Service CCA` accessible image name、没有 plain-text duplicate；logo 按产品
+  contract 保持非交互，不伪装 link/button。320px compact mark 不超过原生 64px。
+- locale/theme 切换与 client navigation 不更换 logo、不增加 brand request；2.2 秒 clock probe 只观察到 clock leaf
+  更新，非 clock header mutation 为 0；unit contract 继续证明单 timer/hidden/narrow pause。
+
+### 自动化与视觉检查
+
+- Docker Web lint、typecheck、255/255 unit tests、production build、`scripts/healthcheck.sh` 与
+  `git diff --check` 通过。typecheck 初次发现 E2E readonly cookie 类型错误，修复并重建后通过。
+- Docker Chromium：`brand-identity.spec.ts` 最终 3/3；`auth-login.spec.ts` + `dashboard.spec.ts` 5/5。
+  focused 门禁开发期间修复了 catalog 期望、Next responsive image 像素取整、strict locator、hidden lazy image 与
+  RSC prefetch abort 等测试假阳性；最后两次 3/3 均通过，最后一次保留最终 artifacts。
+- 10 张最终 PNG 与 `brand-exit-evidence.json` 位于
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-brand-03/`。Agent 已用图片查看器按原始分辨率查看 10/10，
+  logo 比例/对比、rail/top breakpoint、长 identity、focus、控件可达性、无重叠/裁切/页面 overflow/混语均通过。
+
+已知限制：**无 WEB-BRAND 范围内已知限制**。供应资源仍无 192/512px 或 vector master；PWA store/install icon
+不在本需求范围，本任务未伪造或宣称完成。

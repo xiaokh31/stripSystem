@@ -186,7 +186,21 @@ test("shared entry boundaries use the explicit translation contract", () => {
   }> = [
     {
       file: "src/app/layout.tsx",
-      requiredSnippets: ["generateMetadata", "createTranslator"],
+      requiredSnippets: [
+        "generateMetadata",
+        "createTranslator",
+        'title: t("Bestar Warehouse Office")',
+        'description: t("Office console for Bestar warehouse unloading operations")',
+        "icons: getBrandIconMetadata()",
+      ],
+    },
+    {
+      file: "src/components/brand/brand-logo.tsx",
+      requiredSnippets: [
+        "createTranslator",
+        "accessibleName: MessageKey",
+        "createTranslator(props.locale).t(props.accessibleName)",
+      ],
     },
     {
       file: "src/app/login/page.tsx",

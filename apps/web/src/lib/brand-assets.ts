@@ -19,14 +19,14 @@ export const BRAND_ASSETS = Object.freeze({
     naturalHeight: 50,
     naturalWidth: 228,
     role: "wordmark",
-    src: "/images/logos/wordmark-dimensional.png",
+    src: "/images/logos/wordmark-on-dark.png",
     surface: "dark",
   }),
   onLight: defineBrandAsset({
     naturalHeight: 50,
     naturalWidth: 228,
     role: "wordmark",
-    src: "/images/logos/wordmark-dimensional.png",
+    src: "/images/logos/wordmark-on-light.png",
     surface: "light",
   }),
   icon: defineBrandAsset({

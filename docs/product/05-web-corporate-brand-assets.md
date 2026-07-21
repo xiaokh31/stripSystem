@@ -202,6 +202,12 @@ I18n is a hard gate even though image pixels themselves are not translated.
 3. **WEB-BRAND-03**: close i18n, theme, accessibility, responsive, metadata,
    performance and visual regression gates in Docker full stack.
 
+Delivery status: all three phases reached supervised Done on 2026-07-20.
+WEB-BRAND-03 corrected the semantic on-dark/on-light asset mapping and closed
+the final gate with 255 unit tests, Chromium 3/3 plus 5/5 regression tests, and
+10 original-resolution visual inspections. The absent 192/512px PWA master
+remains outside this requirement rather than an open blocker.
+
 ## Acceptance Criteria
 
 1. The supplied corporate icons replace the generic browser/favicon identity.

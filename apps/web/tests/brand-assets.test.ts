@@ -63,6 +63,20 @@ test("brand asset contract is immutable and preserves supplied artwork", () => {
     expectedAssets.favicon.sha256,
     "the app fallback must be the supplied corporate favicon",
   );
+
+  assert.equal(BRAND_ASSETS.onDark.src, "/images/logos/wordmark-on-dark.png");
+  assert.equal(BRAND_ASSETS.onDark.surface, "dark");
+  assert.equal(BRAND_ASSETS.onLight.src, "/images/logos/wordmark-on-light.png");
+  assert.equal(BRAND_ASSETS.onLight.surface, "light");
+  assert.equal(
+    BRAND_ASSETS.dimensionalAlternate.src,
+    "/images/logos/wordmark-dimensional.png",
+  );
+  assert.notEqual(BRAND_ASSETS.onDark.src, BRAND_ASSETS.onLight.src);
+  assert.notEqual(
+    BRAND_ASSETS.onDark.src,
+    BRAND_ASSETS.dimensionalAlternate.src,
+  );
 });
 
 test("brand logo variants keep native geometry and explicit alt behavior", () => {
@@ -122,6 +136,20 @@ test("responsive shell logo selects the compact supplied mark below 360px", () =
   assert.match(html, /class="shell-brand-logo-responsive"/);
   assert.match(html, /alt="Bestar Service CCA"/);
   assert.equal((html.match(/alt="Bestar Service CCA"/g) ?? []).length, 1);
+});
+
+test("brand rendering has no client theme selector, listener, timer, or asset swap", () => {
+  const componentSource = fs.readFileSync(
+    path.join(process.cwd(), "src/components/brand/brand-logo.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(
+    componentSource,
+    /useEffect|matchMedia|MutationObserver|setInterval|setTimeout|data-theme|prefers-color-scheme/,
+  );
+  assert.doesNotMatch(componentSource, /wordmark-(?:on-dark|on-light|dimensional)/);
+  assert.match(componentSource, /const asset = BRAND_ASSETS\[props\.variant\]/);
 });
 
 test("browser icon metadata uses only canonical typed asset URLs", () => {
