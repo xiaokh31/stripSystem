@@ -51,6 +51,8 @@ interface AttendanceRowRecord {
   workDate: Date | string;
   dayNumber: number;
   punchTimes: unknown;
+  calculationMethod: string;
+  workIntervals: unknown;
   pairedGrossHours: string | null;
   lunchHours: string;
   calculatedHours: string | null;
@@ -104,6 +106,10 @@ interface AttendanceParseBody {
     employeeId: string | null;
     employeeName: string | null;
     workDate: string;
+    punchTimes: unknown;
+    pairedGrossHours: string | null;
+    calculationMethod: string;
+    workIntervals: unknown;
     lunchHours: string;
     calculatedHours: string | null;
     rawJson: unknown;
@@ -267,7 +273,7 @@ describe('AttendanceImportsController (e2e)', () => {
       id: uploadedBody.id,
       storedPath: uploadedBody.storedPath,
       parseStatus: 'WARNING',
-      parserVersion: 'wage-attendance-v1',
+      parserVersion: 'wage-attendance-v2',
       settlementMonth: '2026-06',
       periodStart: '2026-06-01',
       periodEnd: '2026-06-30',
@@ -287,10 +293,36 @@ describe('AttendanceImportsController (e2e)', () => {
       employeeId: '1',
       employeeName: 'ray',
       workDate: '2026-06-01',
+      calculationMethod: 'FIRST_LAST_FALLBACK',
+      calculatedHours: '0.00',
     });
+    expect(rayFirstDay?.workIntervals).toEqual([
+      expect.objectContaining({ minutes: 0, hours: 0 }),
+    ]);
     expect(rayFirstDay?.rawJson).toMatchObject({
       workDate: '2026-06-01',
     });
+    const threePunchDay = parsedBody.rows.find(
+      (row) => Array.isArray(row.punchTimes) && row.punchTimes.length === 3,
+    );
+    expect(threePunchDay).toMatchObject({
+      punchTimes: ['09:00', '17:09', '17:10'],
+      calculationMethod: 'FIRST_LAST_FALLBACK',
+      pairedGrossHours: '8.17',
+      lunchHours: '0.50',
+      calculatedHours: '7.67',
+      workIntervals: [
+        {
+          start: '09:00',
+          end: '17:10',
+          minutes: 490,
+          hours: 8.17,
+        },
+      ],
+    });
+    expect(threePunchDay?.warnings).toEqual([
+      expect.objectContaining({ code: 'ODD_PUNCH_COUNT' }),
+    ]);
     expect(attendanceRows).toHaveLength(390);
     expect(new Set(attendanceRows.map((row) => row.rowKey)).size).toBe(390);
     expect(attendanceImports[0].storedPath).toBe(uploadedBody.storedPath);
@@ -331,7 +363,7 @@ describe('AttendanceImportsController (e2e)', () => {
       .expect((response) => {
         expect(response.body).toMatchObject({
           parsed_result: {
-            parserVersion: 'wage-attendance-v1',
+            parserVersion: 'wage-attendance-v2',
           },
           task_status: 'WARNING',
         });
@@ -554,6 +586,8 @@ describe('AttendanceImportsController (e2e)', () => {
             workDate: row.workDate,
             dayNumber: row.dayNumber,
             punchTimes: row.punchTimes,
+            calculationMethod: row.calculationMethod,
+            workIntervals: row.workIntervals,
             pairedGrossHours: row.pairedGrossHours,
             lunchHours: row.lunchHours,
             calculatedHours: row.calculatedHours,

@@ -33,7 +33,11 @@ def test_wage_parse_file_cli_writes_parsed_json_and_task_report(tmp_path: Path) 
     assert payload["task_status"] == "WARNING"
     assert payload["employee_count"] > 0
     assert payload["day_count"] > 0
-    assert payload["parsed_result"]["parserVersion"] == "wage-attendance-v1"
+    assert payload["parsed_result"]["parserVersion"] == "wage-attendance-v2"
+    assert {
+        day["calculationMethod"] for day in payload["parsed_result"]["days"]
+    } == {"NO_PUNCHES", "FIRST_LAST_FALLBACK", "PAIRED_INTERVALS"}
+    assert all("workIntervals" in day for day in payload["parsed_result"]["days"])
     assert Path(payload["parsed_json_path"]).is_file()
     assert Path(payload["task_report_path"]).is_file()
     assert payload["wage_record_path"] is None

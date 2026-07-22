@@ -25,6 +25,11 @@ export interface WorkerAttendanceDay {
   workDate?: string;
   dayNumber?: number;
   punchTimes?: string[];
+  calculationMethod?:
+    | 'NO_PUNCHES'
+    | 'FIRST_LAST_FALLBACK'
+    | 'PAIRED_INTERVALS';
+  workIntervals?: WorkerAttendanceWorkInterval[];
   pairedGrossHours?: number | null;
   lunchHours?: number;
   calculatedHours?: number | null;
@@ -35,6 +40,13 @@ export interface WorkerAttendanceDay {
   warnings?: WorkerAttendanceIssue[];
   errors?: WorkerAttendanceIssue[];
   [key: string]: unknown;
+}
+
+export interface WorkerAttendanceWorkInterval {
+  start: string;
+  end: string;
+  minutes: number;
+  hours: number;
 }
 
 export interface WorkerAttendanceParsedResult {

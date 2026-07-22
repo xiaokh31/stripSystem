@@ -287,7 +287,7 @@ describe('AttendanceService', () => {
     );
     expect(response.attendanceImport).toMatchObject({
       parseStatus: 'WARNING',
-      parserVersion: 'wage-attendance-v1',
+      parserVersion: 'wage-attendance-v2',
       settlementMonth: '2026-06',
       employeeCount: 1,
       dayCount: 1,
@@ -301,6 +301,10 @@ describe('AttendanceService', () => {
       workDate: '2026-06-01',
       calculatedHours: '7.50',
       lunchHours: '0.50',
+      calculationMethod: 'PAIRED_INTERVALS',
+      workIntervals: [
+        { start: '08:00', end: '16:00', minutes: 480, hours: 8 },
+      ],
     });
     expect(generatedFiles.map((file) => file.fileType)).toEqual([
       'ATTENDANCE_PARSED_JSON',
@@ -327,6 +331,10 @@ describe('AttendanceService', () => {
       workDate: '2026-06-02',
       dayNumber: 2,
       punchTimes: ['09:00', '17:00'],
+      calculationMethod: 'PAIRED_INTERVALS',
+      workIntervals: [
+        { start: '09:00', end: '17:00', minutes: 480, hours: 8 },
+      ],
       pairedGrossHours: 8,
       lunchHours: 0.5,
       calculatedHours: 7.5,
@@ -555,7 +563,7 @@ describe('AttendanceService', () => {
       employee_count: 1,
       day_count: 1,
       parsed_result: {
-        parserVersion: 'wage-attendance-v1',
+        parserVersion: 'wage-attendance-v2',
         periodStart: '2026-06-01',
         periodEnd: '2026-06-30',
         formatType: 'WAGE_ATTENDANCE',
@@ -569,6 +577,10 @@ describe('AttendanceService', () => {
             workDate: '2026-06-01',
             dayNumber: 1,
             punchTimes: ['08:00', '16:00'],
+            calculationMethod: 'PAIRED_INTERVALS',
+            workIntervals: [
+              { start: '08:00', end: '16:00', minutes: 480, hours: 8 },
+            ],
             pairedGrossHours: 8,
             lunchHours: 0.5,
             calculatedHours: 7.5,
@@ -607,7 +619,7 @@ describe('AttendanceService', () => {
   function markParsedImport(): void {
     Object.assign(importRecord, {
       parseStatus: 'WARNING',
-      parserVersion: 'wage-attendance-v1',
+      parserVersion: 'wage-attendance-v2',
       settlementMonth: '2026-06',
       periodStart: new Date('2026-06-01T00:00:00.000Z'),
       periodEnd: new Date('2026-06-30T00:00:00.000Z'),

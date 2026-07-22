@@ -3,6 +3,12 @@
 This runbook verifies the WAGE-QA-01 regression scope for HR monthly work hours
 settlement. It does not introduce new business behavior.
 
+> 2026-07-21 revision: `WAGE-HOURS-01` is complete and supersedes the old
+> odd-punch/manual-review-only expectation. `WAGE-HOURS-02` through
+> `WAGE-HOURS-04` remain active. Do not claim the complete revised work-hours
+> workflow verified until WAGE-HOURS-04 updates this runbook with executed
+> Docker/API/LibreOffice evidence.
+
 ## Scope
 
 - Real attendance fixture upload, duplicate SHA-256 handling, parse, and wage
@@ -74,9 +80,10 @@ E2E_ADMIN_EMAIL=admin@bestarcca.com E2E_ADMIN_PASSWORD='Bestar-Admin-Local-2026!
 6. Confirm the page shows the file name and SHA-256. If it is a duplicate, the
    existing import must be opened by id and remain usable.
 7. Click Parse.
-8. Confirm the parsed result shows 390 employee-day rows, employee rows such as
-   `ray`, calculated hours, and a visible review issues section for parser
-   warnings/errors.
+8. Confirm the parsed result shows 13 selectable employees and that each
+   employee exposes all 30 June employee-day rows (390 total), including `ray`,
+   calculated hours, and localized parser warnings/errors. There must be no
+   global first-100-rows truncation.
 9. Click Generate wage record.
 10. Confirm the generated files list includes `WAGE_RECORD_XLS` and
     `TASK_REPORT_HTML`, with SHA-256, size, MIME type, status, and browser
@@ -121,6 +128,8 @@ Expected hashes are listed in the prerequisites table.
 ## Expected Constraints
 
 - `.xlsx` attendance uploads remain rejected.
-- Fixed lunch break is treated as the same lunch hours concept and only work
-  duration is calculated. There is no tax, holiday, or overtime logic.
+- Odd usable punch counts use first-to-last with a visible audit warning; even
+  counts sum chronological punch pairs. The fixed `0.5` lunch break is deducted
+  once after gross interval calculation for days with at least two punch
+  boundaries. There is no tax, holiday, or overtime logic.
 - Generated file storage paths are API audit metadata, not end-user UI content.

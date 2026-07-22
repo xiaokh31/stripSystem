@@ -27,6 +27,7 @@ import {
 import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import {
+  AttendanceCalculationMethod,
   GeneratedFileStatus,
   ImportStatus,
   ParseStatus,
@@ -83,6 +84,8 @@ interface AttendanceRowRecord {
   workDate: Date | string;
   dayNumber: number;
   punchTimes: unknown;
+  calculationMethod: string;
+  workIntervals: unknown;
   pairedGrossHours: { toString(): string } | number | string | null;
   lunchHours: { toString(): string } | number | string;
   calculatedHours: { toString(): string } | number | string | null;
@@ -508,6 +511,9 @@ export class AttendanceService {
         workDate: this.dateOnlyOrNull(day.workDate) ?? new Date(0),
         dayNumber: this.intValue(day.dayNumber),
         punchTimes: this.jsonValue(day.punchTimes ?? []),
+        calculationMethod:
+          day.calculationMethod ?? AttendanceCalculationMethod.LEGACY_UNKNOWN,
+        workIntervals: this.jsonValue(day.workIntervals ?? []),
         pairedGrossHours: this.nullableDecimalString(day.pairedGrossHours),
         lunchHours: this.decimalString(day.lunchHours ?? 0.5),
         calculatedHours: this.nullableDecimalString(day.calculatedHours),
@@ -1066,6 +1072,9 @@ export class AttendanceService {
         this.dateResponse(row.workDate) ?? this.toIsoString(row.workDate),
       dayNumber: row.dayNumber,
       punchTimes: row.punchTimes,
+      calculationMethod:
+        row.calculationMethod as AttendanceRowResponseDto['calculationMethod'],
+      workIntervals: row.workIntervals,
       pairedGrossHours: this.decimalResponse(row.pairedGrossHours),
       lunchHours: this.decimalResponse(row.lunchHours) ?? '0.00',
       calculatedHours: this.decimalResponse(row.calculatedHours),

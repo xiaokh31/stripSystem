@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-20
+- 2026-07-21
 
 依据：
 - docs/reports/project-completion-status.html
@@ -52,7 +52,8 @@
   新客户布局的 4 组不同 SHA source + approved outcome pair 及初次批准/三次连续复核业务签字，不能标记 Done。
   该 parser Task 不再重复启动；其外部数据验收独立保留，不阻塞用户于 2026-07-20 新批准的 WEB-BRAND 开发线路。
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
-- Wage / Unloading Wage 已完成到当前报告范围；UNLOAD-WAGE-12 已修复 monthly unloading summary 空白导出回归。
+- Wage / Unloading Wage 既有线路已完成到历史报告范围；2026-07-21 用户新增 `WAGE-HOURS-01` 至 `04`，修正
+  奇偶打卡计算、全 Sheet 模板格式/自适应尺寸和按员工查看完整月份，完成前不得继续宣称 Work hours wage fully complete。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
 - 新增 P0 托盘规则升级 `UNLOAD-PALLET-08` 至 `10`：旧的 1.7/1.8/2.2 直接 CBM 除数将替换为“可配置托盘长宽 * 固定目的仓限高”的容量模型；默认尺寸为 `1.0m * 1.2m`，YEG1 从 `+5` 改为 `+4`，courier / Goodcang / 私人及商业地址归入 2.2m 其他目的仓，明确木箱和可判定超大件按一件一托。UNLOAD-PALLET-05 至 `07` 的默认纸箱、修正保存和 UPS 非零修复仍须保留。
 - Monthly unloading summary 已修复 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，其 recorded completion month 为 `2026-06`；页面无显式月份时会打开最新可用月份，显式空月会提示可用月份并阻止 0-row export。
@@ -83,6 +84,10 @@
   CLS/visual 关闭门禁；WEB-BRAND-04 已修复 on-dark wordmark 的不透明矩形底色，同时保持原色、geometry 与 compact
   fallback，通过 256 unit、Chromium 3/3 + 5/5、10 张逐图检查、build/healthcheck。不得把
   alternate logo 强塞进业务面板，也不得在没有高分辨率 master 时伪造 192/512 PWA icon。
+- 2026-07-21 新增 Work Hours 修正线路 `WAGE-HOURS-01` 至 `04`：01 已完成 odd first/last、even paired intervals、
+  fixed lunch only once、`wage-attendance-v2` 及 auditable method/interval persistence；02 修复 `.xls` matched sheets 默认 XF 覆盖、特殊司机
+  Sheet 误写、adjustment row 错位和 bounded adaptive dimensions；03 按员工 identity 显示完整 30/31 天并移除全局
+  first-100 truncation；04 通过真实 API 下载、Docker LibreOffice、严格 i18n/RBAC 和 Chromium visual gate 关闭。
 - Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
   `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
@@ -169,9 +174,20 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-20 MDT 复核）：
+当前执行队列（2026-07-21 MDT 复核）：
 
 ### A. 当前开发机立即执行
+
+Work Hours 新需求按以下顺序执行；`WAGE-HOURS-01` 已于 2026-07-21 MDT 达到 `DONE`，当前下一项只执行第 2 项，
+一个 Task 一个 fresh supervisor Session：
+
+1. `WAGE-HOURS-01Attendance Punch Parity Calculation Contract.md` — `DONE`
+2. `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md` — 当前下一项
+3. `WAGE-HOURS-03Employee Monthly Attendance Review UI.md`
+4. `WAGE-HOURS-04Full Stack Workbook Visual Exit Gate.md`
+
+不得先做 UI 再修计算，不得把四项合并到一个 Session。01-03 完成后必须执行 04；只有 04 达到终态，Work Hours
+本轮修正才可重新标记 complete。每项都必须保持 strict `en` / `zh-CN`、真实 fixture/API 和 Docker-only 门禁。
 
 `WEB-DASHBOARD-06` 已通过并用同一证据关闭 `WEB-DASHBOARD-05`；`WEB-OPS-01` 已完成具名 2048px
 workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁；`WEB-OPS-02` 已完成柜子详情
@@ -280,7 +296,6 @@ Deferred，按现场反馈再执行：
 
 不需要新开任务的项目：
 - Account/RBAC：完成。
-- Work hours wage：完成。
 - Unloading wage：完成。
 - Temporary unloader directory：完成。
 - Monthly unloading summary：完成；UNLOAD-WAGE-12 已修复空白导出回归。
@@ -307,21 +322,23 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
+2. `WAGE-HOURS-01` 已关闭，不得重跑；当前立即执行 `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md`，之后严格按 03 -> 04，
+   每项使用 fresh supervisor Session，不得并行修改同一 checkout，也不得跳过最终 workbook visual gate。
+3. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
-3. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
-4. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
-5. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
-   不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞已批准的 WEB-BRAND。
+4. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
+5. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
+6. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
+   不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞当前 WAGE-HOURS。
    `NATIVE-AUTH-01` 已连续三次合法返回 external pending，不要第四次重复运行；设备项只按现有报告人工补证据。
-6. WEB-BRAND 之外的 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
+7. WAGE-HOURS 之外的 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
    iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate 已关闭时执行 `P5-PILOT-01`。
-7. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
+8. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
    不等待或启动 Windows App。
-8. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+9. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
    `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
-9. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
+10. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
    不要重复开发。
-10. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
-11. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。
-12. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
+11. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
+12. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。
+13. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。

@@ -408,11 +408,16 @@
           accessibility、performance、network、CLS 和最终高信号视觉门禁；WEB-BRAND-04 已去除 on-dark wordmark
           的黑色矩形底块，以 256 unit、Chromium 3/3 + 5/5 和同一 10-view 矩阵确认透明 Shell、compact fallback 与
           既有行为均保持。
+          2026-07-21 新增 WAGE-HOURS-01 至 04：01 已交付 odd first/last、even paired intervals、固定午休只扣一次、
+          wage-attendance-v2 和 method/interval PostgreSQL round trip；Web 仍只显示全局前 100 行、matched
+          wage sheets 写值时退回默认 XF 丢失配色，并存在特殊司机 Sheet 模糊误配风险。剩余线路按
+          multi-sheet workbook、employee-month UI、full-stack/LibreOffice exit gate 的顺序执行；完成前 Work Hours 不再
+          视为本轮需求 complete。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 已全部关闭且不得重跑；此前尚未关闭的
-          9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
+          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 已全部关闭且不得重跑；剩余 3 个 WAGE-HOURS Task
+          可在开发机按顺序执行，当前只启动 02；另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
           Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
         </p>
@@ -626,7 +631,8 @@
         <p class="note">
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
           新增的 Work Hours Settlement 与 Unloading Wage Settlement P0/P1/P2 扩展；
-          不改变既有卸柜核心 P1 已完成结论。按用户要求，每个阶段完成后更新本 HTML。
+          不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 04 修正线路，既有完成记录保留为
+          历史基线，但 Work Hours 新口径要到 04 关闭后才能重新标记 complete。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
           <thead>
@@ -841,6 +847,34 @@
               <td>Regression</td>
               <td>修复 2026-07 当前系统月无完成记录时仍可导出空白月度拆柜数据汇总的问题。API 新增 `GET /api/unloading-summary/months`，并在 summary response 返回 `availableMonths`、`selectedMonthHasRows`、`missingCompletionReviewCount`；可用月份按 `pay_containers.completed_at` 归属月统计，只纳入 `UNLOADED`、`LOADING_IN_PROGRESS`、`LOADED` 来源柜，`LABELS_GENERATED` 仍排除。`POST /api/unloading-summary/exports` 在 0 行月份直接返回 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH` 和可用月份，不调用 worker、不新增 generated_file。worker `write-unloading-summary` 也增加 0 行保护，返回 ERROR payload 且不写 xlsx，避免绕过 API 时生成误导 blank workbook。Web `/unloading-summary` 无显式月份时先读取可用月份，当前月无行但存在历史完成月份时默认打开最新可用月；显式空月保留用户选择，显示空状态、导出禁用提示和可用月份快捷入口。</td>
               <td>已通过 `pnpm --filter api typecheck`、`pnpm --filter api build`、`pnpm --filter web test -- unloading-summary-flow.test.ts api-client-wage.test.ts i18n.test.ts`（实际 web node:test 163 passed）、`uv run pytest tests/unit/test_unloading_summary_excel_writer.py tests/integration/test_unloading_summary_cli.py`（5 passed）。API Jest unit/e2e 已补回归用例但本机 runner 在执行前错误报告已存在的 `ts-jest` 与 `setup-e2e-env.ts` 路径不存在，记录为环境性阻塞；API typecheck/build 和 Docker smoke 已覆盖运行时行为。Docker full-stack 已重建 API、强制重建 Web，使用真实 ADMIN 账号验证：`availableMonths=[2026-06]`，2026-06 有 18 个 completed containers / 18 rows，2026-07 显式 summary 为 0 rows，2026-07 导出返回 400 `UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH`，拒绝前后历史 2026-07 generated_file 数量保持 1 不变；`/unloading-summary` 默认页显示 2026-06，`/unloading-summary?month=2026-07` 显示空月和 2026-06 快捷入口。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.0: WAGE-HOURS-01 Attendance Punch Parity Calculation Contract</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>已交付 `wage-attendance-v2`：odd 使用 first/last 并保留 warning，even 按相邻 pairs 求和，fixed lunch 在分钟 gross 汇总后只扣一次；Worker/API/Prisma/PostgreSQL 持久化稳定 method 和 intervals，历史行使用 `LEGACY_UNKNOWN` 兼容。真实 fixture 保持 13 employees / 390 rows，方法分布为 271 NO_PUNCHES、26 FIRST_LAST_FALLBACK、93 PAIRED_INTERVALS，真实三打卡行 net 为 7.67。</td>
+              <td>Worker 14、API unit 327、API E2E 121 tests passed；lint/typecheck、现有库与空库 migration、真实 API/DB round trip、重复 Parse 幂等和全栈 healthcheck 通过。下一项只执行 WAGE-HOURS-02。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.1: WAGE-HOURS-02 Multi-Sheet Wage Workbook Formatting</td>
+              <td><span class="badge partial">Ready</span></td>
+              <td>0%</td>
+              <td>审计确认 generator write 未携带 template style，matched sheets data cells 退回默认 XF；同时需阻止 `deng wei` 误配特殊司机 Sheet，保留 adjustment row，并实现 bounded ASCII/CJK-aware dimensions。</td>
+              <td>当前下一项；使用新的 supervisor Session 执行，不得与 03/04 并行。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.2: WAGE-HOURS-03 Employee Monthly Attendance Review UI</td>
+              <td><span class="badge partial">Pending Predecessor</span></td>
+              <td>0%</td>
+              <td>当前 `/work-hours` 按日期平铺并 `rows.slice(0,100)`；新页面需按稳定 employee identity 选择/分组，显示每人完整 30/31 天、summary、method/issues，并保持 strict en/zh-CN、RBAC、mobile/desktop/200% zoom。</td>
+              <td>WAGE-HOURS-01/02 Done 后执行。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.3: WAGE-HOURS-04 Full Stack Workbook Visual Exit Gate</td>
+              <td><span class="badge partial">Pending Predecessor</span></td>
+              <td>0%</td>
+              <td>需要真实上传/Parse/DB/UI/Generate/API download 端到端，以及全 Sheet normalized BIFF style/dimension 检查、Docker LibreOffice PDF/PNG 逐图验收、strict i18n/RBAC/cleanup/healthcheck 关闭。</td>
+              <td>01/02/03 Done 后必须执行；只有本项关闭才恢复 Work Hours complete 结论。</td>
             </tr>
           </tbody>
         </table>
@@ -1518,6 +1552,12 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td>Work hours calculation, employee review and generated workbook revision</td>
+              <td><span class="badge partial">Ready for Development</span></td>
+              <td>WAGE-HOURS-01 已完成，奇数 punch 已有可审计计算结果；WAGE-HOURS-02 至 04 尚未执行，页面仍隐藏全局 100 行后的员工记录、matched wage sheets 写值后配色丢失，且 special sheet/date-slot matching 需要加固。</td>
+              <td>按 02 -> 03 -> 04 顺序执行；当前只启动 02。04 必须包含真实 API 下载和 Docker LibreOffice 全 Sheet 视觉证据。</td>
+            </tr>
             <tr>
               <td>Operations dashboard redesign</td>
               <td><span class="badge done">Done</span></td>

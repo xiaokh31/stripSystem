@@ -210,6 +210,13 @@ enum WageGeneratedFileType {
   UNLOADING_WAGE_TASK_REPORT_HTML
 }
 
+enum AttendanceCalculationMethod {
+  LEGACY_UNKNOWN
+  NO_PUNCHES
+  FIRST_LAST_FALLBACK
+  PAIRED_INTERVALS
+}
+
 enum ContainerPayClassification {
   OCEAN_CONTAINER
   US_TO_CANADA_TRANSFER
@@ -1012,6 +1019,8 @@ model AttendanceRow {
   workDate           DateTime         @map("work_date") @db.Date
   dayNumber          Int              @map("day_number")
   punchTimes         Json             @map("punch_times")
+  calculationMethod AttendanceCalculationMethod @default(LEGACY_UNKNOWN) @map("calculation_method")
+  workIntervals      Json             @default("[]") @map("work_intervals")
   pairedGrossHours   Decimal?         @map("paired_gross_hours") @db.Decimal(8, 2)
   lunchHours         Decimal          @default(0.5) @map("lunch_hours") @db.Decimal(8, 2)
   calculatedHours    Decimal?         @map("calculated_hours") @db.Decimal(8, 2)

@@ -10,11 +10,13 @@ from typing import Any
 import xlrd  # type: ignore[import-untyped]
 
 
-ATTENDANCE_PARSER_VERSION = "wage-attendance-v1"
+ATTENDANCE_PARSER_VERSION = "wage-attendance-v2"
 LUNCH_HOURS = 0.5
 ATTENDANCE_ASSUMPTIONS = (
-    "Punch times are paired in chronological order per employee-day.",
-    "Lunch hours / 午休 are fixed at 0.5 hours for each worked employee-day.",
+    "Valid HH:mm punch times are normalized into chronological order per employee-day.",
+    "Odd punch counts use one first-to-last fallback interval and retain an audit warning.",
+    "Even punch counts sum adjacent chronological intervals.",
+    "Lunch hours are fixed at 0.5 hours once after gross calculation when at least two punch boundaries exist.",
     "No overtime, tax, statutory holiday, or vacation calculations are applied.",
     "Blank punch cells are emitted as zero-hour days with review warnings.",
 )
@@ -23,6 +25,12 @@ ATTENDANCE_ASSUMPTIONS = (
 class WageFormatType(StrEnum):
     WAGE_ATTENDANCE = "WAGE_ATTENDANCE"
     UNKNOWN = "UNKNOWN"
+
+
+class AttendanceCalculationMethod(StrEnum):
+    NO_PUNCHES = "NO_PUNCHES"
+    FIRST_LAST_FALLBACK = "FIRST_LAST_FALLBACK"
+    PAIRED_INTERVALS = "PAIRED_INTERVALS"
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,23 @@ class RawRow:
 
 
 @dataclass(frozen=True)
+class AttendanceWorkInterval:
+    start: str
+    end: str
+    minutes: int
+    hours: float
+
+
+@dataclass(frozen=True)
+class AttendanceCalculation:
+    calculationMethod: AttendanceCalculationMethod
+    workIntervals: tuple[AttendanceWorkInterval, ...]
+    grossHours: float
+    lunchHours: float
+    calculatedHours: float
+
+
+@dataclass(frozen=True)
 class AttendanceDay:
     employeeId: str | None
     employeeName: str | None
@@ -71,6 +96,8 @@ class AttendanceDay:
     workDate: date
     dayNumber: int
     punchTimes: tuple[str, ...]
+    calculationMethod: AttendanceCalculationMethod
+    workIntervals: tuple[AttendanceWorkInterval, ...]
     pairedGrossHours: float | None
     lunchHours: float
     calculatedHours: float | None
@@ -285,14 +312,59 @@ def parse_attendance_workbook(path: Path) -> AttendanceParseResult:
 
 def calculate_paired_work_hours(punch_times: tuple[str, ...]) -> float:
     parsed = sorted(_parse_hhmm(value) for value in punch_times)
+    if len(parsed) % 2:
+        raise ValueError("Paired work-hours calculation requires an even punch count.")
     total_minutes = 0
     for start, end in zip(parsed[0::2], parsed[1::2], strict=True):
         total_minutes += _minutes_since_midnight(end) - _minutes_since_midnight(start)
-    return round(total_minutes / 60, 2)
+    return _hours_from_minutes(total_minutes)
 
 
 def calculate_work_hours_after_lunch(punch_times: tuple[str, ...]) -> float:
-    return round(max(calculate_paired_work_hours(punch_times) - LUNCH_HOURS, 0), 2)
+    calculation = calculate_attendance_hours(punch_times)
+    if calculation.calculationMethod != AttendanceCalculationMethod.PAIRED_INTERVALS:
+        raise ValueError("Paired work-hours calculation requires an even punch count.")
+    return calculation.calculatedHours
+
+
+def calculate_attendance_hours(
+    punch_times: tuple[str, ...],
+) -> AttendanceCalculation:
+    normalized = tuple(
+        value.strftime("%H:%M")
+        for value in sorted(_parse_hhmm(value) for value in punch_times)
+    )
+    if not normalized:
+        return AttendanceCalculation(
+            calculationMethod=AttendanceCalculationMethod.NO_PUNCHES,
+            workIntervals=(),
+            grossHours=0.0,
+            lunchHours=0.0,
+            calculatedHours=0.0,
+        )
+
+    interval_boundaries = (
+        ((normalized[0], normalized[-1]),)
+        if len(normalized) % 2
+        else tuple(zip(normalized[0::2], normalized[1::2], strict=True))
+    )
+    method = (
+        AttendanceCalculationMethod.FIRST_LAST_FALLBACK
+        if len(normalized) % 2
+        else AttendanceCalculationMethod.PAIRED_INTERVALS
+    )
+    intervals = tuple(
+        _work_interval(start, end) for start, end in interval_boundaries
+    )
+    gross_minutes = sum(interval.minutes for interval in intervals)
+    lunch_minutes = 30 if len(normalized) >= 2 else 0
+    return AttendanceCalculation(
+        calculationMethod=method,
+        workIntervals=intervals,
+        grossHours=_hours_from_minutes(gross_minutes),
+        lunchHours=_hours_from_minutes(lunch_minutes),
+        calculatedHours=_hours_from_minutes(max(gross_minutes - lunch_minutes, 0)),
+    )
 
 
 def _parse_employee_days(
@@ -329,13 +401,9 @@ def _parse_employee_days(
         )
         day_warnings: list[WageIssue] = []
         day_errors: list[WageIssue] = []
-        paired_gross_hours: float | None
-        lunch_hours = 0.0
-        calculated_hours: float | None
+        calculation = calculate_attendance_hours(punch_times)
 
         if not punch_times:
-            paired_gross_hours = 0.0
-            calculated_hours = 0.0
             day_warnings.append(
                 _day_issue(
                     "MISSING_PUNCH_TIMES",
@@ -346,22 +414,15 @@ def _parse_employee_days(
                 )
             )
         elif len(punch_times) % 2:
-            paired_gross_hours = None
-            calculated_hours = None
             day_warnings.append(
                 _day_issue(
                     "ODD_PUNCH_COUNT",
-                    "Odd punch count requires manual review before calculating hours.",
+                    "Odd punch count used the first-to-last fallback interval.",
                     block,
                     work_date,
                     row_numbers,
                 )
             )
-        else:
-            paired_gross_hours = calculate_paired_work_hours(punch_times)
-            lunch_hours = LUNCH_HOURS
-            calculated_hours = calculate_work_hours_after_lunch(punch_times)
-
         days.append(
             AttendanceDay(
                 employeeId=block.employee_id,
@@ -370,9 +431,11 @@ def _parse_employee_days(
                 workDate=work_date,
                 dayNumber=day_number,
                 punchTimes=punch_times,
-                pairedGrossHours=paired_gross_hours,
-                lunchHours=lunch_hours,
-                calculatedHours=calculated_hours,
+                calculationMethod=calculation.calculationMethod,
+                workIntervals=calculation.workIntervals,
+                pairedGrossHours=calculation.grossHours,
+                lunchHours=calculation.lunchHours,
+                calculatedHours=calculation.calculatedHours,
                 firstPunch=punch_times[0] if punch_times else None,
                 lastPunch=punch_times[-1] if punch_times else None,
                 rawCellValues=tuple(raw_values),
@@ -613,6 +676,22 @@ def _parse_hhmm(value: str) -> time:
 
 def _minutes_since_midnight(value: time) -> int:
     return value.hour * 60 + value.minute
+
+
+def _work_interval(start: str, end: str) -> AttendanceWorkInterval:
+    start_time = _parse_hhmm(start)
+    end_time = _parse_hhmm(end)
+    minutes = _minutes_since_midnight(end_time) - _minutes_since_midnight(start_time)
+    return AttendanceWorkInterval(
+        start=start,
+        end=end,
+        minutes=minutes,
+        hours=_hours_from_minutes(minutes),
+    )
+
+
+def _hours_from_minutes(minutes: int) -> float:
+    return round(minutes / 60, 2)
 
 
 def _cell_text(value: object) -> str:

@@ -53,7 +53,7 @@ def test_wage_p0_parse_cli_generates_attendance_hours_json_only(
     assert parsed_payload["wage_record_result"] is None
     assert parsed_payload["task_report"] is None
     assert parsed_payload["detection"]["format_type"] == "WAGE_ATTENDANCE"
-    assert parsed_payload["parsed_result"]["parserVersion"] == "wage-attendance-v1"
+    assert parsed_payload["parsed_result"]["parserVersion"] == "wage-attendance-v2"
     assert parsed_payload["parsed_result"]["periodStart"] == "2026-06-01"
     assert parsed_payload["parsed_result"]["periodEnd"] == "2026-06-30"
     assert len(parsed_payload["parsed_result"]["employees"]) == 13
@@ -71,6 +71,10 @@ def test_wage_p0_parse_cli_generates_attendance_hours_json_only(
         if day["employeeName"] == "deng wei" and day["workDate"] == "2026-06-01"
     )
     assert deng_june_1["punchTimes"] == ["08:36", "17:52"]
+    assert deng_june_1["calculationMethod"] == "PAIRED_INTERVALS"
+    assert deng_june_1["workIntervals"] == [
+        {"start": "08:36", "end": "17:52", "minutes": 556, "hours": 9.27}
+    ]
     assert deng_june_1["pairedGrossHours"] == 9.27
     assert deng_june_1["lunchHours"] == 0.5
     assert deng_june_1["calculatedHours"] == 8.77
@@ -125,7 +129,7 @@ def test_wage_p0_cli_generates_parsed_json_wage_record_and_task_report(
     assert parsed_payload["parsed_result"]["periodStart"] == "2026-06-01"
     assert parsed_payload["parsed_result"]["periodEnd"] == "2026-06-30"
     assert (
-        "Lunch hours / 午休 are fixed at 0.5 hours for each worked employee-day."
+        "Lunch hours are fixed at 0.5 hours once after gross calculation when at least two punch boundaries exist."
         in parsed_payload["parsed_result"]["assumptions"]
     )
     assert parsed_payload["parsed_result"]["employees"]

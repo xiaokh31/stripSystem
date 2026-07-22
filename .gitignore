@@ -159,6 +159,7 @@ prompts/tasks/*
 !prompts/tasks/WEB-OPS*.md
 !prompts/tasks/PARSER-PROFILE*.md
 !prompts/tasks/WEB-BRAND*.md
+!prompts/tasks/WAGE-HOURS*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

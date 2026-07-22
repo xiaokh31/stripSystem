@@ -35,6 +35,12 @@ export interface AttendanceRowResponseDto {
   workDate: string;
   dayNumber: number;
   punchTimes: unknown;
+  calculationMethod:
+    | 'LEGACY_UNKNOWN'
+    | 'NO_PUNCHES'
+    | 'FIRST_LAST_FALLBACK'
+    | 'PAIRED_INTERVALS';
+  workIntervals: unknown;
   pairedGrossHours: string | null;
   lunchHours: string;
   calculatedHours: string | null;

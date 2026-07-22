@@ -44,6 +44,11 @@ including containers that have already advanced to `LOADING_IN_PROGRESS` or
 `LOADED` after unloading. The exported workbook should follow the structure of
 the `6月拆柜数据` sheet in `samples/workform/Bestar_work_form.xlsx`.
 
+The 2026-07-21 work-hours revision also requires the parsed review to be
+organized by employee for the complete month, changes odd/even punch handling,
+and closes a generated-workbook regression where writing values with a default
+style removes the template colors from matched sheets after the first sheet.
+
 ## Solution
 
 Add two office workflows:
@@ -139,6 +144,16 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
     settlement is not granted to all office users by default.
 22. As an admin, I want a dedicated warehouse manager role, so that unloading
     wage settlement is not granted to all warehouse users by default.
+23. As an HR manager, I want to select an employee by name and review every
+    employee-day row in the imported month, so that records are not hidden by a
+    global first-100-rows limit.
+24. As an HR manager, I want odd punch counts calculated from the first and last
+    usable punch and even punch counts calculated from paired intervals, so that
+    the result follows the office's attendance rule while remaining auditable.
+25. As an HR manager, I want every generated employee sheet to retain its
+    template colors, borders, number formats, row heights and column widths, with
+    bounded expansion for longer content, so that the downloaded workbook is
+    consistently readable.
 
 ## Business Rules
 
@@ -225,13 +240,59 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   errors.
 - Unknown source columns must be preserved in raw row data.
 - Missing employee, date, or usable punch times must create warnings or errors.
-- A day with an odd number of punch times is not silently calculated; it must be
-  flagged for manual review.
-- Default calculation assumption: pair punch times in chronological order and
-  sum each pair as a work interval. This assumption must be confirmed against
-  the target wage template before implementation is accepted.
+- Normalize valid punch times into chronological order before calculation.
+- Zero usable punches remain a zero-hour row with the existing missing-punch
+  warning.
+- An odd number of usable punches uses the first and last punch as one gross
+  interval. The result is calculated rather than left `null`, but a stable
+  odd-count fallback warning and calculation-method code must remain visible
+  for audit. One usable punch therefore produces a zero-length interval and a
+  zero-hour result with the warning.
+- An even number of usable punches is paired in chronological order as
+  `(1,2)`, `(3,4)`, and so on; gross hours are the sum of those intervals.
+- The existing fixed lunch policy remains in force for this revision: subtract
+  `0.5` hours once, after gross interval calculation, for a day with at least
+  two usable punch boundaries. Do not subtract lunch once per pair. Zero- or
+  one-punch days use `0` lunch hours. A future decision that paired gaps replace
+  the fixed lunch deduction requires a separate product change.
+- Store or expose a stable calculation method and interval breakdown so the
+  API, Web review, generated JSON and tests can distinguish odd first/last
+  fallback from even paired-interval calculation. Do not localize these codes
+  in the API; Web maps them through the locale catalog.
+- Increment the parser version when this rule changes. Re-parsing an existing
+  attendance import replaces its persisted employee-day rows under the existing
+  rebuild strategy; historical generated files remain immutable audit records.
+- `WAGE-HOURS-01` implements this contract as `wage-attendance-v2`. Persisted
+  rows use `NO_PUNCHES`, `FIRST_LAST_FALLBACK`, or `PAIRED_INTERVALS` plus the
+  exact interval list; pre-v2 rows use the explicit `LEGACY_UNKNOWN` compatibility
+  value until they are re-parsed.
 - Overtime, statutory holiday pay, vacation pay, deductions, and tax/payroll
   compliance are out of scope unless the business provides explicit rules.
+
+### Wage Record Workbook Rules
+
+- Continue copying `samples/wage/20260601-0630_wageRecords.xls`; never modify the
+  source template or replace the legacy `.xls` delivery with an approximate new
+  workbook.
+- A sheet is eligible for the standard attendance writer only when its wage
+  table contract contains `DATE`, `HOURS`, `LUNCH HOURS`, `START TIME`, and
+  `END TIME`. A special sheet such as `司机WeiSheng Hong`, whose columns include
+  `SHIFT&REMARKS` and delivery statistics, must not be overwritten by the
+  generic six-column writer.
+- Employee-to-sheet matching is one-to-one. Ambiguous fuzzy matches, one
+  employee matching multiple sheets, or one sheet matching multiple employees
+  must produce a warning and leave the ambiguous sheet unchanged.
+- Every generated value must keep the corresponding cell's own template style:
+  fill/color, font, border, alignment, wrapping, number format and protection.
+  Do not copy the first sheet's style over later sheets because sheets may have
+  intentional differences.
+- Preserve merged ranges, formulas, print settings, page setup, hidden state and
+  untouched cells/sheets.
+- Start row heights and column widths from each sheet's template dimensions.
+  Expand touched rows/columns only when generated visible content needs more
+  room, using a deterministic ASCII/CJK-aware width calculation, wrapping and
+  bounded maximums. Never shrink below the template or let auto-sizing destroy
+  the existing printable layout.
 
 ### Container Detail Unloading Wage Rules
 
@@ -376,7 +437,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Attendance import: original attendance workbook plus SHA-256, parse status,
   parser version, warnings, errors, and raw metadata.
 - Attendance row: one employee-day parsed from the workbook, preserving raw
-  source data and calculated hours.
+  source data, normalized punch times, calculation method, interval breakdown
+  and calculated hours.
 - Wage record file: generated workbook based on the wage template and recorded
   as a durable artifact.
 - Container wage tag: the container detail field that classifies a container as
@@ -451,6 +513,17 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Add an Unloading Wage Settlement page for warehouse manager monthly review.
 - Add a monthly unloading data summary view/export for office review.
 
+### 2026-07-21 Work Hours Revision
+
+1. `WAGE-HOURS-01`: revise the parity calculation contract and persist/expose
+   auditable calculation metadata.
+2. `WAGE-HOURS-02`: repair all-sheet template styling, safe matching and bounded
+   adaptive row/column dimensions.
+3. `WAGE-HOURS-03`: replace the globally truncated flat review with an
+   employee-oriented complete-month review in strict `en` / `zh-CN`.
+4. `WAGE-HOURS-04`: close Docker full-stack, downloaded-workbook and
+   LibreOffice visual regression gates.
+
 ## Proposed API Surface
 
 The exact route names can change during implementation, but the behavior should
@@ -488,9 +561,19 @@ using the existing container detail.
   actions by default.
 - Upload one monthly `.xls` attendance workbook.
 - Display filename, SHA-256, parse status, warning count, and error count.
-- Show parsed employee/day rows before generation.
-- Show warnings for missing employee, missing date, missing punch, odd punch
-  count, and unsupported workbook layout.
+- Group parsed rows by stable employee identity and display the employee name as
+  the primary selector/group label. Employee id and department remain visible
+  secondary identity fields.
+- Every employee can expose all employee-day rows in the imported month, ordered
+  by work date, including blank/no-punch days and warning rows. Remove the
+  global first-100-rows truncation; collapsing or selecting one employee at a
+  time is allowed for usability but must not make remaining rows unreachable.
+- Show punch times, gross hours, lunch hours, calculated hours, localized
+  calculation method and warnings for missing employee/date/punches,
+  odd-count fallback and unsupported workbook layout before generation.
+- Keep the employee control and complete-month table usable at 320px/mobile,
+  desktop and 200% zoom without page-level overflow; a contained table scroller
+  is allowed.
 - Generate and download the wage record workbook.
 - Show generated file history.
 
@@ -592,15 +675,24 @@ Required controls:
   hours settlement. `WAREHOUSE_MANAGER` owns unloading wage settlement.
   Ordinary `OFFICE` and `WAREHOUSE` users should not receive wage-settlement
   permissions by default.
+- Attendance calculation method values are stable domain codes. API and Worker
+  payloads return codes/raw times/numbers only; visible Web labels, warnings,
+  empty states, controls, tooltips and accessibility text must be managed by the
+  typed `en` / `zh-CN` catalog and show one language at a time.
 
 ## Testing Decisions
 
 - Parser tests should use the real files in `samples/wage`.
 - Detector tests should reject unsupported workbooks with explicit errors.
-- Attendance calculation tests should cover normal four-punch days, missing
-  punches, odd punch counts, blank rows, unknown columns, and duplicate uploads.
+- Attendance calculation tests should cover zero, one, two, three, four and
+  larger odd/even punch counts; the real three-punch fixture row; fixed lunch
+  applied once; blank rows; unknown columns; parser-version migration behavior;
+  duplicate uploads; and deterministic interval metadata.
 - Wage record generator tests should verify the template is copied, not
-  modified in place, and that key employee/hour cells are written.
+  modified in place, and that key employee/hour cells are written. For every
+  eligible sheet, compare normalized style properties rather than raw XF ids,
+  verify special/nonstandard sheets remain unchanged, and verify deterministic
+  adaptive row/column dimensions with long ASCII and CJK content.
 - Container-detail API tests should cover saving `海柜`, saving `美转加` with
   trailer number, rejecting `美转加` without trailer number, adding associated
   container numbers, marking `已拆完`, adding multiple unloaders, and rejecting
@@ -628,12 +720,27 @@ Required controls:
 - Frontend permission tests should verify that `/work-hours`, `/unloading-wage`,
   and container-detail wage actions are visible only to the matching manager
   role or `ADMIN`.
+- Work-hours browser tests should select multiple employee names, prove every
+  employee's complete month is reachable, verify odd/even calculation labels
+  in both locales, and cover mobile/desktop/200% zoom without mixed-language UI.
+- The final generated `.xls` downloaded through the real API must be opened by
+  a Docker LibreOffice visual harness. Inspect the first, second, middle and last
+  eligible employee sheets, plus structural checks across every sheet, for
+  retained colors, borders, number formats, readable row heights/column widths
+  and absence of clipped generated content.
 
 ## Acceptance Criteria
 
 - A developer can identify the first worker tasks without building UI first.
 - The attendance workflow starts from real wage fixtures and outputs parsed
   JSON plus a generated wage workbook.
+- Each employee can be selected by name and all rows for the imported month are
+  reachable; no global 100-row truncation hides later employees.
+- Odd punch counts calculate from first to last with an auditable fallback
+  warning; even punch counts sum chronological pairs; fixed lunch is deducted
+  once under the existing rule.
+- All eligible generated wage sheets retain their own template formatting and
+  use bounded content-aware dimensions; nonstandard sheets remain unchanged.
 - Existing container detail includes unloading wage tag, trailer number,
   associated containers, unloading completion, and unloader rows.
 - Temporary unloaders can be manually maintained without creating employee
@@ -673,8 +780,6 @@ Required controls:
 
 ## Open Questions
 
-- Should attendance work hours subtract a fixed lunch break, use paired punch
-  intervals, or follow another company rule?
 - Does the wage record template require pay rate, gross wage, or only work
   hours?
 - What is the official employee identifier in the attendance workbook: user id,
