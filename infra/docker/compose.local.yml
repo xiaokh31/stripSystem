@@ -203,6 +203,17 @@ services:
       - ../../test-results:/workspace/test-results
     profiles: ["report-visual"]
 
+  wage-visual-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/report-visual-test.Dockerfile
+    image: bestar_report_visual_test_local:latest
+    working_dir: /workspace
+    entrypoint: ["/usr/local/bin/render-wage-workbook-visual"]
+    volumes:
+      - ../../test-results:/workspace/test-results
+    profiles: ["report-visual"]
+
   mobile-scan-app:
     build:
       context: ../..

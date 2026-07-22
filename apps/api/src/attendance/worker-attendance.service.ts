@@ -132,6 +132,7 @@ export class WorkerAttendanceService {
   async generateWageRecord(
     inputFile: string,
     outputDir: string,
+    normalizedAttendanceJson: string,
   ): Promise<WorkerWagePayload> {
     return this.runWorker([
       'run',
@@ -143,6 +144,8 @@ export class WorkerAttendanceService {
       this.wageTemplatePath,
       '--output-dir',
       outputDir,
+      '--normalized-attendance-json',
+      normalizedAttendanceJson,
     ]);
   }
 

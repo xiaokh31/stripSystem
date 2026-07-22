@@ -49,6 +49,19 @@ organized by employee for the complete month, changes odd/even punch handling,
 and closes a generated-workbook regression where writing values with a default
 style removes the template colors from matched sheets after the first sheet.
 
+The same revision allows an authorized HR manager to remove an erroneous
+parsed employee-day row from active settlement. Removal is an auditable soft
+delete, not destruction of source evidence: the system must preserve the
+original workbook and raw row, identify the authenticated user who deleted the
+row, retain an immutable deletion event, expose deletion history, and prevent a
+repeat parse from silently restoring the deleted row.
+
+After the work-hours workflow reached its full exit gate, the office download
+surface is narrowed to the actual wage workbook. Parsed JSON, HTML task reports
+and future diagnostic artifacts remain preserved and recorded for backend audit
+and support, but they are not useful office deliverables and must not appear as
+cards or download links on `/work-hours`.
+
 ## Solution
 
 Add two office workflows:
@@ -154,6 +167,15 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
     template colors, borders, number formats, row heights and column widths, with
     bounded expansion for longer content, so that the downloaded workbook is
     consistently readable.
+26. As an HR manager, I want to remove an erroneous employee-day row from the
+    active monthly settlement, so that it no longer contributes to totals or a
+    newly generated wage workbook.
+27. As an auditor or HR manager, I want deletion history to show the deleted
+    record, authenticated deleter, deletion time and reason, so that payroll
+    changes remain traceable without altering the original attendance file.
+28. As an HR manager, I want the generated-file area to show only wage record
+    workbooks, so that parser JSON and technical task reports do not distract
+    office users from the file they actually need.
 
 ## Business Rules
 
@@ -168,6 +190,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   - can parse attendance imports
   - can view parsed attendance rows and generated attendance files
   - can generate wage record workbooks
+  - can soft-delete an employee-day attendance row with an audit reason and
+    review the deletion history
   - must not manage unloading wage classification, completion, unloaders, or
     settlement unless another role explicitly grants those permissions
 - `WAREHOUSE_MANAGER` manages only unloading wage settlement:
@@ -194,6 +218,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   assigned active roles.
 - API guards are the source of truth. Frontend navigation and buttons must
   mirror API permissions, but hiding UI is not sufficient authorization.
+- Attendance-row deletion uses a dedicated `attendance.rows.delete`
+  permission. Grant it to `HR_MANAGER` and `ADMIN` by default; do not infer it
+  from `attendance.read`, `attendance.parse`, or `attendance.generate`, and do
+  not grant it to `SYSTEM`, `WAREHOUSE_MANAGER`, `OFFICE`, or `WAREHOUSE` by
+  default.
 
 ### Temporary Unloader Directory Rules
 
@@ -269,6 +298,70 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Overtime, statutory holiday pay, vacation pay, deductions, and tax/payroll
   compliance are out of scope unless the business provides explicit rules.
 
+### Attendance Row Deletion and History Rules
+
+- The deletable unit is one parsed employee-day `AttendanceRow`. Deleting an
+  individual punch inside the row, restoring a deleted row, or deleting the
+  attendance import itself is not part of this revision.
+- Deletion is a soft delete. Keep the row, original `rawJson`, punch list,
+  calculation metadata, warnings/errors and source workbook unchanged. Never
+  physically remove source evidence to satisfy the UI action.
+- A delete request must use the authenticated JWT actor; a client-supplied user
+  id is never trusted. Store `deletedAt`, `deletedById` and a required audit
+  reason on the row or equivalent tombstone.
+- In the same transaction, append an immutable deletion event containing the
+  attendance import id, stable row key, row snapshot, actor id and durable
+  actor display snapshot, deletion time and reason. Deactivating or renaming a
+  user must not make historical attribution unreadable.
+- Repeated deletion of the same row is idempotent and must not create duplicate
+  history events. Attempts against another import or an unknown row return a
+  stable error without mutation.
+- Normal parse-result, employee summaries and wage generation use active rows
+  only. History is returned explicitly and is not mixed into the active row
+  list. Responses expose an active-row count and deleted-row count so the UI
+  cannot present stale totals.
+- Re-parsing the same attendance import must reapply its durable deletion
+  tombstones and must not resurrect a deleted row or erase deletion history.
+  Parser errors must not erase the last auditable state.
+- Wage generation must consume the persisted active employee-day row set or an
+  equivalent server-controlled correction overlay. It must not independently
+  reparse only the original workbook and thereby include deleted rows again.
+- Deleting a row after a wage workbook was generated never deletes or rewrites
+  the historical file. Affected generated wage artifacts become visibly
+  superseded/stale, remain in history with their original SHA and generator,
+  and the next generation uses only active rows.
+- Reject or safely serialize deletion while parse or wage-generation work is
+  queued/running, so a successful mutation cannot race with an output based on
+  the previous active row set.
+- Users with `attendance.read` may view deletion history. Only users with
+  `attendance.rows.delete` may execute deletion. The Web action requires a
+  confirmation and non-empty reason.
+
+### Attendance Generated File Visibility Rules
+
+- The normal `/work-hours` generated-file area is an office delivery surface,
+  not a technical artifact browser. Its explicit allowlist contains only
+  `WAGE_RECORD_XLS`.
+- `ATTENDANCE_PARSED_JSON`, `TASK_REPORT_HTML` and any future parser/debug/task
+  artifact must not render a card, filename, type label, audit metadata or
+  download link on the Work Hours page. New unknown file types remain hidden by
+  default until a separate product decision classifies them as office output.
+- Keep all technical generated-file records, storage files, SHA-256 values,
+  generator attribution and statuses in the database/API for audit,
+  troubleshooting and automated verification. This UI change must not stop
+  generation, delete artifacts, rewrite history or weaken backend permissions.
+- Keep the complete `WAGE_RECORD_XLS` history visible, including current,
+  failed and superseded/stale entries. Download availability continues to
+  follow the backend status contract; hiding technical artifacts must not hide
+  a wage workbook merely because it is superseded or failed.
+- Apply the allowlist before server-rendered markup is produced. Hidden
+  technical entries must not flash during hydration, locale switching or
+  refresh and must not remain exposed through screen-reader-only links.
+- The rule applies to every user viewing the operational Work Hours page,
+  including `ADMIN` and `HR_MANAGER`. Internal support may continue using the
+  authenticated API or a future dedicated audit interface; this revision does
+  not add that interface.
+
 ### Wage Record Workbook Rules
 
 - Continue copying `samples/wage/20260601-0630_wageRecords.xls`; never modify the
@@ -279,9 +372,17 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   `END TIME`. A special sheet such as `司机WeiSheng Hong`, whose columns include
   `SHIFT&REMARKS` and delivery statistics, must not be overwritten by the
   generic six-column writer.
-- Employee-to-sheet matching is one-to-one. Ambiguous fuzzy matches, one
-  employee matching multiple sheets, or one sheet matching multiple employees
-  must produce a warning and leave the ambiguous sheet unchanged.
+- Employee-to-sheet matching is one-to-one and may use either a reliable
+  employee id or the employee name. Id and name checks are independent;
+  missing names must not suppress an exact id match. Name matching uses exact
+  normalized tokens of at least three characters, never substrings. One
+  employee matching multiple sheets or one sheet matching multiple employees
+  must produce a stable warning and leave every ambiguous target unchanged.
+- A writable date slot must contain a full calendar-date string or a numeric
+  Excel cell whose number format identifies it as a date. Prefer dates in the
+  generated attendance period. The supplied office template's prior-month grid
+  may be reused only when it proves one complete ordered calendar month;
+  isolated numeric/date notes and adjustment rows are not writable slots.
 - Every generated value must keep the corresponding cell's own template style:
   fill/color, font, border, alignment, wrapping, number format and protection.
   Do not copy the first sheet's style over later sheets because sheets may have
@@ -521,8 +622,12 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
    adaptive row/column dimensions.
 3. `WAGE-HOURS-03`: replace the globally truncated flat review with an
    employee-oriented complete-month review in strict `en` / `zh-CN`.
-4. `WAGE-HOURS-04`: close Docker full-stack, downloaded-workbook and
+4. `WAGE-HOURS-04`: add attendance-row soft deletion, authenticated actor
+   attribution, immutable history and reparse/generation safety.
+5. `WAGE-HOURS-05`: close Docker full-stack, downloaded-workbook and
    LibreOffice visual regression gates.
+6. `WAGE-HOURS-06`: restrict the office generated-file area to wage workbook
+   history while retaining parser/task artifacts as backend audit evidence.
 
 ## Proposed API Surface
 
@@ -532,6 +637,8 @@ be stable. The user-facing workflow must still start from container detail.
 - `POST /api/attendance-imports`
 - `POST /api/attendance-imports/:id/parse`
 - `GET /api/attendance-imports/:id/parse-result`
+- `DELETE /api/attendance-imports/:id/rows/:rowId`
+- `GET /api/attendance-imports/:id/row-history`
 - `POST /api/attendance-imports/:id/generate-wage-record`
 - `GET /api/attendance-imports/:id/files`
 - `PATCH /api/containers/:id/unloading-wage`
@@ -571,11 +678,21 @@ using the existing container detail.
 - Show punch times, gross hours, lunch hours, calculated hours, localized
   calculation method and warnings for missing employee/date/punches,
   odd-count fallback and unsupported workbook layout before generation.
+- Each active employee-day row exposes a delete action only when the current
+  user has `attendance.rows.delete`. Confirmation requires a reason and names
+  the employee/date being removed from active settlement.
+- Show a deletion-history view for users with `attendance.read`, ordered newest
+  first, with employee/date/punch snapshot, deleted hours, deleter, deletion
+  time and reason. Deleted rows are visually distinct from active rows and
+  cannot be mistaken for payable time.
+- After deletion, refresh active employee/month summaries and generated-file
+  status from the API without losing the selected import or employee.
 - Keep the employee control and complete-month table usable at 320px/mobile,
   desktop and 200% zoom without page-level overflow; a contained table scroller
   is allowed.
 - Generate and download the wage record workbook.
-- Show generated file history.
+- Show wage record workbook history only. Do not show parsed attendance JSON,
+  task reports or future diagnostic artifacts as office download cards.
 
 ### Container Detail Unloading Wage Section
 
@@ -679,6 +796,13 @@ Required controls:
   payloads return codes/raw times/numbers only; visible Web labels, warnings,
   empty states, controls, tooltips and accessibility text must be managed by the
   typed `en` / `zh-CN` catalog and show one language at a time.
+- Attendance-row deletion is modeled as a durable tombstone plus append-only
+  event history. The original workbook, raw parsed row and historical generated
+  files remain immutable evidence; current summaries and new generation filter
+  active rows at the backend.
+- Separate generated-file retention from office visibility. The API and
+  database keep all attendance artifacts, while `/work-hours` uses a typed,
+  default-deny allowlist whose only office-visible type is `WAGE_RECORD_XLS`.
 
 ## Testing Decisions
 
@@ -690,9 +814,12 @@ Required controls:
   duplicate uploads; and deterministic interval metadata.
 - Wage record generator tests should verify the template is copied, not
   modified in place, and that key employee/hour cells are written. For every
-  eligible sheet, compare normalized style properties rather than raw XF ids,
-  verify special/nonstandard sheets remain unchanged, and verify deterministic
-  adaptive row/column dimensions with long ASCII and CJK content.
+  real-template sheet, inventory name/dimensions/merges/headers/target status/
+  row and column metadata/key styles before and after. For every touched cell,
+  compare normalized style properties rather than raw XF ids. Compare values,
+  formulas and structure for every untouched sheet, verify special/nonstandard
+  sheets and adjustment rows remain unchanged, and verify reliable-id,
+  short-token, numeric-note and deterministic long ASCII/CJK dimension cases.
 - Container-detail API tests should cover saving `海柜`, saving `美转加` with
   trailer number, rejecting `美转加` without trailer number, adding associated
   container numbers, marking `已拆完`, adding multiple unloaders, and rejecting
@@ -723,11 +850,42 @@ Required controls:
 - Work-hours browser tests should select multiple employee names, prove every
   employee's complete month is reachable, verify odd/even calculation labels
   in both locales, and cover mobile/desktop/200% zoom without mixed-language UI.
+- Attendance-row deletion tests should cover authenticated actor attribution,
+  required reason, idempotent repeat, wrong-import/not-found protection,
+  read-only and cross-role 403s, active/deleted counts, immutable snapshots,
+  repeated Parse without resurrection, generation excluding deleted rows,
+  stale historical files, parse/generate race protection and en/zh-CN history
+  UI behavior.
+- Work-hours generated-file visibility tests should prove that the API still
+  records and returns `ATTENDANCE_PARSED_JSON` and `TASK_REPORT_HTML`, while the
+  English and Chinese page renders only `WAGE_RECORD_XLS` cards/download links.
+  Cover SSR, hydration, refresh, generation completion, current/superseded/
+  failed wage entries, unknown technical file types, mobile/desktop/200% zoom
+  and zero mixed-language or hidden-accessible-link leakage.
 - The final generated `.xls` downloaded through the real API must be opened by
   a Docker LibreOffice visual harness. Inspect the first, second, middle and last
   eligible employee sheets, plus structural checks across every sheet, for
   retained colors, borders, number formats, readable row heights/column widths
   and absence of clipped generated content.
+
+### Revised Work Hours Exit Gate Evidence
+
+`WAGE-HOURS-05` closed this revision on 2026-07-22 with the real June attendance
+fixture and wage template. The nginx/API/PostgreSQL/Worker/Web flow verified 13
+employees and 390 baseline rows, one attributed deletion leaving 389 active rows
+and one immutable tombstone/event, repeated Parse without resurrection, and an
+active-only replacement workbook while retaining the superseded baseline.
+
+The downloaded legacy workbook retained all 10 sheets: seven matched attendance
+sheets, two unmatched sheets and one special driver sheet. A normalized
+all-cell BIFF comparison found zero style differences, Worker/API bytes matched,
+the Wei Deng adjustment row remained, and the deletion changed only five expected
+cells on the affected employee sheet. Docker LibreOffice rendered four workbook
+states to 22 pages each; all contact sheets and high-signal original pages were
+reviewed without generator-introduced clipping, style loss or special-sheet
+overwrite. Chromium also closed English/Chinese, mobile/desktop, read-only,
+Warehouse 403 and real 200% zoom behavior. No Microsoft Excel-only check remains
+as a delivery blocker.
 
 ## Acceptance Criteria
 
@@ -741,6 +899,13 @@ Required controls:
   once under the existing rule.
 - All eligible generated wage sheets retain their own template formatting and
   use bounded content-aware dimensions; nonstandard sheets remain unchanged.
+- An authorized HR manager can soft-delete an employee-day row with a reason;
+  active summaries and newly generated workbooks exclude it, while the original
+  workbook, raw row, previous files and attributed deletion history remain
+  available and a repeat Parse does not restore the row.
+- The Work Hours generated-file area exposes only wage workbook history and
+  wage workbook downloads. Parsed JSON and task reports remain auditable in the
+  backend but are absent from office-visible and accessibility-visible markup.
 - Existing container detail includes unloading wage tag, trailer number,
   associated containers, unloading completion, and unloader rows.
 - Temporary unloaders can be manually maintained without creating employee

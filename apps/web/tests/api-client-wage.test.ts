@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   completeContainerUnloading,
   completePayContainer,
+  deleteAttendanceRow,
   createUnloadingWageWorker,
   createPayContainer,
   exportUnloadingSummary,
   generateAttendanceWageRecord,
+  getAttendanceRowHistory,
   generateUnloadingWageSettlement,
   getAttendanceGeneratedFileDownloadUrl,
   getUnloadingSummary,
@@ -64,6 +66,17 @@ test("attendance API client calls P1 attendance endpoints", async () => {
     baseUrl: "http://api.local/api",
     fetcher,
   });
+  await deleteAttendanceRow(
+    "attendance 1",
+    "row 1",
+    "Incorrect day",
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await getAttendanceRowHistory(
+    "attendance 1",
+    { limit: 25, offset: 50 },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
 
   assert.deepEqual(requests, [
     {
@@ -77,6 +90,14 @@ test("attendance API client calls P1 attendance endpoints", async () => {
     {
       method: "POST",
       url: "http://api.local/api/attendance-imports/attendance%201/generate-wage-record",
+    },
+    {
+      method: "DELETE",
+      url: "http://api.local/api/attendance-imports/attendance%201/rows/row%201",
+    },
+    {
+      method: "GET",
+      url: "http://api.local/api/attendance-imports/attendance%201/row-history?limit=25&offset=50",
     },
   ]);
 });

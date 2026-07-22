@@ -131,6 +131,14 @@ export function attendanceApiErrorMessage(
     ATTENDANCE_IMPORT_NOT_FOUND: "Attendance import could not be found.",
     ATTENDANCE_IMPORT_NOT_PARSED:
       "Attendance import must be parsed before generating a wage record.",
+    ATTENDANCE_IMPORT_BUSY:
+      "Attendance parsing or wage generation is running. Try again after it finishes.",
+    ATTENDANCE_ROW_NOT_FOUND:
+      "Attendance row could not be found in the selected import.",
+    ATTENDANCE_DATA_REVISION_CHANGED:
+      "Attendance data changed during generation. Generate the wage record again.",
+    ATTENDANCE_ROW_AUDIT_INCONSISTENT:
+      "Attendance deletion audit is inconsistent. Contact an administrator.",
     ATTENDANCE_ORIGINAL_FILE_MISSING:
       "Original attendance workbook is unavailable.",
     ATTENDANCE_PARSE_FAILED:

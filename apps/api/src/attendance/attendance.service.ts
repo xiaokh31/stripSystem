@@ -13,12 +13,16 @@ import {
   AttendanceImportListResponseDto,
   AttendanceImportResponseDto,
   AttendanceParseResultResponseDto,
+  AttendanceRowAuditEventResponseDto,
+  AttendanceRowHistoryResponseDto,
   AttendanceRowResponseDto,
+  DeleteAttendanceRowResponseDto,
   GenerateWageRecordResponseDto,
   WageGeneratedFileListResponseDto,
   WageGeneratedFileResponseDto,
 } from './dto/attendance-response.dto';
 import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-query.dto';
+import { ListAttendanceRowHistoryQueryDto } from './dto/list-attendance-row-history-query.dto';
 import {
   WorkerAttendanceDay,
   WorkerAttendanceService,
@@ -28,6 +32,9 @@ import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import {
   AttendanceCalculationMethod,
+  AttendanceRowAuditEventCode,
+  AsyncJobStatus,
+  AsyncJobType,
   GeneratedFileStatus,
   ImportStatus,
   ParseStatus,
@@ -67,6 +74,7 @@ interface AttendanceImportRecord {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  dataRevision: number;
   rawMetadata?: unknown;
   importedById?: string | null;
   rows?: AttendanceRowRecord[];
@@ -94,6 +102,26 @@ interface AttendanceRowRecord {
   rawJson: unknown;
   warnings: unknown;
   errors: unknown;
+  deletedAt?: Date | string | null;
+  deletedById?: string | null;
+  deletionReason?: string | null;
+}
+
+interface AttendanceRowAuditEventRecord {
+  id: string;
+  attendanceImportId: string;
+  attendanceRowId: string | null;
+  rowKey: string;
+  eventCode: string;
+  employeeId: string | null;
+  employeeName: string | null;
+  department: string | null;
+  workDate: Date | string;
+  rowSnapshot: unknown;
+  actorUserId: string | null;
+  actorDisplaySnapshot: string;
+  reason: string;
+  occurredAt: Date | string;
 }
 
 interface WageGeneratedFileRecord {
@@ -241,10 +269,18 @@ export class AttendanceService {
 
   async getParseResult(id: string): Promise<AttendanceParseResultResponseDto> {
     const attendanceImport = await this.findImportOrThrow(id);
-    const rows = (await this.prisma.attendanceRow.findMany({
-      where: { attendanceImportId: id },
-      orderBy: [{ workDate: 'asc' }, { rowKey: 'asc' }],
-    })) as AttendanceRowRecord[];
+    const [rows, activeRowCount, deletedRowCount] = await Promise.all([
+      this.prisma.attendanceRow.findMany({
+        where: { attendanceImportId: id, deletedAt: null },
+        orderBy: [{ workDate: 'asc' }, { rowKey: 'asc' }],
+      }) as Promise<AttendanceRowRecord[]>,
+      this.prisma.attendanceRow.count({
+        where: { attendanceImportId: id, deletedAt: null },
+      }),
+      this.prisma.attendanceRow.count({
+        where: { attendanceImportId: id, deletedAt: { not: null } },
+      }),
+    ]);
     const warnings = this.rawMetadataArray(
       attendanceImport.rawMetadata,
       'warnings',
@@ -259,6 +295,177 @@ export class AttendanceService {
       rows: rows.map((row) => this.toRowResponse(row)),
       warnings,
       errors,
+      activeRowCount,
+      deletedRowCount,
+    };
+  }
+
+  async deleteRow(
+    attendanceImportId: string,
+    rowId: string,
+    reason: string,
+    actor: AuthenticatedUser,
+  ): Promise<DeleteAttendanceRowResponseDto> {
+    const normalizedReason = reason.trim();
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockAttendanceImport(tx, attendanceImportId);
+      const attendanceImport = (await tx.attendanceImport.findUnique({
+        where: { id: attendanceImportId },
+      })) as AttendanceImportRecord | null;
+      if (!attendanceImport) {
+        this.throwImportNotFound(attendanceImportId);
+      }
+      await this.assertNoActiveAttendanceJob(tx, attendanceImportId);
+      if (attendanceImport.parseStatus === ParseStatus.PARSING) {
+        throw new ConflictException({
+          code: 'ATTENDANCE_IMPORT_BUSY',
+          message: 'Attendance rows cannot be deleted while parsing is running.',
+          details: { attendanceImportId, operation: 'PARSE' },
+        });
+      }
+
+      const row = (await tx.attendanceRow.findFirst({
+        where: { id: rowId, attendanceImportId },
+      })) as AttendanceRowRecord | null;
+      if (!row) {
+        throw new NotFoundException({
+          code: 'ATTENDANCE_ROW_NOT_FOUND',
+          message: `Attendance row ${rowId} was not found for import ${attendanceImportId}.`,
+          details: { attendanceImportId, rowId },
+        });
+      }
+
+      let event: AttendanceRowAuditEventRecord;
+      let deleted = false;
+      let affectedGeneratedFiles: Array<{ id: string; status: 'SUPERSEDED' }> = [];
+      let responseRow = row;
+      if (row.deletedAt) {
+        const existingEvent = (await tx.attendanceRowAuditEvent.findUnique({
+          where: {
+            attendanceImportId_rowKey_eventCode: {
+              attendanceImportId,
+              rowKey: row.rowKey,
+              eventCode: AttendanceRowAuditEventCode.DELETED,
+            },
+          },
+        })) as AttendanceRowAuditEventRecord | null;
+        if (!existingEvent) {
+          throw new InternalServerErrorException({
+            code: 'ATTENDANCE_ROW_AUDIT_INCONSISTENT',
+            message: 'The deleted attendance row has no immutable deletion event.',
+            details: { attendanceImportId, rowId },
+          });
+        }
+        event = existingEvent;
+      } else {
+        const occurredAt = new Date();
+        const actorDisplaySnapshot = this.actorDisplaySnapshot(actor);
+        responseRow = (await tx.attendanceRow.update({
+          where: { id: row.id },
+          data: {
+            deletedAt: occurredAt,
+            deletedById: actor.id,
+            deletionReason: normalizedReason,
+          },
+        })) as AttendanceRowRecord;
+        event = (await tx.attendanceRowAuditEvent.create({
+          data: {
+            attendanceImportId,
+            attendanceRowId: row.id,
+            rowKey: row.rowKey,
+            eventCode: AttendanceRowAuditEventCode.DELETED,
+            employeeId: row.employeeId,
+            employeeName: row.employeeName,
+            department: row.department,
+            workDate: new Date(row.workDate),
+            rowSnapshot: this.jsonValue(this.rowAuditSnapshot(row)),
+            actorUserId: actor.id,
+            actorDisplaySnapshot,
+            reason: normalizedReason,
+            occurredAt,
+          },
+        })) as AttendanceRowAuditEventRecord;
+        const activeRows = (await tx.attendanceRow.findMany({
+          where: { attendanceImportId, deletedAt: null },
+        })) as AttendanceRowRecord[];
+        const activeSummary = this.activeAttendanceSummary(activeRows);
+        await tx.attendanceImport.update({
+          where: { id: attendanceImportId },
+          data: {
+            dataRevision: { increment: 1 },
+            ...activeSummary,
+          },
+        });
+        const affected = (await tx.wageGeneratedFile.findMany({
+          where: {
+            attendanceImportId,
+            status: GeneratedFileStatus.GENERATED,
+            fileType: {
+              in: [
+                WageGeneratedFileType.WAGE_RECORD_XLS,
+                WageGeneratedFileType.TASK_REPORT_HTML,
+              ],
+            },
+          },
+          select: { id: true },
+        })) as Array<{ id: string }>;
+        if (affected.length > 0) {
+          await tx.wageGeneratedFile.updateMany({
+            where: { id: { in: affected.map((file) => file.id) } },
+            data: { status: GeneratedFileStatus.SUPERSEDED },
+          });
+        }
+        affectedGeneratedFiles = affected.map((file) => ({
+          id: file.id,
+          status: 'SUPERSEDED' as const,
+        }));
+        deleted = true;
+      }
+
+      const [activeRowCount, deletedRowCount] = await Promise.all([
+        tx.attendanceRow.count({
+          where: { attendanceImportId, deletedAt: null },
+        }),
+        tx.attendanceRow.count({
+          where: { attendanceImportId, deletedAt: { not: null } },
+        }),
+      ]);
+      return {
+        code: deleted
+          ? 'ATTENDANCE_ROW_DELETED'
+          : 'ATTENDANCE_ROW_ALREADY_DELETED',
+        deleted,
+        alreadyDeleted: !deleted,
+        activeRowCount,
+        deletedRowCount,
+        row: this.toRowResponse(responseRow),
+        event: this.toAuditEventResponse(event),
+        affectedGeneratedFiles,
+      };
+    });
+  }
+
+  async listRowHistory(
+    attendanceImportId: string,
+    query: ListAttendanceRowHistoryQueryDto,
+  ): Promise<AttendanceRowHistoryResponseDto> {
+    await this.findImportOrThrow(attendanceImportId);
+    const [items, total] = await Promise.all([
+      this.prisma.attendanceRowAuditEvent.findMany({
+        where: { attendanceImportId },
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        take: query.limit,
+        skip: query.offset,
+      }) as Promise<AttendanceRowAuditEventRecord[]>,
+      this.prisma.attendanceRowAuditEvent.count({
+        where: { attendanceImportId },
+      }),
+    ]);
+    return {
+      items: items.map((event) => this.toAuditEventResponse(event)),
+      total,
+      limit: query.limit,
+      offset: query.offset,
     };
   }
 
@@ -270,12 +477,23 @@ export class AttendanceService {
     this.assertReadyForWageGeneration(record);
     await this.assertStoredFileExists(record);
 
+    const activeRows = (await this.prisma.attendanceRow.findMany({
+      where: { attendanceImportId: id, deletedAt: null },
+      orderBy: [{ workDate: 'asc' }, { rowKey: 'asc' }],
+    })) as AttendanceRowRecord[];
+    const normalizedInputPath = await this.writeActiveGenerationInput(
+      record,
+      activeRows,
+    );
+    const generationRevision = record.dataRevision;
+
     const generatedById = auditUserId(actor);
     let payload: WorkerWagePayload;
     try {
       payload = await this.workerAttendance.generateWageRecord(
         record.storedPath,
         join(this.storageRoot, 'attendance_imports', id),
+        normalizedInputPath,
       );
     } catch (error) {
       const failed = await this.recordGeneratedFile({
@@ -351,15 +569,53 @@ export class AttendanceService {
       });
     }
 
-    const generatedFile = await this.recordGeneratedFile({
-      attendanceImportId: id,
-      fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
-      storagePath: wageRecordPath,
-      mimeType: 'application/vnd.ms-excel',
-      generatedById,
-      status: GeneratedFileStatus.GENERATED,
-      errorMessage: null,
+    const generationCommit = await this.prisma.$transaction(async (tx) => {
+      await this.lockAttendanceImport(tx, id);
+      const current = (await tx.attendanceImport.findUnique({
+        where: { id },
+      })) as AttendanceImportRecord | null;
+      if (!current || current.dataRevision !== generationRevision) {
+        const stale = await this.createGeneratedFileWithClient(tx, {
+          attendanceImportId: id,
+          fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
+          storagePath: wageRecordPath,
+          mimeType: 'application/vnd.ms-excel',
+          generatedById,
+          status: GeneratedFileStatus.SUPERSEDED,
+          errorMessage: 'ATTENDANCE_DATA_REVISION_CHANGED',
+        });
+        if (taskReport) {
+          await tx.wageGeneratedFile.update({
+            where: { id: taskReport.id },
+            data: { status: GeneratedFileStatus.SUPERSEDED },
+          });
+        }
+        return { stale: true as const, generatedFile: stale };
+      }
+      return {
+        stale: false as const,
+        generatedFile: await this.createGeneratedFileWithClient(tx, {
+          attendanceImportId: id,
+          fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
+          storagePath: wageRecordPath,
+          mimeType: 'application/vnd.ms-excel',
+          generatedById,
+          status: GeneratedFileStatus.GENERATED,
+          errorMessage: null,
+        }),
+      };
     });
+    if (generationCommit.stale) {
+      throw new ConflictException({
+        code: 'ATTENDANCE_DATA_REVISION_CHANGED',
+        message: 'Attendance data changed while the wage record was being generated.',
+        details: {
+          attendanceImportId: id,
+          generatedFileId: generationCommit.generatedFile.id,
+        },
+      });
+    }
+    const generatedFile = generationCommit.generatedFile;
 
     return {
       generatedFile: this.toGeneratedFileResponse(generatedFile),
@@ -428,14 +684,29 @@ export class AttendanceService {
     const taskReportPath = this.stringOrNull(payload.task_report_path);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.attendanceRow.deleteMany({
-        where: { attendanceImportId: record.id },
-      });
-
+      await this.lockAttendanceImport(tx, record.id);
       const rows = this.attendanceRows(record.id, parsedResult?.days ?? []);
-      if (rows.length > 0) {
-        await tx.attendanceRow.createMany({ data: rows });
+      if (parseStatus !== ParseStatus.ERROR) {
+        await tx.attendanceRow.deleteMany({
+          where: { attendanceImportId: record.id, deletedAt: null },
+        });
+        if (rows.length > 0) {
+          await tx.attendanceRow.createMany({ data: rows, skipDuplicates: true });
+        }
       }
+
+      const activeSummary =
+        parseStatus === ParseStatus.ERROR
+          ? null
+          : {
+              ...this.activeAttendanceSummary(
+                (await tx.attendanceRow.findMany({
+                  where: { attendanceImportId: record.id, deletedAt: null },
+                })) as AttendanceRowRecord[],
+              ),
+              warningCount: warnings.length,
+              errorCount: errors.length,
+            };
 
       await tx.attendanceImport.update({
         where: { id: record.id },
@@ -445,14 +716,19 @@ export class AttendanceService {
           settlementMonth: this.settlementMonth(periodStart),
           periodStart,
           periodEnd,
-          employeeCount: this.intValue(payload.employee_count),
-          dayCount: rows.length,
-          warningCount: warnings.length,
-          errorCount: errors.length,
+          ...(activeSummary ?? {
+            employeeCount: this.intValue(payload.employee_count),
+            dayCount: rows.length,
+            warningCount: warnings.length,
+            errorCount: errors.length,
+          }),
           errorMessage:
             parseStatus === ParseStatus.ERROR
               ? this.firstIssueMessage(errors, payload)
               : null,
+          ...(parseStatus === ParseStatus.ERROR
+            ? {}
+            : { dataRevision: { increment: 1 } }),
           rawMetadata: this.nullableJsonValue({
             sourceFile: payload.source_file,
             workerSha256: payload.sha256,
@@ -469,6 +745,22 @@ export class AttendanceService {
           }),
         },
       });
+
+      if (parseStatus !== ParseStatus.ERROR) {
+        await tx.wageGeneratedFile.updateMany({
+          where: {
+            attendanceImportId: record.id,
+            status: GeneratedFileStatus.GENERATED,
+            fileType: {
+              in: [
+                WageGeneratedFileType.WAGE_RECORD_XLS,
+                WageGeneratedFileType.TASK_REPORT_HTML,
+              ],
+            },
+          },
+          data: { status: GeneratedFileStatus.SUPERSEDED },
+        });
+      }
 
       if (parsedJsonPath) {
         await this.createGeneratedFileWithClient(tx, {
@@ -746,14 +1038,18 @@ export class AttendanceService {
     })) as AttendanceImportRecord | null;
 
     if (!record) {
-      throw new NotFoundException({
-        code: 'ATTENDANCE_IMPORT_NOT_FOUND',
-        message: `Attendance import ${id} was not found.`,
-        details: { id },
-      });
+      this.throwImportNotFound(id);
     }
 
     return record;
+  }
+
+  private throwImportNotFound(id: string): never {
+    throw new NotFoundException({
+      code: 'ATTENDANCE_IMPORT_NOT_FOUND',
+      message: `Attendance import ${id} was not found.`,
+      details: { id },
+    });
   }
 
   private async assertStoredFileExists(
@@ -819,6 +1115,231 @@ export class AttendanceService {
         }),
       },
     });
+  }
+
+  private async lockAttendanceImport(
+    tx: Prisma.TransactionClient,
+    attendanceImportId: string,
+  ): Promise<void> {
+    const queryRawUnsafe = (
+      tx as unknown as {
+        $queryRawUnsafe?: (query: string, ...values: unknown[]) => Promise<unknown>;
+      }
+    ).$queryRawUnsafe;
+    if (queryRawUnsafe) {
+      await queryRawUnsafe.call(
+        tx,
+        'SELECT id FROM attendance_imports WHERE id = $1 FOR UPDATE',
+        attendanceImportId,
+      );
+    }
+  }
+
+  private async assertNoActiveAttendanceJob(
+    tx: Prisma.TransactionClient,
+    attendanceImportId: string,
+  ): Promise<void> {
+    const activeJob = await tx.asyncJob.findFirst({
+      where: {
+        attendanceImportId,
+        jobType: {
+          in: [
+            AsyncJobType.ATTENDANCE_PARSE,
+            AsyncJobType.WAGE_RECORD_GENERATION,
+          ],
+        },
+        status: { in: [AsyncJobStatus.QUEUED, AsyncJobStatus.RUNNING] },
+      },
+      select: { id: true, jobType: true, status: true },
+    });
+    if (activeJob) {
+      throw new ConflictException({
+        code: 'ATTENDANCE_IMPORT_BUSY',
+        message: 'Attendance rows cannot be deleted while an attendance job is active.',
+        details: {
+          attendanceImportId,
+          jobId: activeJob.id,
+          jobType: activeJob.jobType,
+          status: activeJob.status,
+        },
+      });
+    }
+  }
+
+  private async writeActiveGenerationInput(
+    record: AttendanceImportRecord,
+    rows: AttendanceRowRecord[],
+  ): Promise<string> {
+    const targetDir = join(
+      this.storageRoot,
+      'attendance_imports',
+      record.id,
+      'generation_inputs',
+    );
+    await mkdir(targetDir, { recursive: true });
+    const targetPath = join(
+      targetDir,
+      `active-rows-revision-${record.dataRevision}.json`,
+    );
+    const days = rows.map((row) => ({
+      ...(row.rawJson && typeof row.rawJson === 'object' ? row.rawJson : {}),
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      department: row.department,
+      workDate: this.dateResponse(row.workDate),
+      dayNumber: row.dayNumber,
+      punchTimes: row.punchTimes,
+      calculationMethod: row.calculationMethod,
+      workIntervals: row.workIntervals,
+      pairedGrossHours: this.decimalResponse(row.pairedGrossHours),
+      lunchHours: this.decimalResponse(row.lunchHours),
+      calculatedHours: this.decimalResponse(row.calculatedHours),
+      firstPunch: row.firstPunch,
+      lastPunch: row.lastPunch,
+      warnings: row.warnings ?? [],
+      errors: row.errors ?? [],
+    }));
+    const payload = {
+      schemaVersion: 1,
+      source: 'PERSISTED_ACTIVE_ATTENDANCE_ROWS',
+      attendanceImportId: record.id,
+      dataRevision: record.dataRevision,
+      originalFilename: record.originalFilename,
+      sourceSha256: record.fileSha256,
+      parsedResult: {
+        formatType: 'WAGE_ATTENDANCE',
+        parserVersion: record.parserVersion,
+        sourceSheet: this.rawMetadataValue(record.rawMetadata, 'parsedResultMetadata', 'sourceSheet'),
+        periodStart: this.dateResponse(record.periodStart),
+        periodEnd: this.dateResponse(record.periodEnd),
+        confidence: this.rawMetadataValue(record.rawMetadata, 'parsedResultMetadata', 'confidence') ?? 1,
+        employees: this.activeEmployeeSummaries(rows),
+        days,
+        rawRows: [],
+        warnings: rows.flatMap((row) => this.issueArray(row.warnings)),
+        errors: rows.flatMap((row) => this.issueArray(row.errors)),
+        assumptions: ['Generation uses server-persisted active attendance rows.'],
+      },
+    };
+    await writeFile(targetPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    return targetPath;
+  }
+
+  private activeEmployeeSummaries(rows: AttendanceRowRecord[]): unknown[] {
+    const groups = new Map<string, AttendanceRowRecord[]>();
+    for (const row of rows) {
+      const key = `${row.employeeId ?? ''}\u0000${row.employeeName ?? ''}\u0000${row.department ?? ''}`;
+      groups.set(key, [...(groups.get(key) ?? []), row]);
+    }
+    return [...groups.values()].map((employeeRows) => ({
+      employeeId: employeeRows[0]?.employeeId ?? null,
+      employeeName: employeeRows[0]?.employeeName ?? null,
+      department: employeeRows[0]?.department ?? null,
+      dayCount: employeeRows.length,
+      workedDayCount: employeeRows.filter(
+        (row) => Number(row.calculatedHours?.toString() ?? 0) > 0,
+      ).length,
+      reviewDayCount: employeeRows.filter(
+        (row) =>
+          this.issueArray(row.warnings).length > 0 ||
+          this.issueArray(row.errors).length > 0,
+      ).length,
+      totalCalculatedHours: Number(
+        employeeRows
+          .reduce(
+            (sum, row) =>
+              sum + Number(row.calculatedHours?.toString() ?? 0),
+            0,
+          )
+          .toFixed(2),
+      ),
+    }));
+  }
+
+  private activeAttendanceSummary(rows: AttendanceRowRecord[]): {
+    employeeCount: number;
+    dayCount: number;
+    warningCount: number;
+    errorCount: number;
+  } {
+    const employees = new Set(
+      rows.map(
+        (row) =>
+          `${row.employeeId ?? ''}\u0000${row.employeeName ?? ''}\u0000${row.department ?? ''}`,
+      ),
+    );
+    return {
+      employeeCount: employees.size,
+      dayCount: rows.length,
+      warningCount: rows.reduce(
+        (count, row) => count + this.issueArray(row.warnings).length,
+        0,
+      ),
+      errorCount: rows.reduce(
+        (count, row) => count + this.issueArray(row.errors).length,
+        0,
+      ),
+    };
+  }
+
+  private rawMetadataValue(
+    value: unknown,
+    parent: string,
+    key: string,
+  ): unknown {
+    if (!value || typeof value !== 'object') return null;
+    const nested = (value as Record<string, unknown>)[parent];
+    if (!nested || typeof nested !== 'object') return null;
+    return (nested as Record<string, unknown>)[key] ?? null;
+  }
+
+  private rowAuditSnapshot(row: AttendanceRowRecord): Record<string, unknown> {
+    return {
+      rowKey: row.rowKey,
+      employeeId: row.employeeId,
+      employeeName: row.employeeName,
+      department: row.department,
+      workDate: this.dateResponse(row.workDate),
+      dayNumber: row.dayNumber,
+      punchTimes: row.punchTimes,
+      calculationMethod: row.calculationMethod,
+      workIntervals: row.workIntervals,
+      pairedGrossHours: this.decimalResponse(row.pairedGrossHours),
+      lunchHours: this.decimalResponse(row.lunchHours),
+      calculatedHours: this.decimalResponse(row.calculatedHours),
+      firstPunch: row.firstPunch,
+      lastPunch: row.lastPunch,
+      rawJson: row.rawJson,
+      warnings: row.warnings,
+      errors: row.errors,
+    };
+  }
+
+  private actorDisplaySnapshot(actor: AuthenticatedUser): string {
+    return actor.name?.trim() || actor.email?.trim() || actor.id;
+  }
+
+  private toAuditEventResponse(
+    event: AttendanceRowAuditEventRecord,
+  ): AttendanceRowAuditEventResponseDto {
+    return {
+      id: event.id,
+      eventCode: 'DELETED',
+      attendanceImportId: event.attendanceImportId,
+      attendanceRowId: event.attendanceRowId,
+      rowKey: event.rowKey,
+      employeeId: event.employeeId,
+      employeeName: event.employeeName,
+      department: event.department,
+      workDate: this.dateResponse(event.workDate) ?? this.toIsoString(event.workDate),
+      rowSnapshot: event.rowSnapshot,
+      actor: {
+        id: event.actorUserId,
+        displayLabel: event.actorDisplaySnapshot,
+      },
+      reason: event.reason,
+      occurredAt: this.toIsoString(event.occurredAt),
+    };
   }
 
   private validateXls(file: Express.Multer.File): void {
@@ -1056,6 +1577,7 @@ export class AttendanceService {
       warningCount: record.warningCount,
       errorCount: record.errorCount,
       errorMessage: record.errorMessage,
+      dataRevision: record.dataRevision ?? 0,
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
     };

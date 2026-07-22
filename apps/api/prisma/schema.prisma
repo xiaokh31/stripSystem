@@ -217,6 +217,10 @@ enum AttendanceCalculationMethod {
   PAIRED_INTERVALS
 }
 
+enum AttendanceRowAuditEventCode {
+  DELETED
+}
+
 enum ContainerPayClassification {
   OCEAN_CONTAINER
   US_TO_CANADA_TRANSFER
@@ -262,6 +266,8 @@ model User {
   operationalSettings           OperationalSetting[]      @relation("OperationalSettingUpdatedBy")
   attendanceImports             AttendanceImport[]        @relation("AttendanceImportImportedBy")
   wageGeneratedFiles            WageGeneratedFile[]       @relation("WageGeneratedFileGeneratedBy")
+  deletedAttendanceRows         AttendanceRow[]            @relation("AttendanceRowDeletedBy")
+  attendanceRowAuditEvents      AttendanceRowAuditEvent[]  @relation("AttendanceRowAuditActor")
   asyncJobs                     AsyncJob[]                @relation("AsyncJobActor")
   payContainersCreated          PayContainer[]            @relation("PayContainerCreatedBy")
   payContainersCompleted        PayContainer[]            @relation("PayContainerCompletedBy")
@@ -991,10 +997,12 @@ model AttendanceImport {
   warningCount       Int                  @default(0) @map("warning_count")
   errorCount         Int                  @default(0) @map("error_count")
   errorMessage       String?              @map("error_message")
+  dataRevision       Int                  @default(0) @map("data_revision")
   rawMetadata        Json?                @map("raw_metadata")
   importedById       String?              @map("imported_by_id")
   importedBy         User?                @relation("AttendanceImportImportedBy", fields: [importedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   rows               AttendanceRow[]
+  rowAuditEvents     AttendanceRowAuditEvent[]
   generatedFiles     WageGeneratedFile[]
   asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
@@ -1029,15 +1037,49 @@ model AttendanceRow {
   rawJson            Json             @map("raw_json")
   warnings           Json?
   errors             Json?
+  deletedAt          DateTime?        @map("deleted_at")
+  deletedById        String?          @map("deleted_by_id")
+  deletedBy          User?            @relation("AttendanceRowDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deletionReason     String?          @map("deletion_reason")
+  auditEvents        AttendanceRowAuditEvent[]
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
 
   @@unique([attendanceImportId, rowKey])
   @@index([attendanceImportId])
+  @@index([attendanceImportId, deletedAt])
+  @@index([deletedById])
   @@index([employeeId])
   @@index([employeeName])
   @@index([workDate])
   @@map("attendance_rows")
+}
+
+model AttendanceRowAuditEvent {
+  id                    String                      @id @default(cuid())
+  attendanceImportId    String                      @map("attendance_import_id")
+  attendanceImport      AttendanceImport            @relation(fields: [attendanceImportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  attendanceRowId       String?                     @map("attendance_row_id")
+  attendanceRow         AttendanceRow?              @relation(fields: [attendanceRowId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  rowKey                String                      @map("row_key")
+  eventCode             AttendanceRowAuditEventCode @map("event_code")
+  employeeId            String?                     @map("employee_id")
+  employeeName          String?                     @map("employee_name")
+  department            String?
+  workDate              DateTime                    @map("work_date") @db.Date
+  rowSnapshot           Json                        @map("row_snapshot")
+  actorUserId           String?                     @map("actor_user_id")
+  actorUser             User?                       @relation("AttendanceRowAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorDisplaySnapshot  String                      @map("actor_display_snapshot")
+  reason                String
+  occurredAt            DateTime                    @default(now()) @map("occurred_at")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+
+  @@unique([attendanceImportId, rowKey, eventCode])
+  @@index([attendanceImportId, occurredAt])
+  @@index([attendanceRowId])
+  @@index([actorUserId])
+  @@map("attendance_row_audit_events")
 }
 
 model WageGeneratedFile {

@@ -95,6 +95,21 @@ test("attendance API errors map to review workflow messages", () => {
     }),
     "Wage record generation failed. Review generated file history for the failed record.",
   );
+  assert.equal(
+    attendanceApiErrorMessage(
+      { code: "ATTENDANCE_IMPORT_BUSY", message: "busy", status: 409 },
+      "zh-CN",
+    ),
+    "考勤解析或工资表生成正在运行，请在完成后重试。",
+  );
+  assert.equal(
+    attendanceApiErrorMessage({
+      code: "ATTENDANCE_DATA_REVISION_CHANGED",
+      message: "changed",
+      status: 409,
+    }),
+    "Attendance data changed during generation. Generate the wage record again.",
+  );
 });
 
 test("pay container draft validates classification-specific fields", () => {

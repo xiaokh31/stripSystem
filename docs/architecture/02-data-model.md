@@ -253,6 +253,38 @@ Required semantics:
 - Re-generation must create another record or mark older records superseded;
   do not overwrite history silently.
 
+### Attendance settlement audit models
+
+`attendance_imports` is the concurrency boundary for one attendance settlement.
+`data_revision` increases after every successful Parse rebuild and every first
+employee-day deletion. Parse, delete, and the final generation commit lock this
+row so a workbook produced from an older revision can only be recorded as
+`SUPERSEDED`, never as current.
+
+`attendance_rows` preserves the complete parsed employee-day record. An active
+row has `deleted_at = NULL`; deletion fills `deleted_at`, `deleted_by_id`, and
+the required `deletion_reason` without clearing punches, intervals, calculated
+hours, raw JSON, warnings, or errors. `(attendance_import_id, deleted_at)` is
+indexed for active settlement reads. Successful Parse removes and rebuilds only
+active rows; the unique row key held by a deleted row is the durable tombstone
+that prevents the same source row from being recreated.
+
+`attendance_row_audit_events` is append-only evidence. The unique
+`(attendance_import_id, row_key, event_code)` key makes `DELETED` idempotent.
+Each event keeps the original row id/key, employee/date fields, full row JSON
+snapshot, authenticated actor id, durable actor display snapshot, required
+reason, and occurrence time. The optional row and actor relations use
+historical-safe deletion behavior; display evidence does not depend on a user
+remaining active or retaining the same name. The delete transaction commits
+the tombstone, event, active aggregates, revision increment, and affected wage
+file `SUPERSEDED` transitions together or rolls all of them back.
+
+`wage_generated_files` retains every historical attendance workbook and task
+report with SHA-256, generator, timestamps, and status. Deletion never removes
+or overwrites those artifacts. New generation receives a server-created
+normalized snapshot of active `attendance_rows`; the original `.xls` remains
+provenance and is not reparsed as an authority that could bypass tombstones.
+
 ### `load_jobs`
 
 Stores warehouse loading work. A load job represents one truck/departure plan,

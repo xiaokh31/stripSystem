@@ -4,7 +4,8 @@
 
 - 优先级：P1 HR 工时复核体验。
 - 前置任务：`WAGE-HOURS-01`、`WAGE-HOURS-02` 均达到受监督终态。
-- 本任务实现页面和 focused Web/API contract tests；完整下载工作簿视觉退出门禁由 `WAGE-HOURS-04` 执行。
+- 本任务实现员工整月页面和 focused Web/API contract tests；工时行删除/历史由 `WAGE-HOURS-04` 执行，完整下载工作簿
+  视觉退出门禁由 `WAGE-HOURS-05` 执行。
 
 ## 对应用户原始需求
 
@@ -82,6 +83,7 @@
 - 不增加员工账号或把 attendance employee 绑定到 `User`。
 - 不允许页面重新计算或覆盖 Worker hours。
 - 不修改 Excel 样式算法、拆柜工资、Dashboard 或 Native。
+- 不实现 employee-day row 删除或删除历史，留给 `WAGE-HOURS-04`；但页面结构必须允许后续加入行级命令和历史视图。
 - 不对整个 Office Shell 做视觉重设计。
 
 ## Docker 验证
@@ -105,9 +107,34 @@ git diff --check
 3. read-only/RBAC、upload/parse/generate/download 原行为无回归。
 4. strict i18n、SSR/no-flash、移动/桌面/200% zoom、无 page overflow 和 accessibility tests 通过。
 5. Docker Web checks、focused Chromium、healthcheck 与 diff check 通过。
-6. `HANDOFF.md` 记录截图/测试和下一项 `WAGE-HOURS-04`。
+6. `HANDOFF.md` 记录截图/测试和下一项 `WAGE-HOURS-04`（工时行删除与历史）。
 
 ## 完成输出
 
 - 列出 UI 结构、identity/grouping 规则、i18n keys、测试数量与截图路径。
 - 更新本 Task、Task Index、完成度报告和 `HANDOFF.md`。
+
+## 完成证据（2026-07-22 MDT）
+
+- 状态：`DONE`。
+- UI：`/work-hours` 现在使用员工月度索引 + 当前员工身份/摘要 + bounded 月度明细表。员工索引保留 13 名真实员工，
+  当前员工显示按日期升序的完整 30 行；全局 `rows.slice(0, 100)` 和 first-100 提示均已移除。employee switch 只保留
+  `attendanceImportId` / `employeeKey` 并执行 GET 导航，不会触发 Parse/Generate，也不会丢失 generated files。
+- identity：有 `employeeId` 时使用 NFKC/trim/case-normalized id；缺少 id 时使用 normalized name + department；同名不同 id
+  不合并，无姓名时显示本地化 unknown employee 并保留 id。summary 只聚合 API 的 persisted `calculatedHours`、warnings/errors
+  和 row count，不重新计算 punches 或覆盖 Worker 结果。
+- i18n：新增 23 个 typed en/zh-CN keys，覆盖 employee index/current/summary、unknown identity、month row count、method、
+  parser contract、punch empty/error 与 accessible review label。`NO_PUNCHES`、`FIRST_LAST_FALLBACK`、
+  `PAIRED_INTERVALS`、`LEGACY_UNKNOWN` 和 `wage-attendance-v2` 均通过窄 helper 映射，不作为 visible raw label。
+- 自动化：Docker Web lint、typecheck、生产 build 通过；Web 全量 262 tests passed（其中 6 个新增 employee review
+  helper/source contract tests）。focused Chromium 4/4 passed，覆盖真实 13 employees / 390 rows、相距员工各 30 行、
+  真实三打卡 odd fallback、普通 even paired row、generate/download 保持、read-only user、en/zh-CN SSR/refresh、
+  320/390/768/1366/1920、无 page overflow/console/hydration/missing-translation error 和真实 200% browser zoom。
+  full-stack healthcheck（含 Next static assets）和 `git diff --check` 通过。
+- 截图已逐图检查：
+  `test-results/wage-hours-03/employee-month-zh-CN-320x780.png`、
+  `employee-month-en-390x844.png`、`employee-month-zh-CN-768x1024.png`、
+  `employee-month-en-1366x900.png`、`employee-month-zh-CN-1920x1080.png`、
+  `employee-month-en-1366x768-zoom-200.png`。真实 zoom 使用 CDP viewport capture，避免扩展 zoom 后普通 screenshot 变白。
+- 下一项只能执行 `WAGE-HOURS-04Attendance Row Audited Deletion and History.md`；本 Session 未启动删除/历史或
+  WAGE-HOURS-05 workbook 退出门禁。

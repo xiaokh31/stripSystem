@@ -16,6 +16,7 @@ export interface AttendanceImportResponseDto {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  dataRevision: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +72,42 @@ export interface AttendanceParseResultResponseDto {
   rows: AttendanceRowResponseDto[];
   warnings: unknown[];
   errors: unknown[];
+  activeRowCount: number;
+  deletedRowCount: number;
+}
+
+export interface AttendanceRowAuditEventResponseDto {
+  id: string;
+  eventCode: 'DELETED';
+  attendanceImportId: string;
+  attendanceRowId: string | null;
+  rowKey: string;
+  employeeId: string | null;
+  employeeName: string | null;
+  department: string | null;
+  workDate: string;
+  rowSnapshot: unknown;
+  actor: { id: string | null; displayLabel: string };
+  reason: string;
+  occurredAt: string;
+}
+
+export interface AttendanceRowHistoryResponseDto {
+  items: AttendanceRowAuditEventResponseDto[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface DeleteAttendanceRowResponseDto {
+  code: 'ATTENDANCE_ROW_DELETED' | 'ATTENDANCE_ROW_ALREADY_DELETED';
+  deleted: boolean;
+  alreadyDeleted: boolean;
+  activeRowCount: number;
+  deletedRowCount: number;
+  row: AttendanceRowResponseDto;
+  event: AttendanceRowAuditEventResponseDto;
+  affectedGeneratedFiles: Array<{ id: string; status: 'SUPERSEDED' }>;
 }
 
 export interface WageGeneratedFileListResponseDto {

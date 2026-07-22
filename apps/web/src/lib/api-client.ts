@@ -411,6 +411,7 @@ export interface AttendanceImportResponse {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  dataRevision: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -435,6 +436,12 @@ export interface AttendanceRowResponse {
   workDate: string;
   dayNumber: number;
   punchTimes: unknown;
+  calculationMethod:
+    | "LEGACY_UNKNOWN"
+    | "NO_PUNCHES"
+    | "FIRST_LAST_FALLBACK"
+    | "PAIRED_INTERVALS";
+  workIntervals: unknown;
   pairedGrossHours: string | null;
   lunchHours: string;
   calculatedHours: string | null;
@@ -465,6 +472,42 @@ export interface AttendanceParseResultResponse {
   rows: AttendanceRowResponse[];
   warnings: unknown[];
   errors: unknown[];
+  activeRowCount: number;
+  deletedRowCount: number;
+}
+
+export interface AttendanceRowAuditEventResponse {
+  id: string;
+  eventCode: "DELETED";
+  attendanceImportId: string;
+  attendanceRowId: string | null;
+  rowKey: string;
+  employeeId: string | null;
+  employeeName: string | null;
+  department: string | null;
+  workDate: string;
+  rowSnapshot: Record<string, unknown>;
+  actor: { id: string | null; displayLabel: string };
+  reason: string;
+  occurredAt: string;
+}
+
+export interface AttendanceRowHistoryResponse {
+  items: AttendanceRowAuditEventResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface DeleteAttendanceRowResponse {
+  code: "ATTENDANCE_ROW_DELETED" | "ATTENDANCE_ROW_ALREADY_DELETED";
+  deleted: boolean;
+  alreadyDeleted: boolean;
+  activeRowCount: number;
+  deletedRowCount: number;
+  row: AttendanceRowResponse;
+  event: AttendanceRowAuditEventResponse;
+  affectedGeneratedFiles: Array<{ id: string; status: "SUPERSEDED" }>;
 }
 
 export interface WageGeneratedFileListResponse {
@@ -2156,6 +2199,32 @@ export function getAttendanceParseResult(
 ): Promise<AttendanceParseResultResponse> {
   return createApiClient(options).get<AttendanceParseResultResponse>(
     `/attendance-imports/${encodeURIComponent(id)}/parse-result`,
+  );
+}
+
+export function deleteAttendanceRow(
+  attendanceImportId: string,
+  rowId: string,
+  reason: string,
+  options: ApiClientOptions = {},
+): Promise<DeleteAttendanceRowResponse> {
+  return createApiClient(options).request<DeleteAttendanceRowResponse>(
+    `/attendance-imports/${encodeURIComponent(attendanceImportId)}/rows/${encodeURIComponent(rowId)}`,
+    { method: "DELETE", body: { reason } },
+  );
+}
+
+export function getAttendanceRowHistory(
+  attendanceImportId: string,
+  filters: { limit?: number; offset?: number } = {},
+  options: ApiClientOptions = {},
+): Promise<AttendanceRowHistoryResponse> {
+  const params = new URLSearchParams();
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) params.set("offset", String(filters.offset));
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  return createApiClient(options).get<AttendanceRowHistoryResponse>(
+    `/attendance-imports/${encodeURIComponent(attendanceImportId)}/row-history${suffix}`,
   );
 }
 

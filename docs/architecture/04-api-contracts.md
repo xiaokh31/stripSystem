@@ -96,6 +96,42 @@ Python and TypeScript calculations use stable rule codes and exact decimal
 strings. New calculations must agree on destination group, capacity, rounding,
 calculated pallets, warning codes, and the complete policy snapshot.
 
+### Attendance Row Deletion And History
+
+```http
+GET /api/attendance-imports/:id/parse-result
+DELETE /api/attendance-imports/:id/rows/:rowId
+GET /api/attendance-imports/:id/row-history?limit=50&offset=0
+POST /api/attendance-imports/:id/generate-wage-record
+```
+
+Rules:
+- Parse result requires `attendance.read` and returns only active rows plus
+  authoritative `activeRowCount` and `deletedRowCount`. Deleted snapshots are
+  available only through the separate history route.
+- Delete requires `attendance.rows.delete`. The body contains only a trimmed,
+  non-empty `reason` of at most 500 characters; actor identity and display
+  snapshot come from the authenticated JWT, never the request body or query.
+- A first deletion returns `ATTENDANCE_ROW_DELETED`; a repeat returns
+  `ATTENDANCE_ROW_ALREADY_DELETED` and the original immutable event without
+  changing its actor, reason, or time. Unknown/cross-import ids return stable
+  not-found errors without mutation.
+- Delete response includes active/deleted counts, the preserved row, event,
+  and affected generated file ids/statuses. It does not return a local storage
+  path. History requires `attendance.read`, is newest-first, and uses bounded
+  pagination (limit 1..100).
+- A queued/running attendance Parse or wage-generation job makes deletion fail
+  with `ATTENDANCE_IMPORT_BUSY`. The import row lock and `dataRevision` prevent
+  a concurrent old-data generation from becoming current; revision mismatch
+  returns `ATTENDANCE_DATA_REVISION_CHANGED` after preserving the attempted
+  artifacts as `SUPERSEDED` evidence.
+- Successful Parse rebuilds active rows while retaining deleted row keys and
+  events. Parse failure leaves the prior tombstones/history untouched.
+- Wage generation uses a server-controlled normalized payload built from
+  persisted active rows. The original `.xls` supplies provenance only. Every
+  prior workbook/task report remains auditable and becomes `SUPERSEDED` when
+  attendance data changes.
+
 ### Parser Learning Cases
 
 ```http

@@ -102,12 +102,22 @@ session management, or permission enforcement is already complete.
 | Upload attendance workbook | yes | yes | no | no | no | no |
 | Parse attendance workbook | yes | yes | no | no | no | worker-only |
 | Generate attendance wage record | yes | yes | no | no | no | worker-only |
+| Delete an attendance employee-day row | yes | yes | no | no | no | no |
+| Read attendance deletion history | yes | yes | no | no | no | worker-only |
 | Read unloading wage data | yes | no | yes | no | no | no |
 | Edit container unloading wage section | yes | no | yes | no | no | no |
 | Mark unloading as completed for wage | yes | no | yes | no | no | no |
 | Generate unloading wage settlement | yes | no | yes | no | no | worker-only |
 
 Notes:
+- Employee-day mutation uses the dedicated `attendance.rows.delete`
+  permission. Default seeding grants it only to `ADMIN` and `HR_MANAGER`; it is
+  not implied by `attendance.read`, `attendance.parse`, or
+  `attendance.generate`, and is explicitly absent from `SYSTEM`,
+  `WAREHOUSE_MANAGER`, `OFFICE`, and `WAREHOUSE`.
+- Deletion history uses `attendance.read`, so a delegated read-only attendance
+  user may review immutable events while the Web and API still deny the row
+  deletion command.
 - `OFFICE` may still read or edit normal container data according to the main
   matrix, but that does not imply wage-settlement authority.
 - `WAREHOUSE` may still scan and complete loading jobs, but loading completion

@@ -239,11 +239,20 @@ def wage_generate_record(
         writable=True,
         help="Wage record output directory.",
     ),
+    normalized_attendance_json: Path | None = typer.Option(
+        None,
+        "--normalized-attendance-json",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Server-controlled persisted active attendance-row JSON.",
+    ),
 ) -> None:
     result = run_wage_generate_record_api(
         attendance_file=attendance_file,
         template_path=wage_template,
         output_dir=output_dir,
+        normalized_attendance_json=normalized_attendance_json,
     )
     typer.echo(
         json.dumps(

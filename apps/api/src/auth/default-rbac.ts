@@ -115,6 +115,11 @@ export const DEFAULT_PERMISSIONS: DefaultPermission[] = [
     'Generate wage record workbooks.',
   ),
   permission(
+    PERMISSIONS.attendance.deleteRows,
+    'attendance',
+    'Soft-delete attendance employee-day rows with an immutable audit event.',
+  ),
+  permission(
     PERMISSIONS.unloadingWage.read,
     'unloading_wage',
     'Read unloading wage pay containers and settlements.',
@@ -230,6 +235,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<RoleCode, PermissionCode[]> =
       PERMISSIONS.attendance.create,
       PERMISSIONS.attendance.parse,
       PERMISSIONS.attendance.generate,
+      PERMISSIONS.attendance.deleteRows,
     ],
     [ROLE_CODES.warehouse]: [
       PERMISSIONS.loadJobs.read,

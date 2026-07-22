@@ -19,6 +19,7 @@ export const ATTENDANCE_READ_PERMISSION = "attendance.read";
 export const ATTENDANCE_CREATE_PERMISSION = "attendance.create";
 export const ATTENDANCE_PARSE_PERMISSION = "attendance.parse";
 export const ATTENDANCE_GENERATE_PERMISSION = "attendance.generate";
+export const ATTENDANCE_ROWS_DELETE_PERMISSION = "attendance.rows.delete";
 export const CORRECTIONS_CREATE_PERMISSION = "corrections.create";
 export const CONTAINERS_UPDATE_PERMISSION = "containers.update";
 export const UNLOADING_WAGE_READ_PERMISSION = "unloading_wage.read";
@@ -135,6 +136,10 @@ export function canParseWorkHours(user: AuthUserResponse | null): boolean {
 
 export function canGenerateWorkHours(user: AuthUserResponse | null): boolean {
   return hasPermission(user, ATTENDANCE_GENERATE_PERMISSION);
+}
+
+export function canDeleteAttendanceRows(user: AuthUserResponse | null): boolean {
+  return hasPermission(user, ATTENDANCE_ROWS_DELETE_PERMISSION);
 }
 
 export function canReviewUnloadingWage(

@@ -62,6 +62,7 @@ export const PERMISSIONS = {
     create: 'attendance.create',
     parse: 'attendance.parse',
     generate: 'attendance.generate',
+    deleteRows: 'attendance.rows.delete',
   },
   unloadingWage: {
     read: 'unloading_wage.read',

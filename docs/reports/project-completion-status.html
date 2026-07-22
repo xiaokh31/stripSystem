@@ -408,16 +408,16 @@
           accessibility、performance、network、CLS 和最终高信号视觉门禁；WEB-BRAND-04 已去除 on-dark wordmark
           的黑色矩形底块，以 256 unit、Chromium 3/3 + 5/5 和同一 10-view 矩阵确认透明 Shell、compact fallback 与
           既有行为均保持。
-          2026-07-21 新增 WAGE-HOURS-01 至 04：01 已交付 odd first/last、even paired intervals、固定午休只扣一次、
-          wage-attendance-v2 和 method/interval PostgreSQL round trip；Web 仍只显示全局前 100 行、matched
-          wage sheets 写值时退回默认 XF 丢失配色，并存在特殊司机 Sheet 模糊误配风险。剩余线路按
-          multi-sheet workbook、employee-month UI、full-stack/LibreOffice exit gate 的顺序执行；完成前 Work Hours 不再
-          视为本轮需求 complete。
+          2026-07-21 新增 WAGE-HOURS-01 至 05，五项已于 2026-07-22 全部交付：odd first/last、even paired intervals、固定午休只扣一次、
+          wage-attendance-v2、method/interval PostgreSQL round trip、multi-sheet `.xls` 逐格 XF/formula 保真、
+          特殊 Sheet/adjustment row 保护和有界自适应尺寸，以及按稳定 employee identity 显示完整月份、API summary、
+          localized method/issues 并移除全局前 100 行截断。新需求还要求 employee-day row 可审计软删除、记录 JWT 删除人
+          并显示历史，且 reparse 不得复活。最终 full-stack/BIFF/LibreOffice/Chromium exit gate 已通过，Work Hours 本轮需求恢复 complete。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 已全部关闭且不得重跑；剩余 3 个 WAGE-HOURS Task
-          可在开发机按顺序执行，当前只启动 02；另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
+          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05 已全部关闭且不得重跑；
+          另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
           Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
         </p>
@@ -631,8 +631,8 @@
         <p class="note">
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
           新增的 Work Hours Settlement 与 Unloading Wage Settlement P0/P1/P2 扩展；
-          不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 04 修正线路，既有完成记录保留为
-          历史基线，但 Work Hours 新口径要到 04 关闭后才能重新标记 complete。按用户要求，每个阶段完成后更新本 HTML。
+          不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 05 修正线路，既有完成记录保留为
+          历史基线；Work Hours 新口径已由 05 关闭并重新标记 complete。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
           <thead>
@@ -853,28 +853,35 @@
               <td><span class="badge done">Done</span></td>
               <td>100%</td>
               <td>已交付 `wage-attendance-v2`：odd 使用 first/last 并保留 warning，even 按相邻 pairs 求和，fixed lunch 在分钟 gross 汇总后只扣一次；Worker/API/Prisma/PostgreSQL 持久化稳定 method 和 intervals，历史行使用 `LEGACY_UNKNOWN` 兼容。真实 fixture 保持 13 employees / 390 rows，方法分布为 271 NO_PUNCHES、26 FIRST_LAST_FALLBACK、93 PAIRED_INTERVALS，真实三打卡行 net 为 7.67。</td>
-              <td>Worker 14、API unit 327、API E2E 121 tests passed；lint/typecheck、现有库与空库 migration、真实 API/DB round trip、重复 Parse 幂等和全栈 healthcheck 通过。下一项只执行 WAGE-HOURS-02。</td>
+              <td>Worker 14、API unit 327、API E2E 121 tests passed；lint/typecheck、现有库与空库 migration、真实 API/DB round trip、重复 Parse 幂等和全栈 healthcheck 通过。后续 WAGE-HOURS-02/03/04/05 也已完成。</td>
             </tr>
             <tr>
               <td>Stage 7.1: WAGE-HOURS-02 Multi-Sheet Wage Workbook Formatting</td>
-              <td><span class="badge partial">Ready</span></td>
-              <td>0%</td>
-              <td>审计确认 generator write 未携带 template style，matched sheets data cells 退回默认 XF；同时需阻止 `deng wei` 误配特殊司机 Sheet，保留 adjustment row，并实现 bounded ASCII/CJK-aware dimensions。</td>
-              <td>当前下一项；使用新的 supervisor Session 执行，不得与 03/04 并行。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>生成器改为复制原 OLE 后最小补丁 BIFF cell/ROW/COLINFO，所有写入保留对应模板 XF，未触及 formula/defined name/print/page/merge/pane/hidden metadata 不再因 `xlutils.copy` 丢失。完整五列表头与 exact-token 双向一对一匹配阻止特殊司机 Sheet、短 substring 和 multiple match 误写；employee id/name 独立匹配且 name token 最短 3 字符。日期槽位要求完整日期文本或 BIFF date cell；生成期优先，真实旧模板只在证明完整有序月份网格时复用，数字备注与 adjustment row 原样保留。ASCII=1、CJK=2、2 字符 padding、32 字符列宽/1920 twips 行高上限实现 deterministic bounded sizing，普通内容不改变模板尺寸。</td>
+              <td>真实 10 Sheet inventory 逐 Sheet 包含 headers、target status、key styles、row/column metadata；每个 touched cell normalized style、第二/第三/中间/最后 matched Sheet、3 个未写 Sheet 的 values/formulas/structure、可靠 id/短 name token、Excel date/正数备注、review/空值/TOTAL、长 ASCII/CJK/multiline 与重复 SHA 均回归。Docker 定向 17、Worker 全量 181 tests passed，Ruff/Mypy/diff check 通过。后续 WAGE-HOURS-03/04/05 也已完成。</td>
             </tr>
             <tr>
               <td>Stage 7.2: WAGE-HOURS-03 Employee Monthly Attendance Review UI</td>
-              <td><span class="badge partial">Pending Predecessor</span></td>
-              <td>0%</td>
-              <td>当前 `/work-hours` 按日期平铺并 `rows.slice(0,100)`；新页面需按稳定 employee identity 选择/分组，显示每人完整 30/31 天、summary、method/issues，并保持 strict en/zh-CN、RBAC、mobile/desktop/200% zoom。</td>
-              <td>WAGE-HOURS-01/02 Done 后执行。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>`/work-hours` 已改为员工月度索引、当前员工身份/四项 API aggregate summary 和 bounded 完整月表。有 employee id 时使用 normalized id，缺失时使用 normalized name + department；同名不同 id 不合并，无姓名使用本地化 unknown employee。13 名真实员工各 30 行、共 390 行全部可达且按日期稳定排序；method/parser/issues 通过 typed en/zh-CN helper 映射，odd fallback 显示计算结果与 warning，Web 不重算工时。</td>
+              <td>Docker lint/typecheck/build、Web 262 tests、focused Chromium 4/4 通过；真实 fixture odd/even 与 API 逐格一致，read-only/RBAC、generate/download 保持。320/390/768/1366/1920 与真实 200% zoom 无 page overflow、console/hydration/missing translation error，6 张截图已逐图检查。后续 WAGE-HOURS-04/05 已完成。</td>
             </tr>
             <tr>
-              <td>Stage 7.3: WAGE-HOURS-04 Full Stack Workbook Visual Exit Gate</td>
-              <td><span class="badge partial">Pending Predecessor</span></td>
-              <td>0%</td>
-              <td>需要真实上传/Parse/DB/UI/Generate/API download 端到端，以及全 Sheet normalized BIFF style/dimension 检查、Docker LibreOffice PDF/PNG 逐图验收、strict i18n/RBAC/cleanup/healthcheck 关闭。</td>
-              <td>01/02/03 Done 后必须执行；只有本项关闭才恢复 Work Hours complete 结论。</td>
+              <td>Stage 7.3: WAGE-HOURS-04 Attendance Row Audited Deletion and History</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>已交付 employee-day row tombstone、JWT actor、required reason、append-only snapshot history、active/deleted counts、reparse tombstone replay、旧 generated file 留痕/取代状态与 active-row normalized generation。删除、event、aggregates 与 stale transition 同事务；revision lock 阻止并发生成错误 current output。Web 提供 permissioned dialog、active/history 分区、bounded newest-first history、双语 stale 状态与 390px/200% zoom 可访问布局。</td>
+              <td>API 333 unit / 122 E2E、Web 262 unit、Worker 183、现有库与空库 34 migrations、lint/typecheck/build/healthcheck 通过；Chromium 完整 5/5，最终修正场景 1/1。真实删除后 388 active / 2 deleted / 2 events，HR/ADMIN actor snapshot 保留；fixture SHA 未变且测试 DB/storage 精确清理为 0。下一项只执行 WAGE-HOURS-05。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.4: WAGE-HOURS-05 Full Stack Workbook Visual Exit Gate</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>真实 `.xls` 已通过 nginx upload、duplicate SHA、Parse、PostgreSQL round trip、13 员工完整月 UI、工时行删除/历史、reparse、Generate、Worker/API download 全链路。10 Sheet 全单元格 normalized BIFF font/fill/border/alignment/number-format/protection、结构、merge、dimensions 与 print metadata 均通过；7 eligible、2 unmatched、1 special 分类正确，Worker/API 字节一致，Wei Deng adjustment row 保留，删除只改变 BALIHAR 的 5 个预期单元格。</td>
+              <td>Worker 183、API 333 unit / 122 E2E、Web 262 unit、lint/typecheck/build、现有/空库 34 migrations、Chromium 5/5、最终 full-stack healthcheck 全通过。template/Worker/API/after-delete 各渲染 22 页；4 张 contact sheet 与 11 张原始高信号图已逐图检查。测试 import/users/roles 为 0，精确生成目录已清理，SHA 原件和 gitignored `test-results/wage-hours-05/` 证据保留。Work Hours 本轮无已知限制。</td>
             </tr>
           </tbody>
         </table>
@@ -1554,9 +1561,9 @@
           <tbody>
             <tr>
               <td>Work hours calculation, employee review and generated workbook revision</td>
-              <td><span class="badge partial">Ready for Development</span></td>
-              <td>WAGE-HOURS-01 已完成，奇数 punch 已有可审计计算结果；WAGE-HOURS-02 至 04 尚未执行，页面仍隐藏全局 100 行后的员工记录、matched wage sheets 写值后配色丢失，且 special sheet/date-slot matching 需要加固。</td>
-              <td>按 02 -> 03 -> 04 顺序执行；当前只启动 02。04 必须包含真实 API 下载和 Docker LibreOffice 全 Sheet 视觉证据。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WAGE-HOURS-01/02/03/04/05 已完成，奇偶 punch 有可审计结果，multi-sheet `.xls` 已保留逐格样式、未触及 formulas、特殊 Sheet/adjustment rows 并支持有界自适应尺寸；员工月度 UI 可选择全部 13 人并显示每人完整 30 行；employee-day row 支持 JWT actor、reason、不可变历史、reparse tombstone 与 active-only generation。</td>
+              <td>真实 API 下载、10 Sheet BIFF 审计、Docker LibreOffice 4×22 页、Chromium 双语/mobile/200% zoom、RBAC、迁移、healthcheck 与清理均已关闭；本轮 Work Hours complete。</td>
             </tr>
             <tr>
               <td>Operations dashboard redesign</td>

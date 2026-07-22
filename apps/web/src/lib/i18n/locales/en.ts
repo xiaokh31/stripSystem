@@ -1740,6 +1740,25 @@ export const enMessages = {
     "Generated wage file failed. Review the job result and try again.",
   "Attendance background job failed. Review parser and generated file history.":
     "Attendance background job failed. Review parser and generated file history.",
+  "Attendance calculation contract v2": "Attendance calculation contract v2",
+  "Calculation method": "Calculation method",
+  "Current employee": "Current employee",
+  "Displayed rows": "Displayed rows",
+  "Employee month index": "Employee month index",
+  "First and last punch fallback": "First and last punch fallback",
+  "Legacy attendance calculation": "Legacy attendance calculation",
+  "Legacy calculation method": "Legacy calculation method",
+  "Monthly attendance detail": "Monthly attendance detail",
+  "No employee ID": "No employee ID",
+  "No punches": "No punches",
+  "Paired punch intervals": "Paired punch intervals",
+  "Punch details unavailable": "Punch details unavailable",
+  "Review days": "Review days",
+  "Total calculated hours": "Total calculated hours",
+  "Unknown calculation method": "Unknown calculation method",
+  "Unknown department": "Unknown department",
+  "Unknown employee": "Unknown employee",
+  "Worked days": "Worked days",
   "Generate wage record workbook": "Generate wage record workbook",
   "i18n.workHours.generatedFileAudit":
     "SHA-256 {sha256} | Size {size} | MIME {mimeType}",
@@ -1749,7 +1768,12 @@ export const enMessages = {
   "i18n.workHours.sha256": "SHA-256: {sha256}",
   "i18n.workHours.employeeCount": "{count} employee(s)",
   "i18n.workHours.parsedRowsFromFile": "{count} row(s) from {filename}",
-  "i18n.workHours.firstRows": "Showing first 100 of {count} parsed rows.",
+  "i18n.workHours.employeeAuxiliary": "ID {employeeId} · {department}",
+  "i18n.workHours.employeeIndexSummary":
+    "{count} employee(s) · {rows} employee-day row(s)",
+  "i18n.workHours.reviewEmployee": "Review employee {employee}",
+  "i18n.workHours.completeMonthRows":
+    "All {count} stored employee-day row(s) for this employee, ordered by work date.",
   "i18n.workHours.uploadedFilename": "Uploaded {filename}.",
   "i18n.workHours.jobSubmitted":
     "Job {id} submitted. Waiting for worker result.",
@@ -2460,6 +2484,35 @@ export const enMessages = {
   "i18n.parserSelection.openProfiles": "Review parser profiles",
   "i18n.parserSelection.createLearningCase": "Create a new learning case",
   "i18n.parserSelection.diagnostics": "Technical diagnostics",
+  "Attendance deletion history could not be loaded": "Attendance deletion history could not be loaded",
+  "Deletion history": "Deletion history",
+  "Excluded from active settlement": "Excluded from active settlement",
+  "No attendance rows have been deleted.": "No attendance rows have been deleted.",
+  "Deleted by": "Deleted by",
+  "Deleted at": "Deleted at",
+  "Delete attendance row": "Delete attendance row",
+  "i18n.workHours.deleteRowAria": "Delete row for {employee} on {date}",
+  "Delete row": "Delete row",
+  "Deletion reason is required.": "Deletion reason is required.",
+  "Deleting attendance row.": "Deleting attendance row.",
+  "Attendance row deleted and history recorded.": "Attendance row deleted and history recorded.",
+  "Exclude attendance row from settlement?": "Exclude attendance row from settlement?",
+  "The source row remains preserved. This action removes it from active totals and future wage records and writes an immutable deletion event.":
+    "The source row remains preserved. This action removes it from active totals and future wage records and writes an immutable deletion event.",
+  "Deletion reason": "Deletion reason",
+  "Deleting": "Deleting",
+  "i18n.workHours.activeDeletedCounts": "{active} active rows · {deleted} deleted rows",
+  "i18n.workHours.historyCount": "{count} immutable deletion events",
+  "Attendance parsing or wage generation is running. Try again after it finishes.":
+    "Attendance parsing or wage generation is running. Try again after it finishes.",
+  "Attendance row could not be found in the selected import.":
+    "Attendance row could not be found in the selected import.",
+  "Attendance data changed during generation. Generate the wage record again.":
+    "Attendance data changed during generation. Generate the wage record again.",
+  "Attendance deletion audit is inconsistent. Contact an administrator.":
+    "Attendance deletion audit is inconsistent. Contact an administrator.",
+  "This employee has no active attendance rows. Review deletion history below.":
+    "This employee has no active attendance rows. Review deletion history below.",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

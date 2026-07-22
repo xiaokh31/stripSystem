@@ -71,6 +71,8 @@ export const ROUTE_PERMISSIONS = {
     getById: [PERMISSIONS.attendance.read],
     parse: [PERMISSIONS.attendance.parse],
     getParseResult: [PERMISSIONS.attendance.read],
+    deleteRow: [PERMISSIONS.attendance.deleteRows],
+    rowHistory: [PERMISSIONS.attendance.read],
     generateWageRecord: [PERMISSIONS.attendance.generate],
     listFiles: [PERMISSIONS.attendance.read],
   },

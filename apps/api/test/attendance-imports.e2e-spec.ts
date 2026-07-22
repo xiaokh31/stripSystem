@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { App } from 'supertest/types';
@@ -13,6 +13,7 @@ import {
   configureAuthTestEnv,
   installAuthMock,
   hrManagerAuthHeader,
+  officeAuthHeader,
 } from './auth-test-helpers';
 
 jest.setTimeout(30_000);
@@ -35,6 +36,7 @@ interface AttendanceImportRecord {
   warningCount: number;
   errorCount: number;
   errorMessage: string | null;
+  dataRevision: number;
   rawMetadata: unknown;
   importedById: string | null;
   createdAt: Date;
@@ -61,6 +63,9 @@ interface AttendanceRowRecord {
   rawJson: unknown;
   warnings: unknown;
   errors: unknown;
+  deletedAt: Date | null;
+  deletedById: string | null;
+  deletionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -102,6 +107,7 @@ interface AttendanceImportBody {
 interface AttendanceParseBody {
   attendanceImport: AttendanceImportBody;
   rows: Array<{
+    id: string;
     rowKey: string;
     employeeId: string | null;
     employeeName: string | null;
@@ -242,6 +248,7 @@ describe('AttendanceImportsController (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    await rm(storageRoot, { recursive: true, force: true });
     if (originalStorageRoot === undefined) {
       delete process.env.STORAGE_ROOT;
     } else {
@@ -504,6 +511,120 @@ describe('AttendanceImportsController (e2e)', () => {
       });
   });
 
+  it('soft deletes with JWT attribution, preserves immutable history on repeat parse, and supersedes prior wage files', async () => {
+    const uploaded = await authorizedRequest(app, hrManagerAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const importId = (uploaded.body as AttendanceImportBody).id;
+    const parsed = await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${importId}/parse`)
+      .expect(201);
+    const parsedBody = parsed.body as AttendanceParseBody;
+    const target = parsedBody.rows.find(
+      (row) => row.employeeId === '1' && row.workDate === '2026-06-02',
+    );
+    expect(target).toBeDefined();
+
+    const generatedBefore = await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${importId}/generate-wage-record`)
+      .expect(201);
+    const beforeBody = generatedBefore.body as GenerateWageRecordBody;
+    const beforeSha = beforeBody.generatedFile.fileSha256;
+
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${importId}/rows/${target!.rowKey}`)
+      .send({ reason: '' })
+      .expect(400);
+    await authorizedRequest(app, officeAuthHeader())
+      .delete(`/api/attendance-imports/${importId}/rows/${target!.id ?? target!.rowKey}`)
+      .send({ reason: 'Office users cannot delete attendance rows.' })
+      .expect(403);
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${importId}/rows/missing-row`)
+      .send({ reason: 'Unknown row must not change the import.' })
+      .expect(404);
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/missing-import/rows/${target!.id}`)
+      .send({ reason: 'Cross-import lookup must not change the row.' })
+      .expect(404);
+
+    const deleted = await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${importId}/rows/${target!.id}`)
+      .send({ reason: 'Time-clock row belongs to another settlement.' })
+      .expect(200);
+    expect(deleted.body).toMatchObject({
+      code: 'ATTENDANCE_ROW_DELETED',
+      deleted: true,
+      activeRowCount: 389,
+      deletedRowCount: 1,
+      event: {
+        eventCode: 'DELETED',
+        actor: {
+          id: 'auth-hr-manager',
+          displayLabel: 'HR_MANAGER User',
+        },
+        reason: 'Time-clock row belongs to another settlement.',
+      },
+      affectedGeneratedFiles: expect.arrayContaining([
+        { id: beforeBody.generatedFile.id, status: 'SUPERSEDED' },
+      ]),
+    });
+
+    const repeated = await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${importId}/rows/${target!.id}`)
+      .send({ reason: 'Must not replace the first reason.' })
+      .expect(200);
+    expect(repeated.body).toMatchObject({
+      code: 'ATTENDANCE_ROW_ALREADY_DELETED',
+      alreadyDeleted: true,
+      event: { reason: 'Time-clock row belongs to another settlement.' },
+    });
+
+    const history = await authorizedRequest(app, hrManagerAuthHeader())
+      .get(`/api/attendance-imports/${importId}/row-history?limit=10&offset=0`)
+      .expect(200);
+    expect(history.body).toMatchObject({
+      total: 1,
+      items: [
+        expect.objectContaining({
+          eventCode: 'DELETED',
+          rowKey: target!.rowKey,
+          rowSnapshot: expect.objectContaining({
+            employeeId: '1',
+            workDate: '2026-06-02',
+          }),
+        }),
+      ],
+    });
+
+    const reparsed = await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${importId}/parse`)
+      .expect(201);
+    expect(reparsed.body).toMatchObject({
+      activeRowCount: 389,
+      deletedRowCount: 1,
+    });
+    expect((reparsed.body as AttendanceParseBody).rows).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ rowKey: target!.rowKey })]),
+    );
+
+    const generatedAfter = await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${importId}/generate-wage-record`)
+      .expect(201);
+    const afterBody = generatedAfter.body as GenerateWageRecordBody;
+    expect(afterBody.generatedFile.fileSha256).toEqual(expect.any(String));
+    expect(beforeSha).toEqual(expect.any(String));
+    const oldRecord = wageGeneratedFiles.find(
+      (file) => file.id === beforeBody.generatedFile.id,
+    );
+    expect(oldRecord).toMatchObject({
+      fileSha256: beforeSha,
+      status: 'SUPERSEDED',
+      generatedById: 'auth-hr-manager',
+    });
+  });
+
   function createPrismaMock(
     importRecords: AttendanceImportRecord[],
     rowRecords: AttendanceRowRecord[],
@@ -540,6 +661,7 @@ describe('AttendanceImportsController (e2e)', () => {
             warningCount: data.warningCount,
             errorCount: data.errorCount,
             errorMessage: data.errorMessage,
+            dataRevision: 0,
             rawMetadata: null,
             importedById: data.importedById ?? null,
             createdAt: now,
@@ -556,7 +678,12 @@ describe('AttendanceImportsController (e2e)', () => {
           if (!record) {
             throw new Error(`Attendance import not found: ${where.id}`);
           }
+          const nextRevision =
+            data.dataRevision?.increment !== undefined
+              ? record.dataRevision + data.dataRevision.increment
+              : (data.dataRevision ?? record.dataRevision);
           Object.assign(record, data, {
+            dataRevision: nextRevision,
             updatedAt: new Date('2026-07-04T10:01:00.000Z'),
           });
           return Promise.resolve(record);
@@ -567,7 +694,8 @@ describe('AttendanceImportsController (e2e)', () => {
           const originalLength = rowRecords.length;
           for (let index = rowRecords.length - 1; index >= 0; index -= 1) {
             if (
-              rowRecords[index].attendanceImportId === where.attendanceImportId
+              rowRecords[index].attendanceImportId === where.attendanceImportId &&
+              (!('deletedAt' in where) || !rowRecords[index].deletedAt)
             ) {
               rowRecords.splice(index, 1);
             }
@@ -576,7 +704,16 @@ describe('AttendanceImportsController (e2e)', () => {
         }),
         createMany: jest.fn(({ data }) => {
           const now = new Date('2026-07-04T10:02:00.000Z');
-          const rows: AttendanceRowRecord[] = data.map((row, index) => ({
+          const rows: AttendanceRowRecord[] = data
+            .filter(
+              (row) =>
+                !rowRecords.some(
+                  (existing) =>
+                    existing.attendanceImportId === row.attendanceImportId &&
+                    existing.rowKey === row.rowKey,
+                ),
+            )
+            .map((row, index) => ({
             id: `attendance-row-${rowRecords.length + index + 1}`,
             attendanceImportId: row.attendanceImportId,
             rowKey: row.rowKey,
@@ -596,6 +733,9 @@ describe('AttendanceImportsController (e2e)', () => {
             rawJson: row.rawJson,
             warnings: row.warnings,
             errors: row.errors,
+            deletedAt: null,
+            deletedById: null,
+            deletionReason: null,
             createdAt: now,
             updatedAt: now,
           }));
@@ -606,7 +746,9 @@ describe('AttendanceImportsController (e2e)', () => {
           Promise.resolve(
             rowRecords
               .filter(
-                (row) => row.attendanceImportId === where.attendanceImportId,
+                (row) =>
+                  row.attendanceImportId === where.attendanceImportId &&
+                  (where.deletedAt === null ? !row.deletedAt : true),
               )
               .sort((left, right) =>
                 left.workDate.toString() === right.workDate.toString()
@@ -615,6 +757,33 @@ describe('AttendanceImportsController (e2e)', () => {
                       .toString()
                       .localeCompare(right.workDate.toString()),
               ),
+          ),
+        ),
+        findFirst: jest.fn(({ where }) =>
+          Promise.resolve(
+            rowRecords.find(
+              (row) =>
+                row.id === where.id &&
+                row.attendanceImportId === where.attendanceImportId,
+            ) ?? null,
+          ),
+        ),
+        update: jest.fn(({ where, data }) => {
+          const row = rowRecords.find((item) => item.id === where.id)!;
+          Object.assign(row, data);
+          return Promise.resolve(row);
+        }),
+        count: jest.fn(({ where }) =>
+          Promise.resolve(
+            rowRecords.filter(
+              (row) =>
+                row.attendanceImportId === where.attendanceImportId &&
+                (where.deletedAt === null
+                  ? !row.deletedAt
+                  : where.deletedAt?.not === null
+                    ? Boolean(row.deletedAt)
+                    : true),
+            ).length,
           ),
         ),
       },
@@ -666,8 +835,60 @@ describe('AttendanceImportsController (e2e)', () => {
             ) ?? null;
           return Promise.resolve(found);
         }),
+        updateMany: jest.fn(({ where, data }) => {
+          const ids = where.id?.in as string[] | undefined;
+          let count = 0;
+          for (const file of generatedFileRecords) {
+            if (!ids || ids.includes(file.id)) {
+              Object.assign(file, data);
+              count += 1;
+            }
+          }
+          return Promise.resolve({ count });
+        }),
+        update: jest.fn(({ where, data }) => {
+          const file = generatedFileRecords.find((item) => item.id === where.id)!;
+          Object.assign(file, data);
+          return Promise.resolve(file);
+        }),
       },
     };
+
+    const auditEvents: any[] = [];
+    prismaMock.attendanceRowAuditEvent = {
+      create: jest.fn(({ data }) => {
+        const event = { id: `attendance-audit-${auditEvents.length + 1}`, ...data };
+        auditEvents.push(event);
+        return Promise.resolve(event);
+      }),
+      findUnique: jest.fn(({ where }) => {
+        const key = where.attendanceImportId_rowKey_eventCode;
+        return Promise.resolve(
+          auditEvents.find(
+            (event) =>
+              event.attendanceImportId === key.attendanceImportId &&
+              event.rowKey === key.rowKey &&
+              event.eventCode === key.eventCode,
+          ) ?? null,
+        );
+      }),
+      findMany: jest.fn(({ where, take, skip }) =>
+        Promise.resolve(
+          auditEvents
+            .filter((event) => event.attendanceImportId === where.attendanceImportId)
+            .reverse()
+            .slice(skip, skip + take),
+        ),
+      ),
+      count: jest.fn(({ where }) =>
+        Promise.resolve(
+          auditEvents.filter(
+            (event) => event.attendanceImportId === where.attendanceImportId,
+          ).length,
+        ),
+      ),
+    };
+    prismaMock.asyncJob = { findFirst: jest.fn(() => Promise.resolve(null)) };
 
     prismaMock.$transaction = jest.fn((callback) => callback(prismaMock));
 

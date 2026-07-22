@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Controller,
+  Body,
+  Delete,
   Get,
   Param,
   Post,
@@ -26,7 +28,11 @@ import {
   AttendanceParseResultResponseDto,
   GenerateWageRecordResponseDto,
   WageGeneratedFileListResponseDto,
+  AttendanceRowHistoryResponseDto,
+  DeleteAttendanceRowResponseDto,
 } from './dto/attendance-response.dto';
+import { DeleteAttendanceRowDto } from './dto/delete-attendance-row.dto';
+import { ListAttendanceRowHistoryQueryDto } from './dto/list-attendance-row-history-query.dto';
 import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-query.dto';
 
 @Controller('attendance-imports')
@@ -105,6 +111,26 @@ export class AttendanceController {
     @Param('id') id: string,
   ): Promise<AttendanceParseResultResponseDto> {
     return this.attendanceService.getParseResult(id);
+  }
+
+  @Delete(':id/rows/:rowId')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.deleteRow)
+  deleteRow(
+    @Param('id') id: string,
+    @Param('rowId') rowId: string,
+    @Body() body: DeleteAttendanceRowDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<DeleteAttendanceRowResponseDto> {
+    return this.attendanceService.deleteRow(id, rowId, body.reason, actor);
+  }
+
+  @Get(':id/row-history')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.rowHistory)
+  rowHistory(
+    @Param('id') id: string,
+    @Query() query: ListAttendanceRowHistoryQueryDto,
+  ): Promise<AttendanceRowHistoryResponseDto> {
+    return this.attendanceService.listRowHistory(id, query);
   }
 
   @Post(':id/generate-wage-record')
