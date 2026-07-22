@@ -23,6 +23,7 @@
     "src/components/mobile/offline-scan-queue.ts",
     "src/components/reports/inventory-report-flow.ts",
     "src/components/wage/employee-attendance-review.ts",
+    "src/components/wage/work-hours-generated-files.tsx",
     "src/lib/admin-role-options.ts",
     "src/lib/i18n/*.ts",
     "tests/**/*.test.ts"

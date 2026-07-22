@@ -41,7 +41,7 @@ const wageTemplatePath = path.join(
   "wage",
   "20260601-0630_wageRecords.xls",
 );
-const exitGateDirectory = "test-results/wage-hours-05";
+const exitGateDirectory = "test-results/wage-hours-06";
 const exitGateSourceDirectory = path.join(exitGateDirectory, "source");
 const exitGateManifestPath = path.join(exitGateDirectory, "evidence-manifest.json");
 const screenshotDirectory = path.join(exitGateDirectory, "browser");
@@ -148,6 +148,24 @@ test("HR can review attendance import, parse rows, generate wage file, and use d
   await expect(page.getByText("Review issues")).toBeVisible();
   await expect(page.getByText("ray").first()).toBeVisible();
 
+  const filesBeforeGeneration = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    token,
+    attendanceImportId,
+  );
+  expect(
+    filesBeforeGeneration.filter((file) => file.fileType === "WAGE_RECORD_XLS"),
+  ).toHaveLength(0);
+  await expect(page.getByRole("heading", { name: "Wage record files" }))
+    .toBeVisible();
+  await expect(page.getByText("No wage record files yet.")).toBeVisible();
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    filesBeforeGeneration,
+    "en",
+  );
+
   const duplicateUpload = await request.post("/api/attendance-imports", {
     headers: authHeaders(token),
     multipart: {
@@ -229,7 +247,17 @@ test("HR can review attendance import, parse rows, generate wage file, and use d
   expect(generationResponse.status()).toBe(201);
 
   await expect(page.getByText("Wage record", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Task report", { exact: true }).first()).toBeVisible();
+  const generatedFiles = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    token,
+    attendanceImportId,
+  );
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    generatedFiles,
+    "en",
+  );
   await expect(page.getByText("SHA-256").first()).toBeVisible();
   await expect(page.getByText("MIME").first()).toBeVisible();
   await expect(
@@ -244,16 +272,16 @@ test("HR can review attendance import, parse rows, generate wage file, and use d
     "href",
     /\/work-hours\/[^/]+\/files\/[^/]+\/download/,
   );
+  await expectBrowserWageDownloadMatchesAudit(
+    page,
+    attendanceImportId,
+    generatedFiles,
+  );
 
   await reviewEmployeeMonth(page, attendanceImportId, firstEmployee, "en");
   await expect(page.getByRole("link", { name: "Download" }).first()).toBeVisible();
 
   await expectNoPageError(page);
-  await expectGeneratedFilesHaveAuditMetadata(
-    request,
-    token,
-    attendanceImportId,
-  );
   const generationBody = await getLatestGeneratedFiles(
     request,
     token,
@@ -324,6 +352,17 @@ test("read-only attendance user can open work hours but cannot see mutation acti
     { headers: authHeaders(readOnlyToken) },
   );
   expect(readOnlyHistory.status()).toBe(200);
+  const readOnlyFiles = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    readOnlyToken,
+    attendanceImportId,
+  );
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    readOnlyFiles,
+    "en",
+  );
   await updateExitGateManifest({
     rbac: {
       readOnlyDelete: readOnlyDelete.status(),
@@ -350,6 +389,7 @@ test("employee month review stays single-language and bounded across required vi
   const selectedEmployee = employeeGroupForRow(groups, pairedRow!);
   const selectedHref = employeeMonthHref(attendanceImportId, selectedEmployee.identityKey);
   const browserErrors: string[] = [];
+  const failedRequests: string[] = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
     if (
@@ -359,7 +399,25 @@ test("employee month review stays single-language and bounded across required vi
       browserErrors.push(message.text());
     }
   });
+  page.on("requestfailed", (request) => {
+    const failure = request.failure()?.errorText ?? "failed";
+    const isCancelledRscPrefetch =
+      failure === "net::ERR_ABORTED" && new URL(request.url()).searchParams.has("_rsc");
+    if (!isCancelledRscPrefetch) {
+      failedRequests.push(`${request.method()} ${request.url()} ${failure}`);
+    }
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failedRequests.push(`${response.status()} ${response.url()}`);
+    }
+  });
   await mkdir(screenshotDirectory, { recursive: true });
+  const generatedFiles = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    adminToken,
+    attendanceImportId,
+  );
 
   const presentations = [
     { height: 780, locale: "zh-CN" as const, width: 320 },
@@ -384,8 +442,15 @@ test("employee month review stays single-language and bounded across required vi
       presentation.locale === "en" ? "员工月度索引" : "Employee month index";
     expect(ssrHtml).toContain(expectedSsrCopy);
     expect(ssrHtml).not.toContain(forbiddenSsrCopy);
+    expectSsrOmitsTechnicalFiles(ssrHtml, generatedFiles);
     await expect(page.locator("html")).toHaveAttribute("lang", presentation.locale);
     await expectLocalizedEmployeeReview(page, presentation.locale);
+    await expectOfficeWageFileVisibility(
+      page,
+      attendanceImportId,
+      generatedFiles,
+      presentation.locale,
+    );
     await expect(page.getByRole("region", {
       name: presentation.locale === "en" ? "Monthly attendance detail" : "月度考勤明细",
     }).locator("tbody tr")).toHaveCount(30);
@@ -400,7 +465,42 @@ test("employee month review stays single-language and bounded across required vi
     });
   }
 
+  await setLocale(page.context(), "en");
+  await page.setViewportSize({ height: 900, width: 1366 });
+  await page.goto(selectedHref, { waitUntil: "networkidle" });
+  await page
+    .getByLabel("Language")
+    .getByRole("button", { name: "中文" })
+    .click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    generatedFiles,
+    "zh-CN",
+  );
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    generatedFiles,
+    "zh-CN",
+  );
+  await page
+    .getByLabel("语言")
+    .getByRole("button", { name: "English" })
+    .click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    generatedFiles,
+    "en",
+  );
+
   expect(browserErrors, "employee month browser errors").toEqual([]);
+  expect(failedRequests, "employee month failed requests").toEqual([]);
 });
 
 test("employee month review passes real Chromium 200 percent zoom", async ({
@@ -412,10 +512,16 @@ test("employee month review passes real Chromium 200 percent zoom", async ({
   const attendanceImportId = await ensureParsedAttendanceImport(request, token);
   const rows = await getAttendanceRows(request, token, attendanceImportId);
   const selectedEmployee = realEmployeeGroups(rows).at(-1)!;
+  const generatedFiles = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    token,
+    attendanceImportId,
+  );
   await verifyRealBrowserZoom(
     token,
     employeeMonthHref(attendanceImportId, selectedEmployee.identityKey),
     testInfo.outputPath("wage-hours-03-zoom-profile"),
+    { files: generatedFiles },
   );
 });
 
@@ -512,6 +618,20 @@ test("HR deletion stays audited through refresh, reparse, generation, download, 
   await expect(page.getByRole("heading", { name: "删除历史" })).toBeVisible();
   await expect(page.getByText(reason)).toBeVisible();
   await expect(page.getByText("已被取代").first()).toBeVisible();
+  const filesAfterDelete = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    hrToken,
+    attendanceImportId,
+  );
+  await expectOfficeWageFileVisibility(
+    page,
+    attendanceImportId,
+    filesAfterDelete,
+    "zh-CN",
+  );
+  expect(
+    filesAfterDelete.filter((file) => file.fileType === "WAGE_RECORD_XLS"),
+  ).toHaveLength(2);
   await expectNoPageOverflow(page, 390);
   await expectNoPageError(page);
   await page.getByRole("heading", { name: "删除历史" }).scrollIntoViewIfNeeded();
@@ -524,6 +644,7 @@ test("HR deletion stays audited through refresh, reparse, generation, download, 
     employeeMonthHref(attendanceImportId, targetEmployee.identityKey),
     testInfo.outputPath("wage-hours-04-zoom-profile"),
     {
+      files: filesAfterDelete,
       historyReason: reason,
       screenshotPath: `${auditedDeletionScreenshotDirectory}/history-en-1366x768-zoom-200.png`,
     },
@@ -1075,7 +1196,11 @@ async function verifyRealBrowserZoom(
   token: string,
   route: string,
   userDataDir: string,
-  deletionEvidence?: { historyReason: string; screenshotPath: string },
+  options?: {
+    files?: GeneratedFileEvidence[];
+    historyReason?: string;
+    screenshotPath?: string;
+  },
 ): Promise<void> {
   const extensionPath = path.join(
     process.cwd(),
@@ -1120,15 +1245,27 @@ async function verifyRealBrowserZoom(
     await setRealBrowserZoom(zoomPage, worker, 2, 1366);
     await expect(zoomPage.getByRole("heading", { name: "Monthly attendance detail" }))
       .toBeVisible();
+    if (options?.files) {
+      const attendanceImportId = new URL(zoomPage.url()).searchParams.get(
+        "attendanceImportId",
+      );
+      expect(attendanceImportId).toBeTruthy();
+      await expectOfficeWageFileVisibility(
+        zoomPage,
+        attendanceImportId!,
+        options.files,
+        "en",
+      );
+    }
     await expectNoPageOverflow(zoomPage, 683);
     const screenshotPath =
-      deletionEvidence?.screenshotPath ??
+      options?.screenshotPath ??
       `${screenshotDirectory}/employee-month-en-1366x768-zoom-200.png`;
-    if (deletionEvidence) {
+    if (options?.historyReason) {
       await expect(
         zoomPage.getByRole("heading", { name: "Deletion history" }),
       ).toBeVisible();
-      await expect(zoomPage.getByText(deletionEvidence.historyReason)).toBeVisible();
+      await expect(zoomPage.getByText(options.historyReason)).toBeVisible();
       await zoomPage
         .getByRole("heading", { name: "Deletion history" })
         .scrollIntoViewIfNeeded();
@@ -1280,29 +1417,121 @@ async function expectGeneratedFilesHaveAuditMetadata(
   request: APIRequestContext,
   token: string,
   attendanceImportId: string,
-): Promise<void> {
+): Promise<GeneratedFileEvidence[]> {
   const response = await request.get(
     `/api/attendance-imports/${attendanceImportId}/files`,
     { headers: authHeaders(token) },
   );
   expect(response.status()).toBe(200);
-  const body = (await response.json()) as {
-    items: Array<{
-      fileSha256: string | null;
-      fileSizeBytes: string | null;
-      fileType: string;
-      mimeType: string | null;
-      storagePath: string | null;
-    }>;
-  };
-  const wageRecord = body.items.find(
+  const body = (await response.json()) as { items: GeneratedFileEvidence[] };
+  for (const file of body.items) {
+    expect(file.id).toBeTruthy();
+    expect(file.fileSha256).toBeTruthy();
+    expect(Number(file.fileSizeBytes)).toBeGreaterThan(0);
+    expect(file.mimeType).toBeTruthy();
+    expect(file.status).toBeTruthy();
+    expect(file.storagePath).toBeTruthy();
+  }
+  for (const technicalType of [
+    "ATTENDANCE_PARSED_JSON",
+    "TASK_REPORT_HTML",
+  ]) {
+    expect(
+      body.items.find((item) => item.fileType === technicalType),
+      `API must retain ${technicalType}`,
+    ).toBeTruthy();
+  }
+  for (const wageRecord of body.items.filter(
     (item) => item.fileType === "WAGE_RECORD_XLS",
+  )) {
+    expect(wageRecord.mimeType).toBe("application/vnd.ms-excel");
+    expect(wageRecord.storagePath).toMatch(/\.xls$/);
+  }
+  return body.items;
+}
+
+async function expectOfficeWageFileVisibility(
+  page: Page,
+  attendanceImportId: string,
+  files: GeneratedFileEvidence[],
+  locale: "en" | "zh-CN",
+): Promise<void> {
+  const wageFiles = files.filter((file) => file.fileType === "WAGE_RECORD_XLS");
+  const technicalFiles = files.filter(
+    (file) => file.fileType !== "WAGE_RECORD_XLS",
   );
-  expect(wageRecord).toBeTruthy();
-  expect(wageRecord?.fileSha256).toBeTruthy();
-  expect(Number(wageRecord?.fileSizeBytes)).toBeGreaterThan(0);
-  expect(wageRecord?.mimeType).toBe("application/vnd.ms-excel");
-  expect(wageRecord?.storagePath).toMatch(/\.xls$/);
+  const title = locale === "en" ? "Wage record files" : "工资表文件";
+  const wageLabel = locale === "en" ? "Wage record" : "工资记录";
+
+  await expect(page.getByRole("heading", { exact: true, name: title })).toBeVisible();
+  await expect(page.locator('[data-testid="wage-record-file"]')).toHaveCount(
+    wageFiles.length,
+  );
+  await expect(page.getByText(wageLabel, { exact: true })).toHaveCount(
+    wageFiles.length,
+  );
+  for (const forbiddenText of [
+    "Task report",
+    "任务报告",
+    "Parsed attendance data",
+    "已解析考勤数据",
+    "TASK_REPORT_HTML",
+    "ATTENDANCE_PARSED_JSON",
+  ]) {
+    await expect(page.getByText(forbiddenText, { exact: true })).toHaveCount(0);
+  }
+  for (const file of technicalFiles) {
+    await expect(
+      page.locator(
+        `a[href*="/work-hours/${attendanceImportId}/files/${file.id}/download"]`,
+      ),
+    ).toHaveCount(0);
+  }
+  const downloadableWageFiles = wageFiles.filter(
+    (file) => file.status === "GENERATED",
+  );
+  await expect(
+    page.locator(
+      `a[href^="/work-hours/${attendanceImportId}/files/"][href$="/download"]`,
+    ),
+  ).toHaveCount(downloadableWageFiles.length);
+}
+
+function expectSsrOmitsTechnicalFiles(
+  html: string,
+  files: GeneratedFileEvidence[],
+): void {
+  for (const forbiddenText of [
+    "Task report",
+    "任务报告",
+    "Parsed attendance data",
+    "已解析考勤数据",
+    "TASK_REPORT_HTML",
+    "ATTENDANCE_PARSED_JSON",
+  ]) {
+    expect(html).not.toContain(forbiddenText);
+  }
+  for (const file of files.filter(
+    (candidate) => candidate.fileType !== "WAGE_RECORD_XLS",
+  )) {
+    expect(html).not.toContain(`/files/${file.id}/download`);
+  }
+}
+
+async function expectBrowserWageDownloadMatchesAudit(
+  page: Page,
+  attendanceImportId: string,
+  files: GeneratedFileEvidence[],
+): Promise<void> {
+  const wageFile = files.find(
+    (file) => file.fileType === "WAGE_RECORD_XLS" && file.status === "GENERATED",
+  );
+  expect(wageFile).toBeTruthy();
+  const response = await page.context().request.get(
+    `/work-hours/${attendanceImportId}/files/${wageFile!.id}/download`,
+  );
+  expect(response.status()).toBe(200);
+  expect(sha256(await response.body())).toBe(wageFile!.fileSha256);
 }
 
 async function createReadOnlyAttendanceUser(

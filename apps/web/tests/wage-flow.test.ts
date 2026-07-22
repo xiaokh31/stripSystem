@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   attendanceApiErrorMessage,
   attendanceUploadError,
@@ -8,8 +10,11 @@ import {
   formatHours,
   generatedFileAuditText,
   isAllowedLegacyXlsFile,
+  isOfficeVisibleWageFile,
+  officeVisibleWageFiles,
   wageGenerationBlockReason,
 } from "../src/components/wage/attendance-flow";
+import { WorkHoursGeneratedFiles } from "../src/components/wage/work-hours-generated-files";
 import {
   buildCompletePayContainerRequest,
   buildCreatePayContainerRequest,
@@ -18,7 +23,10 @@ import {
   settlementLineContainerNumbers,
   settlementReviewAlerts,
 } from "../src/components/wage/unloading-wage-flow";
-import type { UnloadingWageSettlementResponse } from "../src/lib/api-client";
+import type {
+  UnloadingWageSettlementResponse,
+  WageGeneratedFileResponse,
+} from "../src/lib/api-client";
 
 test("attendance upload flow accepts only legacy xls files", () => {
   assert.equal(isAllowedLegacyXlsFile({ name: "workAttendance.xls" }), true);
@@ -68,6 +76,80 @@ test("generated attendance file metadata is formatted for review", () => {
     }),
     "SHA-256 abc123 | Size 1.5 KB | MIME application/vnd.ms-excel",
   );
+});
+
+test("office wage file allowlist keeps every wage workbook status and defaults to hidden", () => {
+  const files = [
+    generatedFileFixture("wage-current", "WAGE_RECORD_XLS", "GENERATED"),
+    generatedFileFixture("wage-superseded", "WAGE_RECORD_XLS", "SUPERSEDED"),
+    generatedFileFixture("wage-failed", "WAGE_RECORD_XLS", "FAILED"),
+    generatedFileFixture("parsed", "ATTENDANCE_PARSED_JSON", "GENERATED"),
+    generatedFileFixture("report", "TASK_REPORT_HTML", "GENERATED"),
+    generatedFileFixture("future", "FUTURE_DIAGNOSTIC", "GENERATED"),
+    generatedFileFixture("empty", "", "GENERATED"),
+  ] as const;
+  const inputOrder = files.map((file) => file.id);
+  const visible = officeVisibleWageFiles(files);
+
+  assert.deepEqual(
+    visible.map((file) => [file.id, file.status]),
+    [
+      ["wage-current", "GENERATED"],
+      ["wage-superseded", "SUPERSEDED"],
+      ["wage-failed", "FAILED"],
+    ],
+  );
+  assert.deepEqual(files.map((file) => file.id), inputOrder);
+  assert.notEqual(visible, files);
+  assert.equal(visible[0], files[0]);
+  assert.equal(isOfficeVisibleWageFile({ fileType: null }), false);
+  assert.equal(isOfficeVisibleWageFile({}), false);
+});
+
+test("work hours file render omits technical cards, metadata, and download anchors", () => {
+  const files = [
+    generatedFileFixture("wage-current", "WAGE_RECORD_XLS", "GENERATED"),
+    generatedFileFixture("wage-superseded", "WAGE_RECORD_XLS", "SUPERSEDED"),
+    generatedFileFixture("wage-failed", "WAGE_RECORD_XLS", "FAILED", "wage failure"),
+    generatedFileFixture("parsed-file-id", "ATTENDANCE_PARSED_JSON", "GENERATED"),
+    generatedFileFixture("report-file-id", "TASK_REPORT_HTML", "GENERATED"),
+    generatedFileFixture("future-file-id", "FUTURE_DIAGNOSTIC", "GENERATED"),
+  ];
+  const html = renderToStaticMarkup(
+    createElement(WorkHoursGeneratedFiles, {
+      attendanceImportId: "attendance-1",
+      files,
+      locale: "en",
+    }),
+  );
+
+  assert.equal((html.match(/data-testid="wage-record-file"/g) ?? []).length, 3);
+  assert.equal((html.match(/>Wage record</g) ?? []).length, 3);
+  assert.match(
+    html,
+    /href="\/work-hours\/attendance-1\/files\/wage-current\/download"/,
+  );
+  assert.doesNotMatch(html, /parsed-file-id|report-file-id|future-file-id/);
+  assert.doesNotMatch(
+    html,
+    /Parsed attendance data|Task report|FUTURE_DIAGNOSTIC|technical-sha/,
+  );
+});
+
+test("work hours file render uses the filtered wage-record empty state", () => {
+  const html = renderToStaticMarkup(
+    createElement(WorkHoursGeneratedFiles, {
+      attendanceImportId: "attendance-1",
+      files: [
+        generatedFileFixture("parsed-file-id", "ATTENDANCE_PARSED_JSON", "GENERATED"),
+        generatedFileFixture("report-file-id", "TASK_REPORT_HTML", "GENERATED"),
+      ],
+      locale: "zh-CN",
+    }),
+  );
+
+  assert.match(html, /尚未生成工资表。/);
+  assert.doesNotMatch(html, /已解析考勤数据|任务报告|download/);
 });
 
 test("attendance API errors map to review workflow messages", () => {
@@ -277,5 +359,30 @@ function settlementFixture(
     warningCount: 0,
     warnings: [],
     workers: [],
+  };
+}
+
+function generatedFileFixture(
+  id: string,
+  fileType: string,
+  status: string,
+  errorMessage: string | null = null,
+): WageGeneratedFileResponse {
+  return {
+    attendanceImportId: "attendance-1",
+    createdAt: "2026-07-22T12:00:00.000Z",
+    errorMessage,
+    fileSha256: fileType === "WAGE_RECORD_XLS" ? `${id}-sha` : "technical-sha",
+    fileSizeBytes: "1536",
+    fileType,
+    id,
+    mimeType:
+      fileType === "WAGE_RECORD_XLS"
+        ? "application/vnd.ms-excel"
+        : "application/octet-stream",
+    status,
+    storagePath: `/workspace/storage/${id}`,
+    unloadingWageSettlementId: null,
+    updatedAt: "2026-07-22T12:00:00.000Z",
   };
 }

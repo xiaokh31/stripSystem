@@ -4,50 +4,57 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-22T21:31:19Z`
+- Generated at: `2026-07-22T22:13:48Z`
 - Source: `business-task-supervisor`
-- Task: `WAGE-HOURS-05`
-- Task file: `prompts/tasks/WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md`
+- Task: `WAGE-HOURS-06`
+- Task file: `prompts/tasks/WAGE-HOURS-06Office Wage File Download Visibility.md`
 - Status: `DONE`
 - Execution mode: `full`
-- Session: `019f8b98-393b-7d72-8147-6d16402c391c`
-- Git HEAD: `0e40fb6`
+- Session: `019f8bca-ebbf-7a71-9dac-e0422cbb8ac1`
+- Git HEAD: `85b4366`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260722T205036Z-WAGE-HOURS-05-15637`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260722T214558Z-WAGE-HOURS-06-18907`
 
 ## 现在在做什么
 
-WAGE-HOURS-05 is complete; no implementation or verification remains for this Task.
+WAGE-HOURS-06 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- WAGE-HOURS-05 已完成全部当前环境 Definition of Done。已建立真实工资工作簿端到端证据链、Docker LibreOffice 视觉出口门禁、全表结构与样式审计、删除前后差异审计及 RBAC/审计历史验证；任务索引、完成报告、产品文档、回归手册和 HANDOFF 均已同步为 DONE。
+- WAGE-HOURS-06 已完成。/work-hours 现在通过 typed、default-deny allowlist 仅展示 WAGE_RECORD_XLS 历史；解析 JSON、任务报告及未知技术工件仍完整保留在 API、数据库和 storage 中，但不会进入办公室页面的 SSR、DOM、辅助内容或下载链接。双语文案、过滤后空状态、状态与下载契约、自动化测试及权威完成文档均已更新。
 
 ### Changed files
 
-- apps/web/e2e/work-hours.spec.ts
-- infra/docker/compose.local.yml
-- infra/docker/report-visual-test.Dockerfile
-- scripts/audit-wage-workbooks.py
-- scripts/render-wage-workbook-visual.sh
-- docs/product/02-work-hours-and-unloading-wage-settlement.md
-- docs/runbooks/work-hours-settlement-regression.md
-- docs/reports/project-completion-status.html
-- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
-- prompts/tasks/WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md
 - HANDOFF.md
+- apps/web/e2e/work-hours.spec.ts
+- apps/web/src/app/work-hours/page.tsx
+- apps/web/src/components/wage/attendance-flow.ts
+- apps/web/src/components/wage/work-hours-generated-files.tsx
+- apps/web/src/lib/i18n/locales/en.ts
+- apps/web/src/lib/i18n/locales/zh.ts
+- apps/web/tests/wage-flow.test.ts
+- apps/web/tsconfig.test.json
+- docs/product/02-work-hours-and-unloading-wage-settlement.md
+- docs/reports/project-completion-status.html
+- docs/runbooks/work-hours-settlement-regression.md
+- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- prompts/tasks/WAGE-HOURS-06Office Wage File Download Visibility.md
 
 ### Tests and verification actually run
 
-- Chromium 工时 E2E：5/5 通过；验证真实导入、生成、重复导入 409、RBAC、删除审计及证据保存
-- 视觉出口门禁：4 个工作簿共 88 页渲染通过；全部 10 个工作表结构、样式和打印元数据审计 PASS
-- Worker/API 基线工作簿字节一致；Wei Deng 调整行保留；删除仅改变 BALIHAR 工作表预期的 5 个单元格
-- Worker pytest：183/183 通过
-- API lint、typecheck、单元测试 333/333、E2E 122/122 通过
-- Web lint、typecheck、单元测试 262/262、生产构建通过
-- Prisma 当前库 34 个迁移已同步；全新临时库完整部署 34 个迁移后已删除
-- Docker 全栈重建及 healthcheck 通过，包括 PostgreSQL、Redis、API、Web、nginx、Worker 和 Next.js 静态资源
-- 最终 git diff --check、任务终态、视觉审计清单和临时数据清理复核通过；数据库计数为 0|0|0
+- Docker Web lint：通过
+- Docker Web typecheck：通过
+- Docker Web unit：265/265 通过
+- Docker production image/build：通过
+- Focused Chromium work-hours：5/5 通过
+- 浏览器覆盖 en/zh-CN、HR/ADMIN/read-only、320/390/768/1366/1920、真实 200% zoom、refresh、locale switch 与 SSR
+- 9 张全分辨率截图及 evidence manifest 已人工检查
+- 工资表浏览器代理下载 SHA 与 API 审计记录一致
+- 清理前确认 parsed JSON、task report、当前及 superseded 工资表均保留完整审计 metadata/generatedBy
+- 清理后 task import、generated files、async jobs、临时 users/role 均为 0
+- 原始上传及两份真实 fixture SHA-256 校验通过
+- scripts/healthcheck.sh：通过
+- git diff --check：通过
 
 ## 卡在哪里
 
@@ -65,15 +72,15 @@ WAGE-HOURS-05 is complete; no implementation or verification remains for this Ta
 
 ## 下一步
 
-- 由业务任务监督器记录 WAGE-HOURS-05 的 DONE 终态；不要启动其他任务。
+- 本任务无剩余工作；下一项由最新 Task Index 决定，不得重跑 WAGE-HOURS-01 至 06。
 
 ## 不要再踩的坑
 
-- 生成接口返回 201 只表示异步任务已提交；证据采集必须等待页面确认任务和文件生成完成。
-- 工作表分类映射顺序不等于真实 Excel 工作表顺序；审计必须使用显式的 10 表顺序。
-- 不要在运行中的旧 Next.js 服务容器内构建后直接判断静态资源健康；构建会短暂改写 .next，需重建完整 Compose 栈后再运行 healthcheck。
-- 清理只能针对本任务的精确导入 ID、测试用户、角色和导入目录；必须保留原始文件、审计证据及 WAGE-HOURS-01 至 04 的既有未提交改动。
-- 数据库名和角色标识字段应从实际 Compose/schema 获取；当前分别为 bestar_unloading 和 roles.code。
+- 技术工件只能从办公室展示边界过滤；不得删除、停止生成或缩减受保护 API 的完整审计集合。
+- 过滤必须在 empty state 和 SSR 渲染前执行，不能通过 CSS、hydration 或隐藏链接掩盖技术内容。
+- Chromium 生成流程是异步的；读取最终文件集合前必须等待工资表生成完成，否则会产生竞态误判。
+- 清理只能删除已确认 import 的生成目录；SHA 地址的 attendance_original_files 原始上传必须保留。
+- Next.js RSC 预取可能产生 _rsc net::ERR_ABORTED；诊断只能精确忽略该已确认取消请求，不能放宽其他 failed-request 门禁。
 
 ## 新会话启动清单
 
@@ -85,7 +92,7 @@ WAGE-HOURS-05 is complete; no implementation or verification remains for this Ta
 
 ## 权威参考
 
-- `prompts/tasks/WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md`
+- `prompts/tasks/WAGE-HOURS-06Office Wage File Download Visibility.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

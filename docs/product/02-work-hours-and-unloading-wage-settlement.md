@@ -887,6 +887,21 @@ overwrite. Chromium also closed English/Chinese, mobile/desktop, read-only,
 Warehouse 403 and real 200% zoom behavior. No Microsoft Excel-only check remains
 as a delivery blocker.
 
+### WAGE-HOURS-06 Office File Visibility Evidence
+
+The 2026-07-22 office delivery refinement is complete. `/work-hours` now uses a
+typed, default-deny allowlist and renders only `WAGE_RECORD_XLS` history. Parsed
+JSON, HTML task reports and unknown future technical types are absent from SSR,
+the hydrated DOM, accessible content and download hrefs; a technical-only import
+shows the localized wage-record empty state.
+
+This is a presentation boundary, not deletion. The protected API, PostgreSQL and
+storage continue to retain the complete technical artifact audit set, including
+SHA-256, size, MIME type, status, storage path and generated actor. Docker Web
+checks and the real Chromium flow passed with English/Chinese, HR/ADMIN/read-only,
+mobile/desktop, real 200% zoom, refresh, locale switch, current/superseded wage
+history and browser-proxy download SHA equality.
+
 ## Acceptance Criteria
 
 - A developer can identify the first worker tasks without building UI first.

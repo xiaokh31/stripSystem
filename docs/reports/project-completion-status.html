@@ -412,7 +412,8 @@
           wage-attendance-v2、method/interval PostgreSQL round trip、multi-sheet `.xls` 逐格 XF/formula 保真、
           特殊 Sheet/adjustment row 保护和有界自适应尺寸，以及按稳定 employee identity 显示完整月份、API summary、
           localized method/issues 并移除全局前 100 行截断。新需求还要求 employee-day row 可审计软删除、记录 JWT 删除人
-          并显示历史，且 reparse 不得复活。最终 full-stack/BIFF/LibreOffice/Chromium exit gate 已通过，Work Hours 本轮需求恢复 complete。
+          并显示历史，且 reparse 不得复活。最终 full-stack/BIFF/LibreOffice/Chromium exit gate 已通过，WAGE-HOURS-01 至 06
+          均 complete。06 已使工时页面只展示工资表历史；解析 JSON、任务报告和未知技术工件继续在后台留存审计，但不显示卡片或下载入口。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
@@ -632,7 +633,8 @@
           本段只跟踪 docs/product/02-work-hours-and-unloading-wage-settlement.md
           新增的 Work Hours Settlement 与 Unloading Wage Settlement P0/P1/P2 扩展；
           不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 05 修正线路，既有完成记录保留为
-          历史基线；Work Hours 新口径已由 05 关闭并重新标记 complete。按用户要求，每个阶段完成后更新本 HTML。
+          历史基线；01 至 05 已由 05 关闭并保持 complete。后续新增的 WAGE-HOURS-06 也已关闭办公室页面的生成文件可见性，
+          未删除或停止生成后台技术工件。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
           <thead>
@@ -882,6 +884,13 @@
               <td>100%</td>
               <td>真实 `.xls` 已通过 nginx upload、duplicate SHA、Parse、PostgreSQL round trip、13 员工完整月 UI、工时行删除/历史、reparse、Generate、Worker/API download 全链路。10 Sheet 全单元格 normalized BIFF font/fill/border/alignment/number-format/protection、结构、merge、dimensions 与 print metadata 均通过；7 eligible、2 unmatched、1 special 分类正确，Worker/API 字节一致，Wei Deng adjustment row 保留，删除只改变 BALIHAR 的 5 个预期单元格。</td>
               <td>Worker 183、API 333 unit / 122 E2E、Web 262 unit、lint/typecheck/build、现有/空库 34 migrations、Chromium 5/5、最终 full-stack healthcheck 全通过。template/Worker/API/after-delete 各渲染 22 页；4 张 contact sheet 与 11 张原始高信号图已逐图检查。测试 import/users/roles 为 0，精确生成目录已清理，SHA 原件和 gitignored `test-results/wage-hours-05/` 证据保留。Work Hours 本轮无已知限制。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.5: WAGE-HOURS-06 Office Wage File Download Visibility</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td><code>/work-hours</code> 使用 typed、default-deny file-type allowlist，只渲染全部 <code>WAGE_RECORD_XLS</code> 历史；<code>ATTENDANCE_PARSED_JSON</code>、<code>TASK_REPORT_HTML</code> 及未知技术类型不进入 SSR、DOM、辅助功能树或下载链接。技术工件仍由 Worker/API 生成，并保留数据库、storage、SHA、actor、状态及受保护 API 审计能力。</td>
+              <td>Docker Web lint/typecheck、265 unit、production build 与 Chromium 5/5 通过；覆盖 en/zh-CN、HR/ADMIN/read-only、320/390/768/1366/1920、真实 200% zoom、refresh/locale switch、SSR、代理下载 SHA 及零技术工件 DOM/href。9 张截图和 manifest 位于 <code>test-results/wage-hours-06/</code>；精确清理后测试 import/files/jobs/users/roles 为 0，原始上传与 fixture 保留。</td>
             </tr>
           </tbody>
         </table>
@@ -1563,7 +1572,13 @@
               <td>Work hours calculation, employee review and generated workbook revision</td>
               <td><span class="badge done">Done</span></td>
               <td>WAGE-HOURS-01/02/03/04/05 已完成，奇偶 punch 有可审计结果，multi-sheet `.xls` 已保留逐格样式、未触及 formulas、特殊 Sheet/adjustment rows 并支持有界自适应尺寸；员工月度 UI 可选择全部 13 人并显示每人完整 30 行；employee-day row 支持 JWT actor、reason、不可变历史、reparse tombstone 与 active-only generation。</td>
-              <td>真实 API 下载、10 Sheet BIFF 审计、Docker LibreOffice 4×22 页、Chromium 双语/mobile/200% zoom、RBAC、迁移、healthcheck 与清理均已关闭；本轮 Work Hours complete。</td>
+              <td>真实 API 下载、10 Sheet BIFF 审计、Docker LibreOffice 4×22 页、Chromium 双语/mobile/200% zoom、RBAC、迁移、healthcheck 与清理均已关闭；01 至 05 保持 complete。</td>
+            </tr>
+            <tr>
+              <td>Work hours office generated-file visibility</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WAGE-HOURS-06 已完成：<code>/work-hours</code> 只显示工资表历史；Parsed attendance data、Task report、未知技术类型及其元数据/download href 均不进入办公室 SSR/DOM。后台技术工件继续在 API、数据库和 storage 留存审计。</td>
+              <td>Stable file type allowlist、filtered empty state、typed 双语文案、SSR/render unit 与真实 Chromium DOM/download 证据均已关闭；不需要新的管理员技术工件页面。</td>
             </tr>
             <tr>
               <td>Operations dashboard redesign</td>

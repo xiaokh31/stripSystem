@@ -54,7 +54,8 @@
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 既有线路已完成；2026-07-21 新增的 `WAGE-HOURS-01` 至 `05` 已于 2026-07-22 全部
   `DONE`，奇偶打卡计算、全 Sheet 模板格式/自适应尺寸、按员工查看完整月份、工时行可审计软删除与历史，以及
-  真实 API/LibreOffice/Chromium exit gate 均已关闭，可恢复 Work Hours 本轮 complete 结论。
+  真实 API/LibreOffice/Chromium exit gate 均已关闭。2026-07-22 后续新增的 `WAGE-HOURS-06` 也已 `DONE`：办公室工时页
+  只显示 wage workbook 历史，parsed JSON/task report 保留后台审计但不显示卡片或下载。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
 - 新增 P0 托盘规则升级 `UNLOAD-PALLET-08` 至 `10`：旧的 1.7/1.8/2.2 直接 CBM 除数将替换为“可配置托盘长宽 * 固定目的仓限高”的容量模型；默认尺寸为 `1.0m * 1.2m`，YEG1 从 `+5` 改为 `+4`，courier / Goodcang / 私人及商业地址归入 2.2m 其他目的仓，明确木箱和可判定超大件按一件一托。UNLOAD-PALLET-05 至 `07` 的默认纸箱、修正保存和 UPS 非零修复仍须保留。
 - Monthly unloading summary 已修复 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，其 recorded completion month 为 `2026-06`；页面无显式月份时会打开最新可用月份，显式空月会提示可用月份并阻止 0-row export。
@@ -94,7 +95,9 @@
   employee-day row 软删除、JWT actor、不可变历史、reparse 不复活和新工资表排除，并通过 API 333 unit / 122 E2E、
   Worker 183、Web 262、Chromium 5/5 及最终修正 1/1；05 已以真实 API 下载、10 Sheet 全单元格 BIFF 审计、
   4 份工作簿各 22 页 Docker LibreOffice 渲染、严格 i18n/RBAC、Chromium 5/5、34 个现有/空库 migration、
-  full-stack healthcheck 和精确清理关闭。
+  full-stack healthcheck 和精确清理关闭；06 已以 typed default-deny allowlist、Web 265 unit、Chromium 5/5、
+  双语/三角色/mobile/desktop/200% zoom、SSR/DOM 零技术工件泄漏及代理下载 SHA 一致关闭，技术工件继续在
+  API/数据库/storage 留存。
 - Business Agent 耗时分析已生成：10 次有终态运行共 11:26:29，最近 6 个 Web 任务中位数 1:05:48；主要成本为
   重复 build/E2E、视觉矩阵/逐图检查和长上下文工具循环，不是依赖安装。完整证据见
   `docs/reports/business-agent-execution-time-analysis-2026-07-15.html`。
@@ -185,16 +188,17 @@
 
 ### A. 当前开发机立即执行
 
-Work Hours 新需求已按顺序全部达到 `DONE`；不得重启或并行续做该线路：
+WAGE-HOURS-01 至 06 均已达到 `DONE`；不得重启或并行续做该线路：
 
 1. `WAGE-HOURS-01Attendance Punch Parity Calculation Contract.md` — `DONE`
 2. `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md` — `DONE`
 3. `WAGE-HOURS-03Employee Monthly Attendance Review UI.md` — `DONE`
 4. `WAGE-HOURS-04Attendance Row Audited Deletion and History.md` — `DONE`
 5. `WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md` — `DONE`
+6. `WAGE-HOURS-06Office Wage File Download Visibility.md` — `DONE`
 
-五项已分别由 fresh supervisor Session 完成；Work Hours 本轮修正已恢复 complete。任何新增需求必须新建 Task，
-继续保持 strict `en` / `zh-CN`、真实 fixture/API 和 Docker-only 门禁。
+六项已分别由 fresh supervisor Session 完成。任何新增需求必须新建 Task；继续保持 strict `en` / `zh-CN`、
+真实 API 工件审计和 Docker-only 门禁，不得把“页面隐藏技术下载”实现成删除或停止生成技术工件。
 
 `WEB-DASHBOARD-06` 已通过并用同一证据关闭 `WEB-DASHBOARD-05`；`WEB-OPS-01` 已完成具名 2048px
 workspace、全路由迁移和 Docker Chromium 宽屏/窄屏/200% zoom 门禁；`WEB-OPS-02` 已完成柜子详情
@@ -329,8 +333,9 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `WAGE-HOURS-01/02/03/04/05` 已关闭，不得重跑；最终 workbook visual gate 的 BIFF/LibreOffice/Chromium 证据
-   已保存在 gitignored `test-results/wage-hours-05/`，后续需求必须另立 Task。
+2. `WAGE-HOURS-01/02/03/04/05/06` 已关闭，不得重跑；最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
+   证据保存在 gitignored `test-results/wage-hours-05/`，办公室文件可见性证据保存在
+   gitignored `test-results/wage-hours-06/`。后续需求必须另立 Task。
 3. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
 4. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。

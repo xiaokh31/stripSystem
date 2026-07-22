@@ -84,7 +84,7 @@ Worker/API 生成、存储并记录审计，但不得出现在该页面的可见
    - `/work-hours` DOM 只出现 `WAGE_RECORD_XLS` 对应的工资表卡片；
    - 页面中 `Task report` / `任务报告`、`Parsed attendance data` / `已解析考勤数据` 及对应技术 file-id download href 为 0；
    - deletion 后 superseded baseline wage card 与新 current wage card仍按现有状态规则显示；
-   -工资表下载经浏览器代理仍成功且 SHA 与 API 记录一致。
+   - 工资表下载经浏览器代理仍成功且 SHA 与 API 记录一致。
 4. Chromium 覆盖 `en` / `zh-CN`、HR/ADMIN/read-only、390 mobile、1366 desktop、真实 200% zoom、refresh 和 locale switch；
    console、pageerror、hydration、missing translation 和 failed request 为 0。
 5. 保留 WAGE-HOURS-05 的后台技术工件和 BIFF/LibreOffice 证据，不需要重跑 Worker 全量或 88 页渲染，除非实现越界修改了
@@ -127,3 +127,15 @@ git diff --check
 - 列出 allowlist/helper、页面区域/i18n 调整、测试 changed files 和 exact test counts。
 - 分别说明“后台仍保留哪些工件”和“办公室页面展示哪些文件”，不得将隐藏误写成删除。
 - 无剩余实现时明确下一项由最新 Task Index 决定，不得重跑 WAGE-HOURS-01 至 05。
+
+## 执行结果（2026-07-22 MDT）
+
+`Task-Status: DONE`
+
+- `/work-hours` 现以 typed、default-deny `WAGE_RECORD_XLS` allowlist 过滤办公室文件区域；筛选在 empty state、SSR 和卡片渲染前完成，未知、空白和缺失 file type 均不会进入 DOM。
+- 工资表历史仍保留 GENERATED、SUPERSEDED 和 FAILED 状态契约；仅 GENERATED 状态提供既有代理下载链接。页面标题、空状态和错误标题已加入 strict typed `en` / `zh-CN` catalogs。
+- 后台行为未改变。真实 API/数据库验证仍有 `ATTENDANCE_PARSED_JSON`、`TASK_REPORT_HTML` 和两代 `WAGE_RECORD_XLS`，包含 SHA、size、MIME、status、storage path 与 generatedBy；办公室页面只显示工资表卡片。
+- Docker Web lint、typecheck、265 unit、生产构建及 focused Chromium 5/5 通过。浏览器覆盖 English/中文、HR/ADMIN/read-only、320/390/768/1366/1920、真实 200% zoom、refresh、locale switch、SSR、技术工件零 DOM/download href，以及工资表代理下载 SHA 一致。
+- 浏览器证据保存在 gitignored `test-results/wage-hours-06/`：9 张原始截图、evidence manifest 及 fixture source copies。截图已按原尺寸检查，无技术文件卡片、混语或页面级 overflow。
+- 精确清理后，本 Task 的 import、generated files、async jobs、临时 users/role 均为 0；仅移除对应 import-scoped 生成目录。SHA 地址原始上传和 `samples/wage` fixtures 已保留且哈希匹配。
+- 无 schema、migration、API、Worker 或生成器变更；WAGE-HOURS-01 至 05 的证据未重跑或改写。下一项由最新 Task Index 决定。

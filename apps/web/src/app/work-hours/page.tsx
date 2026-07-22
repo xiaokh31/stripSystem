@@ -8,8 +8,8 @@ import { AttendanceRowDeleteButton } from "@/components/wage/attendance-row-dele
 import {
   attendanceApiErrorMessage,
   formatHours,
-  generatedFileAuditText,
 } from "@/components/wage/attendance-flow";
+import { WorkHoursGeneratedFiles } from "@/components/wage/work-hours-generated-files";
 import {
   attendanceCalculationMethodLabel,
   attendanceParserVersionLabel,
@@ -25,7 +25,6 @@ import {
 } from "@/components/wage/wage-display";
 import {
   ApiClientError,
-  getAttendanceGeneratedFileDownloadUrl,
   getAttendanceParseResult,
   getAttendanceRowHistory,
   listAttendanceImportFiles,
@@ -38,7 +37,6 @@ import {
 } from "@/lib/api-client";
 import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
-import { generatedFileTypeLabel } from "@/lib/i18n/status-labels";
 import { createTranslator } from "@/lib/i18n/translator";
 import {
   canGenerateWorkHours,
@@ -596,31 +594,22 @@ function AttendanceDetail({
 
       <section className="min-w-0 border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-zinc-950">
-          {t("Generated files")}
+          {t("Wage record files")}
         </h2>
         {filesError ? (
           <div className="mt-4">
             <ApiErrorPanel
               error={filesError}
               locale={locale}
-              title="Files could not be loaded"
+              title="Wage record files could not be loaded"
             />
           </div>
-        ) : files.length === 0 ? (
-          <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
-            {t("No wage files generated yet.")}
-          </p>
         ) : (
-          <div className="mt-4 grid gap-3">
-            {files.map((file) => (
-              <GeneratedFileLink
-                attendanceImportId={importFile.id}
-                file={file}
-                key={file.id}
-                locale={locale}
-              />
-            ))}
-          </div>
+          <WorkHoursGeneratedFiles
+            attendanceImportId={importFile.id}
+            files={files}
+            locale={locale}
+          />
         )}
       </section>
     </section>
@@ -945,49 +934,6 @@ function punchTimesText(input: unknown, locale: Locale): string {
     return createTranslator(locale).t("No punches");
   }
   return input.map((value) => String(value)).join(", ");
-}
-
-function GeneratedFileLink({
-  attendanceImportId,
-  file,
-  locale,
-}: {
-  attendanceImportId: string;
-  file: WageGeneratedFileResponse;
-  locale: Locale;
-}) {
-  const { t } = createTranslator(locale);
-  const downloadable = file.status === "GENERATED";
-  return (
-    <div className="border border-zinc-200 bg-zinc-50 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-zinc-950">
-            {generatedFileTypeLabel(file.fileType, locale)}
-          </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {formatDateTime(file.updatedAt, locale)}
-          </p>
-        </div>
-        <StatusBadge locale={locale} status={file.status} />
-      </div>
-      <p className="mt-3 break-all text-xs leading-5 text-zinc-600">
-        {generatedFileAuditText(file, locale)}
-      </p>
-      {downloadable ? (
-        <Link
-          className="mt-3 inline-flex min-h-9 items-center border border-teal-700 bg-white px-3 text-xs font-semibold uppercase text-teal-800 hover:bg-teal-50"
-          href={getAttendanceGeneratedFileDownloadUrl(attendanceImportId, file.id)}
-        >
-          {t("Download")}
-        </Link>
-      ) : file.errorMessage ? (
-        <p className="mt-3 text-sm text-red-800">
-          {t("Generated wage file failed. Review the job result and try again.")}
-        </p>
-      ) : null}
-    </div>
-  );
 }
 
 function StatusBadge({ locale, status }: { locale: Locale; status: string }) {

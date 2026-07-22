@@ -359,6 +359,8 @@ export const zhMessages = {
   "Generate downloadable files from the current container data.":
     "根据当前柜子数据生成可下载文件。",
   "Generated files": "生成文件",
+  "Wage record files": "工资表文件",
+  "Wage record files could not be loaded": "无法加载工资表文件",
   "Generated files could not be loaded": "无法加载生成文件",
   Generating: "生成中",
   "Generating labels": "正在生成面单",
@@ -1045,6 +1047,7 @@ export const zhMessages = {
   "No worker wage summary is recorded for this settlement.":
     "此结算没有记录员工工资汇总。",
   "No wage files generated yet.": "尚未生成工资文件。",
+  "No wage record files yet.": "尚未生成工资表。",
   "Not required": "不需要",
   "Ocean container": "海运柜",
   "Ocean container pay units require exactly one container id.":

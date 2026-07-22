@@ -7,6 +7,9 @@ settlement. It does not introduce new business behavior.
 > odd-punch/manual-review-only, default-XF workbook, first-100-row review, and
 > physical/no-audit deletion assumptions. The revised work-hours workflow is
 > closed by the executed Docker/API/Chromium/BIFF/LibreOffice evidence below.
+> `WAGE-HOURS-06` is a later UI-only requirement and is now closed: the office
+> page shows wage workbooks only, while parsed JSON and task reports remain
+> available through the protected API for audit and support.
 
 ## Scope
 
@@ -16,7 +19,8 @@ settlement. It does not introduce new business behavior.
 - Permission behavior for read-only and unauthorized users.
 - Employee-day row soft deletion, authenticated deleter attribution, immutable
   history, repeated-parse tombstone retention, and active-row-only generation.
-- Generated file audit metadata and browser download links.
+- Complete generated-file audit metadata in the API, with browser download
+  links shown only for wage workbooks on the office page.
 - Preservation of the original attendance workbook and wage template.
 
 ## Prerequisites
@@ -134,16 +138,27 @@ Docker Worker image, plus scoped Ruff and Mypy checks.
     return and that exactly one deletion event remains.
 13. Generate and download a new wage record. Confirm the deleted employee-day
     row is excluded while unrelated employees and sheets remain unchanged.
-14. Confirm the generated files list includes `WAGE_RECORD_XLS` and
-    `TASK_REPORT_HTML`, with SHA-256, size, MIME type, status, and browser
-    download links.
-15. Confirm the UI does not expose internal storage paths such as
+14. Confirm `GET /api/attendance-imports/:id/files` still includes
+    `WAGE_RECORD_XLS`, `ATTENDANCE_PARSED_JSON`, and `TASK_REPORT_HTML`, with
+    their audit metadata and statuses.
+15. Confirm the `/work-hours` generated-file area shows every wage workbook
+    history entry allowed by the status contract, but no parsed-data or task
+    report card, metadata, accessible label, or download link.
+16. Inspect both rendered DOM and SSR HTML. Confirm `TASK_REPORT_HTML`,
+    `ATTENDANCE_PARSED_JSON`, their localized labels, and their file-id download
+    hrefs are absent rather than hidden by CSS or hydration.
+17. Confirm the UI does not expose internal storage paths such as
     `/workspace/storage`, `storage/attendance`, or
     `attendance_original_files`.
-16. Download the generated wage record and task report from the browser links.
-17. In the API response for `GET /api/attendance-imports/:id/files`, confirm
-    generated file audit metadata includes storage path, SHA-256, MIME type, and
-    file size.
+18. Download generated and superseded wage records as permitted by their
+    statuses. Confirm the browser-proxy bytes and SHA match the API records.
+19. Repeat the visibility check in English and Chinese after refresh, locale
+    switch, generation polling, 390px mobile, 1366px desktop, and real 200%
+    browser zoom. No technical file card, English fallback, bilingual text,
+    hydration error, missing translation, failed request, or page overflow may
+    appear.
+20. Confirm an import that has only technical artifacts and no wage workbook
+    shows the localized wage-workbook empty state.
 
 ## Permission Verification
 
@@ -166,6 +181,9 @@ Docker Worker image, plus scoped Ruff and Mypy checks.
 10. Confirm only `ADMIN` and `HR_MANAGER` receive
     `attendance.rows.delete` by default; `SYSTEM` does not receive interactive
     deletion authority.
+11. As `ADMIN`, `HR_MANAGER`, and an `attendance.read`-only user, confirm the
+    office file area uses the same wage-workbook-only visibility rule. Role does
+    not make technical artifacts visible in this operational page.
 
 ## Fixture Preservation Check
 
@@ -186,6 +204,11 @@ Expected hashes are listed in the prerequisites table.
   once after gross interval calculation for days with at least two punch
   boundaries. There is no tax, holiday, or overtime logic.
 - Generated file storage paths are API audit metadata, not end-user UI content.
+- Parsed JSON, HTML task reports, and unknown future technical file types remain
+  generated and auditable in backend state, but are not office-page content.
+  The office allowlist is based on stable file type and currently contains only
+  `WAGE_RECORD_XLS`; it must not infer visibility from names, MIME types, file
+  extensions, or localized labels.
 - Employee-day deletion is a soft delete with a required reason. Original
   workbook/raw row and old generated files remain evidence; repeated Parse does
   not resurrect the row, and new generation uses active rows only.
@@ -239,3 +262,26 @@ Expected hashes are listed in the prerequisites table.
   `/Volumes/xfl/logistics/stripSystem/test-results/wage-hours-05/`. Cleanup left
   zero task imports/users/roles and removed only the exact import-scoped
   generated directory; the SHA-addressed original workbook remains preserved.
+
+## WAGE-HOURS-06 Closure Evidence (2026-07-22)
+
+- A typed, default-deny office allowlist now admits only `WAGE_RECORD_XLS`.
+  Filtering happens before the empty state and server render, so parsed JSON,
+  task reports, unknown types, their metadata and download hrefs never enter
+  office-visible or accessibility-visible markup.
+- The protected API and database still recorded parsed JSON, task reports and
+  current/superseded wage workbooks with SHA-256, size, MIME type, status,
+  storage path and generated actor. All wage history remained visible under the
+  existing status/download contract; no Worker, API or generator behavior was
+  changed.
+- Docker Web lint, typecheck, 265 unit tests and production build passed. The
+  focused Chromium suite passed 5/5 through nginx/API/PostgreSQL/Worker and
+  covered English/Chinese, HR/ADMIN/read-only, 320/390/768/1366/1920 viewports,
+  real 200% zoom, refresh, locale switch, SSR and proxy-download SHA equality.
+- Nine full-resolution screenshots, the evidence manifest and source copies are
+  retained under gitignored `test-results/wage-hours-06/` and were visually
+  inspected without technical-file leakage, mixed language or page overflow.
+- Cleanup left zero task imports, generated-file records, async jobs, temporary
+  users and roles, and removed only the exact import-scoped generated directory.
+  The SHA-addressed original upload and both real wage fixtures remain preserved
+  with their expected hashes.

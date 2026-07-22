@@ -370,6 +370,9 @@ export const enMessages = {
   "Generate downloadable files from the current container data.":
     "Generate downloadable files from the current container data.",
   "Generated files": "Generated files",
+  "Wage record files": "Wage record files",
+  "Wage record files could not be loaded":
+    "Wage record files could not be loaded",
   "Generated files could not be loaded": "Generated files could not be loaded",
   Generating: "Generating",
   "Generating labels": "Generating labels",
@@ -1110,6 +1113,7 @@ export const enMessages = {
   "No worker wage summary is recorded for this settlement.":
     "No worker wage summary is recorded for this settlement.",
   "No wage files generated yet.": "No wage files generated yet.",
+  "No wage record files yet.": "No wage record files yet.",
   "Not required": "Not required",
   "Ocean container": "Ocean container",
   "Ocean container pay units require exactly one container id.":

@@ -14,6 +14,30 @@ export interface FileLike {
   size?: number;
 }
 
+export const OFFICE_VISIBLE_WAGE_FILE_TYPES = ["WAGE_RECORD_XLS"] as const;
+
+export type OfficeVisibleWageFileType =
+  (typeof OFFICE_VISIBLE_WAGE_FILE_TYPES)[number];
+
+const officeVisibleWageFileTypes = new Set<string>(
+  OFFICE_VISIBLE_WAGE_FILE_TYPES,
+);
+
+export function isOfficeVisibleWageFile(
+  file: { fileType?: string | null },
+): file is { fileType: OfficeVisibleWageFileType } {
+  return (
+    typeof file.fileType === "string" &&
+    officeVisibleWageFileTypes.has(file.fileType)
+  );
+}
+
+export function officeVisibleWageFiles<
+  T extends { fileType?: string | null },
+>(files: readonly T[]): T[] {
+  return files.filter(isOfficeVisibleWageFile);
+}
+
 export function isAllowedLegacyXlsFile(file: FileLike): boolean {
   return file.name.trim().toLowerCase().endsWith(".xls");
 }
