@@ -13,6 +13,7 @@ docs/adr/*
 !docs/adr/0002-printing-strategy.md
 !docs/adr/0003-native-scan-app.md
 !docs/adr/0004-approved-parser-profiles.md
+!docs/adr/0005-single-writer-public-access-and-cloud-hosting.md
 !docs/architecture/
 docs/architecture/*
 !docs/architecture/02-data-model.md
@@ -43,6 +44,7 @@ docs/runbooks/*
 !docs/runbooks/business-agent-execution.md
 !docs/runbooks/fresh-windows-agent-onboarding.md
 !docs/runbooks/parser-profile-operations.md
+!docs/runbooks/public-access-and-free-cloud-deployment.md
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html
@@ -160,6 +162,7 @@ prompts/tasks/*
 !prompts/tasks/PARSER-PROFILE*.md
 !prompts/tasks/WEB-BRAND*.md
 !prompts/tasks/WAGE-HOURS*.md
+!prompts/tasks/PUBLIC-DEPLOY*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/
 apps/mobile-scan-app/.gradle-user-home/

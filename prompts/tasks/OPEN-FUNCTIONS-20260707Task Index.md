@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-21
+- 2026-07-22
 
 依据：
 - docs/reports/project-completion-status.html
@@ -16,6 +16,8 @@
 - docs/product/04-adaptive-parser-profiles.md
 - docs/product/05-web-corporate-brand-assets.md
 - docs/adr/0004-approved-parser-profiles.md
+- docs/adr/0005-single-writer-public-access-and-cloud-hosting.md
+- docs/runbooks/public-access-and-free-cloud-deployment.md
 - HANDOFF.md
 
 状态判定规则：
@@ -50,12 +52,17 @@
   双语来源 UI，并通过真实工作簿、全 API E2E、Worker 性能和 Chromium 200% zoom 门禁。PARSER-PROFILE-08 已复跑
   full-stack、负向/RBAC/i18n/视觉/性能/清理退出门禁并新增 verification report 与双语操作 runbook；因尚未提供同一
   新客户布局的 4 组不同 SHA source + approved outcome pair 及初次批准/三次连续复核业务签字，不能标记 Done。
-  该 parser Task 不再重复启动；其外部数据验收独立保留，不阻塞用户于 2026-07-20 新批准的 WEB-BRAND 开发线路。
+  该 parser Task 不再重复启动；其外部数据验收独立保留，不阻塞当前 `PUBLIC-DEPLOY-01` 开发线路。
 - P0 现场回归 `UNLOAD-REPORT-01` 已按业务决定 A 完成仓库实现和当前环境自动化：保留 8 个主槽位后使用 8 个白色业务行，超过 16 才分页；真实 CAAU 的 9 个目的仓现为 1 个 populated worksheet/1 张 A4 landscape 页面。rich-text、真实 Worker/API 下载、audit/storage、模板 SHA、Worker/API/Web 全量门禁均通过；合成边界工件进一步验证 16 个目的仓含末行多行长文本仍为 1 页、第 17 个目的仓生成 2 worksheets/2 页，12 张全页/crop 逐图检查通过；仅剩 Windows/Microsoft Excel Print Preview 与 Print to PDF 外部验收。
 - Wage / Unloading Wage 既有线路已完成；2026-07-21 新增的 `WAGE-HOURS-01` 至 `05` 已于 2026-07-22 全部
   `DONE`，奇偶打卡计算、全 Sheet 模板格式/自适应尺寸、按员工查看完整月份、工时行可审计软删除与历史，以及
   真实 API/LibreOffice/Chromium exit gate 均已关闭。2026-07-22 后续新增的 `WAGE-HOURS-06` 也已 `DONE`：办公室工时页
   只显示 wage workbook 历史，parsed JSON/task report 保留后台审计但不显示卡片或下载。
+- 2026-07-22 新增公网访问线路 `PUBLIC-DEPLOY-01` 至 `03`。当前唯一下一项是 `PUBLIC-DEPLOY-01` 公网安全
+  基线；随后只能二选一：推荐 `PUBLIC-DEPLOY-02` 以 Cloudflare named tunnel 保持本地 Docker 为唯一 writer，
+  或在产品明确选择远程可用性优先后执行 `PUBLIC-DEPLOY-03`，把完整 canonical stack 迁到 OCI Canadian-region
+  Always Free A1。Tunnel 能解决动态 IP 但不能解决公司断网/停电；OCI 免费容量无 SLA、可能无 A1 capacity 或被
+  回收。任何路线都不得公开 PostgreSQL/Redis，不得 local/cloud active-active，并须保持 strict en/zh-CN。
 - WEB-I18N-01 已完成现场反馈后的全量缺口审计和运行时覆盖回归；WEB-I18N-02 已修复柜号 `SMCU1225466` 暴露出的 container detail rule metadata 和 warning message 本地化缺口。
 - 新增 P0 托盘规则升级 `UNLOAD-PALLET-08` 至 `10`：旧的 1.7/1.8/2.2 直接 CBM 除数将替换为“可配置托盘长宽 * 固定目的仓限高”的容量模型；默认尺寸为 `1.0m * 1.2m`，YEG1 从 `+5` 改为 `+4`，courier / Goodcang / 私人及商业地址归入 2.2m 其他目的仓，明确木箱和可判定超大件按一件一托。UNLOAD-PALLET-05 至 `07` 的默认纸箱、修正保存和 UPS 非零修复仍须保留。
 - Monthly unloading summary 已修复 `2026-07` 空白导出 false-success：本地库存在 18 个已拆完口径柜子，其 recorded completion month 为 `2026-06`；页面无显式月份时会打开最新可用月份，显式空月会提示可用月份并阻止 0-row export。
@@ -187,6 +194,22 @@
 当前执行队列（2026-07-22 MDT 复核）：
 
 ### A. 当前开发机立即执行
+
+公网访问新线路按以下顺序执行：
+
+1. `PUBLIC-DEPLOY-01Public Internet Security Baseline.md` — `READY / CURRENT NEXT`
+   - 建立 public mode fail-closed、revocable secure HttpOnly browser session、CSRF/Origin、Redis rate limit、trusted
+     proxy、安全 headers、审计和严格 en/zh-CN；不创建任何云资源。
+2. `PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md` — `PLANNED / RECOMMENDED BRANCH`
+   - 仅在 01 `DONE` 后执行；named tunnel + Access 只连 nginx，本地 PostgreSQL + `storage/` 继续是唯一 writer。
+     公司 Internet/主机故障时远程不可用，但 LAN 工作流继续。
+3. `PUBLIC-DEPLOY-03OCI Always Free ARM64 Cloud Canonical Profile.md` — `PLANNED / DECISION GATE`
+   - 仅在 01 `DONE` 且产品明确选择云端 canonical migration 后执行；与 02 的本地 writer 路线互斥。按官方保守
+     2 OCPU/12 GB A1 和 `linux/arm64` 完成镜像、文档工件、持久卷、备份、single-writer cutover/rollback 门禁。
+
+不得在同一 Session 连续执行 01/02/03。不得把 02 和 03 部署成两个可写环境；若从 02 迁移到 03，必须冻结写入、
+同步 PostgreSQL 与 `storage/` 的同一恢复点、验证 hash/count，并停用或只读旧 local stack。真实 domain、Cloudflare
+account/Access、OCI capacity/home region 和外网验证只能在仓库自动化全部完成后列为 external gate。
 
 WAGE-HOURS-01 至 06 均已达到 `DONE`；不得重启或并行续做该线路：
 
@@ -333,24 +356,30 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `WAGE-HOURS-01/02/03/04/05/06` 已关闭，不得重跑；最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
+2. 当前唯一可立即执行的新开发 Task 是 `PUBLIC-DEPLOY-01Public Internet Security Baseline.md`：
+   `scripts/run-business-agent.sh task 'prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md'`。
+3. 01 达到 `DONE` 后进行路线决定。默认推荐 `PUBLIC-DEPLOY-02`，它解决动态 IP 并保留公司断网时的 LAN 操作；
+   若明确要求公司断网/主机停机时远程仍可用，则改选 `PUBLIC-DEPLOY-03` 做完整 OCI canonical migration，并接受仓库
+   依赖公网及 Always Free 无 SLA/capacity/reclaim 风险。不得并行执行或形成两个 writer。
+4. `WAGE-HOURS-01/02/03/04/05/06` 已关闭，不得重跑；最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
    证据保存在 gitignored `test-results/wage-hours-05/`，办公室文件可见性证据保存在
    gitignored `test-results/wage-hours-06/`。后续需求必须另立 Task。
-3. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
+5. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
-4. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
-5. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
-6. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
-   不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞当前 WAGE-HOURS。
+6. `WEB-DASHBOARD-05/06` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 已关闭，不再重复启动。
+7. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
+8. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
+   不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞当前 PUBLIC-DEPLOY。
    `NATIVE-AUTH-01` 已连续三次合法返回 external pending，不要第四次重复运行；设备项只按现有报告人工补证据。
-7. WAGE-HOURS 之外的 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
+9. PUBLIC-DEPLOY 之外的既有 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
    iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate 已关闭时执行 `P5-PILOT-01`。
-8. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
+10. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
    不等待或启动 Windows App。
-9. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+11. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
    `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
-10. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
+12. `UNLOAD-REPORT-01` 只剩 Microsoft Excel Print Preview / Print to PDF，完成外部检查后记录结果即可，
    不要重复开发。
-11. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
-12. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。
-13. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
+13. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
+14. 所有上述外部打印、真实样本和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。若最终选择 OCI canonical
+    host，必须先按 PUBLIC-DEPLOY-03 更新该 pilot gate 的目标主机口径，不得同时把旧 Windows local host 当 writer。
+15. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。

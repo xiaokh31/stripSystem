@@ -21,6 +21,13 @@ production nginx `/api` route.
 It does not add business behavior. It only describes local Docker startup,
 persistence, health checks, and operator access.
 
+This local Compose file is not an Internet-facing production profile. Do not
+forward its ports from a router or attach them directly to a public IP. For
+off-site access, follow
+[public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md)
+and complete the PUBLIC-DEPLOY security/deployment task sequence first; only
+the protected HTTPS nginx entry point may be public.
+
 ## Docker-Only Development
 
 Docker Compose is the only local development runtime for the API, web, worker,

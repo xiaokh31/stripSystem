@@ -14,12 +14,21 @@ For platform-specific details, also keep these runbooks nearby:
 
 - Windows: [deploy-windows.md](deploy-windows.md)
 - Linux: [deploy-linux.md](deploy-linux.md)
+- Public access and free cloud choices:
+  [public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md)
 - Backup and restore: [backup-restore.md](backup-restore.md)
 - Database migrations: [database-migrations.md](database-migrations.md)
 - Account and permission setup:
   [account-role-permission-management.md](account-role-permission-management.md)
 
 ## Recommended Deployment Method
+
+The Compose configuration in this guide is a local/LAN deployment baseline. Do
+not forward its ports from an Internet router or attach it directly to a public
+IP. For off-site browser access, first follow the public-access guide and its
+security task sequence. It requires one canonical writer and exposes only the
+protected HTTPS nginx entry point; PostgreSQL, Redis and internal API ports stay
+private.
 
 Use Git to download and update the source code.
 
