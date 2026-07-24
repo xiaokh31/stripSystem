@@ -1187,6 +1187,8 @@ export const enMessages = {
   "Saving unloaders.": "Saving unloaders.",
   "Saving unloading completion.": "Saving unloading completion.",
   "Saving unloading wage information.": "Saving unloading wage information.",
+  "Choose attendance file": "Choose attendance file",
+  "No attendance file selected": "No attendance file selected",
   "Select one legacy .xls attendance workbook.":
     "Select one legacy .xls attendance workbook.",
   "Select or upload an attendance import to review parsed rows.":

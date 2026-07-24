@@ -209,3 +209,47 @@ click-surface matrix。
 4. fixture 前后数据与零残留检查。
 5. known limitations；没有则明确“无已知 Dashboard drilldown navigation 限制”。
 6. 更新 `HANDOFF.md`；全部门禁通过时返回 `DONE`。
+
+## 执行结果（2026-07-23 MDT）
+
+`Task-Status: DONE`
+
+- 已建立 shared typed click-surface inventory，完整登记 Work Queue、7 条 lifecycle lane、
+  inventory totals/top destinations、load-job aggregates/records、Exception Queue、monthly、
+  attendance/wage、五类 Recent Activity、open-all、workflow shortcut 和空/错误动作；Web unit
+  会对真实首页链接集合与 inventory 做双向一致性检查，新增未登记链接会失败。
+- 专用真实 PostgreSQL fixture 为每个 aggregate 创建 matching 与易混淆 sentinel，覆盖 stored/effective
+  lifecycle、active/remaining composite pallet scope、cancelled/adjusted-out exclusion、operational
+  timezone 当日边界、active/deleted import 和跨月 wage review。Chromium 先读取 Dashboard count/code/target，
+  再验证目标 API total/ids 与可见记录，且 refresh、back/forward、clear、分页、排序、搜索、组合筛选和 zero
+  result 均保持同一 predicate。fixture 与五类临时角色账号最终残留均为 0。
+- Aggregate、record 与 open-all 行为已明确分离；import/container detail 和 load-job selection 使用稳定
+  record id。Inventory top destination 仅对 Dashboard drilldown 使用 `destinationMatch=EXACT`，普通 inventory
+  search 继续使用 contains。Load-job list 响应补齐 server-pagination `totalItems`，目标页不在浏览器拉取全库过滤。
+- ADMIN 完整矩阵和 OFFICE、WAREHOUSE、HR_MANAGER、WAREHOUSE_MANAGER 直接 API/URL 负向门禁通过：
+  未授权 API 返回 403，页面显示当前 locale 的 permission state，不泄漏 total、ids 或业务字段。
+- Strict English/zh-CN、no-JS SSR 首帧、hydration no-flash、theme、keyboard/focus、390/768/1366/1920
+  responsive、真实 Chrome 200% zoom、可见文本裁剪、交互覆盖和页面级 overflow 门禁全部通过；console error、
+  pageerror、hydration mismatch、missing translation、unexpected 4xx/5xx 和 failed resource 均为 0。
+- 最终 11 张高信号截图位于
+  `/Volumes/xfl/logistics/stripSystem/test-results/web-dashboard-08/`，已逐张按原分辨率检查：
+  1. `01-dashboard-en-light-1920x1080.png`：完整英文首页、筛选、tiles/lifecycle 清晰且无覆盖；
+  2. `02-dashboard-zh-dark-390x844.png`：中文深色移动首页，长用户名完整换行且无横向溢出；
+  3. `03-imports-filtered-en-light-1366x768.png`：筛选上下文、clear action、长文件名和表格完整；
+  4. `04-containers-filtered-zh-dark-768x1024.png`：中文深色 tablet 上下文与柜子结果可读；
+  5. `05-inventory-destination-en-dark-1366x768.png`：目的仓 exact context、total 与结果清晰；
+  6. `06-load-job-selected-zh-light-1920x1080.png`：同 id 装车单选中态、字段和操作区完整；
+  7. `07-exception-review-en-light-768x1024.png`：运营复核筛选与目标记录正确；
+  8. `08-work-hours-filtered-zh-dark-1366x768.png`：工时筛选与自定义文件选择器完全中文；
+  9. `09-wage-filtered-en-light-390x844.png`：工资复核移动布局、上下文与动作无重叠；
+  10. `10-zero-result-zh-dark-1366x768.png`：中文筛选空状态、0 totals 与 clear action 诚实一致；
+  11. `11-load-job-selected-en-dark-1366x768-zoom-200.png`：真实 200% zoom 下选中记录可用且无页面级横向溢出。
+- 性能门禁证明 Dashboard 浏览器初始数据仍只来自单一 operations endpoint；超过首屏大小的 fixture 通过
+  server pagination；API focused instrumentation 将 recent records 从 1 增至 75 时，Prisma 与
+  container-index 查询调用数保持恒定，recent activity 输出仍 bounded 为 10。
+- Docker API production build、lint、typecheck、48 suites / 371 unit、21 suites / 128 E2E；Web
+  production build、lint、typecheck、279 unit；Worker 183 pytest；E2E image build和完整 Chromium
+  `dashboard.spec.ts` + `dashboard-drilldown.spec.ts` 11/11 全部通过。`scripts/healthcheck.sh`、六服务
+  healthy、静态资源、storage 可写、测试后 error/fatal/5xx 日志过滤、零残留和 `git diff --check` 均通过。
+- 本 Task 无 schema 变更，因此无 migration；无剩余实现、外部验证或 blocker；无已知 Dashboard drilldown
+  navigation 限制。

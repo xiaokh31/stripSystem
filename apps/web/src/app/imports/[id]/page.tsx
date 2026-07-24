@@ -82,7 +82,10 @@ export default async function ImportDetailPage({
   });
 
   return (
-    <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
+    <main
+      className="office-main-content flex flex-1 flex-col gap-4 py-6"
+      data-record-id={state.importFile.id}
+    >
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -71,6 +71,7 @@ test("load job API client lists open load jobs with API filters", async () => {
         items: [loadJob],
         limit: 25,
         offset: 0,
+        totalItems: 1,
       }),
       {
         headers: { "content-type": "application/json" },
@@ -88,6 +89,7 @@ test("load job API client lists open load jobs with API filters", async () => {
     "http://api.local/api/load-jobs?limit=25&status=IN_PROGRESS",
   ]);
   assert.equal(result.items[0]?.loadNo, "LOAD-2026-001");
+  assert.equal(result.totalItems, 1);
 });
 
 test("load job API client lists container suggestions for a destination", async () => {

@@ -428,7 +428,7 @@ export class DashboardService {
       byDestination.set(destination.destinationCode, {
         destinationCode: destination.destinationCode,
         ...stats,
-        href: `/inventory?scope=REMAINING&destinationCode=${encodeURIComponent(destination.destinationCode)}&from=dashboard&code=INVENTORY_DESTINATION_REMAINING`,
+        href: `/inventory?scope=REMAINING&destinationCode=${encodeURIComponent(destination.destinationCode)}&destinationMatch=EXACT&from=dashboard&code=INVENTORY_DESTINATION_REMAINING`,
       });
     }
 

@@ -45,6 +45,7 @@ interface LoadJobListBody {
   items: LoadJobBody[];
   limit: number;
   offset: number;
+  totalItems: number;
 }
 
 interface ScanBody {
@@ -145,6 +146,7 @@ describe('LoadJobsController (e2e)', () => {
     const listBody = list.body as LoadJobListBody;
 
     expect(listBody.items).toHaveLength(1);
+    expect(listBody.totalItems).toBe(1);
     expect(listBody.items[0]).toMatchObject({
       id: 'load-job-1',
       loadNo: 'LOAD-2026-001',
@@ -999,6 +1001,12 @@ describe('LoadJobsController (e2e)', () => {
             filtered.slice(skip, skip + take).map(hydrate),
           );
         }),
+        count: jest.fn(({ where }) =>
+          Promise.resolve(
+            loadJobs.filter((record) => matchesLoadJobWhere(record, where))
+              .length,
+          ),
+        ),
         findUnique: jest.fn(({ where }) => {
           const record = loadJobs.find((item) => item.id === where.id);
           return Promise.resolve(record ? hydrate(record) : null);

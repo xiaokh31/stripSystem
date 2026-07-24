@@ -91,8 +91,10 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
             <>
               <input
                 accept=".xls,application/vnd.ms-excel"
-                className="block w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-zinc-950 hover:file:bg-zinc-200"
+                aria-label={t("Choose attendance file")}
+                className="sr-only"
                 disabled={state.status === "running"}
+                id="attendance-workbook-file"
                 onChange={(event) => {
                   const selectedFile = event.target.files?.[0] ?? null;
                   setFile(selectedFile);
@@ -109,6 +111,19 @@ export function AttendanceUploadPanel({ canUpload }: { canUpload: boolean }) {
                 ref={inputRef}
                 type="file"
               />
+              <div className="flex min-h-10 min-w-0 flex-wrap items-center gap-3 border border-zinc-300 bg-white p-2 text-sm text-zinc-950">
+                <button
+                  className="min-h-9 shrink-0 border border-zinc-300 bg-zinc-100 px-3 font-semibold hover:bg-zinc-200"
+                  disabled={state.status === "running"}
+                  onClick={() => inputRef.current?.click()}
+                  type="button"
+                >
+                  {t("Choose attendance file")}
+                </button>
+                <span className="min-w-0 break-all">
+                  {file?.name ?? t("No attendance file selected")}
+                </span>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   className="min-h-10 border border-teal-700 bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500"

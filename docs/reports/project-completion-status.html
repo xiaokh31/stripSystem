@@ -318,7 +318,9 @@
           目标页展示构成统计值的对应记录。Work Queue、lifecycle、inventory、load jobs、
           exceptions、monthly/wage 和 recent activity 多处仍落到未筛选总列表。WEB-DASHBOARD-07
           已完成共享 count/list predicate、typed URL filters、exact record selection、运营复核页和
-          matching/non-matching Chromium vertical slice；WEB-DASHBOARD-08 仍负责全点击矩阵退出门禁。
+          matching/non-matching Chromium vertical slice；WEB-DASHBOARD-08 已用 machine-readable inventory、
+          真实 PostgreSQL/Chromium 全点击矩阵、五角色直接 RBAC、strict i18n/no-flash、11 张逐图视觉证据和
+          零残留关闭最终退出门禁。
           API 只返回 stable code、labelKey、enum 和 raw source data，Web 统一通过
           catalog/status-label helpers 本地化。AUTH-SESSION-01 已完成持久化浏览器
           登录：默认 `JWT_EXPIRES_IN_SECONDS=34560000` 秒，API JWT `exp`、
@@ -440,8 +442,7 @@
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
           Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05/06 已全部关闭且不得重跑；
-          WAGE-HOURS-07 与 WEB-DASHBOARD-07 已关闭；当前新的立即执行 Task 是 WEB-DASHBOARD-08，且必须使用
-          fresh Session。另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务
+          WAGE-HOURS-07 与 WEB-DASHBOARD-07/08 已关闭；本次关闭未自动选择或启动另一个开发 Task。另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务
           workbook、目标打印机/Microsoft Excel、Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
         </p>
@@ -1199,7 +1200,8 @@
           WEB-DASHBOARD-04 已完成当时的 QA/i18n/full-stack 回归；WEB-DASHBOARD-05/06
           已关闭 typography 与 Dock Lane Strip 视觉缺陷。2026-07-23 现场导航反馈暴露出
           aggregate count 与目标结果未建立精确契约；WEB-DASHBOARD-07 已关闭 canonical predicate 与目标筛选
-          vertical slice，剩余全点击矩阵由 WEB-DASHBOARD-08 处理。
+          vertical slice，WEB-DASHBOARD-08 已完成全 click-surface inventory、真实结果矩阵、RBAC、strict
+          i18n/no-flash、视觉、性能和精确清理退出门禁，现场导航回归现已完全关闭。
           后续实现必须严格遵守 i18n catalog/status-label
           管理：API 只返回 stable code、labelKey、enum 和 raw source data，Web 按当前 locale 渲染可见文案。
         </p>
@@ -1247,7 +1249,7 @@
               <td><span class="badge done">Done</span></td>
               <td>QA Complete</td>
               <td>已补 `apps/web/e2e/dashboard.spec.ts`，覆盖 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER dashboard role smoke、English -> 中文 -> refresh -> English、1366/1920/mobile 宽度无页面级横向溢出；更新 core/auth/locale-switch E2E；i18n unit gate 新增 API dashboard labelKey catalog 检查；Docker full-stack 重建后 `/api/dashboard/operations` 经 nginx 返回受保护 route。</td>
-              <td>既有角色/i18n/布局证据保持有效；其“链接存在/URL 改变”断言不足的问题已由 WEB-DASHBOARD-07 的真实 matching/non-matching vertical slice 修正，完整 click-surface matrix 留给 WEB-DASHBOARD-08。</td>
+              <td>既有角色/i18n/布局证据保持有效；其“链接存在/URL 改变”断言不足的问题已由 WEB-DASHBOARD-07 的真实 matching/non-matching vertical slice 修正，并由 WEB-DASHBOARD-08 完整 click-surface matrix 最终关闭。</td>
             </tr>
             <tr>
               <td>WEB-DASHBOARD-07 Dashboard Drilldown Navigation and Target Filters</td>
@@ -1258,10 +1260,10 @@
             </tr>
             <tr>
               <td>WEB-DASHBOARD-08 Dashboard Drilldown Full Stack I18n Visual Exit Gate</td>
-              <td><span class="badge partial">Ready / Next</span></td>
-              <td>0% / Exit Gate</td>
-              <td>任务已定义 machine-readable click-surface inventory、真实 matching/non-matching fixture、全 aggregate/record 点击结果、角色、SSR no-flash、视觉、性能和精确清理门禁。</td>
-              <td>使用 fresh supervisor Session 执行；不得只断言 href、route heading 或 URL，也不得在 WEB-DASHBOARD-07 Session 中继续。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100% / Exit Gate Complete</td>
+              <td>Machine-readable inventory 覆盖全部 aggregate、record、open-all、shortcut 与空/错误动作；真实 PostgreSQL fixture 证明 Dashboard count、目标 API total/ids、matching record 与 sentinel exclusion 在 effective lifecycle、inventory composite scope、operational timezone、active/deleted 和跨月口径上完全一致。ADMIN 与四业务角色直接 API/URL RBAC、strict en/zh-CN SSR no-flash、theme、keyboard、responsive、真实 200% zoom、console/network/overflow 门禁均通过。</td>
+              <td>Docker API 371 unit/128 E2E、Web 279 unit/build、Worker 183、完整 Chromium 11/11、11 张原分辨率逐图证据、healthcheck、日志过滤、diff check 与六类 fixture 零残留通过；无 migration、外部验证、blocker 或已知 Dashboard drilldown 限制。</td>
             </tr>
           </tbody>
         </table>
@@ -1696,9 +1698,9 @@
             </tr>
             <tr>
               <td>Operations dashboard redesign</td>
-              <td><span class="badge partial">Vertical Slice Done</span></td>
-              <td>WEB-DASHBOARD-00 至 07 的视觉方向、真实汇总 API、Shell、运营首页、双语 typography、Dock Lane Strip 与精确 drilldown vertical slice 证据保持完成；WEB-OPS-01 至 09 也保持关闭。WEB-DASHBOARD-08 全点击矩阵通过前仍不宣称现场导航回归完全退出。</td>
-              <td>下一步仅以 fresh Session 执行 WEB-DASHBOARD-08。不得重跑 00-07 或借机重做 Dashboard 视觉。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>WEB-DASHBOARD-00 至 08 的视觉方向、真实汇总 API、Shell、运营首页、双语 typography、Dock Lane Strip、精确 drilldown vertical slice 与全点击退出矩阵均已完成；WEB-OPS-01 至 09 也保持关闭。现场 Dashboard 导航回归已完全退出。</td>
+              <td>不得重跑 00-08 或借机重做 Dashboard 视觉；新 Dashboard 范围须另立 Task。</td>
             </tr>
             <tr>
               <td>Web corporate logo integration</td>
@@ -2066,7 +2068,7 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>WEB-DASHBOARD-07 已达到 Done；下一仓库开发 Task 是 WEB-DASHBOARD-08：<code>scripts/run-business-agent.sh task 'prompts/tasks/WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md'</code>。必须使用 fresh supervisor Session，不得在当前 Session 连续执行。</li>
+          <li>WEB-DASHBOARD-07/08 已达到 Done，现场 Dashboard 精确导航回归已关闭；不得重跑。本次完成未自动选择或启动另一个开发 Task。</li>
           <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
@@ -2076,7 +2078,7 @@
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
           <li>AGENT-AUTONOMY-01 已修正并增加终态监督；完整 Task 只使用 `scripts/run-business-agent.sh task '&lt;task-file&gt;'`，不要直接 prompt、原始 `exec`、手工 `resume` 或复用其他 Task 会话。项目 execpolicy 及宿主强制的凭据、外部发布和生产部署边界仍必须保留。</li>
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
-          <li>后台体验升级 WEB-DASHBOARD-00 至 07 与 WEB-OPS-01 至 09 的既有成果保持完成；现场 Dashboard 精确跳转回归只剩 WEB-DASHBOARD-08 全点击矩阵退出门禁。不要重跑旧任务或为 WEB-BRAND 重做 Dashboard 信息架构。</li>
+          <li>后台体验升级 WEB-DASHBOARD-00 至 08 与 WEB-OPS-01 至 09 均已完成；现场 Dashboard 精确跳转回归已通过全点击矩阵退出门禁。不要重跑旧任务或为 WEB-BRAND 重做 Dashboard 信息架构。</li>
           <li>WEB-BRAND-01/02/03/04 已全部完成且不得重跑；04 已关闭透明底现场回归。后续品牌范围若扩展到 PWA 192/512 icon、Native 或 Excel/PDF/label，必须另立 Task 并取得 approved master/范围决定。</li>
           <li>Browser 公网 contract 使用短生命周期 access cookie 与最长 400 天、服务端可撤销并 rotation 的 opaque refresh session；外层 Access/MFA 可独立要求重新认证。调整周期须使用 browser session 配置并按 runbook 执行 revoke/key rotation，不能只延长 JWT。</li>
           <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等待 4 组真实/明确脱敏 golden pair 与业务签字，不得重跑 parser 开发。该外部 gate 不阻塞当前 PUBLIC-DEPLOY。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>

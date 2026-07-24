@@ -18,7 +18,8 @@ export function DashboardFilterContext({
   const { t } = createTranslator(locale);
   return (
     <section
-      className="flex flex-wrap items-center justify-between gap-3 border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"
+      className="flex flex-wrap items-center justify-between gap-3 border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-[var(--ink)]"
+      data-dashboard-filter-context="true"
       data-drilldown-code={context.code}
     >
       <p>

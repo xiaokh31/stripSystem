@@ -4,106 +4,78 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-24T04:01:26Z`
+- Generated at: `2026-07-24T06:35:47Z`
 - Source: `business-task-supervisor`
-- Task: `WEB-DASHBOARD-07`
-- Task file: `prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md`
+- Task: `WEB-DASHBOARD-08`
+- Task file: `prompts/tasks/WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md`
 - Status: `DONE`
 - Execution mode: `full`
-- Session: `019f91fe-d229-7651-a976-7aeab8b7b09d`
-- Git HEAD: `fe8f644`
+- Session: `019f9267-1eb8-7542-8ecd-b13762aee47d`
+- Git HEAD: `cfd3d9b`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260724T024023Z-WEB-DASHBOARD-07-62455`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260724T043418Z-WEB-DASHBOARD-08-66179`
 
 ## 现在在做什么
 
-WEB-DASHBOARD-07 is complete; no implementation or verification remains for this Task.
+WEB-DASHBOARD-08 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- WEB-DASHBOARD-07 已完成。Dashboard aggregate/record drilldown 现使用 typed URL、共享后端 canonical predicate、精确记录选择和 bounded operations review；目标页支持可复制筛选、刷新、翻页、排序、locale 与 selection 保持。RBAC、strict en/zh-CN、响应式、真实 matching/non-matching 数据及清理门禁均通过。无 schema 变更或新增 migration。Task、Task Index、完成度报告和 HANDOFF.md 已同步为 DONE；本 Session 未启动 WEB-DASHBOARD-08。
+- WEB-DASHBOARD-08 已完成全部 Definition-of-Done。Machine-readable click inventory、真实 PostgreSQL aggregate/record/open-all 矩阵、五角色直接 URL/API RBAC、strict en/zh-CN SSR no-flash、theme、键盘、响应式、真实 200% zoom、性能、日志、健康和零残留门禁全部通过。11 张高信号截图已按原始分辨率逐张检查。Task、Task Index 和项目完成度报告已同步为 DONE；无 migration、外部验证、blocker 或已知 Dashboard drilldown navigation 限制。
 
 ### Changed files
 
 - HANDOFF.md
-- apps/api/src/app.module.ts
-- apps/api/src/common/operational-time.ts
-- apps/api/src/common/operational-time.spec.ts
-- apps/api/src/imports/import-list-filter.ts
-- apps/api/src/imports/dto/list-imports-query.dto.ts
-- apps/api/src/imports/imports.service.ts
-- apps/api/src/attendance/attendance-import-list-filter.ts
-- apps/api/src/attendance/dto/list-attendance-imports-query.dto.ts
-- apps/api/src/attendance/attendance.service.ts
-- apps/api/src/attendance/attendance.service.spec.ts
-- apps/api/src/load-jobs/load-job-list-filter.ts
-- apps/api/src/load-jobs/dto/list-load-jobs-query.dto.ts
+- apps/api/src/dashboard/dashboard.service.spec.ts
+- apps/api/src/dashboard/dashboard.service.ts
+- apps/api/src/load-jobs/dto/load-job-response.dto.ts
+- apps/api/src/load-jobs/load-jobs.service.spec.ts
 - apps/api/src/load-jobs/load-jobs.service.ts
-- apps/api/src/corrections/container-index.service.ts
-- apps/api/src/corrections/container-index.service.spec.ts
-- apps/api/src/corrections/dto/container-index.dto.ts
-- apps/api/src/corrections/corrections.module.ts
 - apps/api/src/reports/dto/inventory-query.dto.ts
 - apps/api/src/reports/inventory-reports.service.ts
-- apps/api/src/reports/inventory-reports.service.spec.ts
-- apps/api/src/dashboard/dashboard.controller.ts
-- apps/api/src/dashboard/dashboard.module.ts
-- apps/api/src/dashboard/dashboard.service.ts
-- apps/api/src/dashboard/dashboard.service.spec.ts
-- apps/api/src/dashboard/dashboard-filter-contract.spec.ts
-- apps/api/src/dashboard/dto/operations-dashboard-response.dto.ts
-- apps/api/src/dashboard/dto/operations-review-query.dto.ts
-- apps/api/src/dashboard/operations-review.service.ts
-- apps/api/src/dashboard/operations-review.service.spec.ts
-- apps/api/src/unloading-wage/dto/list-unloading-wage-settlements-query.dto.ts
-- apps/api/src/unloading-wage/unloading-wage-settlement-filter.ts
-- apps/api/src/unloading-wage/unloading-wage.controller.ts
-- apps/api/src/unloading-wage/unloading-wage.service.ts
-- apps/api/test/dashboard.e2e-spec.ts
-- apps/web/src/app/page.tsx
-- apps/web/src/app/operations/review/page.tsx
-- apps/web/src/app/imports/page.tsx
-- apps/web/src/app/containers/page.tsx
+- apps/api/test/load-jobs.e2e-spec.ts
+- apps/web/e2e/dashboard-drilldown.spec.ts
+- apps/web/e2e/dashboard.spec.ts
+- apps/web/e2e/fixtures/dashboard-exit-gate-fixture.ts
 - apps/web/src/app/containers/[id]/page.tsx
-- apps/web/src/app/containers/[id]/corrections/page.tsx
+- apps/web/src/app/imports/[id]/page.tsx
 - apps/web/src/app/inventory/page.tsx
-- apps/web/src/app/load-jobs/page.tsx
-- apps/web/src/app/work-hours/page.tsx
-- apps/web/src/app/unloading-summary/page.tsx
-- apps/web/src/app/unloading-wage/page.tsx
+- apps/web/src/app/page.tsx
 - apps/web/src/components/dashboard/dashboard-components.tsx
 - apps/web/src/components/dashboard/dashboard-filter-context.tsx
-- apps/web/src/components/dashboard/drilldown-flow.ts
-- apps/web/src/components/dashboard/selected-record-focus.tsx
-- apps/web/src/components/containers/container-generated-files.tsx
+- apps/web/src/components/layout/office-shell.tsx
+- apps/web/src/components/reports/inventory-report-flow.ts
+- apps/web/src/components/wage/work-hours-actions.tsx
 - apps/web/src/lib/api-client.ts
 - apps/web/src/lib/i18n/locales/en.ts
 - apps/web/src/lib/i18n/locales/zh.ts
-- apps/web/tests/api-client-dashboard.test.ts
-- apps/web/tests/dashboard-drilldown-flow.test.ts
-- apps/web/e2e/dashboard.spec.ts
-- prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md
-- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- apps/web/tests/api-client-load-jobs.test.ts
+- apps/web/tests/dashboard-click-surface-inventory.test.ts
+- apps/web/tests/fixtures/dashboard-click-surface-inventory.ts
+- apps/web/tests/inventory-report-flow.test.ts
 - docs/reports/project-completion-status.html
+- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- prompts/tasks/WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md
+- scripts/run-dashboard-exit-gate-e2e.sh
 
 ### Tests and verification actually run
 
-- Docker full-stack up -d --build：通过，全部服务健康
-- API production image build：通过
-- API lint、typecheck：通过
-- API unit：48 suites / 370 tests passed
-- API E2E：21 suites / 128 tests passed
-- Focused Dashboard API E2E：6/6 passed
-- Container suggestions route E2E：2/2 passed
-- Web lint、typecheck：通过
-- Web unit：276/276 passed
-- Web production build：通过
-- Worker pytest：183/183 passed
-- E2E image build：通过
-- Chromium dashboard.spec.ts：5/5 passed，覆盖角色、双语、真实 drilldown、响应式和 lifecycle 视觉矩阵
-- scripts/healthcheck.sh：通过，包含当前 Next.js static chunks
+- Docker API production build、lint、typecheck：通过
+- Docker API unit：48/48 suites、371/371 tests 通过；包含记录量 1→75 时查询扇出恒定的 N+1 门禁
+- Docker API E2E：21/21 suites、128/128 tests 通过
+- Docker Web production build、lint、typecheck：通过
+- Docker Web unit：279/279 tests 通过
+- Docker Worker pytest：183/183 tests 通过
+- Docker E2E image build：通过
+- 完整 Chromium dashboard.spec.ts + dashboard-drilldown.spec.ts：11/11 通过，5.9 分钟
+- Aggregate 矩阵覆盖源统计、目标 API total/ids、matching/excluded sentinel、refresh、back/forward、clear、分页、排序、搜索和 zero-result
+- Record/open-all/shortcut、稳定 ID、键盘导航及 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER RBAC：通过
+- Strict en/zh-CN、SSR no-flash、theme、responsive、真实 200% zoom、console/network/hydration/overflow：通过
+- test-results/web-dashboard-08：11/11 PNG 尺寸核验并逐张原分辨率检查通过
+- scripts/healthcheck.sh：通过；六个 Compose 服务全部 healthy
+- DASH08 users/imports/containers/load-jobs/attendance/wages 残留：全部 0
+- 测试后 error/fatal/unhandled/5xx 日志过滤：0 条
 - git diff --check：通过
-- 精确清理验证：专用用户 0、专用会话 0、DASH07 前缀业务记录 0
 
 ## 卡在哪里
 
@@ -121,14 +93,16 @@ WEB-DASHBOARD-07 is complete; no implementation or verification remains for this
 
 ## 下一步
 
-- 由 fresh supervisor Session 执行 WEB-DASHBOARD-08；当前 Session 不得继续该任务。
+- 无需继续 WEB-DASHBOARD-08；监督器可记录其 DONE 终态，不应自动启动另一个 Task。
 
 ## 不要再踩的坑
 
-- DashboardModule 间接导入含 controller 的 CorrectionsModule 会影响 Express 路由注册顺序；必须保持 `/containers/suggestions` 在 `/containers/:id` 前并保留 E2E 回归。
-- 在运行中的 Web 容器执行 production build 后必须重启 Web，否则 SSR manifest 与磁盘 chunk hash 会错配并产生 404/ChunkLoadError。
-- ACTIVE/REMAINING 是组合库存 scope，effective lifecycle 与 operational-day timezone 必须继续复用后端 canonical predicate，不能退化为前端计算或单个状态。
-- 当前工作树仍包含其他任务的既有未提交成果；不得 reset、checkout 或覆盖这些修改。
+- 不要重跑或重新打开 WEB-DASHBOARD-08；新 Dashboard 范围必须另立 Task。
+- inventory 普通目的仓搜索必须保持 contains；只有 Dashboard top-destination drilldown 使用 destinationMatch=EXACT。
+- 运行容器不挂载源码；未来修改 API、Web 或 E2E 后必须重建对应镜像。
+- Playwright 会清空 test-results；复核截图时须保护最终 11 张证据，避免被后续运行覆盖。
+- operations review 的 code 是必需业务选择；clear context 只应移除 from/context，不能删除 code。
+- PostgreSQL 容器没有默认 postgres 角色；残留审计应使用容器配置的数据库角色，且不得输出凭据。
 
 ## 新会话启动清单
 
@@ -140,7 +114,7 @@ WEB-DASHBOARD-07 is complete; no implementation or verification remains for this
 
 ## 权威参考
 
-- `prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md`
+- `prompts/tasks/WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

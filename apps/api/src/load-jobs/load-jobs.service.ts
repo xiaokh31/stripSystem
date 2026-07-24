@@ -399,18 +399,22 @@ export class LoadJobsService {
   async list(query: ListLoadJobsQueryDto): Promise<LoadJobListResponseDto> {
     const where = loadJobListWhere(query);
 
-    const records = (await this.prisma.loadJob.findMany({
-      where,
-      include: LOAD_JOB_INCLUDE,
-      orderBy: { createdAt: 'desc' },
-      take: query.limit,
-      skip: query.offset,
-    })) as LoadJobRecord[];
+    const [records, totalItems] = await Promise.all([
+      this.prisma.loadJob.findMany({
+        where,
+        include: LOAD_JOB_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: query.limit,
+        skip: query.offset,
+      }) as Promise<LoadJobRecord[]>,
+      this.prisma.loadJob.count({ where }),
+    ]);
 
     return {
       items: records.map((record) => this.toResponse(record)),
       limit: query.limit,
       offset: query.offset,
+      totalItems,
     };
   }
 

@@ -329,6 +329,7 @@ function WorkQueueSection({
               href={item.href}
               key={item.code}
               label={dashboardLabel(item.labelKey, locale)}
+              surfaceId={`aggregate.work-queue.${item.code}`}
               tone={item.count === 0 ? "success" : dashboardSeverityTone(item.severity)}
               value={item.count}
             />
@@ -339,6 +340,7 @@ function WorkQueueSection({
           href="/settings"
           label={t("No dashboard actions are visible for this account.", locale)}
           linkLabel={t("Open settings", locale)}
+          surfaceId="empty.work-queue"
         />
       )}
     </DashboardPanel>
@@ -357,6 +359,7 @@ function LifecycleSection({
     count: stage.count,
     href: stage.href,
     label: dashboardLifecycleLabel(stage, locale),
+    surfaceId: `aggregate.lifecycle.${stage.code}`,
     tone: dashboardSeverityTone(stage.severity),
   }));
 
@@ -366,6 +369,7 @@ function LifecycleSection({
         <LinkButton
           href="/containers"
           label={t("Open containers", locale)}
+          surfaceId="open-all.lifecycle"
           tone="neutral"
         />
       }
@@ -395,6 +399,7 @@ function InventorySection({
         href="/inventory"
         message={dashboardUnavailableMessage("inventory", locale)}
         locale={locale}
+        surfaceId="unavailable.inventory"
         title={t("Inventory pressure", locale)}
       />
     );
@@ -406,6 +411,7 @@ function InventorySection({
         <LinkButton
           href="/inventory"
           label={t("Open inventory", locale)}
+          surfaceId="open-all.inventory"
           tone="neutral"
         />
       }
@@ -417,6 +423,7 @@ function InventorySection({
           code="INVENTORY_ACTIVE"
           href={inventory.hrefs.active}
           label={t("Active pallets", locale)}
+          surfaceId="aggregate.inventory.active"
           tone="info"
           value={inventory.activeTotalPallets}
         />
@@ -424,6 +431,7 @@ function InventorySection({
           code="INVENTORY_LOADED"
           href={inventory.hrefs.loaded}
           label={t("Loaded pallets", locale)}
+          surfaceId="aggregate.inventory.loaded"
           tone="success"
           value={inventory.loadedPallets}
         />
@@ -431,6 +439,7 @@ function InventorySection({
           code="INVENTORY_REMAINING"
           href={inventory.hrefs.remaining}
           label={t("Remaining pallets", locale)}
+          surfaceId="aggregate.inventory.remaining"
           tone={inventory.remainingPallets > 0 ? "warning" : "success"}
           value={inventory.remainingPallets}
         />
@@ -459,6 +468,7 @@ function InventorySection({
           inventory.topDestinations.map((destination) => (
             <Link
               className="block border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--seal-teal)]"
+              data-click-surface-id="aggregate.inventory.destination-remaining"
               data-drilldown-code="INVENTORY_DESTINATION_REMAINING"
               href={destination.href}
               key={destination.destinationCode}
@@ -489,6 +499,7 @@ function InventorySection({
             href="/inventory"
             label={t("No destination inventory pressure", locale)}
             linkLabel={t("Open inventory", locale)}
+            surfaceId="empty.inventory-destinations"
           />
         )}
       </div>
@@ -509,6 +520,7 @@ function LoadJobsSection({
         href="/load-jobs"
         message={dashboardUnavailableMessage("loadJobs", locale)}
         locale={locale}
+        surfaceId="unavailable.load-jobs"
         title={t("Active load jobs", locale)}
       />
     );
@@ -520,6 +532,7 @@ function LoadJobsSection({
         <LinkButton
           href="/load-jobs"
           label={t("Open load jobs", locale)}
+          surfaceId="open-all.load-jobs"
           tone="neutral"
         />
       }
@@ -531,6 +544,7 @@ function LoadJobsSection({
           code="OPEN_LOAD_JOBS"
           href={loadJobs.hrefs.open}
           label={t("Open load jobs", locale)}
+          surfaceId="aggregate.load-jobs.open"
           tone={loadJobs.openCount > 0 ? "warning" : "success"}
           value={loadJobs.openCount}
         />
@@ -538,6 +552,7 @@ function LoadJobsSection({
           code="LOAD_JOBS_IN_PROGRESS"
           href={loadJobs.hrefs.inProgress}
           label={t("In progress", locale)}
+          surfaceId="aggregate.load-jobs.in-progress"
           tone={loadJobs.inProgressCount > 0 ? "info" : "neutral"}
           value={loadJobs.inProgressCount}
         />
@@ -545,6 +560,7 @@ function LoadJobsSection({
           code="LOAD_JOBS_DUE_TODAY"
           href={loadJobs.hrefs.dueToday}
           label={t("Due today", locale)}
+          surfaceId="aggregate.load-jobs.due-today"
           tone={loadJobs.dueTodayCount > 0 ? "warning" : "success"}
           value={loadJobs.dueTodayCount}
         />
@@ -554,6 +570,7 @@ function LoadJobsSection({
           loadJobs.activeJobs.map((job) => (
             <Link
               className="block border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 hover:bg-white"
+              data-click-surface-id="record.load-job.active"
               data-drilldown-code="ACTIVE_LOAD_JOB"
               data-record-id={job.id}
               href={job.href}
@@ -598,6 +615,7 @@ function LoadJobsSection({
             href="/load-jobs"
             label={t("No active load jobs", locale)}
             linkLabel={t("Open load jobs", locale)}
+            surfaceId="empty.load-jobs"
           />
         )}
       </div>
@@ -618,6 +636,7 @@ function ExceptionSection({
         <LinkButton
           href="/imports"
           label={t("Open imports", locale)}
+          surfaceId="open-all.exceptions"
           tone="neutral"
         />
       }
@@ -631,6 +650,7 @@ function ExceptionSection({
           count: item.count,
           href: item.href,
           label: dashboardLabel(item.labelKey, locale),
+          surfaceId: `aggregate.exception.${item.code}`,
           tone: dashboardSeverityTone(item.severity) as Exclude<
             DashboardTone,
             "success"
@@ -663,6 +683,7 @@ function WorkflowSection({
             <LinkButton
               href={monthlySummary.href}
               label={t("Open reports", locale)}
+              surfaceId="open-all.monthly"
               tone="neutral"
             />
           ) : undefined
@@ -678,6 +699,7 @@ function WorkflowSection({
                   code="MONTHLY_COMPLETED_CONTAINERS"
                   href={monthlySummary.hrefs.completedContainers}
                   label={t("Completed containers", locale)}
+                  surfaceId="aggregate.monthly.completed-containers"
                   tone="success"
                   value={monthlySummary.completedContainerCount}
                 />
@@ -685,6 +707,7 @@ function WorkflowSection({
                   code="MONTHLY_SUMMARY_ROWS"
                   href={monthlySummary.hrefs.summaryRows}
                   label={t("Summary rows", locale)}
+                  surfaceId="aggregate.monthly.summary-rows"
                   tone="info"
                   value={monthlySummary.rowCount}
                 />
@@ -692,6 +715,7 @@ function WorkflowSection({
                   code="UNLOADING_COMPLETION_DATE_MISSING"
                   href={monthlySummary.hrefs.reviewWarnings}
                   label={t("Review warnings", locale)}
+                  surfaceId="aggregate.monthly.review-warnings"
                   tone={monthlySummary.reviewWarningCount > 0 ? "warning" : "success"}
                   value={monthlySummary.reviewWarningCount}
                 />
@@ -703,6 +727,7 @@ function WorkflowSection({
                 code="ATTENDANCE_IMPORTS_NEED_PARSE"
                 href={wageAndAttendance.hrefs.attendance ?? "/work-hours"}
                 label={t("Attendance imports needing parse", locale)}
+                surfaceId="aggregate.attendance.need-parse"
                 tone={
                   wageAndAttendance.attendanceImportsNeedingParse > 0
                     ? "warning"
@@ -717,6 +742,7 @@ function WorkflowSection({
                 code="ATTENDANCE_IMPORTS_WITH_ERRORS"
                 href={wageAndAttendance.hrefs.attendanceErrors ?? "/work-hours"}
                 label={t("Attendance imports with errors", locale)}
+                surfaceId="aggregate.attendance.errors"
                 tone={
                   wageAndAttendance.attendanceImportsWithErrors > 0
                     ? "danger"
@@ -731,6 +757,7 @@ function WorkflowSection({
                 code="WAGE_SETTLEMENTS_NEED_REVIEW"
                 href={wageAndAttendance.hrefs.unloadingWage ?? "/unloading-wage"}
                 label={t("Wage settlements needing review", locale)}
+                surfaceId="aggregate.wage.review"
                 tone={
                   wageAndAttendance.wageSettlementsNeedingReview > 0
                     ? "warning"
@@ -746,6 +773,7 @@ function WorkflowSection({
             message={dashboardUnavailableMessage("monthlySummary", locale)}
             locale={locale}
             title={t("Monthly settlement", locale)}
+            surfaceId="unavailable.monthly"
           />
         )}
       </DashboardPanel>
@@ -761,6 +789,7 @@ function WorkflowSection({
                 href={shortcut.href}
                 key={shortcut.href}
                 label={shortcut.label}
+                surfaceId={shortcut.surfaceId}
                 tone={shortcut.tone}
               />
             ))}
@@ -770,6 +799,7 @@ function WorkflowSection({
             href="/login"
             label={t("No workflow shortcuts are available for this account.", locale)}
             linkLabel={t("Sign in", locale)}
+            surfaceId="empty.shortcuts"
           />
         )}
       </DashboardPanel>
@@ -790,6 +820,7 @@ function RecentActivitySection({
         <LinkButton
           href={dashboardHref({ range: "30d" })}
           label={t("30 days", locale)}
+          surfaceId="open-all.recent"
           tone="neutral"
         />
       }
@@ -803,6 +834,7 @@ function RecentActivitySection({
               <Link
                 className="grid gap-2 px-3 py-3 text-sm hover:bg-[var(--panel-muted)] sm:grid-cols-[140px_minmax(0,1fr)_160px]"
                 data-activity-kind={activity.kind}
+                data-click-surface-id={`record.recent.${activity.kind}`}
                 data-record-id={activity.id}
                 href={activity.href}
               >
@@ -829,6 +861,7 @@ function RecentActivitySection({
           href={dashboardHref({ range: "30d" })}
           label={t("No recent activity in this range", locale)}
           linkLabel={t("30 days", locale)}
+          surfaceId="empty.recent"
         />
       )}
     </DashboardPanel>
@@ -867,18 +900,30 @@ function DashboardErrorState({
         title={t("Available shortcuts", locale)}
       >
         <div className="grid gap-2">
-          <LinkButton href="/imports" label={t("Open imports", locale)} tone="neutral" />
+          <LinkButton
+            href="/imports"
+            label={t("Open imports", locale)}
+            surfaceId="error-shortcut.imports"
+            tone="neutral"
+          />
           <LinkButton
             href="/containers"
             label={t("Open containers", locale)}
+            surfaceId="error-shortcut.containers"
             tone="neutral"
           />
           <LinkButton
             href="/load-jobs"
             label={t("Open load jobs", locale)}
+            surfaceId="error-shortcut.load-jobs"
             tone="neutral"
           />
-          <LinkButton href="/reports" label={t("Open reports", locale)} tone="neutral" />
+          <LinkButton
+            href="/reports"
+            label={t("Open reports", locale)}
+            surfaceId="error-shortcut.reports"
+            tone="neutral"
+          />
         </div>
         <p className="mt-3 text-xs text-zinc-600">
           {t("Use these routes while the dashboard API is unavailable.", locale)}
@@ -892,11 +937,13 @@ function UnavailablePanel({
   href,
   locale,
   message,
+  surfaceId,
   title,
 }: {
   href: string;
   locale: Locale;
   message: string;
+  surfaceId: string;
   title: string;
 }) {
   return (
@@ -906,6 +953,7 @@ function UnavailablePanel({
       <LinkButton
         href={href}
         label={t("Open dashboard target", locale)}
+        surfaceId={surfaceId}
         tone="neutral"
       />
     </section>
@@ -916,16 +964,23 @@ function EmptyAction({
   href,
   label,
   linkLabel,
+  surfaceId,
 }: {
   href: string;
   label: string;
   linkLabel: string;
+  surfaceId: string;
 }) {
   return (
     <div className="border border-dashed border-[var(--line-soft)] bg-[var(--panel-muted)] p-4 text-sm text-zinc-600">
       <p>{label}</p>
       <div className="mt-3">
-        <LinkButton href={href} label={linkLabel} tone="neutral" />
+        <LinkButton
+          href={href}
+          label={linkLabel}
+          surfaceId={surfaceId}
+          tone="neutral"
+        />
       </div>
     </div>
   );
@@ -934,10 +989,12 @@ function EmptyAction({
 function LinkButton({
   href,
   label,
+  surfaceId,
   tone,
 }: {
   href: string;
   label: string;
+  surfaceId: string;
   tone: DashboardTone;
 }) {
   const className =
@@ -946,7 +1003,7 @@ function LinkButton({
       : "inline-flex min-h-9 items-center justify-center border border-[var(--seal-teal)] bg-[var(--seal-teal)] px-3 text-xs font-semibold uppercase text-white hover:bg-teal-800";
 
   return (
-    <Link className={className} href={href}>
+    <Link className={className} data-click-surface-id={surfaceId} href={href}>
       {label}
     </Link>
   );
@@ -955,14 +1012,24 @@ function LinkButton({
 function workflowShortcuts(
   user: AuthUserResponse | null,
   locale: Locale,
-): Array<{ href: string; label: string; tone: DashboardTone }> {
-  const shortcuts: Array<{ href: string; label: string; tone: DashboardTone }> =
-    [];
+): Array<{
+  href: string;
+  label: string;
+  surfaceId: string;
+  tone: DashboardTone;
+}> {
+  const shortcuts: Array<{
+    href: string;
+    label: string;
+    surfaceId: string;
+    tone: DashboardTone;
+  }> = [];
 
   if (hasPermission(user, INVENTORY_READ_PERMISSION)) {
     shortcuts.push({
       href: "/inventory",
       label: t("Open inventory", locale),
+      surfaceId: "shortcut.inventory",
       tone: "neutral",
     });
   }
@@ -970,6 +1037,7 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/load-jobs",
       label: t("Open load jobs", locale),
+      surfaceId: "shortcut.load-jobs",
       tone: "neutral",
     });
   }
@@ -977,6 +1045,7 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/mobile/load-jobs",
       label: t("Open mobile scan", locale),
+      surfaceId: "shortcut.mobile-scan",
       tone: "neutral",
     });
   }
@@ -984,6 +1053,7 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/work-hours",
       label: t("Open work hours", locale),
+      surfaceId: "shortcut.work-hours",
       tone: "neutral",
     });
   }
@@ -991,6 +1061,7 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/unloading-wage",
       label: t("Open unloading wage", locale),
+      surfaceId: "shortcut.unloading-wage",
       tone: "neutral",
     });
   }
@@ -998,6 +1069,7 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/unloading-summary",
       label: t("Open unloading summary", locale),
+      surfaceId: "shortcut.unloading-summary",
       tone: "neutral",
     });
   }
@@ -1005,11 +1077,13 @@ function workflowShortcuts(
     shortcuts.push({
       href: "/admin/users",
       label: t("Open admin users", locale),
+      surfaceId: "shortcut.admin-users",
       tone: "neutral",
     });
     shortcuts.push({
       href: "/settings",
       label: t("Open settings", locale),
+      surfaceId: "shortcut.settings",
       tone: "neutral",
     });
   }

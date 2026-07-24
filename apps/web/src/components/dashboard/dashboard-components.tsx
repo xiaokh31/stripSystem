@@ -46,6 +46,7 @@ export function MetricTile({
   detail,
   href,
   label,
+  surfaceId,
   tone = "neutral",
   value,
 }: {
@@ -53,6 +54,7 @@ export function MetricTile({
   detail?: string;
   href?: string;
   label: string;
+  surfaceId?: string;
   tone?: DashboardTone;
   value: number | string;
 }) {
@@ -75,6 +77,7 @@ export function MetricTile({
     return (
       <Link
         className={className}
+        data-click-surface-id={surfaceId}
         data-drilldown-code={code}
         data-tone={tone}
         href={href}
@@ -246,6 +249,7 @@ export interface LifecycleLane {
   count: number;
   href: string;
   label: string;
+  surfaceId?: string;
   tone?: DashboardTone;
 }
 
@@ -273,6 +277,7 @@ export function LifecycleDockStrip({
           return (
             <Link
               className="group relative grid h-full min-h-40 grid-rows-[minmax(5.25rem,1fr)_0.75rem_1rem] gap-3 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)] focus-visible:z-10"
+              data-click-surface-id={lane.surfaceId}
               data-lane-code={lane.code}
               href={lane.href}
               key={lane.code}
@@ -391,6 +396,7 @@ export function ExceptionList({
     code?: string;
     href?: string;
     label: string;
+    surfaceId?: string;
     tone?: Exclude<DashboardTone, "success">;
   }>;
   locale?: Locale;
@@ -423,6 +429,7 @@ export function ExceptionList({
             {item.href ? (
               <Link
                 className="flex min-h-12 items-center justify-between gap-4 px-3 py-2 text-sm font-medium hover:bg-[var(--panel-muted)]"
+                data-click-surface-id={item.surfaceId}
                 data-drilldown-code={item.code}
                 href={item.href}
               >

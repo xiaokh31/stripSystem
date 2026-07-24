@@ -58,6 +58,7 @@ export interface LoadJobListResponseDto {
   items: LoadJobResponseDto[];
   limit: number;
   offset: number;
+  totalItems: number;
 }
 
 export interface LoadJobProgressDto {

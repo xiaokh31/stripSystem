@@ -21,6 +21,9 @@ export const INVENTORY_PAGE_SIZES = [5, 10, 20, 50] as const;
 export type InventoryPageSize = (typeof INVENTORY_PAGE_SIZES)[number];
 export const INVENTORY_SCOPES = ['ACTIVE', 'LOADED', 'REMAINING'] as const;
 export type InventoryScope = (typeof INVENTORY_SCOPES)[number];
+export const INVENTORY_DESTINATION_MATCHES = ['EXACT'] as const;
+export type InventoryDestinationMatch =
+  (typeof INVENTORY_DESTINATION_MATCHES)[number];
 
 export class InventoryQueryDto {
   @Transform(trimString)
@@ -34,6 +37,10 @@ export class InventoryQueryDto {
   @IsString()
   @MaxLength(64)
   destinationCode?: string;
+
+  @IsOptional()
+  @IsIn(INVENTORY_DESTINATION_MATCHES)
+  destinationMatch?: InventoryDestinationMatch;
 
   @IsOptional()
   @IsIn(PALLET_STATUSES)

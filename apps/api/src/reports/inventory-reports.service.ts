@@ -78,6 +78,7 @@ interface PalletRecord {
 interface NormalizedInventoryQuery {
   containerNo: string;
   destinationCode: string;
+  destinationMatch: '' | 'EXACT';
   status: string;
   scope: '' | 'ACTIVE' | 'LOADED' | 'REMAINING';
   page: number;
@@ -157,7 +158,11 @@ export class InventoryReportsService {
     query: NormalizedInventoryQuery,
   ): Promise<ContainerAggregateRow[]> {
     const containerPattern = `%${escapeSqlLikePattern(query.containerNo)}%`;
-    const destinationPattern = `%${escapeSqlLikePattern(query.destinationCode)}%`;
+    const escapedDestination = escapeSqlLikePattern(query.destinationCode);
+    const destinationPattern =
+      query.destinationMatch === 'EXACT'
+        ? escapedDestination
+        : `%${escapedDestination}%`;
     const hasContainerFilter = query.containerNo.length > 0;
     const hasDestinationFilter = query.destinationCode.length > 0;
     const hasStatusFilter = query.status.length > 0;
@@ -284,7 +289,11 @@ export class InventoryReportsService {
     query: NormalizedInventoryQuery,
   ): Promise<DestinationAggregateRow[]> {
     const containerPattern = `%${escapeSqlLikePattern(query.containerNo)}%`;
-    const destinationPattern = `%${escapeSqlLikePattern(query.destinationCode)}%`;
+    const escapedDestination = escapeSqlLikePattern(query.destinationCode);
+    const destinationPattern =
+      query.destinationMatch === 'EXACT'
+        ? escapedDestination
+        : `%${escapedDestination}%`;
     const hasContainerFilter = query.containerNo.length > 0;
     const hasDestinationFilter = query.destinationCode.length > 0;
     const hasStatusFilter = query.status.length > 0;
@@ -419,6 +428,7 @@ export class InventoryReportsService {
       destinationCode: normalizeContainerSearchValue(
         query.destinationCode ?? '',
       ),
+      destinationMatch: query.destinationMatch ?? '',
       status: query.status ?? '',
       scope: query.scope ?? '',
       page: query.page ?? 1,
@@ -584,8 +594,10 @@ export class InventoryReportsService {
     query: InventoryQueryDto,
   ): boolean {
     if (!query.destinationCode) return true;
-    return destination.destinationCode
-      .toLowerCase()
-      .includes(query.destinationCode.toLowerCase());
+    const destinationCode = destination.destinationCode.toLowerCase();
+    const filter = query.destinationCode.toLowerCase();
+    return query.destinationMatch === 'EXACT'
+      ? destinationCode === filter
+      : destinationCode.includes(filter);
   }
 }

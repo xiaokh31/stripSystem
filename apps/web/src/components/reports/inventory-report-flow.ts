@@ -96,6 +96,9 @@ export function normalizeInventoryFilters(
       "destinationCode",
       firstSearchValue(searchParams.destinationCode),
     ),
+    ...(firstSearchValue(searchParams.destinationMatch) === "EXACT"
+      ? { destinationMatch: "EXACT" as const }
+      : {}),
     ...optionalFilter("status", firstSearchValue(searchParams.status)),
     ...(["ACTIVE", "LOADED", "REMAINING"].includes(scope ?? "")
       ? { scope: scope as InventoryReportFilters["scope"] }
@@ -146,6 +149,7 @@ export function inventoryWorkspaceHref(
 
   appendFilter(params, "containerNo", filters.containerNo);
   appendFilter(params, "destinationCode", filters.destinationCode);
+  appendFilter(params, "destinationMatch", filters.destinationMatch);
   appendFilter(params, "scope", filters.scope);
   appendFilter(params, "status", filters.status);
   appendDashboardDrilldownContext(

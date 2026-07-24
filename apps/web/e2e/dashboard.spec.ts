@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import {
@@ -12,40 +12,25 @@ import {
   type Worker,
 } from "@playwright/test";
 import {
+  authHeaders,
   configureBrowserActor,
   ensureTestUser,
   expectNoPageError,
+  loginForAccessToken,
   loginThroughApi,
   loginWithCredentials,
   type E2ETestUser,
 } from "./helpers";
-
-const dashboardUsers = [
-  {
-    email: "e2e-dashboard-office@bestarcca.com",
-    name: "E2E Dashboard Office",
-    password: "Bestar-E2E-Dashboard-Office-123!",
-    roleCodes: ["OFFICE"],
-  },
-  {
-    email: "e2e-dashboard-warehouse@bestarcca.com",
-    name: "E2E Dashboard Warehouse",
-    password: "Bestar-E2E-Dashboard-Warehouse-123!",
-    roleCodes: ["WAREHOUSE"],
-  },
-  {
-    email: "e2e-dashboard-hr-manager@bestarcca.com",
-    name: "E2E Dashboard HR Manager",
-    password: "Bestar-E2E-Dashboard-HR-123!",
-    roleCodes: ["HR_MANAGER"],
-  },
-  {
-    email: "e2e-dashboard-warehouse-manager@bestarcca.com",
-    name: "E2E Dashboard Warehouse Manager",
-    password: "Bestar-E2E-Dashboard-WM-123!",
-    roleCodes: ["WAREHOUSE_MANAGER"],
-  },
-] as const;
+import {
+  DASHBOARD_ACTION_CLICK_SURFACES,
+  DASHBOARD_AGGREGATE_CLICK_SURFACES,
+  DASHBOARD_RECORD_CLICK_SURFACES,
+} from "../tests/fixtures/dashboard-click-surface-inventory";
+import {
+  cleanupDashboardExitGateFixture,
+  createDashboardExitGateFixture,
+  dashboardExitGateFixtureCount,
+} from "./fixtures/dashboard-exit-gate-fixture";
 
 const forbiddenBilingualPatterns = [
   /已拆完\s*\(UNLOADED\)/,
@@ -80,30 +65,78 @@ const lifecycleLaneCodes = [
 test("operations dashboard trims visible sections by role", async ({
   page,
   request,
-}) => {
+}, testInfo) => {
   test.setTimeout(120_000);
   const adminToken = await loginThroughApi(page, request);
-  const users = Object.fromEntries(
-    await Promise.all(
-      dashboardUsers.map(async (input) => [
-        input.roleCodes[0],
-        await ensureTestUser(request, adminToken, {
-          ...input,
-          roleCodes: [...input.roleCodes],
-        }),
-      ]),
-    ),
-  ) as Record<string, E2ETestUser>;
+  const suffix = uniqueSuffix(testInfo.project.name).toLowerCase();
+  const dashboardUsers = dashboardUserInputs(suffix);
+  const users: Partial<Record<string, E2ETestUser>> = {};
 
-  await assertAdminDashboard(page);
-  await assertOfficeDashboard(page, request, users.OFFICE);
-  await assertWarehouseDashboard(page, request, users.WAREHOUSE);
-  await assertHrDashboard(page, request, users.HR_MANAGER);
-  await assertWarehouseManagerDashboard(
-    page,
-    request,
-    users.WAREHOUSE_MANAGER,
-  );
+  try {
+    for (const input of dashboardUsers) {
+      users[input.roleCodes[0]] = await ensureTestUser(request, adminToken, {
+        ...input,
+        roleCodes: [...input.roleCodes],
+      });
+    }
+    const office = users.OFFICE!;
+    const warehouse = users.WAREHOUSE!;
+    const hrManager = users.HR_MANAGER!;
+    const warehouseManager = users.WAREHOUSE_MANAGER!;
+
+    await assertAdminDashboard(page);
+    await assertAdminDirectApiMatrix(request, adminToken);
+    await assertOfficeDashboard(page, request, office);
+    await assertForbiddenTarget(
+      page,
+      request,
+      office,
+      "/api/attendance-imports?limit=1&offset=0",
+      "/work-hours",
+      "Attendance read permission required",
+    );
+    await assertWarehouseDashboard(page, request, warehouse);
+    await assertForbiddenTarget(
+      page,
+      request,
+      warehouse,
+      `/api/unloading-summary?month=${operationalMonth()}`,
+      `/unloading-summary?month=${operationalMonth()}`,
+      "Unloading summary read permission required",
+    );
+    await assertHrDashboard(page, request, hrManager);
+    await assertForbiddenTarget(
+      page,
+      request,
+      hrManager,
+      "/api/reports/container-summary?page=1&pageSize=5&sortBy=createdAt&sortDirection=desc",
+      "/inventory",
+      "Inventory access is required",
+    );
+    await assertWarehouseManagerDashboard(
+      page,
+      request,
+      warehouseManager,
+    );
+    await assertForbiddenTarget(
+      page,
+      request,
+      warehouseManager,
+      "/api/reports/container-summary?page=1&pageSize=5&sortBy=createdAt&sortDirection=desc",
+      "/inventory",
+      "Inventory access is required",
+    );
+  } finally {
+    for (const user of Object.values(users)) {
+      if (!user) continue;
+      cleanupDashboardTestUser(user.id);
+    }
+  }
+
+  for (const user of Object.values(users)) {
+    if (!user) continue;
+    expect(dashboardTestUserCount(user.id)).toBe(0);
+  }
 });
 
 test("operations dashboard switches locale without mixed status text", async ({
@@ -174,6 +207,7 @@ test("dashboard drilldowns show matching records and exclude non-matching sentin
     await expect(page).toHaveURL(
       new RegExp(`destinationCode=${fixture.destinationCode}`),
     );
+    await expect(page).toHaveURL(/destinationMatch=EXACT/);
     await expect(page.locator(`[data-record-id="${fixture.lifecycleContainerId}"]`))
       .toBeVisible();
     await expect(page.locator(`[data-record-id="${fixture.otherContainerId}"]`))
@@ -239,6 +273,74 @@ test("dashboard drilldowns show matching records and exclude non-matching sentin
   expect(dashboardDrilldownFixtureCount(prefix)).toBe(0);
 });
 
+test("dashboard renders exactly the registered click-surface inventory", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const prefix = `DASH08-INV-${uniqueSuffix(testInfo.project.name)}`;
+  cleanupDashboardDrilldownFixture(prefix);
+  createDashboardDrilldownFixture(prefix);
+
+  try {
+    await loginThroughApi(page, request);
+    await page.goto("/");
+    await setDashboardLocale(page, "en");
+
+    const dashboardLinks = page.locator(
+      'main[data-dashboard-page="true"] a[href]',
+    );
+    await expect(dashboardLinks.first()).toBeVisible();
+    const missingRegistration = await dashboardLinks.evaluateAll((links) =>
+      links
+        .filter((link) => !link.getAttribute("data-click-surface-id"))
+        .map((link) => ({
+          href: link.getAttribute("href"),
+          text: link.textContent?.trim().replace(/\s+/g, " ").slice(0, 120),
+        })),
+    );
+    expect(
+      missingRegistration,
+      "Every Dashboard anchor must be registered in the machine-readable click-surface inventory.",
+    ).toEqual([]);
+
+    const actualIds = await dashboardLinks.evaluateAll((links) =>
+      [...new Set(
+        links
+          .map((link) => link.getAttribute("data-click-surface-id"))
+          .filter((value): value is string => Boolean(value)),
+      )].sort(),
+    );
+    const expectedIds = [
+      ...DASHBOARD_AGGREGATE_CLICK_SURFACES,
+      ...DASHBOARD_RECORD_CLICK_SURFACES,
+      ...DASHBOARD_ACTION_CLICK_SURFACES.filter(
+        (surface) => surface.type === "open-all" || surface.type === "shortcut",
+      ),
+    ]
+      .map((surface) => surface.id)
+      .sort();
+    expect(actualIds).toEqual(expectedIds);
+
+    for (const surface of [
+      ...DASHBOARD_AGGREGATE_CLICK_SURFACES,
+      ...DASHBOARD_RECORD_CLICK_SURFACES,
+    ]) {
+      const links = page.locator(`[data-click-surface-id="${surface.id}"]`);
+      if (surface.cardinality === "one") {
+        await expect(links).toHaveCount(1);
+      } else {
+        expect(await links.count(), `${surface.id} must render at least once`)
+          .toBeGreaterThan(0);
+      }
+    }
+  } finally {
+    cleanupDashboardDrilldownFixture(prefix);
+  }
+
+  expect(dashboardDrilldownFixtureCount(prefix)).toBe(0);
+});
+
 test("operations dashboard stays within the page viewport on desktop and mobile", async ({
   page,
   request,
@@ -259,6 +361,335 @@ test("operations dashboard stays within the page viewport on desktop and mobile"
       `${viewport.width}x${viewport.height} should not create page-level horizontal overflow`,
     ).toBe(false);
   }
+});
+
+test("dashboard drilldowns remain strict bilingual and capture the high-signal visual matrix", async ({
+  browser,
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  const prefix = `DASH08-VIS-${uniqueSuffix(testInfo.project.name)}`;
+  cleanupDashboardExitGateFixture(prefix);
+  const fixture = createDashboardExitGateFixture(prefix);
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  const requestFailures: string[] = [];
+  const unexpectedResponses: string[] = [];
+  const observePage = (observedPage: Page) => {
+    observedPage.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    observedPage.on("pageerror", (error) => pageErrors.push(error.message));
+    observedPage.on("requestfailed", (request) => {
+      const errorText = request.failure()?.errorText ?? "unknown failure";
+      if (!errorText.includes("ERR_ABORTED")) {
+        requestFailures.push(
+          `${request.method()} ${request.url()} (${errorText})`,
+        );
+      }
+    });
+    observedPage.on("response", (response) => {
+      if (response.status() >= 400) {
+        unexpectedResponses.push(`${response.status()} ${response.url()}`);
+      }
+    });
+  };
+  observePage(page);
+
+  const importHref =
+    "/imports?importStatus=UPLOADED&parseStatus=NOT_PARSED&from=dashboard&code=IMPORTS_AWAITING_PARSE";
+  const containerHref =
+    "/containers?lifecycleStatus=PARSED&from=dashboard&code=PARSED";
+  const inventoryHref =
+    `/inventory?scope=REMAINING&destinationCode=${fixture.inventoryDestinationCode}&destinationMatch=EXACT&from=dashboard&code=INVENTORY_DESTINATION_REMAINING`;
+  const loadJobHref =
+    `/load-jobs?selectedId=${fixture.plannedLoadJobId}&from=dashboard&code=ACTIVE_LOAD_JOB`;
+  const reviewHref =
+    "/operations/review?code=ZERO_VOLUME_WITH_CARTONS&from=dashboard";
+  const workHoursHref =
+    "/work-hours?parseStatus=NOT_PARSED&from=dashboard&code=ATTENDANCE_IMPORTS_NEED_PARSE";
+  const wageHref =
+    "/unloading-wage?status=NEEDS_REVIEW&from=dashboard&code=WAGE_SETTLEMENTS_NEED_REVIEW";
+  const zeroDestinationCode = `D08-NONE-${prefix.slice(-8)}`;
+  const zeroHref =
+    `/inventory?scope=REMAINING&destinationCode=${zeroDestinationCode}&destinationMatch=EXACT&from=dashboard&code=INVENTORY_DESTINATION_REMAINING`;
+
+  try {
+    await loginThroughApi(page, request);
+
+    for (const locale of ["en", "zh-CN"] as const) {
+      const localePage = await page.context().newPage();
+      observePage(localePage);
+      try {
+        await localePage.setViewportSize({ height: 768, width: 1366 });
+        await localePage.goto("/");
+        await setDashboardLocale(localePage, locale);
+        const link = localePage.locator(
+          '[data-click-surface-id="aggregate.work-queue.IMPORTS_AWAITING_PARSE"]',
+        );
+        await expect(link).toBeVisible();
+        await link.click();
+        await expect(localePage.locator("html")).toHaveAttribute("lang", locale);
+        await expect(
+          localePage.getByText(
+            locale === "en"
+              ? "From operations dashboard"
+              : "来自运营中控台",
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await localePage.reload();
+        await expect(localePage.locator("html")).toHaveAttribute("lang", locale);
+        await localePage.goBack();
+        await expectDashboardChrome(
+          localePage,
+          locale === "en" ? "Operations dashboard" : "运营中控台",
+        );
+        await localePage.goForward();
+        await expect(
+          localePage.locator('[data-dashboard-filter-context="true"]'),
+        ).toBeVisible();
+        await localePage.getByRole("link", {
+          name: locale === "en" ? "View all" : "查看全部",
+          exact: true,
+        }).click();
+        await expect(
+          localePage.locator('[data-dashboard-filter-context="true"]'),
+        ).toHaveCount(0);
+      } finally {
+        await localePage.close();
+      }
+    }
+
+    const cases = [
+      {
+        locale: "en",
+        name: "01-dashboard-en-light-1920x1080.png",
+        path: "/",
+        theme: "light",
+        viewport: { height: 1080, width: 1920 },
+      },
+      {
+        locale: "zh-CN",
+        name: "02-dashboard-zh-dark-390x844.png",
+        path: "/",
+        theme: "dark",
+        viewport: { height: 844, width: 390 },
+      },
+      {
+        locale: "en",
+        name: "03-imports-filtered-en-light-1366x768.png",
+        path: importHref,
+        theme: "light",
+        viewport: { height: 768, width: 1366 },
+      },
+      {
+        locale: "zh-CN",
+        name: "04-containers-filtered-zh-dark-768x1024.png",
+        path: containerHref,
+        theme: "dark",
+        viewport: { height: 1024, width: 768 },
+      },
+      {
+        locale: "en",
+        name: "05-inventory-destination-en-dark-1366x768.png",
+        path: inventoryHref,
+        theme: "dark",
+        viewport: { height: 768, width: 1366 },
+      },
+      {
+        locale: "zh-CN",
+        name: "06-load-job-selected-zh-light-1920x1080.png",
+        path: loadJobHref,
+        theme: "light",
+        viewport: { height: 1080, width: 1920 },
+      },
+      {
+        locale: "en",
+        name: "07-exception-review-en-light-768x1024.png",
+        path: reviewHref,
+        theme: "light",
+        viewport: { height: 1024, width: 768 },
+      },
+      {
+        locale: "zh-CN",
+        name: "08-work-hours-filtered-zh-dark-1366x768.png",
+        path: workHoursHref,
+        theme: "dark",
+        viewport: { height: 768, width: 1366 },
+      },
+      {
+        locale: "en",
+        name: "09-wage-filtered-en-light-390x844.png",
+        path: wageHref,
+        theme: "light",
+        viewport: { height: 844, width: 390 },
+      },
+      {
+        locale: "zh-CN",
+        name: "10-zero-result-zh-dark-1366x768.png",
+        path: zeroHref,
+        theme: "dark",
+        viewport: { height: 768, width: 1366 },
+      },
+    ] as const;
+
+    for (const visualCase of cases) {
+      await page.setViewportSize(visualCase.viewport);
+      await page.goto("/");
+      await setDashboardLocale(page, visualCase.locale);
+      await setDashboardTheme(
+        page,
+        visualCase.locale,
+        visualCase.theme,
+      );
+      await page.goto(visualCase.path);
+      await expect(page.locator("html")).toHaveAttribute(
+        "lang",
+        visualCase.locale,
+      );
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-theme",
+        visualCase.theme,
+      );
+      if (visualCase.path !== "/") {
+        await expect(page.locator('[data-dashboard-filter-context="true"]'))
+          .toBeVisible();
+      }
+      await page.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+      });
+      await page.mouse.move(
+        visualCase.viewport.width - 1,
+        visualCase.viewport.height - 1,
+      );
+      await page.waitForTimeout(200);
+      await assertDashboardVisualIntegrity(page, visualCase.viewport.width);
+      await page.screenshot({
+        path: `test-results/web-dashboard-08/${visualCase.name}`,
+      });
+    }
+
+    await page.setViewportSize({ height: 768, width: 1366 });
+    await page.goto("/");
+    await setDashboardLocale(page, "zh-CN");
+    const zhNoJs = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: await page.context().storageState(),
+    });
+    try {
+      const noJsPage = await zhNoJs.newPage();
+      await noJsPage.goto(importHref);
+      await expect(noJsPage.locator("html")).toHaveAttribute("lang", "zh-CN");
+      await expect(noJsPage.getByText("来自运营中控台", { exact: true }))
+        .toBeVisible();
+      await expect(noJsPage.getByText("From operations dashboard", { exact: true }))
+        .toHaveCount(0);
+    } finally {
+      await zhNoJs.close();
+    }
+
+    await page.goto("/");
+    await setDashboardLocale(page, "en");
+    const enNoJs = await browser.newContext({
+      javaScriptEnabled: false,
+      storageState: await page.context().storageState(),
+    });
+    try {
+      const noJsPage = await enNoJs.newPage();
+      await noJsPage.goto(importHref);
+      await expect(noJsPage.locator("html")).toHaveAttribute("lang", "en");
+      await expect(
+        noJsPage.getByText("From operations dashboard", { exact: true }),
+      ).toBeVisible();
+      await expect(noJsPage.getByText("来自运营中控台", { exact: true }))
+        .toHaveCount(0);
+    } finally {
+      await enNoJs.close();
+    }
+
+    expect(consoleErrors, "Visual matrix console errors").toEqual([]);
+    expect(pageErrors, "Visual matrix uncaught page errors").toEqual([]);
+    expect(requestFailures, "Visual matrix failed resources").toEqual([]);
+    expect(unexpectedResponses, "Visual matrix unexpected 4xx/5xx").toEqual([]);
+  } finally {
+    cleanupDashboardExitGateFixture(prefix);
+  }
+
+  expect(dashboardExitGateFixtureCount(prefix)).toBe(0);
+});
+
+test("selected load job remains usable at real 200 percent browser zoom", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const prefix = `DASH08-ZOOM-${uniqueSuffix(testInfo.project.name)}`;
+  cleanupDashboardExitGateFixture(prefix);
+  const fixture = createDashboardExitGateFixture(prefix);
+  const adminToken = await loginThroughApi(page, request);
+  const baseURL = String(testInfo.project.use.baseURL);
+  const extensionPath = path.join(
+    process.cwd(),
+    "e2e/fixtures/browser-zoom-extension",
+  );
+  const zoomContext = await chromium.launchPersistentContext(
+    testInfo.outputPath("dashboard-08-zoom-profile"),
+    {
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+      ],
+      baseURL,
+      channel: "chromium",
+      headless: true,
+      viewport: { height: 768, width: 1366 },
+    },
+  );
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+
+  try {
+    const zoomWorker = await getBrowserZoomWorker(zoomContext);
+    await configureBrowserActor(zoomContext, adminToken);
+    const zoomPage = zoomContext.pages()[0] ?? (await zoomContext.newPage());
+    zoomPage.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    zoomPage.on("pageerror", (error) => pageErrors.push(error.message));
+    await zoomPage.goto("/");
+    await setDashboardLocale(zoomPage, "en");
+    await setDashboardTheme(zoomPage, "en", "dark");
+    await zoomPage.goto(
+      `/load-jobs?selectedId=${fixture.plannedLoadJobId}&from=dashboard&code=ACTIVE_LOAD_JOB`,
+    );
+    await setRealBrowserZoom(zoomPage, zoomWorker, 2);
+    await expect(
+      zoomPage.locator(
+        `[data-record-id="${fixture.plannedLoadJobId}"][data-selected-record="true"]`,
+      ),
+    ).toBeVisible();
+    await expect(zoomPage.locator('[data-dashboard-filter-context="true"]'))
+      .toBeVisible();
+    await assertDashboardVisualIntegrity(zoomPage, Math.round(1366 / 2));
+    await mkdir(path.resolve("test-results/web-dashboard-08"), {
+      recursive: true,
+    });
+    await captureBrowserViewport(
+      zoomPage,
+      "test-results/web-dashboard-08/11-load-job-selected-en-dark-1366x768-zoom-200.png",
+    );
+    expect(consoleErrors, "200% zoom console errors").toEqual([]);
+    expect(pageErrors, "200% zoom page errors").toEqual([]);
+  } finally {
+    await zoomContext.close();
+    cleanupDashboardExitGateFixture(prefix);
+  }
+
+  expect(dashboardExitGateFixtureCount(prefix)).toBe(0);
 });
 
 test("lifecycle dock strip keeps English and Chinese lanes aligned", async ({
@@ -470,6 +901,44 @@ async function assertAdminDashboard(page: Page): Promise<void> {
   await expectNoPageError(page);
 }
 
+async function assertAdminDirectApiMatrix(
+  request: APIRequestContext,
+  token: string,
+): Promise<void> {
+  for (const path of [
+    "/api/attendance-imports?limit=1&offset=0",
+    "/api/reports/container-summary?page=1&pageSize=5&sortBy=createdAt&sortDirection=desc",
+    `/api/unloading-summary?month=${operationalMonth()}`,
+    "/api/unloading-wage-settlements",
+  ]) {
+    const response = await request.get(path, { headers: authHeaders(token) });
+    expect(response.status(), `ADMIN must access ${path}`).toBe(200);
+  }
+}
+
+async function assertForbiddenTarget(
+  page: Page,
+  request: APIRequestContext,
+  user: E2ETestUser,
+  apiPath: string,
+  pagePath: string,
+  permissionMessage: string,
+): Promise<void> {
+  const token = await loginForAccessToken(request, user);
+  const response = await request.get(apiPath, { headers: authHeaders(token) });
+  expect(response.status(), `${user.roleCodes[0]} must not access ${apiPath}`)
+    .toBe(403);
+  const body = (await response.json()) as Record<string, unknown>;
+  expect(body).not.toHaveProperty("items");
+  expect(body).not.toHaveProperty("total");
+  expect(body).not.toHaveProperty("totalItems");
+
+  await loginWithCredentials(page, request, user);
+  await page.goto(pagePath);
+  await expect(page.getByText(permissionMessage, { exact: true })).toBeVisible();
+  await expectNoPageError(page);
+}
+
 async function assertOfficeDashboard(
   page: Page,
   request: APIRequestContext,
@@ -605,6 +1074,148 @@ async function hasPageLevelHorizontalOverflow(page: Page): Promise<boolean> {
     const root = document.documentElement;
     return root.scrollWidth > root.clientWidth + 4;
   });
+}
+
+async function assertDashboardVisualIntegrity(
+  page: Page,
+  effectiveViewportWidth: number,
+): Promise<void> {
+  expect(
+    await hasPageLevelHorizontalOverflow(page),
+    `The ${effectiveViewportWidth}px effective viewport must not have page-level horizontal overflow.`,
+  ).toBe(false);
+  const result = await page.evaluate((narrowViewport) => {
+    const root = document.documentElement;
+    const viewportWidth = root.clientWidth;
+    const viewportHeight = window.innerHeight;
+    const candidates = [
+      ...document.querySelectorAll<HTMLElement>(
+        'button, a[href], input, select, textarea, [role="button"]',
+      ),
+    ];
+    const isVisible = (element: HTMLElement) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        style.clip === "auto" &&
+        style.clipPath === "none" &&
+        Number.parseFloat(style.opacity || "1") > 0 &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > 0 &&
+        rect.top < viewportHeight
+      );
+    };
+    const hasHorizontalScroller = (element: HTMLElement) => {
+      let current = element.parentElement;
+      while (current && current !== document.body) {
+        const style = window.getComputedStyle(current);
+        if (
+          /auto|scroll/.test(style.overflowX) &&
+          current.scrollWidth > current.clientWidth + 1
+        ) {
+          return true;
+        }
+        current = current.parentElement;
+      }
+      return false;
+    };
+    const label = (element: HTMLElement) =>
+      (
+        element.getAttribute("aria-label") ??
+        element.getAttribute("title") ??
+        element.textContent ??
+        element.tagName
+      )
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 100);
+    const visible = candidates.filter(isVisible);
+    const clipped = visible
+      .filter((element) => {
+        if (hasHorizontalScroller(element)) return false;
+        const style = window.getComputedStyle(element);
+        const horizontalClip =
+          /hidden|clip/.test(style.overflowX) &&
+          element.scrollWidth > element.clientWidth + 2;
+        const verticalClip =
+          /hidden|clip/.test(style.overflowY) &&
+          element.scrollHeight > element.clientHeight + 2;
+        return horizontalClip || verticalClip;
+      })
+      .map(label);
+    const truncatedText = [
+      ...document.querySelectorAll<HTMLElement>("body *"),
+    ]
+      .filter(
+        (element) =>
+          isVisible(element) &&
+          window.getComputedStyle(element).textOverflow === "ellipsis" &&
+          element.scrollWidth > element.clientWidth + 2,
+      )
+      .map(label);
+    const outOfBounds = visible
+      .filter((element) => {
+        if (hasHorizontalScroller(element)) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.left < -2 || rect.right > viewportWidth + 2;
+      })
+      .map(label);
+    const touchTargets = narrowViewport <= 390
+      ? visible
+          .filter(
+            (element) =>
+              element.matches("button, [role='button'], a.inline-flex") &&
+              element.getBoundingClientRect().height < 32,
+          )
+          .map(label)
+      : [];
+    const overlaps: string[] = [];
+    const bounded = visible.filter(
+      (element) =>
+        !hasHorizontalScroller(element) &&
+        element.matches("button, [role='button'], a.inline-flex"),
+    );
+    for (let leftIndex = 0; leftIndex < bounded.length; leftIndex += 1) {
+      const left = bounded[leftIndex]!;
+      const leftRect = left.getBoundingClientRect();
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < bounded.length;
+        rightIndex += 1
+      ) {
+        const right = bounded[rightIndex]!;
+        if (left.contains(right) || right.contains(left)) continue;
+        const rightRect = right.getBoundingClientRect();
+        const overlapWidth =
+          Math.min(leftRect.right, rightRect.right) -
+          Math.max(leftRect.left, rightRect.left);
+        const overlapHeight =
+          Math.min(leftRect.bottom, rightRect.bottom) -
+          Math.max(leftRect.top, rightRect.top);
+        if (overlapWidth > 2 && overlapHeight > 2) {
+          overlaps.push(`${label(left)} <> ${label(right)}`);
+        }
+      }
+    }
+    return {
+      clipped: [...clipped, ...truncatedText],
+      outOfBounds,
+      overlaps,
+      touchTargets,
+    };
+  }, effectiveViewportWidth);
+
+  expect(result.clipped, "Visible interactive text must not be clipped.")
+    .toEqual([]);
+  expect(result.outOfBounds, "Interactive elements must remain in page bounds.")
+    .toEqual([]);
+  expect(result.overlaps, "Interactive elements must not overlap.")
+    .toEqual([]);
+  expect(result.touchTargets, "Mobile primary controls must be at least 32px tall.")
+    .toEqual([]);
 }
 
 async function assertLifecycleLaneGeometry(
@@ -828,6 +1439,7 @@ function rectanglesOverlap(
 }
 
 interface DashboardDrilldownFixture {
+  correctionId: string;
   destinationCode: string;
   exceptionLineId: string;
   generatedFileId: string;
@@ -855,6 +1467,7 @@ function createDashboardDrilldownFixture(
   prefix: string,
 ): DashboardDrilldownFixture {
   const fixture: DashboardDrilldownFixture = {
+    correctionId: `${prefix}-correction`,
     destinationCode: `${prefix}-DEST`,
     exceptionLineId: `${prefix}-line-exception`,
     generatedFileId: `${prefix}-generated`,
@@ -969,6 +1582,14 @@ VALUES
   (:'generated_file_id', :'other_container_id', 'TASK_REPORT_HTML',
    'e2e/dashboard/' || :'prefix' || '/recent-task-report.html',
    :'prefix' || '-sha-generated', 'GENERATED', NOW(), NOW() + INTERVAL '1 minute');
+
+INSERT INTO correction_feedback
+  (id, target_type, container_id, field_name, old_value, new_value, reason,
+   created_at, updated_at)
+VALUES
+  (:'correction_id', 'CONTAINER', :'match_container_id', 'status',
+   '"IMPORTED"'::jsonb, '"PARSED"'::jsonb, 'DASHBOARD_E2E',
+   NOW() + INTERVAL '2 minutes', NOW() + INTERVAL '2 minutes');
 COMMIT;
 `,
     dashboardFixtureVariables(prefix, fixture),
@@ -1036,6 +1657,7 @@ function dashboardFixtureVariables(
     "-v", `match_attendance_filename=${fixture.matchAttendanceFilename}`,
     "-v", `other_attendance_filename=${fixture.otherAttendanceFilename}`,
     "-v", `generated_file_id=${fixture.generatedFileId}`,
+    "-v", `correction_id=${fixture.correctionId}`,
   ];
 }
 
@@ -1072,6 +1694,70 @@ function uniqueSuffix(projectName: string): string {
   return `${Date.now().toString(36)}${projectName
     .replace(/[^a-z0-9]/gi, "")
     .slice(0, 3)}`.toUpperCase();
+}
+
+function dashboardUserInputs(suffix: string) {
+  const password = `Dash08-${suffix}-Aa1!`;
+  return [
+    {
+      email: `dash08-office-${suffix}@example.invalid`,
+      name: "Dashboard Office",
+      password,
+      roleCodes: ["OFFICE"],
+    },
+    {
+      email: `dash08-warehouse-${suffix}@example.invalid`,
+      name: "Dashboard Warehouse",
+      password,
+      roleCodes: ["WAREHOUSE"],
+    },
+    {
+      email: `dash08-hr-${suffix}@example.invalid`,
+      name: "Dashboard HR Manager",
+      password,
+      roleCodes: ["HR_MANAGER"],
+    },
+    {
+      email: `dash08-wm-${suffix}@example.invalid`,
+      name: "Dashboard Warehouse Manager",
+      password,
+      roleCodes: ["WAREHOUSE_MANAGER"],
+    },
+  ] as const;
+}
+
+function cleanupDashboardTestUser(userId: string): void {
+  runDashboardSql(
+    String.raw`
+BEGIN;
+DELETE FROM auth_audit_events
+WHERE user_id = :'user_id' OR actor_user_id = :'user_id';
+DELETE FROM native_auth_sessions
+WHERE user_id = :'user_id' OR revoked_by_user_id = :'user_id';
+DELETE FROM user_roles
+WHERE user_id = :'user_id' OR assigned_by_id = :'user_id';
+DELETE FROM users WHERE id = :'user_id';
+COMMIT;
+`,
+    ["-v", `user_id=${userId}`],
+  );
+}
+
+function dashboardTestUserCount(userId: string): number {
+  return Number(
+    runDashboardSql(
+      "COPY (SELECT COUNT(*) FROM users WHERE id = :'user_id') TO STDOUT;",
+      ["-v", `user_id=${userId}`],
+    ).trim(),
+  );
+}
+
+function operationalMonth(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "2-digit",
+    timeZone: "America/Edmonton",
+    year: "numeric",
+  }).format(new Date());
 }
 
 async function setDashboardLocale(

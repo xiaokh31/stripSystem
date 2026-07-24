@@ -1755,6 +1755,7 @@ export interface InventoryReportFilters {
   code?: string;
   containerNo?: string;
   destinationCode?: string;
+  destinationMatch?: "EXACT";
   from?: "dashboard";
   scope?: "ACTIVE" | "LOADED" | "REMAINING";
   status?: string;
@@ -1875,6 +1876,7 @@ export interface LoadJobListResponse {
   items: LoadJobResponse[];
   limit: number;
   offset: number;
+  totalItems: number;
 }
 
 export interface LoadJobContainerSuggestionResponse {
@@ -3519,6 +3521,7 @@ function toInventoryQueryString(filters: InventoryReportFilters): string {
 
   appendQueryParam(params, "containerNo", filters.containerNo);
   appendQueryParam(params, "destinationCode", filters.destinationCode);
+  appendQueryParam(params, "destinationMatch", filters.destinationMatch);
   appendQueryParam(params, "scope", filters.scope);
   appendQueryParam(params, "status", filters.status);
 
@@ -3537,6 +3540,7 @@ function toInventoryContainerSummaryQueryString(
   });
   appendQueryParam(params, "containerNo", query.containerNo);
   appendQueryParam(params, "destinationCode", query.destinationCode);
+  appendQueryParam(params, "destinationMatch", query.destinationMatch);
   appendQueryParam(params, "scope", query.scope);
   appendQueryParam(params, "status", query.status);
   return `?${params.toString()}`;

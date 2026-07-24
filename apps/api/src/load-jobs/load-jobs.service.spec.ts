@@ -290,6 +290,7 @@ describe('LoadJobsService', () => {
     });
 
     expect(result.items).toHaveLength(1);
+    expect(result.totalItems).toBe(1);
     expect(result.items[0]).toMatchObject({
       loadNo: 'LOAD-2026-001',
       plannedPalletCount: 2,
@@ -1639,6 +1640,12 @@ describe('LoadJobsService', () => {
         ),
       },
       loadJob: {
+        count: jest.fn(({ where }) =>
+          Promise.resolve(
+            loadJobs.filter((record) => matchesLoadJobWhere(record, where))
+              .length,
+          ),
+        ),
         create: jest.fn(({ data }) => {
           const createdAt = new Date(
             `2026-06-27T10:0${loadJobs.length}:00.000Z`,

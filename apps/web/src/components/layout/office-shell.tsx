@@ -266,7 +266,7 @@ function UserCluster({
     >
       <p className="font-semibold text-zinc-300">{t("Current user")}</p>
       <p
-        className="mt-1 max-w-48 truncate font-semibold"
+        className="mt-1 max-w-48 break-words font-semibold"
         data-i18n-ignore="true"
         title={userName}
       >

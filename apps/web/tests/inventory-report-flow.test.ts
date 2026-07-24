@@ -48,12 +48,14 @@ test("inventory composite scope and dashboard context survive pagination and sor
     destinationCode: " YYC ",
     from: "dashboard",
     scope: "REMAINING",
+    destinationMatch: "EXACT",
   });
   assert.deepEqual(filters, {
     code: "INVENTORY_DESTINATION_REMAINING",
     destinationCode: "YYC",
     from: "dashboard",
     scope: "REMAINING",
+    destinationMatch: "EXACT",
   });
   assert.equal(
     inventoryWorkspaceHref(filters, undefined, {
@@ -62,7 +64,7 @@ test("inventory composite scope and dashboard context survive pagination and sor
       sortBy: "status",
       sortDirection: "asc",
     }),
-    "/inventory?destinationCode=YYC&scope=REMAINING&from=dashboard&code=INVENTORY_DESTINATION_REMAINING&page=3&pageSize=20&sortBy=status&sortDirection=asc",
+    "/inventory?destinationCode=YYC&destinationMatch=EXACT&scope=REMAINING&from=dashboard&code=INVENTORY_DESTINATION_REMAINING&page=3&pageSize=20&sortBy=status&sortDirection=asc",
   );
   assert.equal(activeInventoryFilterCount(filters), 2);
 });

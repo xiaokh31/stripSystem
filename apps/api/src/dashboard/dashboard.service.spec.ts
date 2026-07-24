@@ -55,6 +55,8 @@ describe('DashboardService', () => {
           destinationCode: 'YYC',
           totalPallets: 5,
           activeTotalPallets: 3,
+          href:
+            '/inventory?scope=REMAINING&destinationCode=YYC&destinationMatch=EXACT&from=dashboard&code=INVENTORY_DESTINATION_REMAINING',
           loadedPallets: 1,
           remainingPallets: 2,
         },
@@ -168,6 +170,61 @@ describe('DashboardService', () => {
         { kind: 'CONTAINER', label: 'CSNU8877228' },
         { kind: 'LOAD_JOB', label: 'LOAD-001' },
       ]),
+    );
+  });
+
+  it('keeps database query fan-out constant as recent record volume grows', async () => {
+    const singlePrisma = createDashboardPrismaMock();
+    const bulkPrisma = createDashboardPrismaMock();
+    const singleContainerIndex = containerIndexService();
+    const bulkContainerIndex = containerIndexService();
+    const bulkImportFindMany = (
+      bulkPrisma.importFile as { findMany: jest.Mock }
+    ).findMany;
+
+    bulkImportFindMany.mockResolvedValue(
+      Array.from({ length: 75 }, (_, index) => ({
+        id: `import-${index + 1}`,
+        originalFilename: `manifest-${index + 1}.xlsx`,
+        parseStatus: ParseStatus.NOT_PARSED,
+        createdAt: new Date('2026-07-11T12:00:00.000Z'),
+      })),
+    );
+
+    const singleService = new DashboardService(
+      singlePrisma as unknown as PrismaService,
+      configService(),
+      singleContainerIndex,
+      new OperationsReviewService(singlePrisma as unknown as PrismaService),
+    );
+    const bulkService = new DashboardService(
+      bulkPrisma as unknown as PrismaService,
+      configService(),
+      bulkContainerIndex,
+      new OperationsReviewService(bulkPrisma as unknown as PrismaService),
+    );
+
+    const singleDashboard = await singleService.operations(
+      { range: '7d' },
+      adminUser(),
+    );
+    const bulkDashboard = await bulkService.operations(
+      { range: '7d' },
+      adminUser(),
+    );
+
+    expect(bulkDashboard.recentActivity).toHaveLength(10);
+    expect(bulkDashboard.recentActivity.length).toBeGreaterThan(
+      singleDashboard.recentActivity.length,
+    );
+    expect(prismaMockCallCount(bulkPrisma)).toBe(
+      prismaMockCallCount(singlePrisma),
+    );
+    expect(
+      (bulkContainerIndex as unknown as { list: jest.Mock }).list,
+    ).toHaveBeenCalledTimes(
+      (singleContainerIndex as unknown as { list: jest.Mock }).list.mock.calls
+        .length,
     );
   });
 });
@@ -419,4 +476,25 @@ function createDashboardPrismaMock(): Record<string, unknown> {
       ]),
     },
   };
+}
+
+function prismaMockCallCount(prisma: Record<string, unknown>): number {
+  let total = 0;
+
+  for (const model of Object.values(prisma)) {
+    if (jest.isMockFunction(model)) {
+      total += model.mock.calls.length;
+      continue;
+    }
+    if (!model || typeof model !== 'object') {
+      continue;
+    }
+    for (const method of Object.values(model)) {
+      if (jest.isMockFunction(method)) {
+        total += method.mock.calls.length;
+      }
+    }
+  }
+
+  return total;
 }

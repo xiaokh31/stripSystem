@@ -390,6 +390,13 @@ function InventoryFilterForm({
         {filters.scope ? (
           <input name="scope" type="hidden" value={filters.scope} />
         ) : null}
+        {filters.destinationMatch ? (
+          <input
+            name="destinationMatch"
+            type="hidden"
+            value={filters.destinationMatch}
+          />
+        ) : null}
         {filters.from && filters.code ? (
           <>
             <input name="from" type="hidden" value={filters.from} />
@@ -914,6 +921,7 @@ function InventoryQueryHiddenFields({
     <>
       {filters.containerNo ? <input name="containerNo" type="hidden" value={filters.containerNo} /> : null}
       {filters.destinationCode ? <input name="destinationCode" type="hidden" value={filters.destinationCode} /> : null}
+      {filters.destinationMatch ? <input name="destinationMatch" type="hidden" value={filters.destinationMatch} /> : null}
       {filters.status ? <input name="status" type="hidden" value={filters.status} /> : null}
       {filters.scope ? <input name="scope" type="hidden" value={filters.scope} /> : null}
       {filters.from && filters.code ? (

@@ -1117,6 +1117,8 @@ export const zhMessages = {
   "Saving unloaders.": "正在保存拆柜人。",
   "Saving unloading completion.": "正在保存拆柜完成状态。",
   "Saving unloading wage information.": "正在保存拆柜工资信息。",
+  "Choose attendance file": "选择考勤文件",
+  "No attendance file selected": "尚未选择考勤文件",
   "Select one legacy .xls attendance workbook.":
     "请选择一个旧版 .xls 考勤工作簿。",
   "Select or upload an attendance import to review parsed rows.":
