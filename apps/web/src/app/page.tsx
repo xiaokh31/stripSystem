@@ -154,7 +154,7 @@ function OpsHeader({
 }) {
   const apiStatus = dashboard?.health.apiStatus ?? health?.status ?? "degraded";
   const databaseStatus =
-    dashboard?.health.databaseStatus ?? health?.database.status ?? "down";
+    dashboard?.health.databaseStatus ?? health?.database?.status ?? "down";
 
   return (
     <section className="border border-[var(--line-soft)] bg-[var(--panel-surface)] shadow-sm">
@@ -320,6 +320,7 @@ function WorkQueueSection({
         <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
           {items.map((item) => (
             <MetricTile
+              code={item.code}
               detail={
                 item.count === 0
                   ? dashboardEmptyLabel(item.code, locale)
@@ -413,19 +414,22 @@ function InventorySection({
     >
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
-          href="/inventory"
+          code="INVENTORY_ACTIVE"
+          href={inventory.hrefs.active}
           label={t("Active pallets", locale)}
           tone="info"
           value={inventory.activeTotalPallets}
         />
         <MetricTile
-          href="/inventory?status=LOADED"
+          code="INVENTORY_LOADED"
+          href={inventory.hrefs.loaded}
           label={t("Loaded pallets", locale)}
           tone="success"
           value={inventory.loadedPallets}
         />
         <MetricTile
-          href="/inventory"
+          code="INVENTORY_REMAINING"
+          href={inventory.hrefs.remaining}
           label={t("Remaining pallets", locale)}
           tone={inventory.remainingPallets > 0 ? "warning" : "success"}
           value={inventory.remainingPallets}
@@ -453,8 +457,10 @@ function InventorySection({
         </h3>
         {inventory.topDestinations.length > 0 ? (
           inventory.topDestinations.map((destination) => (
-            <div
-              className="border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3"
+            <Link
+              className="block border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--seal-teal)]"
+              data-drilldown-code="INVENTORY_DESTINATION_REMAINING"
+              href={destination.href}
               key={destination.destinationCode}
             >
               <div className="flex items-center justify-between gap-3">
@@ -476,7 +482,7 @@ function InventorySection({
                   value={destination.remainingPallets}
                 />
               </div>
-            </div>
+            </Link>
           ))
         ) : (
           <EmptyAction
@@ -522,19 +528,22 @@ function LoadJobsSection({
     >
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
-          href="/load-jobs"
+          code="OPEN_LOAD_JOBS"
+          href={loadJobs.hrefs.open}
           label={t("Open load jobs", locale)}
           tone={loadJobs.openCount > 0 ? "warning" : "success"}
           value={loadJobs.openCount}
         />
         <MetricTile
-          href="/load-jobs"
+          code="LOAD_JOBS_IN_PROGRESS"
+          href={loadJobs.hrefs.inProgress}
           label={t("In progress", locale)}
           tone={loadJobs.inProgressCount > 0 ? "info" : "neutral"}
           value={loadJobs.inProgressCount}
         />
         <MetricTile
-          href="/load-jobs"
+          code="LOAD_JOBS_DUE_TODAY"
+          href={loadJobs.hrefs.dueToday}
           label={t("Due today", locale)}
           tone={loadJobs.dueTodayCount > 0 ? "warning" : "success"}
           value={loadJobs.dueTodayCount}
@@ -545,6 +554,8 @@ function LoadJobsSection({
           loadJobs.activeJobs.map((job) => (
             <Link
               className="block border border-[var(--line-soft)] bg-[var(--panel-muted)] p-3 hover:bg-white"
+              data-drilldown-code="ACTIVE_LOAD_JOB"
+              data-record-id={job.id}
               href={job.href}
               key={job.id}
             >
@@ -616,6 +627,7 @@ function ExceptionSection({
       <ExceptionList
         emptyLabel={t("No dashboard exceptions", locale)}
         items={items.map((item) => ({
+          code: item.code,
           count: item.count,
           href: item.href,
           label: dashboardLabel(item.labelKey, locale),
@@ -662,20 +674,23 @@ function WorkflowSection({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {monthlySummary ? (
               <>
-                <MetricTile
-                  href={monthlySummary.href}
+              <MetricTile
+                  code="MONTHLY_COMPLETED_CONTAINERS"
+                  href={monthlySummary.hrefs.completedContainers}
                   label={t("Completed containers", locale)}
                   tone="success"
                   value={monthlySummary.completedContainerCount}
                 />
-                <MetricTile
-                  href={monthlySummary.href}
+              <MetricTile
+                  code="MONTHLY_SUMMARY_ROWS"
+                  href={monthlySummary.hrefs.summaryRows}
                   label={t("Summary rows", locale)}
                   tone="info"
                   value={monthlySummary.rowCount}
                 />
-                <MetricTile
-                  href={monthlySummary.href}
+              <MetricTile
+                  code="UNLOADING_COMPLETION_DATE_MISSING"
+                  href={monthlySummary.hrefs.reviewWarnings}
                   label={t("Review warnings", locale)}
                   tone={monthlySummary.reviewWarningCount > 0 ? "warning" : "success"}
                   value={monthlySummary.reviewWarningCount}
@@ -685,6 +700,7 @@ function WorkflowSection({
             {wageAndAttendance?.attendanceImportsNeedingParse !== null &&
             wageAndAttendance?.attendanceImportsNeedingParse !== undefined ? (
               <MetricTile
+                code="ATTENDANCE_IMPORTS_NEED_PARSE"
                 href={wageAndAttendance.hrefs.attendance ?? "/work-hours"}
                 label={t("Attendance imports needing parse", locale)}
                 tone={
@@ -698,7 +714,8 @@ function WorkflowSection({
             {wageAndAttendance?.attendanceImportsWithErrors !== null &&
             wageAndAttendance?.attendanceImportsWithErrors !== undefined ? (
               <MetricTile
-                href={wageAndAttendance.hrefs.attendance ?? "/work-hours"}
+                code="ATTENDANCE_IMPORTS_WITH_ERRORS"
+                href={wageAndAttendance.hrefs.attendanceErrors ?? "/work-hours"}
                 label={t("Attendance imports with errors", locale)}
                 tone={
                   wageAndAttendance.attendanceImportsWithErrors > 0
@@ -711,6 +728,7 @@ function WorkflowSection({
             {wageAndAttendance?.wageSettlementsNeedingReview !== null &&
             wageAndAttendance?.wageSettlementsNeedingReview !== undefined ? (
               <MetricTile
+                code="WAGE_SETTLEMENTS_NEED_REVIEW"
                 href={wageAndAttendance.hrefs.unloadingWage ?? "/unloading-wage"}
                 label={t("Wage settlements needing review", locale)}
                 tone={
@@ -784,6 +802,8 @@ function RecentActivitySection({
             <li key={`${activity.kind}-${activity.id}`}>
               <Link
                 className="grid gap-2 px-3 py-3 text-sm hover:bg-[var(--panel-muted)] sm:grid-cols-[140px_minmax(0,1fr)_160px]"
+                data-activity-kind={activity.kind}
+                data-record-id={activity.id}
                 href={activity.href}
               >
                 <span className="font-semibold text-zinc-600">

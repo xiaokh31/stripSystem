@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   chromium,
   expect,
@@ -11,6 +12,7 @@ import {
   type Worker,
 } from "@playwright/test";
 import {
+  configureBrowserActor,
   ensureTestUser,
   expectNoPageError,
   loginThroughApi,
@@ -136,6 +138,107 @@ test("operations dashboard switches locale without mixed status text", async ({
   await expectNoPageError(page);
 });
 
+test("dashboard drilldowns show matching records and exclude non-matching sentinels", async ({
+  page,
+  request,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  const prefix = `DASH07-${uniqueSuffix(testInfo.project.name)}`;
+  cleanupDashboardDrilldownFixture(prefix);
+  const fixture = createDashboardDrilldownFixture(prefix);
+
+  try {
+    await loginThroughApi(page, request);
+    await page.goto("/");
+    await setDashboardLocale(page, "en");
+
+    await openDashboardDrilldown(page, "IMPORTS_AWAITING_PARSE");
+    await expect(page.locator(`[data-record-id="${fixture.matchImportId}"]`))
+      .toBeVisible();
+    await expect(page.locator(`[data-record-id="${fixture.otherImportId}"]`))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await page.locator('[data-lane-code="PARSED"]').click();
+    await expect(page.locator(`[data-record-id="${fixture.lifecycleContainerId}"]`))
+      .toBeVisible();
+    await expect(page.locator(`[data-record-id="${fixture.otherContainerId}"]`))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await page
+      .locator('[data-drilldown-code="INVENTORY_DESTINATION_REMAINING"]')
+      .filter({ hasText: fixture.destinationCode })
+      .click();
+    await expect(page).toHaveURL(/scope=REMAINING/);
+    await expect(page).toHaveURL(
+      new RegExp(`destinationCode=${fixture.destinationCode}`),
+    );
+    await expect(page.locator(`[data-record-id="${fixture.lifecycleContainerId}"]`))
+      .toBeVisible();
+    await expect(page.locator(`[data-record-id="${fixture.otherContainerId}"]`))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await page
+      .locator(
+        `[data-drilldown-code="ACTIVE_LOAD_JOB"][data-record-id="${fixture.loadJobId}"]`,
+      )
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`selectedId=${fixture.loadJobId}`),
+    );
+    await expect(
+      page.locator(
+        `[data-record-id="${fixture.loadJobId}"][data-selected-record="true"]`,
+      ),
+    )
+      .toHaveAttribute("data-selected-record", "true");
+
+    await page.goto("/");
+    await openDashboardDrilldown(page, "ZERO_VOLUME_WITH_CARTONS");
+    await expect(page.locator(`[data-record-id="${fixture.exceptionLineId}"]`))
+      .toBeVisible();
+    await expect(page.locator(`[data-record-id="${fixture.normalLineId}"]`))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await openDashboardDrilldown(page, "ATTENDANCE_IMPORTS_NEED_PARSE");
+    await expect(page.getByText(fixture.matchAttendanceFilename, { exact: true }))
+      .toBeVisible();
+    await expect(page.getByText(fixture.otherAttendanceFilename, { exact: true }))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await openDashboardDrilldown(page, "WAGE_SETTLEMENTS_NEED_REVIEW");
+    await expect(page.locator(`[data-record-id="${fixture.reviewSettlementId}"]`))
+      .toBeVisible();
+    await expect(page.locator(`[data-record-id="${fixture.otherSettlementId}"]`))
+      .toHaveCount(0);
+
+    await page.goto("/");
+    await page
+      .locator(
+        `[data-activity-kind="GENERATED_FILE"][data-record-id="${fixture.generatedFileId}"]`,
+      )
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`fileId=${fixture.generatedFileId}`),
+    );
+    await expect(
+      page.locator(
+        `[data-record-id="${fixture.generatedFileId}"][data-selected-record="true"]`,
+      ),
+    )
+      .toHaveAttribute("data-selected-record", "true");
+    await expectNoPageError(page);
+  } finally {
+    cleanupDashboardDrilldownFixture(prefix);
+  }
+
+  expect(dashboardDrilldownFixtureCount(prefix)).toBe(0);
+});
+
 test("operations dashboard stays within the page viewport on desktop and mobile", async ({
   page,
   request,
@@ -247,18 +350,9 @@ test("lifecycle dock strip keeps English and Chinese lanes aligned", async ({
   );
   try {
     const zoomWorker = await getBrowserZoomWorker(zoomContext);
+    await configureBrowserActor(zoomContext, adminToken);
     for (const theme of ["light", "dark"] as const) {
       for (const scale of [1.25, 2]) {
-        await zoomContext.addCookies([
-          {
-            httpOnly: false,
-            name: "bestar_auth_token",
-            sameSite: "Lax",
-            secure: false,
-            url: new URL(baseURL).origin,
-            value: adminToken,
-          },
-        ]);
         const zoomPage =
           zoomContext.pages()[0] ?? (await zoomContext.newPage());
         zoomPage.on("console", (message) => {
@@ -731,6 +825,253 @@ function rectanglesOverlap(
     left.bottom <= right.top ||
     right.bottom <= left.top
   );
+}
+
+interface DashboardDrilldownFixture {
+  destinationCode: string;
+  exceptionLineId: string;
+  generatedFileId: string;
+  lifecycleContainerId: string;
+  loadJobId: string;
+  matchAttendanceFilename: string;
+  matchImportId: string;
+  normalLineId: string;
+  otherAttendanceFilename: string;
+  otherContainerId: string;
+  otherImportId: string;
+  otherSettlementId: string;
+  reviewSettlementId: string;
+}
+
+async function openDashboardDrilldown(
+  page: Page,
+  code: string,
+): Promise<void> {
+  await page.locator(`[data-drilldown-code="${code}"]`).first().click();
+  await expect(page).toHaveURL(new RegExp(`code=${code}`));
+}
+
+function createDashboardDrilldownFixture(
+  prefix: string,
+): DashboardDrilldownFixture {
+  const fixture: DashboardDrilldownFixture = {
+    destinationCode: `${prefix}-DEST`,
+    exceptionLineId: `${prefix}-line-exception`,
+    generatedFileId: `${prefix}-generated`,
+    lifecycleContainerId: `${prefix}-container-match`,
+    loadJobId: `${prefix}-load-job`,
+    matchAttendanceFilename: `${prefix}-attendance-match.xls`,
+    matchImportId: `${prefix}-import-match`,
+    normalLineId: `${prefix}-line-normal`,
+    otherAttendanceFilename: `${prefix}-attendance-other.xls`,
+    otherContainerId: `${prefix}-container-other`,
+    otherImportId: `${prefix}-import-other`,
+    otherSettlementId: `${prefix}-wage-other`,
+    reviewSettlementId: `${prefix}-wage-review`,
+  };
+  runDashboardSql(
+    String.raw`
+BEGIN;
+INSERT INTO import_files
+  (id, original_filename, stored_path, file_sha256, format, import_status,
+   parse_status, created_at, updated_at)
+VALUES
+  (:'match_import_id', :'prefix' || '-import-match.xlsx',
+   'e2e/dashboard/' || :'prefix' || '/match.xlsx',
+   :'prefix' || '-sha-import-match', 'UNKNOWN', 'UPLOADED', 'NOT_PARSED',
+   NOW(), NOW()),
+  (:'other_import_id', :'prefix' || '-import-other.xlsx',
+   'e2e/dashboard/' || :'prefix' || '/other.xlsx',
+   :'prefix' || '-sha-import-other', 'UNKNOWN', 'UPLOADED', 'PARSED',
+   NOW(), NOW());
+
+INSERT INTO containers
+  (id, container_no, source_format, status, created_at, updated_at)
+VALUES
+  (:'match_container_id', :'prefix' || '-MATCH', 'UNKNOWN', 'PARSED', NOW(), NOW()),
+  (:'other_container_id', :'prefix' || '-OTHER', 'UNKNOWN', 'LOADED', NOW(), NOW());
+
+INSERT INTO container_destinations
+  (id, container_id, destination_code, destination_type, package_type, cartons,
+   volume, calculated_pallets, final_pallets, created_at, updated_at)
+VALUES
+  (:'prefix' || '-destination-match', :'match_container_id', :'destination_code',
+   'WAREHOUSE', 'CARTON', 300, 30, 30, 30, NOW(), NOW()),
+  (:'prefix' || '-destination-other', :'other_container_id', :'prefix' || '-OTHER-DEST',
+   'WAREHOUSE', 'CARTON', 10, 1, 1, 1, NOW(), NOW());
+
+INSERT INTO pallets
+  (id, container_destination_id, pallet_no, pallet_id, qr_payload, status,
+   created_at, updated_at)
+SELECT :'prefix' || '-pallet-match-' || n,
+       :'prefix' || '-destination-match', n,
+       :'prefix' || '-PALLET-MATCH-' || n,
+       'DASH07|PALLET|' || :'prefix' || '|MATCH|' || n,
+       'LABEL_PRINTED', NOW(), NOW()
+FROM generate_series(1, 30) AS n;
+INSERT INTO pallets
+  (id, container_destination_id, pallet_no, pallet_id, qr_payload, status,
+   created_at, updated_at)
+VALUES
+  (:'prefix' || '-pallet-other-1', :'prefix' || '-destination-other', 1,
+   :'prefix' || '-PALLET-OTHER-1', 'DASH07|PALLET|' || :'prefix' || '|OTHER|1',
+   'LOADED', NOW(), NOW());
+
+INSERT INTO container_lines
+  (id, container_id, line_no, destination_code, cartons, volume, raw_json,
+   created_at, updated_at)
+VALUES
+  (:'exception_line_id', :'match_container_id', 1, :'destination_code', 12, 0,
+   '{}'::jsonb, NOW(), NOW()),
+  (:'normal_line_id', :'other_container_id', 1, :'prefix' || '-OTHER-DEST', 12, 1,
+   '{}'::jsonb, NOW(), NOW());
+
+INSERT INTO load_jobs
+  (id, job_no, truck_no, dock_no, destination_region, status,
+   scheduled_departure_at, started_at, created_at, updated_at)
+VALUES
+  (:'load_job_id', :'prefix' || '-LOAD', :'prefix' || '-TRUCK', 'D07',
+   :'destination_code', 'IN_PROGRESS', TIMESTAMPTZ '2000-01-01 00:00:00+00',
+   NOW(), NOW(), NOW());
+INSERT INTO load_job_lines
+  (id, load_job_id, sequence, source_text, container_no, container_id,
+   container_destination_id, destination_code, planned_pallets, external_transfer,
+   created_at, updated_at)
+VALUES
+  (:'prefix' || '-load-line', :'load_job_id', 1, :'prefix' || '-MATCH-30P',
+   :'prefix' || '-MATCH', :'match_container_id', :'prefix' || '-destination-match',
+   :'destination_code', 30, false, NOW(), NOW());
+
+INSERT INTO attendance_imports
+  (id, original_filename, stored_path, file_sha256, import_status, parse_status,
+   created_at, updated_at)
+VALUES
+  (:'prefix' || '-attendance-match', :'match_attendance_filename',
+   'e2e/dashboard/' || :'prefix' || '/attendance-match.xls',
+   :'prefix' || '-sha-attendance-match', 'UPLOADED', 'NOT_PARSED', NOW(), NOW()),
+  (:'prefix' || '-attendance-other', :'other_attendance_filename',
+   'e2e/dashboard/' || :'prefix' || '/attendance-other.xls',
+   :'prefix' || '-sha-attendance-other', 'UPLOADED', 'ERROR', NOW(), NOW());
+
+INSERT INTO unloading_wage_settlements
+  (id, settlement_month, currency, status, total_amount, warning_count,
+   error_count, created_at, updated_at)
+VALUES
+  (:'prefix' || '-wage-review', to_char(NOW(), 'YYYY-MM'), 'CAD',
+   'NEEDS_REVIEW', 0, 1, 0, NOW(), NOW()),
+  (:'prefix' || '-wage-other', to_char(NOW(), 'YYYY-MM'), 'CAD',
+   'GENERATED', 0, 0, 0, NOW(), NOW());
+
+INSERT INTO generated_files
+  (id, container_id, file_type, storage_path, file_sha256, status,
+   created_at, updated_at)
+VALUES
+  (:'generated_file_id', :'other_container_id', 'TASK_REPORT_HTML',
+   'e2e/dashboard/' || :'prefix' || '/recent-task-report.html',
+   :'prefix' || '-sha-generated', 'GENERATED', NOW(), NOW() + INTERVAL '1 minute');
+COMMIT;
+`,
+    dashboardFixtureVariables(prefix, fixture),
+  );
+  return fixture;
+}
+
+function cleanupDashboardDrilldownFixture(prefix: string): void {
+  runDashboardSql(
+    String.raw`
+BEGIN;
+DELETE FROM correction_feedback WHERE id LIKE :'prefix_pattern';
+DELETE FROM pallet_events WHERE id LIKE :'prefix_pattern'
+  OR load_job_id IN (SELECT id FROM load_jobs WHERE id LIKE :'prefix_pattern')
+  OR pallet_id IN (SELECT id FROM pallets WHERE id LIKE :'prefix_pattern');
+DELETE FROM generated_files WHERE id LIKE :'prefix_pattern';
+DELETE FROM load_job_lines WHERE id LIKE :'prefix_pattern';
+UPDATE pallets SET load_job_id = NULL WHERE id LIKE :'prefix_pattern';
+DELETE FROM load_jobs WHERE id LIKE :'prefix_pattern';
+DELETE FROM pallets WHERE id LIKE :'prefix_pattern';
+DELETE FROM container_lines WHERE id LIKE :'prefix_pattern';
+DELETE FROM container_destinations WHERE id LIKE :'prefix_pattern';
+DELETE FROM containers WHERE id LIKE :'prefix_pattern';
+DELETE FROM import_files WHERE id LIKE :'prefix_pattern';
+DELETE FROM wage_generated_files WHERE id LIKE :'prefix_pattern';
+DELETE FROM unloading_wage_settlements WHERE id LIKE :'prefix_pattern';
+DELETE FROM attendance_imports WHERE id LIKE :'prefix_pattern';
+COMMIT;
+`,
+    ["-v", `prefix_pattern=${prefix}%`],
+  );
+}
+
+function dashboardDrilldownFixtureCount(prefix: string): number {
+  const output = runDashboardSql(
+    String.raw`
+COPY (
+  SELECT
+    (SELECT COUNT(*) FROM import_files WHERE id LIKE :'prefix_pattern') +
+    (SELECT COUNT(*) FROM containers WHERE id LIKE :'prefix_pattern') +
+    (SELECT COUNT(*) FROM load_jobs WHERE id LIKE :'prefix_pattern') +
+    (SELECT COUNT(*) FROM attendance_imports WHERE id LIKE :'prefix_pattern') +
+    (SELECT COUNT(*) FROM unloading_wage_settlements WHERE id LIKE :'prefix_pattern')
+) TO STDOUT;
+`,
+    ["-v", `prefix_pattern=${prefix}%`],
+  );
+  return Number(output.trim());
+}
+
+function dashboardFixtureVariables(
+  prefix: string,
+  fixture: DashboardDrilldownFixture,
+): string[] {
+  return [
+    "-v", `prefix=${prefix}`,
+    "-v", `match_import_id=${fixture.matchImportId}`,
+    "-v", `other_import_id=${fixture.otherImportId}`,
+    "-v", `match_container_id=${fixture.lifecycleContainerId}`,
+    "-v", `other_container_id=${fixture.otherContainerId}`,
+    "-v", `destination_code=${fixture.destinationCode}`,
+    "-v", `exception_line_id=${fixture.exceptionLineId}`,
+    "-v", `normal_line_id=${fixture.normalLineId}`,
+    "-v", `load_job_id=${fixture.loadJobId}`,
+    "-v", `match_attendance_filename=${fixture.matchAttendanceFilename}`,
+    "-v", `other_attendance_filename=${fixture.otherAttendanceFilename}`,
+    "-v", `generated_file_id=${fixture.generatedFileId}`,
+  ];
+}
+
+function runDashboardSql(sql: string, variables: string[]): string {
+  const result = spawnSync(
+    "psql",
+    [
+      "-h", requiredDashboardEnv("POSTGRES_HOST"),
+      "-U", requiredDashboardEnv("POSTGRES_USER"),
+      "-d", requiredDashboardEnv("POSTGRES_DB"),
+      "-v", "ON_ERROR_STOP=1",
+      ...variables,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PGPASSWORD: requiredDashboardEnv("POSTGRES_PASSWORD"),
+      },
+      input: sql,
+    },
+  );
+  expect(result.status, result.stderr).toBe(0);
+  return result.stdout;
+}
+
+function requiredDashboardEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required for WEB-DASHBOARD-07.`);
+  return value;
+}
+
+function uniqueSuffix(projectName: string): string {
+  return `${Date.now().toString(36)}${projectName
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 3)}`.toUpperCase();
 }
 
 async function setDashboardLocale(

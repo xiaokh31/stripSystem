@@ -22,5 +22,6 @@ import { SettingsModule } from '../settings/settings.module';
     CorrectionsController,
   ],
   providers: [CorrectionsService, ContainerIndexService],
+  exports: [ContainerIndexService],
 })
 export class CorrectionsModule {}

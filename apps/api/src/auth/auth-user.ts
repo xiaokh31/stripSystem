@@ -6,9 +6,9 @@ export interface AuthenticatedUser {
   permissions: string[];
 }
 
-export interface AuthenticatedRequest {
-  headers: {
-    authorization?: string;
-  };
+export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser;
+  authDelivery?: 'bearer' | 'browser' | 'legacy-browser';
+  authSessionId?: string;
 }
+import type { Request } from 'express';

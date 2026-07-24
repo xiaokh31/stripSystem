@@ -7,12 +7,10 @@ import {
   login,
 } from "../src/lib/api-client";
 import {
-  AUTH_TOKEN_COOKIE_NAME,
-  clearBrowserAuthToken,
+  BROWSER_CSRF_COOKIE_NAME,
   getAuthTokenExpiryEpochSeconds,
   isBrowserAuthTokenExpired,
   safeAuthRedirectTarget,
-  setBrowserAuthToken,
 } from "../src/lib/auth-token";
 
 test("auth API client posts login credentials and reads current user", async () => {
@@ -27,9 +25,9 @@ test("auth API client posts login credentials and reads current user", async () 
 
     if (url.endsWith("/auth/login")) {
       return jsonResponse({
-        accessToken: "token-1",
+        accessExpiresAt: "2026-07-23T00:15:00.000Z",
         expiresIn: 900,
-        tokenType: "Bearer",
+        sessionExpiresAt: "2027-08-27T00:00:00.000Z",
         user: {
           id: "user-1",
           email: "office@example.com",
@@ -54,7 +52,7 @@ test("auth API client posts login credentials and reads current user", async () 
     { baseUrl: "http://api.local/api", fetcher },
   );
   const user = await getCurrentUser({
-    authToken: loginResult.accessToken,
+    authToken: "native-access-token",
     baseUrl: "http://api.local/api",
     fetcher,
   });
@@ -75,38 +73,127 @@ test("auth API client posts login credentials and reads current user", async () 
   ]);
 });
 
-test("browser auth token cookie is the default API authorization source", async () => {
+test("browser requests use credentials and CSRF without a JavaScript bearer", async () => {
   const documentDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
     "document",
   );
-  const requestHeaders: string[] = [];
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const requests: Array<{ authorization: string | null; csrf: string | null; credentials?: RequestCredentials }> = [];
   const fetcher: typeof fetch = async (_input, init) => {
-    requestHeaders.push(new Headers(init?.headers).get("Authorization") ?? "");
+    const headers = new Headers(init?.headers);
+    requests.push({
+      authorization: headers.get("Authorization"),
+      csrf: headers.get("X-CSRF-Token"),
+      credentials: init?.credentials,
+    });
     return jsonResponse({ ok: true });
   };
-  const fakeDocument = { cookie: "" };
+  const fakeDocument = { cookie: `${BROWSER_CSRF_COOKIE_NAME}=csrf-value` };
 
   try {
     Object.defineProperty(globalThis, "document", {
       configurable: true,
       value: fakeDocument,
     });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { fetch },
+    });
 
-    setBrowserAuthToken("browser-token", 34_560_000);
-    assert.match(fakeDocument.cookie, /Max-Age=34560000/);
     await createApiClient({ baseUrl: "/api", fetcher }).get("/imports");
-    clearBrowserAuthToken();
-    await createApiClient({ baseUrl: "/api", fetcher }).get("/imports");
+    await createApiClient({ baseUrl: "/api", fetcher }).post("/imports", {
+      value: true,
+    });
 
-    assert.deepEqual(requestHeaders, ["Bearer browser-token", ""]);
-    assert.match(fakeDocument.cookie, new RegExp(`${AUTH_TOKEN_COOKIE_NAME}=`));
-    assert.match(fakeDocument.cookie, /Max-Age=0/);
+    assert.deepEqual(requests, [
+      { authorization: null, csrf: null, credentials: "include" },
+      { authorization: null, csrf: "csrf-value", credentials: "include" },
+    ]);
   } finally {
     if (documentDescriptor) {
       Object.defineProperty(globalThis, "document", documentDescriptor);
     } else {
       delete (globalThis as Record<string, unknown>).document;
+    }
+    if (windowDescriptor) {
+      Object.defineProperty(globalThis, "window", windowDescriptor);
+    } else {
+      delete (globalThis as Record<string, unknown>).window;
+    }
+  }
+});
+
+test("concurrent browser 401s share one refresh and retry each mutation once", async () => {
+  const documentDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "document",
+  );
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const fakeDocument = { cookie: `${BROWSER_CSRF_COOKIE_NAME}=csrf-before` };
+  let refreshCalls = 0;
+  const mutationCalls = new Map<string, number>();
+  const mutationCsrf: string[] = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.endsWith("/auth/browser/refresh")) {
+      refreshCalls += 1;
+      await Promise.resolve();
+      fakeDocument.cookie = `${BROWSER_CSRF_COOKIE_NAME}=csrf-after`;
+      return jsonResponse({
+        accessExpiresAt: "2026-07-23T00:15:00.000Z",
+        expiresIn: 900,
+        sessionExpiresAt: "2027-08-27T00:00:00.000Z",
+        user: {
+          email: "office@example.com",
+          id: "user-1",
+          name: "Office User",
+          permissions: [],
+          roles: ["OFFICE"],
+        },
+      });
+    }
+    const count = (mutationCalls.get(url) ?? 0) + 1;
+    mutationCalls.set(url, count);
+    mutationCsrf.push(new Headers(init?.headers).get("X-CSRF-Token") ?? "");
+    return count === 1
+      ? jsonResponse({ code: "UNAUTHENTICATED" }, 401)
+      : jsonResponse({ ok: true });
+  };
+
+  try {
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: fakeDocument,
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { fetch },
+    });
+    const client = createApiClient({ baseUrl: "/api", fetcher });
+    await Promise.all([
+      client.post("/mutation/a", { value: "a" }),
+      client.post("/mutation/b", { value: "b" }),
+    ]);
+
+    assert.equal(refreshCalls, 1);
+    assert.deepEqual([...mutationCalls.values()], [2, 2]);
+    assert.deepEqual(mutationCsrf, [
+      "csrf-before",
+      "csrf-before",
+      "csrf-after",
+      "csrf-after",
+    ]);
+  } finally {
+    if (documentDescriptor) {
+      Object.defineProperty(globalThis, "document", documentDescriptor);
+    } else {
+      delete (globalThis as Record<string, unknown>).document;
+    }
+    if (windowDescriptor) {
+      Object.defineProperty(globalThis, "window", windowDescriptor);
+    } else {
+      delete (globalThis as Record<string, unknown>).window;
     }
   }
 });
@@ -136,10 +223,10 @@ test("generated file download links stay on the browser web path", () => {
   );
 });
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     headers: { "content-type": "application/json" },
-    status: 200,
+    status,
   });
 }
 

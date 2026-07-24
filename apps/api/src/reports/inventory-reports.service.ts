@@ -79,6 +79,7 @@ interface NormalizedInventoryQuery {
   containerNo: string;
   destinationCode: string;
   status: string;
+  scope: '' | 'ACTIVE' | 'LOADED' | 'REMAINING';
   page: number;
   pageSize: number;
   sortBy: ContainerSortField;
@@ -160,6 +161,11 @@ export class InventoryReportsService {
     const hasContainerFilter = query.containerNo.length > 0;
     const hasDestinationFilter = query.destinationCode.length > 0;
     const hasStatusFilter = query.status.length > 0;
+    const hasScopeFilter = query.scope.length > 0;
+    const activeScope = query.scope === 'ACTIVE';
+    const loadedScope = query.scope === 'LOADED';
+    const remainingScope = query.scope === 'REMAINING';
+    const hasExplicitPalletFilter = hasStatusFilter || hasScopeFilter;
 
     return await this.prisma.$queryRaw<ContainerAggregateRow[]>`
       SELECT
@@ -172,30 +178,66 @@ export class InventoryReportsService {
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
         )::int AS "totalPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED')
         )::int AS "activeTotalPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'LOADED'
         )::int AS "loadedPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'ADJUSTED_OUT'
         )::int AS "adjustedOutPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'CANCELLED'
         )::int AS "cancelledPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED')
         )::int AS "remainingPallets",
         COUNT(p."id") FILTER (
@@ -219,12 +261,18 @@ export class InventoryReportsService {
       GROUP BY c."id", c."container_no", c."status", c."created_at",
         c."pay_classification", c."pay_trailer_number"
       HAVING (
-        (${hasStatusFilter} AND COUNT(p."id") FILTER (
+        (${hasExplicitPalletFilter} AND COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
-            AND p."status"::text = ${query.status}
+            AND (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
         ) > 0)
         OR
-        (${!hasStatusFilter} AND COUNT(p."id") FILTER (
+        (${!hasExplicitPalletFilter} AND COUNT(p."id") FILTER (
           WHERE (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
             AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED')
         ) > 0)
@@ -240,31 +288,72 @@ export class InventoryReportsService {
     const hasContainerFilter = query.containerNo.length > 0;
     const hasDestinationFilter = query.destinationCode.length > 0;
     const hasStatusFilter = query.status.length > 0;
+    const hasScopeFilter = query.scope.length > 0;
+    const activeScope = query.scope === 'ACTIVE';
+    const loadedScope = query.scope === 'LOADED';
+    const remainingScope = query.scope === 'REMAINING';
+    const hasExplicitPalletFilter = hasStatusFilter || hasScopeFilter;
 
     return await this.prisma.$queryRaw<DestinationAggregateRow[]>`
       SELECT
         d."destination_code" AS "destinationCode",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
         )::int AS "totalPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED')
         )::int AS "activeTotalPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'LOADED'
         )::int AS "loadedPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'ADJUSTED_OUT'
         )::int AS "adjustedOutPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" = 'CANCELLED'
         )::int AS "cancelledPallets",
         COUNT(p."id") FILTER (
           WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
             AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED')
         )::int AS "remainingPallets"
       FROM "containers" AS c
@@ -274,11 +363,17 @@ export class InventoryReportsService {
         AND (${!hasDestinationFilter} OR LOWER(d."destination_code") LIKE ${destinationPattern} ESCAPE '\\')
       GROUP BY d."destination_code"
       HAVING (
-        (${hasStatusFilter} AND COUNT(p."id") FILTER (
-          WHERE p."status"::text = ${query.status}
+        (${hasExplicitPalletFilter} AND COUNT(p."id") FILTER (
+          WHERE (${!hasStatusFilter} OR p."status"::text = ${query.status})
+            AND (
+              ${!hasScopeFilter}
+              OR (${activeScope} AND p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED'))
+              OR (${loadedScope} AND p."status" = 'LOADED')
+              OR (${remainingScope} AND p."status" NOT IN ('LOADED', 'ADJUSTED_OUT', 'CANCELLED'))
+            )
         ) > 0)
         OR
-        (${!hasStatusFilter} AND COUNT(p."id") FILTER (
+        (${!hasExplicitPalletFilter} AND COUNT(p."id") FILTER (
           WHERE p."status" NOT IN ('ADJUSTED_OUT', 'CANCELLED')
         ) > 0)
       )
@@ -325,6 +420,7 @@ export class InventoryReportsService {
         query.destinationCode ?? '',
       ),
       status: query.status ?? '',
+      scope: query.scope ?? '',
       page: query.page ?? 1,
       pageSize: query.pageSize ?? 10,
       sortBy: query.sortBy ?? 'createdAt',
@@ -361,8 +457,12 @@ export class InventoryReportsService {
     return (container.destinations ?? [])
       .filter((destination) => this.matchesDestination(destination, query))
       .filter((destination) => {
-        const stats = this.stats(destination.pallets ?? [], query.status);
-        return query.status
+        const stats = this.stats(
+          destination.pallets ?? [],
+          query.status,
+          query.scope,
+        );
+        return query.status || query.scope
           ? stats.totalPallets > 0
           : includeHistorical
             ? stats.totalPallets > 0
@@ -377,7 +477,10 @@ export class InventoryReportsService {
   ): ContainerSummaryItemDto {
     const stats = destinations.reduce(
       (total, destination) =>
-        this.addStats(total, this.stats(destination.pallets ?? [], query.status)),
+        this.addStats(
+          total,
+          this.stats(destination.pallets ?? [], query.status, query.scope),
+        ),
       this.emptyStats(),
     );
     return {
@@ -401,14 +504,33 @@ export class InventoryReportsService {
       containerDestinationId: destination.id,
       destinationCode: destination.destinationCode,
       destinationType: destination.destinationType,
-      ...this.stats(destination.pallets ?? [], query.status),
+      ...this.stats(destination.pallets ?? [], query.status, query.scope),
     };
   }
 
-  private stats(pallets: PalletRecord[], statusFilter?: string): PalletStatsDto {
-    const filtered = statusFilter
+  private stats(
+    pallets: PalletRecord[],
+    statusFilter?: string,
+    scope?: InventoryQueryDto['scope'],
+  ): PalletStatsDto {
+    const statusFiltered = statusFilter
       ? pallets.filter((pallet) => pallet.status === statusFilter)
       : pallets;
+    const filtered = statusFiltered.filter((pallet) => {
+      if (!scope) return true;
+      if (scope === 'LOADED') return pallet.status === PalletStatus.LOADED;
+      if (scope === 'REMAINING') {
+        return (
+          pallet.status !== PalletStatus.LOADED &&
+          pallet.status !== PalletStatus.CANCELLED &&
+          pallet.status !== PalletStatus.ADJUSTED_OUT
+        );
+      }
+      return (
+        pallet.status !== PalletStatus.CANCELLED &&
+        pallet.status !== PalletStatus.ADJUSTED_OUT
+      );
+    });
     return {
       totalPallets: filtered.length,
       activeTotalPallets: filtered.filter(

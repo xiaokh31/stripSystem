@@ -43,6 +43,7 @@ describe('AttendanceService', () => {
   let rowRecords: any[];
   let generatedFiles: any[];
   let auditEvents: any[];
+  let importAuditEvents: any[];
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'attendance-service-'));
@@ -50,6 +51,7 @@ describe('AttendanceService', () => {
     rowRecords = [];
     generatedFiles = [];
     auditEvents = [];
+    importAuditEvents = [];
     prisma = {
       $transaction: jest.fn(async (callback) => {
         const importSnapshot = importRecord
@@ -58,6 +60,7 @@ describe('AttendanceService', () => {
         const rowSnapshot = structuredClone(rowRecords);
         const generatedFileSnapshot = structuredClone(generatedFiles);
         const auditEventSnapshot = structuredClone(auditEvents);
+        const importAuditEventSnapshot = structuredClone(importAuditEvents);
         try {
           return await callback(prisma);
         } catch (error) {
@@ -65,10 +68,21 @@ describe('AttendanceService', () => {
           rowRecords = rowSnapshot;
           generatedFiles = generatedFileSnapshot;
           auditEvents = auditEventSnapshot;
+          importAuditEvents = importAuditEventSnapshot;
           throw error;
         }
       }),
       attendanceImport: {
+        findFirst: jest.fn(({ where } = { where: {} }) => {
+          if (!importRecord) return Promise.resolve(null);
+          if (where.fileSha256 && importRecord.fileSha256 !== where.fileSha256) {
+            return Promise.resolve(null);
+          }
+          if (where.deletedAt === null && importRecord.deletedAt) {
+            return Promise.resolve(null);
+          }
+          return Promise.resolve(importRecord);
+        }),
         findUnique: jest.fn(({ where }) => {
           if (
             where.fileSha256 &&
@@ -92,14 +106,22 @@ describe('AttendanceService', () => {
             employeeCount: 0,
             dayCount: 0,
             dataRevision: 0,
+            deletedAt: null,
+            deletedById: null,
+            deletionReason: null,
             rawMetadata: null,
             createdAt: new Date('2026-07-04T10:00:00.000Z'),
             updatedAt: new Date('2026-07-04T10:00:00.000Z'),
           };
           return Promise.resolve(importRecord);
         }),
-        findMany: jest.fn(() =>
-          Promise.resolve(importRecord ? [importRecord] : []),
+        findMany: jest.fn(({ where } = { where: {} }) =>
+          Promise.resolve(
+            importRecord &&
+              !(where.deletedAt === null && importRecord.deletedAt)
+              ? [importRecord]
+              : [],
+          ),
         ),
         update: jest.fn(({ data }) => {
           importRecord = {
@@ -113,6 +135,58 @@ describe('AttendanceService', () => {
           };
           return Promise.resolve(importRecord);
         }),
+        updateMany: jest.fn(({ where, data }) => {
+          if (
+            !importRecord ||
+            (where.id && importRecord.id !== where.id) ||
+            (where.deletedAt === null && importRecord.deletedAt) ||
+            (where.dataRevision !== undefined &&
+              importRecord.dataRevision !== where.dataRevision)
+          ) {
+            return Promise.resolve({ count: 0 });
+          }
+          importRecord = {
+            ...importRecord,
+            ...data,
+            dataRevision:
+              data.dataRevision?.increment !== undefined
+                ? (importRecord.dataRevision ?? 0) + data.dataRevision.increment
+                : (data.dataRevision ?? importRecord.dataRevision ?? 0),
+            updatedAt: new Date('2026-07-04T10:05:00.000Z'),
+          };
+          return Promise.resolve({ count: 1 });
+        }),
+      },
+      attendanceImportAuditEvent: {
+        create: jest.fn(({ data }) => {
+          const event = {
+            id: `import-audit-${importAuditEvents.length + 1}`,
+            ...data,
+          };
+          importAuditEvents.push(event);
+          return Promise.resolve(event);
+        }),
+        findUnique: jest.fn(({ where }) => {
+          const key = where.attendanceImportId_eventCode;
+          return Promise.resolve(
+            importAuditEvents.find(
+              (event) =>
+                event.attendanceImportId === key.attendanceImportId &&
+                event.eventCode === key.eventCode,
+            ) ?? null,
+          );
+        }),
+        findMany: jest.fn(({ take, skip } = { take: 25, skip: 0 }) =>
+          Promise.resolve(
+            [...importAuditEvents]
+              .reverse()
+              .slice(
+                skip ?? 0,
+                (skip ?? 0) + (take ?? importAuditEvents.length),
+              ),
+          ),
+        ),
+        count: jest.fn(() => Promise.resolve(importAuditEvents.length)),
       },
       attendanceRow: {
         deleteMany: jest.fn(() => {
@@ -234,10 +308,14 @@ describe('AttendanceService', () => {
           const ids = where.id?.in as string[] | undefined;
           let count = 0;
           for (const file of generatedFiles) {
-            if (!ids || ids.includes(file.id)) {
-              Object.assign(file, data);
-              count += 1;
-            }
+            if (ids && !ids.includes(file.id)) continue;
+            if (
+              where.attendanceImportId &&
+              file.attendanceImportId !== where.attendanceImportId
+            ) continue;
+            if (where.status && file.status !== where.status) continue;
+            Object.assign(file, data);
+            count += 1;
           }
           return Promise.resolve({ count });
         }),
@@ -480,6 +558,29 @@ describe('AttendanceService', () => {
     expect(new Set(rowRecords.map((row) => row.rowKey)).size).toBe(2);
   });
 
+  it('does not resurrect rows or current artifacts when an import becomes deleted before parse commit', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const parsedJsonPath = join(storageRoot, 'deleted-parse.json');
+    const taskReportPath = join(storageRoot, 'deleted-parse.html');
+    await writeFile(parsedJsonPath, '{}', 'utf8');
+    await writeFile(taskReportPath, '<html></html>', 'utf8');
+    workerAttendance.parseAttendance.mockImplementation(async () => {
+      importRecord.deletedAt = new Date('2026-07-04T10:04:00.000Z');
+      importRecord.dataRevision += 1;
+      return parsePayload(parsedJsonPath, taskReportPath);
+    });
+
+    await expect(service.parse(importRecord.id)).rejects.toMatchObject({
+      response: { code: 'ATTENDANCE_IMPORT_DELETED' },
+    });
+    expect(rowRecords).toHaveLength(0);
+    expect(generatedFiles).toHaveLength(2);
+    expect(
+      generatedFiles.every((item) => item.status === 'SUPERSEDED'),
+    ).toBe(true);
+  });
+
   it('persists parser error status and generated diagnostics before returning an API error', async () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
@@ -718,6 +819,172 @@ describe('AttendanceService', () => {
     expect(auditEvents).toHaveLength(0);
   });
 
+  it('rejects whole-import deletion while an attendance job is queued or running', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    prisma.asyncJob.findFirst.mockResolvedValue({
+      id: 'job-running',
+      jobType: 'ATTENDANCE_PARSE',
+      status: 'RUNNING',
+    });
+
+    await expect(
+      service.deleteImport(
+        importRecord.id,
+        'Wait for the active parser job',
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'ATTENDANCE_IMPORT_BUSY' },
+    });
+    expect(importRecord.deletedAt).toBeNull();
+    expect(importAuditEvents).toHaveLength(0);
+  });
+
+  it('soft deletes an attendance import atomically, preserves evidence, and returns the first event idempotently', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    const originalBytes = await readFile(importRecord.storedPath);
+    rowRecords.push(
+      {
+        id: 'active-row',
+        attendanceImportId: importRecord.id,
+        rowKey: 'active',
+        deletedAt: null,
+      },
+      {
+        id: 'deleted-row',
+        attendanceImportId: importRecord.id,
+        rowKey: 'deleted',
+        deletedAt: new Date('2026-07-04T10:01:00.000Z'),
+      },
+    );
+    generatedFiles.push(
+      {
+        id: 'generated-current',
+        attendanceImportId: importRecord.id,
+        unloadingWageSettlementId: null,
+        fileType: 'WAGE_RECORD_XLS',
+        storagePath: join(storageRoot, 'wage.xls'),
+        fileSha256: 'generated-sha',
+        mimeType: 'application/vnd.ms-excel',
+        fileSizeBytes: 3,
+        status: 'GENERATED',
+        errorMessage: null,
+        createdAt: new Date('2026-07-04T10:02:00.000Z'),
+        updatedAt: new Date('2026-07-04T10:02:00.000Z'),
+      },
+      {
+        id: 'failed-evidence',
+        attendanceImportId: importRecord.id,
+        unloadingWageSettlementId: null,
+        fileType: 'TASK_REPORT_HTML',
+        storagePath: join(storageRoot, 'failed.html'),
+        fileSha256: null,
+        mimeType: 'text/html',
+        fileSizeBytes: null,
+        status: 'FAILED',
+        errorMessage: 'worker failed',
+        createdAt: new Date('2026-07-04T10:03:00.000Z'),
+        updatedAt: new Date('2026-07-04T10:03:00.000Z'),
+      },
+    );
+    const baselineRevision = importRecord.dataRevision;
+
+    const impact = await service.getDeletionImpact(importRecord.id);
+    const first = await service.deleteImport(
+      importRecord.id,
+      'Imported the wrong monthly workbook',
+      officeActor,
+    );
+    const repeated = await service.deleteImport(
+      importRecord.id,
+      'This later reason must not overwrite the first event',
+      { ...officeActor, name: 'Renamed User' },
+    );
+
+    expect(impact).toMatchObject({
+      activeRowCount: 1,
+      deletedRowCount: 1,
+      generatedFileCount: 2,
+    });
+    expect(impact).not.toHaveProperty('storedPath');
+    expect(first).toMatchObject({
+      code: 'ATTENDANCE_IMPORT_DELETED',
+      deleted: true,
+      alreadyDeleted: false,
+      fallbackImport: null,
+      event: {
+        reason: 'Imported the wrong monthly workbook',
+        actor: { id: officeActor.id, displayLabel: officeActor.name },
+        activeRowCount: 1,
+        deletedRowCount: 1,
+      },
+    });
+    expect(repeated).toMatchObject({
+      code: 'ATTENDANCE_IMPORT_ALREADY_DELETED',
+      deleted: false,
+      alreadyDeleted: true,
+      event: {
+        id: first.event.id,
+        reason: first.event.reason,
+        occurredAt: first.event.occurredAt,
+      },
+    });
+    expect(importAuditEvents).toHaveLength(1);
+    expect(importRecord).toMatchObject({
+      deletedById: officeActor.id,
+      deletionReason: 'Imported the wrong monthly workbook',
+      dataRevision: baselineRevision + 1,
+    });
+    expect(generatedFiles.map((item) => [item.id, item.status])).toEqual([
+      ['generated-current', 'SUPERSEDED'],
+      ['failed-evidence', 'FAILED'],
+    ]);
+    expect(rowRecords).toHaveLength(2);
+    expect(await readFile(importRecord.storedPath)).toEqual(originalBytes);
+    await expect(service.getById(importRecord.id)).rejects.toMatchObject({
+      response: { code: 'ATTENDANCE_IMPORT_DELETED' },
+    });
+    await expect(service.list({ limit: 25, offset: 0 })).resolves.toMatchObject({
+      items: [],
+    });
+    await expect(
+      service.listDeletionHistory({ limit: 25, offset: 0 }),
+    ).resolves.toMatchObject({
+      total: 1,
+      items: [{ id: first.event.id }],
+    });
+  });
+
+  it('rolls back import tombstone and file transitions when the import event cannot be written', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    generatedFiles.push({
+      id: 'generated-current',
+      attendanceImportId: importRecord.id,
+      fileType: 'WAGE_RECORD_XLS',
+      status: 'GENERATED',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    prisma.attendanceImportAuditEvent.create.mockRejectedValueOnce(
+      new Error('import audit insert failed'),
+    );
+
+    await expect(
+      service.deleteImport(
+        importRecord.id,
+        'This transaction must roll back',
+        officeActor,
+      ),
+    ).rejects.toThrow('import audit insert failed');
+
+    expect(importRecord.deletedAt).toBeNull();
+    expect(generatedFiles[0].status).toBe('GENERATED');
+    expect(importAuditEvents).toHaveLength(0);
+  });
+
   it('preserves tombstone history when a later parse returns an error', async () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
@@ -864,6 +1131,34 @@ describe('AttendanceService', () => {
         }),
       ]),
     );
+  });
+
+  it('never records current generated artifacts when an import is deleted during synchronous generation', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    markParsedImport();
+    const wageRecordPath = join(storageRoot, 'deleted-race.xls');
+    const taskReportPath = join(storageRoot, 'deleted-race.html');
+    await writeFile(wageRecordPath, 'late xls', 'utf8');
+    await writeFile(taskReportPath, '<html>late</html>', 'utf8');
+    workerAttendance.generateWageRecord.mockImplementation(async () => {
+      importRecord.deletedAt = new Date('2026-07-04T10:07:00.000Z');
+      importRecord.dataRevision += 1;
+      return generatePayload(wageRecordPath, taskReportPath);
+    });
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: { code: 'ATTENDANCE_IMPORT_DELETED' },
+    });
+    expect(
+      generatedFiles
+        .filter((item) =>
+          ['WAGE_RECORD_XLS', 'TASK_REPORT_HTML'].includes(item.fileType),
+        )
+        .every((item) => item.status === 'SUPERSEDED'),
+    ).toBe(true);
   });
 
   it('downloads a generated attendance wage file', async () => {

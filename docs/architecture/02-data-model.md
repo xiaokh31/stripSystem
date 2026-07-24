@@ -462,3 +462,30 @@ lines.
   is available.
 - Do not remove `raw_json` or `raw_metadata`; those fields protect parser
   traceability when real customer files vary.
+
+## Attendance Import Audited Deletion
+
+`attendance_imports` uses an import-level tombstone (`deleted_at`,
+`deleted_by_id`, `deletion_reason`) rather than hard deletion. Its source
+workbook, SHA-256, parsed rows, row audit events, generated-file rows/bytes and
+async jobs remain intact. `deleted_by_id` is `ON DELETE SET NULL`; the durable
+display label lives in the immutable `attendance_import_audit_events` snapshot.
+
+Each import can have one `DELETED` event. The event snapshots import/parse
+status, period, employee/day and active/deleted row counts, issue counts,
+generated-file id/type/old/new status, actor id/display label, reason and
+occurrence time. Its import foreign key is `ON DELETE RESTRICT`, so an
+accidental hard delete cannot silently erase the audit chain.
+
+SHA uniqueness is active-only:
+
+```sql
+CREATE UNIQUE INDEX attendance_imports_active_file_sha256_key
+ON attendance_imports(file_sha256)
+WHERE deleted_at IS NULL;
+```
+
+This keeps concurrent active uploads unique while allowing the same preserved
+bytes to create a new import id after the previous import is tombstoned.
+Deletion, event creation, `data_revision` increment and all current
+`GENERATED -> SUPERSEDED` transitions commit in one PostgreSQL transaction.

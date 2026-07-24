@@ -11,6 +11,7 @@ import {
   type Worker,
 } from "@playwright/test";
 import {
+  configureBrowserActor,
   E2E_BASE_URL,
   ensureTestUser,
   loginThroughApi,
@@ -636,14 +637,11 @@ async function configureCase(
   token: string | null,
 ) {
   const url = new URL(E2E_BASE_URL).origin;
-  await context.clearCookies({ name: "bestar_auth_token" });
+  await configureBrowserActor(context, token);
   const cookies: Array<Parameters<BrowserContext["addCookies"]>[0][number]> = [
     { name: "bestar_locale", sameSite: "Lax" as const, url, value: visualCase.locale },
     { name: "bestar_theme", sameSite: "Lax" as const, url, value: visualCase.theme },
   ];
-  if (token) {
-    cookies.push({ name: "bestar_auth_token", sameSite: "Lax", url, value: token });
-  }
   await context.addCookies(cookies);
 }
 

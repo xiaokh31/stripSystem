@@ -12,7 +12,6 @@ import { createTranslator } from "@/lib/i18n/translator";
 import { getServerCurrentUser } from "@/lib/server-auth";
 import {
   normalizeThemePreference,
-  themeColorScheme,
   THEME_COOKIE_NAME,
 } from "@/lib/theme";
 import "./globals.css";
@@ -46,7 +45,6 @@ export default async function RootLayout({
       className="h-full antialiased"
       data-theme={theme}
       lang={locale}
-      style={{ colorScheme: themeColorScheme(theme) }}
       suppressHydrationWarning
     >
       <body className="min-h-full">
@@ -70,7 +68,7 @@ async function getShellHealth(): Promise<OfficeShellHealth> {
     const health = await getApiHealth();
     return {
       apiStatus: health.status,
-      databaseStatus: health.database.status,
+      databaseStatus: health.database?.status ?? "unknown",
       version: health.version,
     };
   } catch {

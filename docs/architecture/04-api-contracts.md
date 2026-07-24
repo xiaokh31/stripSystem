@@ -497,6 +497,34 @@ Use a consistent error body:
 
 Keep machine-readable `code` values stable enough for Web UI handling.
 
+## Attendance Import Deletion
+
+```http
+GET /api/attendance-imports/:id/deletion-impact
+DELETE /api/attendance-imports/:id
+GET /api/attendance-imports/deletion-history?limit=25&offset=0
+```
+
+- Impact and mutation require `attendance.imports.delete`; history requires
+  `attendance.read`.
+- Delete accepts `{ "reason": "5..500 trimmed characters" }`; actor identity
+  always comes from the authenticated request.
+- The first delete returns `ATTENDANCE_IMPORT_DELETED`; repeats return
+  `ATTENDANCE_IMPORT_ALREADY_DELETED` with the original immutable event.
+- Impact/history expose file name, business period/counts, actor snapshot,
+  reason and generated-file status summaries, never storage paths or file
+  contents.
+- Normal get/list/parse/parse-result/row mutation/generate/files/download and
+  job-submit routes reject a tombstoned id with
+  `ATTENDANCE_IMPORT_DELETED`. The global deletion-history route remains
+  readable and is declared before dynamic `:id` routing.
+- Deletion returns a first-active fallback summary for Web navigation.
+  Active-list and dashboard queries use `deleted_at IS NULL`.
+- A locked import with a queued/running attendance job or `PARSING` state
+  returns `ATTENDANCE_IMPORT_BUSY`. Job submit and Worker pre/post persistence
+  checks use the same row lock/revision boundary, preventing late rows or a
+  current generated artifact from resurrecting a deleted import.
+
 ## Transaction Guidance
 
 Use transactions for:

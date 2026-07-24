@@ -4,109 +4,143 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-22T23:59:23Z`
-- Source: `product-planning-agent`
-- Task: `PUBLIC-DEPLOY-PLANNING`
-- Task files: `prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md`、`PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`、`PUBLIC-DEPLOY-03OCI Always Free ARM64 Cloud Canonical Profile.md`
-- Status: `DONE`（规划/文档完成；运行时实现尚未开始）
-- Execution mode: `planning-and-documentation`
-- Last supervised implementation: `WAGE-HOURS-06` / `DONE` / Session `019f8bca-ebbf-7a71-9dac-e0422cbb8ac1`
-- Last supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260722T214558Z-WAGE-HOURS-06-18907`
-- Git HEAD: `706df69`
-- Worktree: dirty with the PUBLIC-DEPLOY planning files listed below; preserve and inspect them
+- Generated at: `2026-07-24T04:01:26Z`
+- Source: `business-task-supervisor`
+- Task: `WEB-DASHBOARD-07`
+- Task file: `prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md`
+- Status: `DONE`
+- Execution mode: `full`
+- Session: `019f91fe-d229-7651-a976-7aeab8b7b09d`
+- Git HEAD: `fe8f644`
+- Worktree: dirty; preserve and inspect existing changes
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260724T024023Z-WEB-DASHBOARD-07-62455`
 
 ## 现在在做什么
 
-公网访问与免费云部署的产品/架构规划已完成，没有创建公网、域名、Cloudflare 或 OCI 资源，也没有修改运行时代码。当前唯一可立即执行的开发任务是 `PUBLIC-DEPLOY-01Public Internet Security Baseline.md`。
+WEB-DASHBOARD-07 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- 核对当前 full stack：Next.js、NestJS、PostgreSQL、Redis/BullMQ、Python/WeasyPrint/openpyxl/qrcode 文档生成、持久化 `storage/` 和 nginx 100 MB upload boundary。普通会休眠、无持久盘或只限个人用途的免费 PaaS 不适合直接承载该系统。
-- 按 2026-07-22 官方资料复核 Cloudflare Tunnel/Quick Tunnel/upload limits、OCI Always Free A1/home region/storage/idle reclaim、Render、Koyeb、Vercel、Google/AWS/Azure/Fly.io 和加拿大隐私云服务指导。
-- 新增 ADR 0005：任何时刻只有一个 canonical writable PostgreSQL + matching `storage/`；禁止 local/cloud active-active、只迁数据库、不一致文件同步和 public PostgreSQL/Redis。
-- 新增公网部署 runbook：推荐先用 Cloudflare named tunnel + Access 保持 local canonical writer；它解决动态 IP，但公司 Internet、供电或主机故障时远程仍不可用。若远程可用性必须脱离公司网络，则把完整 stack 受控迁到 OCI Canadian-region A1；仓库此后依赖 outbound Internet，且接受 free capacity/no-SLA/idle reclaim 风险。
-- 拆分并写入三个业务 Agent Task：01 公网安全基线为 current next；01 Done 后默认选择 02 Cloudflare 路线，只有产品明确选择 remote-availability-first 才执行 03 OCI migration。02/03 不得形成两个 writer。
-- 三个 Task 均包含 strict typed `en` / `zh-CN`、单语 SSR/hydration/refresh、stable API code、RBAC/audit、Docker-only、backup/restore、负向测试和受监督终态要求。
-- 同步产品上下文、本地/生产部署入口、Task Index、完成度 HTML 和 `.gitignore` tracking exceptions。完成度报告明确 Public Access implementation 为 0%，没有把规划写成已上线。
+- WEB-DASHBOARD-07 已完成。Dashboard aggregate/record drilldown 现使用 typed URL、共享后端 canonical predicate、精确记录选择和 bounded operations review；目标页支持可复制筛选、刷新、翻页、排序、locale 与 selection 保持。RBAC、strict en/zh-CN、响应式、真实 matching/non-matching 数据及清理门禁均通过。无 schema 变更或新增 migration。Task、Task Index、完成度报告和 HANDOFF.md 已同步为 DONE；本 Session 未启动 WEB-DASHBOARD-08。
 
 ### Changed files
 
-- `.gitignore`
-- `HANDOFF.md`
-- `docs/adr/0005-single-writer-public-access-and-cloud-hosting.md`
-- `docs/product/00-business-context.md`
-- `docs/reports/project-completion-status.html`
-- `docs/runbooks/local-deployment.md`
-- `docs/runbooks/production-deployment-beginner-guide.md`
-- `docs/runbooks/public-access-and-free-cloud-deployment.md`
-- `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
-- `prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md`
-- `prompts/tasks/PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`
-- `prompts/tasks/PUBLIC-DEPLOY-03OCI Always Free ARM64 Cloud Canonical Profile.md`
+- HANDOFF.md
+- apps/api/src/app.module.ts
+- apps/api/src/common/operational-time.ts
+- apps/api/src/common/operational-time.spec.ts
+- apps/api/src/imports/import-list-filter.ts
+- apps/api/src/imports/dto/list-imports-query.dto.ts
+- apps/api/src/imports/imports.service.ts
+- apps/api/src/attendance/attendance-import-list-filter.ts
+- apps/api/src/attendance/dto/list-attendance-imports-query.dto.ts
+- apps/api/src/attendance/attendance.service.ts
+- apps/api/src/attendance/attendance.service.spec.ts
+- apps/api/src/load-jobs/load-job-list-filter.ts
+- apps/api/src/load-jobs/dto/list-load-jobs-query.dto.ts
+- apps/api/src/load-jobs/load-jobs.service.ts
+- apps/api/src/corrections/container-index.service.ts
+- apps/api/src/corrections/container-index.service.spec.ts
+- apps/api/src/corrections/dto/container-index.dto.ts
+- apps/api/src/corrections/corrections.module.ts
+- apps/api/src/reports/dto/inventory-query.dto.ts
+- apps/api/src/reports/inventory-reports.service.ts
+- apps/api/src/reports/inventory-reports.service.spec.ts
+- apps/api/src/dashboard/dashboard.controller.ts
+- apps/api/src/dashboard/dashboard.module.ts
+- apps/api/src/dashboard/dashboard.service.ts
+- apps/api/src/dashboard/dashboard.service.spec.ts
+- apps/api/src/dashboard/dashboard-filter-contract.spec.ts
+- apps/api/src/dashboard/dto/operations-dashboard-response.dto.ts
+- apps/api/src/dashboard/dto/operations-review-query.dto.ts
+- apps/api/src/dashboard/operations-review.service.ts
+- apps/api/src/dashboard/operations-review.service.spec.ts
+- apps/api/src/unloading-wage/dto/list-unloading-wage-settlements-query.dto.ts
+- apps/api/src/unloading-wage/unloading-wage-settlement-filter.ts
+- apps/api/src/unloading-wage/unloading-wage.controller.ts
+- apps/api/src/unloading-wage/unloading-wage.service.ts
+- apps/api/test/dashboard.e2e-spec.ts
+- apps/web/src/app/page.tsx
+- apps/web/src/app/operations/review/page.tsx
+- apps/web/src/app/imports/page.tsx
+- apps/web/src/app/containers/page.tsx
+- apps/web/src/app/containers/[id]/page.tsx
+- apps/web/src/app/containers/[id]/corrections/page.tsx
+- apps/web/src/app/inventory/page.tsx
+- apps/web/src/app/load-jobs/page.tsx
+- apps/web/src/app/work-hours/page.tsx
+- apps/web/src/app/unloading-summary/page.tsx
+- apps/web/src/app/unloading-wage/page.tsx
+- apps/web/src/components/dashboard/dashboard-components.tsx
+- apps/web/src/components/dashboard/dashboard-filter-context.tsx
+- apps/web/src/components/dashboard/drilldown-flow.ts
+- apps/web/src/components/dashboard/selected-record-focus.tsx
+- apps/web/src/components/containers/container-generated-files.tsx
+- apps/web/src/lib/api-client.ts
+- apps/web/src/lib/i18n/locales/en.ts
+- apps/web/src/lib/i18n/locales/zh.ts
+- apps/web/tests/api-client-dashboard.test.ts
+- apps/web/tests/dashboard-drilldown-flow.test.ts
+- apps/web/e2e/dashboard.spec.ts
+- prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md
+- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- docs/reports/project-completion-status.html
 
 ### Tests and verification actually run
 
-- Official provider/privacy source review: completed on 2026-07-22; limits are date-stamped in the runbook and must be rechecked before provisioning.
-- New local document/task references: checked to exist.
-- `xmllint --html --noout docs/reports/project-completion-status.html`: exit 0; libxml2 emitted only its expected HTML5 `main/header/section` unknown-tag notices.
-- `git diff --check`: passed for tracked changes before the final handoff update.
-- `git diff --no-index --check /dev/null <new-file>`: no whitespace diagnostics for each new ADR/runbook/Task; exit 1 is the expected “new file differs from /dev/null” status.
-- No Docker test, build, migration, service, browser, cloud command or production mutation was run because this Session changed planning/documentation only.
+- Docker full-stack up -d --build：通过，全部服务健康
+- API production image build：通过
+- API lint、typecheck：通过
+- API unit：48 suites / 370 tests passed
+- API E2E：21 suites / 128 tests passed
+- Focused Dashboard API E2E：6/6 passed
+- Container suggestions route E2E：2/2 passed
+- Web lint、typecheck：通过
+- Web unit：276/276 passed
+- Web production build：通过
+- Worker pytest：183/183 passed
+- E2E image build：通过
+- Chromium dashboard.spec.ts：5/5 passed，覆盖角色、双语、真实 drilldown、响应式和 lifecycle 视觉矩阵
+- scripts/healthcheck.sh：通过，包含当前 Next.js static chunks
+- git diff --check：通过
+- 精确清理验证：专用用户 0、专用会话 0、DASH07 前缀业务记录 0
 
 ## 卡在哪里
 
 ### Remaining implementation
 
-1. Execute `PUBLIC-DEPLOY-01` completely: provider-neutral public base profile, fail-closed config, revocable secure HttpOnly browser sessions while preserving the 400-day ceiling, CSRF/Origin, Redis rate limits, trusted proxy, security headers, audit and strict i18n.
-2. After 01 is `DONE`, choose exactly one route:
-   - Default: `PUBLIC-DEPLOY-02` Cloudflare named tunnel to the local canonical stack.
-   - Product decision alternative: `PUBLIC-DEPLOY-03` full OCI ARM64 canonical migration.
+- No remaining implementation was reported.
 
 ### External verification
 
-- PUBLIC-DEPLOY-02 eventually needs a company-controlled domain, Cloudflare account, named tunnel, Access identity/MFA policy and a non-company-network verification.
-- PUBLIC-DEPLOY-03 eventually needs explicit product/privacy approval, an OCI account, Canadian immutable home-region choice, A1 capacity, domain/Access, backup target, 72-hour observation and controlled cutover.
-- These external items do not block completing PUBLIC-DEPLOY-01 or either route's automatable repository work.
+- No external verification was reported.
 
 ### Blockers
 
-- No blocker for PUBLIC-DEPLOY-01.
-- PUBLIC-DEPLOY-03 is intentionally blocked by a product route decision until 01 is Done; this is a decision gate, not a reason to mark 01 blocked.
+- No blocker was reported.
 
 ## 下一步
 
-Run exactly one fresh supervised Task:
-
-```bash
-scripts/run-business-agent.sh task 'prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md'
-```
-
-Do not start PUBLIC-DEPLOY-02 or 03 in that Session. When 01 reaches `DONE`, return to the latest Task Index for the branch decision.
+- 由 fresh supervisor Session 执行 WEB-DASHBOARD-08；当前 Session 不得继续该任务。
 
 ## 不要再踩的坑
 
-- Cloudflare Tunnel is public ingress, not cloud hosting. It fixes changing IPs but cannot keep remote access alive through company Internet/power/host failure.
-- Do not use `trycloudflare.com` Quick Tunnels for production; use a named remotely managed tunnel and Access.
-- Do not expose the existing LAN Compose/nginx directly. PostgreSQL, Redis and internal API ports must stay private.
-- Do not leave the current JavaScript-readable 400-day bearer cookie unchanged on a public site. Preserve the persistence product goal through a server-side revocable/rotating HttpOnly session contract.
-- Do not run local and OCI deployments as writable peers. PostgreSQL and `storage/` must move as one verified recovery point under a write freeze.
-- OCI Always Free is not an SLA. Use the current conservative 2 OCPU/12 GB official allocation, prove ARM64 document generation, monitor capacity/reclaim risk and keep an off-provider restore path.
-- Do not commit domain credentials, tunnel tokens, OCI credentials, private keys, customer workbooks, employee data or secrets to Git/HANDOFF/logs.
-- All public/auth/failure UI must remain strict single-language `en` or `zh-CN`; infrastructure/provider errors cannot be shown raw to users.
+- DashboardModule 间接导入含 controller 的 CorrectionsModule 会影响 Express 路由注册顺序；必须保持 `/containers/suggestions` 在 `/containers/:id` 前并保留 E2E 回归。
+- 在运行中的 Web 容器执行 production build 后必须重启 Web，否则 SSR manifest 与磁盘 chunk hash 会错配并产生 404/ChunkLoadError。
+- ACTIVE/REMAINING 是组合库存 scope，effective lifecycle 与 operational-day timezone 必须继续复用后端 canonical predicate，不能退化为前端计算或单个状态。
+- 当前工作树仍包含其他任务的既有未提交成果；不得 reset、checkout 或覆盖这些修改。
 
 ## 新会话启动清单
 
-1. Read `AGENTS.md`, this file and `.codex/skills/bestar-handoff/SKILL.md`.
-2. Run `git status --short`; preserve all PUBLIC-DEPLOY planning changes and any newer user work.
-3. Read `prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md`, the latest Task Index, ADR 0005, the public deployment runbook and completion report.
-4. Reconcile this handoff with Git HEAD, supervisor state, current code/config/tests and any newer Task status before acting.
-5. Do not execute any Task marked `Task-Status: ARCHIVED`, and do not execute PUBLIC-DEPLOY-02/03 before their gates.
+1. Read `AGENTS.md` and `.codex/skills/bestar-handoff/SKILL.md`.
+2. Run `git status --short`; preserve all existing changes.
+3. Read the Task file above plus `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md` and `docs/reports/project-completion-status.html`.
+4. Verify this handoff against code, tests, runtime state, and artifacts before acting.
+5. Do not execute any Task marked `Task-Status: ARCHIVED`.
 
 ## 权威参考
 
-- `prompts/tasks/PUBLIC-DEPLOY-01Public Internet Security Baseline.md`
+- `prompts/tasks/WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
-- `docs/adr/0005-single-writer-public-access-and-cloud-hosting.md`
-- `docs/runbooks/public-access-and-free-cloud-deployment.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

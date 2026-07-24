@@ -73,6 +73,25 @@ export const enMessages = {
   "Checked at": "Checked at",
   Clear: "Clear",
   "Clear filters": "Clear filters",
+  "From operations dashboard": "From operations dashboard",
+  "Filtered results": "Filtered results",
+  "View all": "View all",
+  "Unknown dashboard filter": "Unknown dashboard filter",
+  "Selected record": "Selected record",
+  "Operations review": "Operations review",
+  "Review records": "Review records",
+  "Background job": "Background job",
+  "Container line": "Container line",
+  "Pallet event": "Pallet event",
+  "Wage generated file": "Wage generated file",
+  "No matching review records": "No matching review records",
+  "Review records could not be loaded": "Review records could not be loaded",
+  "Record": "Record",
+  "Updated": "Updated",
+  "Pagination": "Pagination",
+  "Duplicate": "Duplicate",
+  "Invalid": "Invalid",
+  "Needs review": "Needs review",
   "Click upload to start": "Click upload to start",
   Close: "Close",
   Closed: "Closed",
@@ -753,6 +772,8 @@ export const enMessages = {
   "The container list could not be loaded.":
     "The container list could not be loaded.",
   "The file could not be uploaded.": "The file could not be uploaded.",
+  "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.":
+    "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.",
   "File uploads must be started from a browser session.":
     "File uploads must be started from a browser session.",
   "The import could not be deleted.": "The import could not be deleted.",
@@ -2517,6 +2538,43 @@ export const enMessages = {
     "Attendance deletion audit is inconsistent. Contact an administrator.",
   "This employee has no active attendance rows. Review deletion history below.":
     "This employee has no active attendance rows. Review deletion history below.",
+  "Delete attendance import": "Delete attendance import",
+  "i18n.workHours.deleteImportAria": "Delete attendance import {filename}",
+  "Loading deletion impact.": "Loading deletion impact.",
+  "Enter at least 5 characters for the deletion reason.":
+    "Enter at least 5 characters for the deletion reason.",
+  "Deleting attendance import.": "Deleting attendance import.",
+  "Remove this attendance import from active settlement?":
+    "Remove this attendance import from active settlement?",
+  "This batch will leave active settlement and downloads. The original workbook, parsed rows, generated files, jobs, and audit evidence remain preserved.":
+    "This batch will leave active settlement and downloads. The original workbook, parsed rows, generated files, jobs, and audit evidence remain preserved.",
+  "Attendance rows": "Attendance rows",
+  "Employees and days": "Employees and days",
+  "i18n.workHours.importDeletionRows":
+    "{active} active rows · {deleted} previously deleted rows",
+  "i18n.workHours.importDeletionPeopleDays":
+    "{employees} employee(s) · {days} day(s)",
+  "i18n.workHours.deletionReasonLength": "{count}/500 characters · minimum 5",
+  "Deleted attendance imports": "Deleted attendance imports",
+  "i18n.workHours.importDeletionHistoryCount":
+    "{count} immutable import deletion event(s)",
+  "Audit history only": "Audit history only",
+  "Attendance import deletion history could not be loaded":
+    "Attendance import deletion history could not be loaded",
+  "No attendance imports have been deleted.":
+    "No attendance imports have been deleted.",
+  "Attendance import deleted and audit history recorded.":
+    "Attendance import deleted and audit history recorded.",
+  "This attendance import was deleted. Showing the next active import.":
+    "This attendance import was deleted. Showing the next active import.",
+  "Attendance import deletion audit is inconsistent. Contact an administrator.":
+    "Attendance import deletion audit is inconsistent. Contact an administrator.",
+  "Refreshing session": "Refreshing session",
+  "Too many sign-in attempts": "Too many sign-in attempts",
+  "Wait a moment, then try signing in again.":
+    "Wait a moment, then try signing in again.",
+  "Sign-in protection is temporarily unavailable. Try again later.":
+    "Sign-in protection is temporarily unavailable. Try again later.",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

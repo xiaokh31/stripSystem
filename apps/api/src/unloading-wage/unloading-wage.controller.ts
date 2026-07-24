@@ -10,6 +10,7 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
+import { ListUnloadingWageSettlementsQueryDto } from './dto/list-unloading-wage-settlements-query.dto';
 import type { Response } from 'express';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
@@ -170,8 +171,10 @@ export class UnloadingWageController {
 
   @Get('unloading-wage-settlements')
   @RequirePermissions(...ROUTE_PERMISSIONS.unloadingWage.listSettlements)
-  listSettlements(): Promise<UnloadingWageSettlementListResponseDto> {
-    return this.unloadingWageService.listSettlements();
+  listSettlements(
+    @Query() query: ListUnloadingWageSettlementsQueryDto,
+  ): Promise<UnloadingWageSettlementListResponseDto> {
+    return this.unloadingWageService.listSettlements(query);
   }
 
   @Get('unloading-wage-settlements/:id')

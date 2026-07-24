@@ -208,47 +208,41 @@ curl -sS http://localhost/api/health
 
 Verify the initial administrator:
 
+Browser login sets HttpOnly cookies and deliberately does not return access or
+refresh secrets in JSON. A local command-line smoke can preserve the cookie
+jar and verify the current profile without reading either secret:
+
 ```bash
-curl -sS -X POST http://localhost/api/auth/login \
+curl -sS -c /tmp/bestar-browser.cookies -X POST http://localhost/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"<admin-email>","password":"<unique-strong-admin-password>"}'
+
+curl -sS -b /tmp/bestar-browser.cookies http://localhost/api/auth/me
 ```
 
-Use the returned Bearer token to verify the current profile and account access:
-
-```bash
-curl -sS http://localhost/api/auth/me \
-  -H "Authorization: Bearer $TOKEN"
-
-curl -sS http://localhost/api/users \
-  -H "Authorization: Bearer $TOKEN"
-
-curl -sS http://localhost/api/roles \
-  -H "Authorization: Bearer $TOKEN"
-
-curl -sS http://localhost/api/permissions \
-  -H "Authorization: Bearer $TOKEN"
-```
+Delete that temporary cookie jar immediately after the smoke. Scripts or
+Native clients that need Bearer delivery must use the separate
+`/api/auth/native/login` contract with an explicit device identity; browser
+login must not be changed back to return a Bearer token.
 
 ## Browser Session Lifetime
 
-Office Web login uses one shared lifetime value:
+Office Web login uses separate short-access and persistent-session values:
 
 ```dotenv
-JWT_EXPIRES_IN_SECONDS=34560000
+BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 ```
 
-The value is in seconds. The default is 400 days so HR managers, warehouse
-managers, warehouse users, and office staff are not forced to log in again
-during normal daily work. The API writes the same value into the JWT `exp`,
-returns it as login `expiresIn`, and the Web app uses it as the
-`bestar_auth_token` cookie `Max-Age`.
-
-Shorten `JWT_EXPIRES_IN_SECONDS` if the site requires stricter workstation
-security. Browsers may also cap persistent cookie lifetimes even when this
-system asks for 400 days. A longer token lifetime does not bypass backend
-checks: every protected API request still reloads the current user, active
-state, roles, and permissions from the database.
+Values are seconds. The access cookie is short lived. The opaque refresh and
+server-side session can remain valid for at most 400 days and rotate on use;
+only secret hashes are stored. Browsers may cap persistent cookie lifetimes.
+Every protected request reloads current user, active state, roles and
+permissions. Permission changes therefore apply on the next request; password
+reset and deactivation also revoke active Browser and Native refresh families.
+On public access, an outer Access/MFA policy can expire independently and force
+identity verification before this application session reaches its own limit.
 
 ## Disable And Reset Accounts
 
@@ -264,7 +258,8 @@ Payload:
 { "isActive": false }
 ```
 
-Inactive users cannot log in and cannot use existing Bearer tokens.
+Inactive users cannot log in; existing Browser and Native session families are
+revoked in the same operation.
 
 Reset a password:
 
@@ -279,6 +274,22 @@ Payload:
 ```
 
 Password hashes are never returned by API responses.
+
+Password reset is Redis-rate-limited by canonical client, actor and target and
+revokes every active session family for the target user.
+
+## Revoke Browser Sessions
+
+An administrator with `users.manage` can revoke every active Browser session
+for one user without deleting session or audit history:
+
+```http
+POST /api/auth/browser/users/:userId/revoke-sessions
+```
+
+Browser logout rotates to the revoked state and clears current plus legacy
+cookies. The former JavaScript-readable `bestar_auth_token` is accepted only as
+a temporary local/LAN migration aid and is rejected in public mode.
 
 ## Revoke Native Sessions
 
@@ -311,6 +322,21 @@ screenshots, even though the database stores hashes rather than plaintext.
   explicit audit-only annotations.
 - `SYSTEM` actions must be traceable to a worker name, script, or service
   account.
+
+## Whole Attendance-Import Deletion
+
+- Grant `attendance.imports.delete` only to `ADMIN` and `HR_MANAGER`.
+- Do not infer it from `attendance.read`, `attendance.create`,
+  `attendance.parse`, `attendance.generate` or `attendance.rows.delete`.
+- `OFFICE`, `WAREHOUSE_MANAGER`, `WAREHOUSE` and `SYSTEM` must remain
+  forbidden, even if they can access another attendance or wage action.
+- Impact preview and mutation require the dedicated permission; immutable
+  deletion history requires `attendance.read`.
+- Verify a role change by checking both the hidden `/work-hours` trash command
+  and the API `403`; a UI-only check is insufficient.
+- A deletion reason is mandatory. The actor is the authenticated user and the
+  history display snapshot remains readable after account rename, disable or
+  deletion.
 
 ## Required Skills for Agent Work
 

@@ -8,7 +8,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import { E2E_BASE_URL, loginThroughApi } from "./helpers";
+import { configureBrowserActor, E2E_BASE_URL, loginThroughApi } from "./helpers";
 
 const OUTPUT_DIR = "test-results/web-brand-02";
 
@@ -175,15 +175,8 @@ async function verifyDesktopZoom(token: string, userDataDir: string): Promise<vo
   try {
     const worker = await getBrowserZoomWorker(context);
     const url = new URL(E2E_BASE_URL).origin;
+    await configureBrowserActor(context, token);
     await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url,
-        value: token,
-      },
       { name: "bestar_locale", sameSite: "Lax", url, value: "en" },
       { name: "bestar_theme", sameSite: "Lax", url, value: "light" },
     ]);

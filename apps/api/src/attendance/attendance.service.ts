@@ -12,16 +12,22 @@ import { basename, join, resolve, sep } from 'node:path';
 import {
   AttendanceImportListResponseDto,
   AttendanceImportResponseDto,
+  AttendanceImportAuditEventResponseDto,
+  AttendanceImportDeletionHistoryResponseDto,
+  AttendanceImportDeletionImpactResponseDto,
   AttendanceParseResultResponseDto,
   AttendanceRowAuditEventResponseDto,
   AttendanceRowHistoryResponseDto,
   AttendanceRowResponseDto,
   DeleteAttendanceRowResponseDto,
+  DeleteAttendanceImportResponseDto,
   GenerateWageRecordResponseDto,
   WageGeneratedFileListResponseDto,
   WageGeneratedFileResponseDto,
 } from './dto/attendance-response.dto';
 import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-query.dto';
+import { attendanceImportListWhere } from './attendance-import-list-filter';
+import { ListAttendanceImportHistoryQueryDto } from './dto/list-attendance-import-history-query.dto';
 import { ListAttendanceRowHistoryQueryDto } from './dto/list-attendance-row-history-query.dto';
 import {
   WorkerAttendanceDay,
@@ -32,6 +38,7 @@ import { auditUserId } from '../auth/audit-user';
 import { AuthenticatedUser } from '../auth/auth-user';
 import {
   AttendanceCalculationMethod,
+  AttendanceImportAuditEventCode,
   AttendanceRowAuditEventCode,
   AsyncJobStatus,
   AsyncJobType,
@@ -75,12 +82,39 @@ interface AttendanceImportRecord {
   errorCount: number;
   errorMessage: string | null;
   dataRevision: number;
+  deletedAt?: Date | string | null;
+  deletedById?: string | null;
+  deletionReason?: string | null;
   rawMetadata?: unknown;
   importedById?: string | null;
   rows?: AttendanceRowRecord[];
   generatedFiles?: WageGeneratedFileRecord[];
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+interface AttendanceImportAuditEventRecord {
+  id: string;
+  attendanceImportId: string;
+  eventCode: string;
+  originalFilename: string;
+  fileSha256: string;
+  importStatusSnapshot: string;
+  parseStatusSnapshot: string;
+  settlementMonth: string | null;
+  periodStart: Date | string | null;
+  periodEnd: Date | string | null;
+  employeeCount: number;
+  dayCount: number;
+  activeRowCount: number;
+  deletedRowCount: number;
+  warningCount: number;
+  errorCount: number;
+  generatedFilesSnapshot: unknown;
+  actorUserId: string | null;
+  actorDisplaySnapshot: string;
+  reason: string;
+  occurredAt: Date | string;
 }
 
 interface AttendanceRowRecord {
@@ -165,8 +199,8 @@ export class AttendanceService {
     this.validateXls(file);
 
     const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
-    const duplicate = await this.prisma.attendanceImport.findUnique({
-      where: { fileSha256 },
+    const duplicate = await this.prisma.attendanceImport.findFirst({
+      where: { fileSha256, deletedAt: null },
     });
 
     if (duplicate) {
@@ -195,8 +229,8 @@ export class AttendanceService {
       return this.toImportResponse(record);
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
-        const existing = await this.prisma.attendanceImport.findUnique({
-          where: { fileSha256 },
+        const existing = await this.prisma.attendanceImport.findFirst({
+          where: { fileSha256, deletedAt: null },
         });
 
         if (existing) {
@@ -221,6 +255,7 @@ export class AttendanceService {
     query: ListAttendanceImportsQueryDto,
   ): Promise<AttendanceImportListResponseDto> {
     const records = (await this.prisma.attendanceImport.findMany({
+      where: attendanceImportListWhere(query),
       orderBy: { createdAt: 'desc' },
       take: query.limit,
       skip: query.offset,
@@ -237,17 +272,222 @@ export class AttendanceService {
     return this.toImportResponse(await this.findImportOrThrow(id));
   }
 
+  async assertActiveForJobSubmission(id: string): Promise<void> {
+    await this.findImportOrThrow(id);
+  }
+
+  async getDeletionImpact(
+    id: string,
+  ): Promise<AttendanceImportDeletionImpactResponseDto> {
+    const record = await this.findImportOrThrow(id);
+    const [activeRowCount, deletedRowCount, files] = await Promise.all([
+      this.prisma.attendanceRow.count({
+        where: { attendanceImportId: id, deletedAt: null },
+      }),
+      this.prisma.attendanceRow.count({
+        where: { attendanceImportId: id, deletedAt: { not: null } },
+      }),
+      this.prisma.wageGeneratedFile.findMany({
+        where: { attendanceImportId: id },
+        select: { fileType: true, status: true },
+      }) as Promise<Array<{ fileType: string; status: string }>>,
+    ]);
+    const summary = new Map<string, {
+      fileType: string;
+      status: string;
+      count: number;
+    }>();
+    for (const file of files) {
+      const key = `${file.fileType}:${file.status}`;
+      const current = summary.get(key);
+      if (current) current.count += 1;
+      else {
+        summary.set(key, {
+          fileType: file.fileType,
+          status: file.status,
+          count: 1,
+        });
+      }
+    }
+    return {
+      attendanceImportId: record.id,
+      originalFilename: record.originalFilename,
+      settlementMonth: record.settlementMonth,
+      periodStart: this.dateResponse(record.periodStart),
+      periodEnd: this.dateResponse(record.periodEnd),
+      employeeCount: record.employeeCount,
+      dayCount: record.dayCount,
+      activeRowCount,
+      deletedRowCount,
+      warningCount: record.warningCount,
+      errorCount: record.errorCount,
+      generatedFileCount: files.length,
+      generatedFileSummary: [...summary.values()],
+    };
+  }
+
+  async deleteImport(
+    attendanceImportId: string,
+    reason: string,
+    actor: AuthenticatedUser,
+  ): Promise<DeleteAttendanceImportResponseDto> {
+    const normalizedReason = reason.trim();
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockAttendanceImport(tx, attendanceImportId);
+      const record = (await tx.attendanceImport.findUnique({
+        where: { id: attendanceImportId },
+      })) as AttendanceImportRecord | null;
+      if (!record) this.throwImportNotFound(attendanceImportId);
+
+      if (record.deletedAt) {
+        const event = (await tx.attendanceImportAuditEvent.findUnique({
+          where: {
+            attendanceImportId_eventCode: {
+              attendanceImportId,
+              eventCode: AttendanceImportAuditEventCode.DELETED,
+            },
+          },
+        })) as AttendanceImportAuditEventRecord | null;
+        if (!event) {
+          throw new InternalServerErrorException({
+            code: 'ATTENDANCE_IMPORT_AUDIT_INCONSISTENT',
+            message: 'The deleted attendance import has no immutable deletion event.',
+            details: { attendanceImportId },
+          });
+        }
+        const affectedGeneratedFiles =
+          this.importFileImpacts(event.generatedFilesSnapshot);
+        return {
+          code: 'ATTENDANCE_IMPORT_ALREADY_DELETED',
+          deleted: false,
+          alreadyDeleted: true,
+          event: this.toImportAuditEventResponse(event),
+          affectedGeneratedFiles,
+          fallbackImport: await this.findFallbackImport(tx),
+        };
+      }
+
+      await this.assertNoActiveAttendanceJob(tx, attendanceImportId);
+      if (record.parseStatus === ParseStatus.PARSING) {
+        throw new ConflictException({
+          code: 'ATTENDANCE_IMPORT_BUSY',
+          message: 'Attendance import deletion is unavailable while parsing is running.',
+          details: { attendanceImportId, operation: 'PARSE' },
+        });
+      }
+
+      const [activeRowCount, deletedRowCount, files] = await Promise.all([
+        tx.attendanceRow.count({
+          where: { attendanceImportId, deletedAt: null },
+        }),
+        tx.attendanceRow.count({
+          where: { attendanceImportId, deletedAt: { not: null } },
+        }),
+        tx.wageGeneratedFile.findMany({
+          where: { attendanceImportId },
+          select: { id: true, fileType: true, status: true },
+          orderBy: { createdAt: 'asc' },
+        }) as Promise<Array<{ id: string; fileType: string; status: string }>>,
+      ]);
+      const affectedGeneratedFiles = files.map((file) => ({
+        id: file.id,
+        fileType: file.fileType,
+        previousStatus: file.status,
+        nextStatus:
+          file.status === GeneratedFileStatus.GENERATED
+            ? GeneratedFileStatus.SUPERSEDED
+            : file.status,
+      }));
+      const occurredAt = new Date();
+      const event = (await tx.attendanceImportAuditEvent.create({
+        data: {
+          attendanceImportId,
+          eventCode: AttendanceImportAuditEventCode.DELETED,
+          originalFilename: record.originalFilename,
+          fileSha256: record.fileSha256,
+          importStatusSnapshot: record.importStatus as never,
+          parseStatusSnapshot: record.parseStatus as never,
+          settlementMonth: record.settlementMonth,
+          periodStart: record.periodStart ? new Date(record.periodStart) : null,
+          periodEnd: record.periodEnd ? new Date(record.periodEnd) : null,
+          employeeCount: record.employeeCount,
+          dayCount: record.dayCount,
+          activeRowCount,
+          deletedRowCount,
+          warningCount: record.warningCount,
+          errorCount: record.errorCount,
+          generatedFilesSnapshot: this.jsonValue(affectedGeneratedFiles),
+          actorUserId: actor.id,
+          actorDisplaySnapshot: this.actorDisplaySnapshot(actor),
+          reason: normalizedReason,
+          occurredAt,
+        },
+      })) as AttendanceImportAuditEventRecord;
+      await tx.wageGeneratedFile.updateMany({
+        where: {
+          attendanceImportId,
+          status: GeneratedFileStatus.GENERATED,
+        },
+        data: { status: GeneratedFileStatus.SUPERSEDED },
+      });
+      await tx.attendanceImport.update({
+        where: { id: attendanceImportId },
+        data: {
+          deletedAt: occurredAt,
+          deletedById: actor.id,
+          deletionReason: normalizedReason,
+          dataRevision: { increment: 1 },
+        },
+      });
+      return {
+        code: 'ATTENDANCE_IMPORT_DELETED',
+        deleted: true,
+        alreadyDeleted: false,
+        event: this.toImportAuditEventResponse(event),
+        affectedGeneratedFiles,
+        fallbackImport: await this.findFallbackImport(tx),
+      };
+    });
+  }
+
+  async listDeletionHistory(
+    query: ListAttendanceImportHistoryQueryDto,
+  ): Promise<AttendanceImportDeletionHistoryResponseDto> {
+    const [items, total] = await Promise.all([
+      this.prisma.attendanceImportAuditEvent.findMany({
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        take: query.limit,
+        skip: query.offset,
+      }) as Promise<AttendanceImportAuditEventRecord[]>,
+      this.prisma.attendanceImportAuditEvent.count(),
+    ]);
+    return {
+      items: items.map((event) => this.toImportAuditEventResponse(event)),
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
   async parse(id: string): Promise<AttendanceParseResultResponseDto> {
     const record = await this.findImportOrThrow(id);
     await this.assertStoredFileExists(record);
 
-    await this.prisma.attendanceImport.update({
-      where: { id },
+    const started = await this.prisma.attendanceImport.updateMany({
+      where: { id, deletedAt: null, dataRevision: record.dataRevision },
       data: {
         parseStatus: ParseStatus.PARSING,
         errorMessage: null,
       },
     });
+    if (started.count !== 1) {
+      await this.findImportOrThrow(id);
+      throw new ConflictException({
+        code: 'ATTENDANCE_DATA_REVISION_CHANGED',
+        message: 'Attendance data changed before parsing could start.',
+        details: { attendanceImportId: id },
+      });
+    }
 
     const outputDir = join(this.storageRoot, 'attendance_imports', id);
     let payload: WorkerWagePayload;
@@ -314,6 +554,9 @@ export class AttendanceService {
       })) as AttendanceImportRecord | null;
       if (!attendanceImport) {
         this.throwImportNotFound(attendanceImportId);
+      }
+      if (attendanceImport.deletedAt) {
+        this.throwImportDeleted(attendanceImport);
       }
       await this.assertNoActiveAttendanceJob(tx, attendanceImportId);
       if (attendanceImport.parseStatus === ParseStatus.PARSING) {
@@ -527,91 +770,97 @@ export class AttendanceService {
     const wageRecordPath = this.stringOrNull(payload.wage_record_path);
     const taskReportPath = this.stringOrNull(payload.task_report_path);
 
-    let taskReport: WageGeneratedFileRecord | null = null;
-    if (taskReportPath) {
-      taskReport = await this.recordGeneratedFile({
-        attendanceImportId: id,
-        fileType: WageGeneratedFileType.TASK_REPORT_HTML,
-        storagePath: taskReportPath,
-        mimeType: 'text/html',
-        generatedById,
-        status: GeneratedFileStatus.GENERATED,
-        errorMessage: null,
-      });
-    }
-
-    if (
+    const generationFailed =
       payload.task_status === 'ERROR' ||
       errors.length > 0 ||
-      !wageRecordPath
-    ) {
-      const failed = await this.recordGeneratedFile({
-        attendanceImportId: id,
-        fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
-        storagePath: wageRecordPath ?? this.failureStoragePath(record),
-        mimeType: 'application/vnd.ms-excel',
-        generatedById,
-        status: GeneratedFileStatus.FAILED,
-        errorMessage: this.firstIssueMessage(errors, payload),
-      });
-
-      throw new BadRequestException({
-        code: 'WAGE_RECORD_GENERATION_FAILED',
-        message: 'The wage record workbook could not be generated.',
-        details: {
-          generatedFile: this.toGeneratedFileResponse(failed),
-          taskReport: taskReport
-            ? this.toGeneratedFileResponse(taskReport)
-            : null,
-          warnings,
-          errors,
-        },
-      });
-    }
+      !wageRecordPath;
 
     const generationCommit = await this.prisma.$transaction(async (tx) => {
       await this.lockAttendanceImport(tx, id);
       const current = (await tx.attendanceImport.findUnique({
         where: { id },
       })) as AttendanceImportRecord | null;
-      if (!current || current.dataRevision !== generationRevision) {
-        const stale = await this.createGeneratedFileWithClient(tx, {
-          attendanceImportId: id,
-          fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
-          storagePath: wageRecordPath,
-          mimeType: 'application/vnd.ms-excel',
-          generatedById,
-          status: GeneratedFileStatus.SUPERSEDED,
-          errorMessage: 'ATTENDANCE_DATA_REVISION_CHANGED',
-        });
-        if (taskReport) {
-          await tx.wageGeneratedFile.update({
-            where: { id: taskReport.id },
-            data: { status: GeneratedFileStatus.SUPERSEDED },
-          });
-        }
-        return { stale: true as const, generatedFile: stale };
+      const deleted = Boolean(current?.deletedAt);
+      const stale =
+        !current || deleted || current.dataRevision !== generationRevision;
+      const staleCode = deleted
+        ? 'ATTENDANCE_IMPORT_DELETED'
+        : 'ATTENDANCE_DATA_REVISION_CHANGED';
+      const taskReport = taskReportPath
+        ? await this.createGeneratedFileWithClient(tx, {
+            attendanceImportId: id,
+            fileType: WageGeneratedFileType.TASK_REPORT_HTML,
+            storagePath: taskReportPath,
+            mimeType: 'text/html',
+            generatedById,
+            status: stale
+              ? GeneratedFileStatus.SUPERSEDED
+              : GeneratedFileStatus.GENERATED,
+            errorMessage: stale ? staleCode : null,
+          })
+        : null;
+      if (generationFailed) {
+        return {
+          stale,
+          deleted,
+          taskReport,
+          generatedFile: await this.createGeneratedFileWithClient(tx, {
+            attendanceImportId: id,
+            fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
+            storagePath: wageRecordPath ?? this.failureStoragePath(record),
+            mimeType: 'application/vnd.ms-excel',
+            generatedById,
+            status: GeneratedFileStatus.FAILED,
+            errorMessage: stale
+              ? staleCode
+              : this.firstIssueMessage(errors, payload),
+          }),
+        };
       }
       return {
-        stale: false as const,
+        stale,
+        deleted,
+        taskReport,
         generatedFile: await this.createGeneratedFileWithClient(tx, {
           attendanceImportId: id,
           fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
-          storagePath: wageRecordPath,
+          storagePath: wageRecordPath!,
           mimeType: 'application/vnd.ms-excel',
           generatedById,
-          status: GeneratedFileStatus.GENERATED,
-          errorMessage: null,
+          status: stale
+            ? GeneratedFileStatus.SUPERSEDED
+            : GeneratedFileStatus.GENERATED,
+          errorMessage: stale ? staleCode : null,
         }),
       };
     });
     if (generationCommit.stale) {
       throw new ConflictException({
-        code: 'ATTENDANCE_DATA_REVISION_CHANGED',
-        message: 'Attendance data changed while the wage record was being generated.',
+        code: generationCommit.deleted
+          ? 'ATTENDANCE_IMPORT_DELETED'
+          : 'ATTENDANCE_DATA_REVISION_CHANGED',
+        message: generationCommit.deleted
+          ? 'The attendance import was deleted while the wage record was being generated.'
+          : 'Attendance data changed while the wage record was being generated.',
         details: {
           attendanceImportId: id,
           generatedFileId: generationCommit.generatedFile.id,
+        },
+      });
+    }
+    if (generationFailed) {
+      throw new BadRequestException({
+        code: 'WAGE_RECORD_GENERATION_FAILED',
+        message: 'The wage record workbook could not be generated.',
+        details: {
+          generatedFile: this.toGeneratedFileResponse(
+            generationCommit.generatedFile,
+          ),
+          taskReport: generationCommit.taskReport
+            ? this.toGeneratedFileResponse(generationCommit.taskReport)
+            : null,
+          warnings,
+          errors,
         },
       });
     }
@@ -619,7 +868,9 @@ export class AttendanceService {
 
     return {
       generatedFile: this.toGeneratedFileResponse(generatedFile),
-      taskReport: taskReport ? this.toGeneratedFileResponse(taskReport) : null,
+      taskReport: generationCommit.taskReport
+        ? this.toGeneratedFileResponse(generationCommit.taskReport)
+        : null,
       warnings,
       errors: [],
     };
@@ -683,8 +934,47 @@ export class AttendanceService {
     const parsedJsonPath = this.stringOrNull(payload.parsed_json_path);
     const taskReportPath = this.stringOrNull(payload.task_report_path);
 
-    await this.prisma.$transaction(async (tx) => {
+    const commit = await this.prisma.$transaction(async (tx) => {
       await this.lockAttendanceImport(tx, record.id);
+      const current = (await tx.attendanceImport.findUnique({
+        where: { id: record.id },
+      })) as AttendanceImportRecord | null;
+      if (
+        !current ||
+        current.deletedAt ||
+        current.dataRevision !== record.dataRevision
+      ) {
+        for (const generated of [
+          {
+            path: parsedJsonPath,
+            fileType: WageGeneratedFileType.ATTENDANCE_PARSED_JSON,
+            mimeType: 'application/json',
+          },
+          {
+            path: taskReportPath,
+            fileType: WageGeneratedFileType.TASK_REPORT_HTML,
+            mimeType: 'text/html',
+          },
+        ]) {
+          if (generated.path) {
+            await this.createGeneratedFileWithClient(tx, {
+              attendanceImportId: record.id,
+              fileType: generated.fileType,
+              storagePath: generated.path,
+              mimeType: generated.mimeType,
+              generatedById,
+              status: GeneratedFileStatus.SUPERSEDED,
+              errorMessage: current?.deletedAt
+                ? 'ATTENDANCE_IMPORT_DELETED'
+                : 'ATTENDANCE_DATA_REVISION_CHANGED',
+            });
+          }
+        }
+        return {
+          stale: true,
+          deleted: Boolean(current?.deletedAt),
+        };
+      }
       const rows = this.attendanceRows(record.id, parsedResult?.days ?? []);
       if (parseStatus !== ParseStatus.ERROR) {
         await tx.attendanceRow.deleteMany({
@@ -785,7 +1075,19 @@ export class AttendanceService {
           errorMessage: null,
         });
       }
+      return { stale: false, deleted: false };
     });
+    if (commit.stale) {
+      throw new ConflictException({
+        code: commit.deleted
+          ? 'ATTENDANCE_IMPORT_DELETED'
+          : 'ATTENDANCE_DATA_REVISION_CHANGED',
+        message: commit.deleted
+          ? 'The attendance import was deleted while parsing was running.'
+          : 'Attendance data changed while parsing was running.',
+        details: { attendanceImportId: record.id },
+      });
+    }
   }
 
   private attendanceRows(
@@ -1040,8 +1342,21 @@ export class AttendanceService {
     if (!record) {
       this.throwImportNotFound(id);
     }
+    if (record.deletedAt) {
+      this.throwImportDeleted(record);
+    }
 
     return record;
+  }
+
+  private async findFallbackImport(
+    tx: Prisma.TransactionClient,
+  ): Promise<AttendanceImportResponseDto | null> {
+    const fallback = (await tx.attendanceImport.findFirst({
+      where: { deletedAt: null },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    })) as AttendanceImportRecord | null;
+    return fallback ? this.toImportResponse(fallback) : null;
   }
 
   private throwImportNotFound(id: string): never {
@@ -1049,6 +1364,19 @@ export class AttendanceService {
       code: 'ATTENDANCE_IMPORT_NOT_FOUND',
       message: `Attendance import ${id} was not found.`,
       details: { id },
+    });
+  }
+
+  private throwImportDeleted(record: AttendanceImportRecord): never {
+    throw new ConflictException({
+      code: 'ATTENDANCE_IMPORT_DELETED',
+      message: 'The attendance import is no longer active.',
+      details: {
+        attendanceImportId: record.id,
+        deletedAt: record.deletedAt
+          ? this.toIsoString(record.deletedAt)
+          : null,
+      },
     });
   }
 
@@ -1061,8 +1389,12 @@ export class AttendanceService {
         throw new Error('Stored path is not a file.');
       }
     } catch (error) {
-      await this.prisma.attendanceImport.update({
-        where: { id: record.id },
+      await this.prisma.attendanceImport.updateMany({
+        where: {
+          id: record.id,
+          deletedAt: null,
+          dataRevision: record.dataRevision,
+        },
         data: {
           parseStatus: ParseStatus.ERROR,
           warningCount: 0,
@@ -1096,8 +1428,12 @@ export class AttendanceService {
     record: AttendanceImportRecord,
     error: unknown,
   ): Promise<void> {
-    await this.prisma.attendanceImport.update({
-      where: { id: record.id },
+    await this.prisma.attendanceImport.updateMany({
+      where: {
+        id: record.id,
+        deletedAt: null,
+        dataRevision: record.dataRevision,
+      },
       data: {
         parseStatus: ParseStatus.ERROR,
         warningCount: 0,
@@ -1340,6 +1676,58 @@ export class AttendanceService {
       reason: event.reason,
       occurredAt: this.toIsoString(event.occurredAt),
     };
+  }
+
+  private toImportAuditEventResponse(
+    event: AttendanceImportAuditEventRecord,
+  ): AttendanceImportAuditEventResponseDto {
+    return {
+      id: event.id,
+      eventCode: 'DELETED',
+      attendanceImportId: event.attendanceImportId,
+      originalFilename: event.originalFilename,
+      fileSha256: event.fileSha256,
+      importStatus: event.importStatusSnapshot,
+      parseStatus: event.parseStatusSnapshot,
+      settlementMonth: event.settlementMonth,
+      periodStart: this.dateResponse(event.periodStart),
+      periodEnd: this.dateResponse(event.periodEnd),
+      employeeCount: event.employeeCount,
+      dayCount: event.dayCount,
+      activeRowCount: event.activeRowCount,
+      deletedRowCount: event.deletedRowCount,
+      warningCount: event.warningCount,
+      errorCount: event.errorCount,
+      generatedFiles: this.importFileImpacts(event.generatedFilesSnapshot),
+      actor: {
+        id: event.actorUserId,
+        displayLabel: event.actorDisplaySnapshot,
+      },
+      reason: event.reason,
+      occurredAt: this.toIsoString(event.occurredAt),
+    };
+  }
+
+  private importFileImpacts(
+    snapshot: unknown,
+  ): Array<{
+    id: string;
+    fileType: string;
+    previousStatus: string;
+    nextStatus: string;
+  }> {
+    if (!Array.isArray(snapshot)) return [];
+    return snapshot.flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const value = item as Record<string, unknown>;
+      const id = this.stringOrNull(value.id);
+      const fileType = this.stringOrNull(value.fileType);
+      const previousStatus = this.stringOrNull(value.previousStatus);
+      const nextStatus = this.stringOrNull(value.nextStatus);
+      return id && fileType && previousStatus && nextStatus
+        ? [{ id, fileType, previousStatus, nextStatus }]
+        : [];
+    });
   }
 
   private validateXls(file: Express.Multer.File): void {

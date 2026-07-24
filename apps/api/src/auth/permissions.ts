@@ -63,6 +63,7 @@ export const PERMISSIONS = {
     parse: 'attendance.parse',
     generate: 'attendance.generate',
     deleteRows: 'attendance.rows.delete',
+    deleteImports: 'attendance.imports.delete',
   },
   unloadingWage: {
     read: 'unloading_wage.read',

@@ -50,6 +50,24 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
+    const profile = await this.validateLoginCredentials(dto);
+    const token = this.tokenService.sign({
+      sub: profile.id,
+      email: profile.email,
+      roles: profile.roles,
+    });
+
+    return {
+      accessToken: token.accessToken,
+      tokenType: 'Bearer',
+      expiresIn: token.expiresIn,
+      user: profile,
+    };
+  }
+
+  async validateLoginCredentials(
+    dto: LoginDto,
+  ): Promise<AuthUserResponseDto> {
     const email = this.normalizeEmail(dto.email);
     const user = await this.findUserByEmail(email);
     if (!user) {
@@ -86,18 +104,7 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const token = this.tokenService.sign({
-      sub: user.id,
-      email: user.email,
-      roles: profile.roles,
-    });
-
-    return {
-      accessToken: token.accessToken,
-      tokenType: 'Bearer',
-      expiresIn: token.expiresIn,
-      user: profile,
-    };
+    return profile;
   }
 
   async getCurrentUser(
@@ -120,6 +127,7 @@ export class AuthService {
     const refreshExpiresAt = this.rollingRefreshExpiry(now, absoluteExpiresAt);
     const session = await this.prisma.nativeAuthSession.create({
       data: {
+        clientType: 'NATIVE',
         userId: user.id,
         deviceId: dto.deviceId.trim(),
         platform: dto.platform?.trim() || null,
@@ -331,7 +339,7 @@ export class AuthService {
     return this.prisma.$transaction(async (tx) => {
       const now = new Date();
       const activeSessions = await tx.nativeAuthSession.findMany({
-        where: { userId, revokedAt: null },
+        where: { clientType: 'NATIVE', userId, revokedAt: null },
         select: { id: true },
       });
       const sessionIds = activeSessions.map((session) => session.id);
@@ -339,7 +347,11 @@ export class AuthService {
         return { revokedCount: 0 };
       }
       const result = await tx.nativeAuthSession.updateMany({
-        where: { id: { in: sessionIds }, revokedAt: null },
+        where: {
+          clientType: 'NATIVE',
+          id: { in: sessionIds },
+          revokedAt: null,
+        },
         data: {
           revokedAt: now,
           revokedByUserId,
@@ -358,6 +370,32 @@ export class AuthService {
     authorization: string | undefined,
   ): Promise<AuthenticatedUser> {
     const payload = this.tokenService.verifyBearerHeader(authorization);
+    return this.authenticateTokenPayload(payload);
+  }
+
+  async authenticateBrowserAccess(
+    accessToken: string,
+  ): Promise<AuthenticatedUser> {
+    const payload = this.tokenService.verify(accessToken);
+    if (!payload.browserSessionId) {
+      throw this.unauthenticated('Browser session token is required.');
+    }
+    return this.authenticateTokenPayload(payload);
+  }
+
+  async authenticateBrowserAccessLegacy(
+    accessToken: string,
+  ): Promise<AuthenticatedUser> {
+    const payload = this.tokenService.verify(accessToken);
+    if (payload.browserSessionId || payload.nativeSessionId) {
+      throw this.unauthenticated('Legacy browser token is invalid.');
+    }
+    return this.authenticateTokenPayload(payload);
+  }
+
+  private async authenticateTokenPayload(
+    payload: import('./auth-token.service').AuthTokenPayload,
+  ): Promise<AuthenticatedUser> {
     if (payload.nativeSessionId) {
       const session = await this.prisma.nativeAuthSession.findUnique({
         where: { id: payload.nativeSessionId },
@@ -371,6 +409,30 @@ export class AuthService {
       const now = new Date();
       if (
         !session ||
+        session.userId !== payload.sub ||
+        session.revokedAt ||
+        session.expiresAt <= now ||
+        session.absoluteExpiresAt <= now
+      ) {
+        throw this.nativeRefreshFailure('AUTH_SESSION_REVOKED');
+      }
+    }
+
+    if (payload.browserSessionId) {
+      const session = await this.prisma.nativeAuthSession.findUnique({
+        where: { id: payload.browserSessionId },
+        select: {
+          absoluteExpiresAt: true,
+          clientType: true,
+          expiresAt: true,
+          revokedAt: true,
+          userId: true,
+        },
+      });
+      const now = new Date();
+      if (
+        !session ||
+        session.clientType !== 'BROWSER' ||
         session.userId !== payload.sub ||
         session.revokedAt ||
         session.expiresAt <= now ||

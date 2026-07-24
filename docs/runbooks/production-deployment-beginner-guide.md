@@ -30,6 +30,13 @@ security task sequence. It requires one canonical writer and exposes only the
 protected HTTPS nginx entry point; PostgreSQL, Redis and internal API ports stay
 private.
 
+For the recommended dynamic-IP public pilot, do not hand-write a
+`docker run cloudflared ...token...` command. Follow the named-tunnel profile,
+token-file preflight, Access/MFA/cache checklist, backups and failure drills in
+[public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md).
+The public connector is optional to LAN operation and must never become a
+health dependency of Web, API, PostgreSQL, Redis or document generation.
+
 Use Git to download and update the source code.
 
 Do not copy the whole developer working directory as the normal deployment
@@ -209,7 +216,10 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=<long-random-production-secret>
-JWT_EXPIRES_IN_SECONDS=34560000
+JWT_EXPIRES_IN_SECONDS=900
+BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
@@ -222,9 +232,9 @@ Rules:
 - Keep Docker internal API URLs as `http://api:4000/api`.
 - Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
   automatically switches between MDT and MST.
-- `JWT_EXPIRES_IN_SECONDS=34560000` keeps browser login sessions persistent for
-  up to 400 days by default. Shorten it if the site requires tighter
-  workstation security. Browsers may still cap persistent cookie lifetimes.
+- Browser access cookies are short lived; the rotating opaque server-side
+  session uses the separate idle/absolute values and is capped at 400 days.
+  Browsers may still cap persistent cookie lifetimes.
 
 ### 5. Create Runtime Folders
 
@@ -432,7 +442,10 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=<long-random-production-secret>
-JWT_EXPIRES_IN_SECONDS=34560000
+JWT_EXPIRES_IN_SECONDS=900
+BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```

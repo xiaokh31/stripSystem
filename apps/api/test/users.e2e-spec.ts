@@ -14,14 +14,6 @@ import {
 } from './auth-test-helpers';
 import { createRbacManagementPrismaMock } from './rbac-management-test-fixture';
 
-interface LoginBody {
-  accessToken: string;
-  user: {
-    id: string;
-    permissions: string[];
-  };
-}
-
 interface ErrorBody {
   code: string;
 }
@@ -210,11 +202,11 @@ describe('Users management API (e2e)', () => {
       'disabled@example.com',
       'Start12345',
     );
-    const login = await request(app.getHttpServer())
+    const browser = request.agent(app.getHttpServer());
+    await browser
       .post('/api/auth/login')
       .send({ email: 'disabled@example.com', password: 'Start12345' })
       .expect(201);
-    const token = (login.body as LoginBody).accessToken;
 
     await request(app.getHttpServer())
       .patch(`/api/users/${created.body.user.id}/status`)
@@ -228,17 +220,18 @@ describe('Users management API (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email: 'disabled@example.com', password: 'Start12345' })
-      .expect(403)
+      .expect(401)
       .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('USER_INACTIVE');
+        expect((response.body as ErrorBody).code).toBe('INVALID_CREDENTIALS');
       });
 
-    await request(app.getHttpServer())
+    await browser
       .get('/api/imports')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(403)
+      .expect(401)
       .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('USER_INACTIVE');
+        expect((response.body as ErrorBody).code).toBe(
+          'AUTH_SESSION_REVOKED',
+        );
       });
   });
 

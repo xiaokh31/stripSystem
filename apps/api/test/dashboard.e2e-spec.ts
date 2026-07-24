@@ -62,6 +62,49 @@ describe('DashboardController (e2e)', () => {
       .expect(401);
   });
 
+  it('validates review codes and bounded pagination at the HTTP boundary', async () => {
+    await request(app.getHttpServer())
+      .get('/api/dashboard/review?code=NOT_ALLOWLISTED')
+      .set('Authorization', authHeaderFor(authTestUsers.admin))
+      .expect(400);
+    await request(app.getHttpServer())
+      .get(
+        '/api/dashboard/review?code=DESTINATION_CARTON_VOLUME_MISSING&pageSize=101',
+      )
+      .set('Authorization', authHeaderFor(authTestUsers.admin))
+      .expect(400);
+  });
+
+  it('returns only matching review sentinels and enforces direct-route RBAC', async () => {
+    await request(app.getHttpServer())
+      .get(
+        '/api/dashboard/review?code=DESTINATION_CARTON_VOLUME_MISSING&page=1&pageSize=25',
+      )
+      .set('Authorization', authHeaderFor(noPermissionUser))
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get(
+        '/api/dashboard/review?code=DESTINATION_CARTON_VOLUME_MISSING&page=1&pageSize=25',
+      )
+      .set('Authorization', authHeaderFor(authTestUsers.admin))
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      code: 'DESTINATION_CARTON_VOLUME_MISSING',
+      totalItems: 1,
+      page: 1,
+      pageSize: 25,
+    });
+    expect(
+      response.body.items.map((item: { id: string }) => item.id),
+    ).toEqual(['dashboard-match-line']);
+    expect(JSON.stringify(response.body)).not.toContain(
+      'dashboard-non-match-line',
+    );
+    expect(JSON.stringify(response.body)).not.toContain('storagePath');
+  });
+
   it('returns all dashboard sections for ADMIN without localized labels', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/dashboard/operations?range=7d&month=2026-07')
@@ -81,7 +124,7 @@ describe('DashboardController (e2e)', () => {
         remainingPallets: 3,
       },
       loadJobs: {
-        openCount: 2,
+        openCount: 3,
         inProgressCount: 1,
       },
       monthlySummary: {
@@ -180,6 +223,27 @@ describe('DashboardController (e2e)', () => {
 function createDashboardPrismaMock(): Record<string, unknown> {
   const now = new Date('2026-07-11T12:00:00.000Z');
   return {
+    $queryRaw: jest.fn().mockResolvedValue([
+      dashboardContainerRow('container-parsed', 'PARSED-1', 'PARSED', now),
+      dashboardContainerRow(
+        'container-labels',
+        'LABELS-1',
+        'LABELS_GENERATED',
+        now,
+      ),
+      dashboardContainerRow(
+        'container-unloaded',
+        'UNLOADED-1',
+        'UNLOADED',
+        now,
+      ),
+      dashboardContainerRow('container-1', 'CSNU8877228', 'LOADED', now, {
+        activeTotalPallets: 1,
+        effectiveLoadedPallets: 1,
+        loadedPallets: 1,
+        totalPallets: 1,
+      }),
+    ]),
     checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
     importFile: {
       count: jest.fn(async (args) =>
@@ -285,7 +349,21 @@ function createDashboardPrismaMock(): Record<string, unknown> {
       }),
     },
     containerLine: {
-      count: jest.fn(async (args) => (args?.where?.volume === 0 ? 1 : 2)),
+      count: jest.fn().mockResolvedValue(1),
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'dashboard-match-line',
+          lineNo: 7,
+          destinationCode: null,
+          cartons: 12,
+          volume: null,
+          updatedAt: now,
+          container: {
+            id: 'dashboard-match-container',
+            containerNo: 'DASH07-MATCH',
+          },
+        },
+      ]),
     },
     generatedFile: {
       count: jest.fn().mockResolvedValue(1),
@@ -328,5 +406,31 @@ function createDashboardPrismaMock(): Record<string, unknown> {
     correctionFeedback: {
       findMany: jest.fn().mockResolvedValue([]),
     },
+  };
+}
+
+function dashboardContainerRow(
+  containerId: string,
+  containerNo: string,
+  storedStatus: string,
+  createdAt: Date,
+  overrides: Partial<Record<string, number | boolean>> = {},
+): Record<string, unknown> {
+  return {
+    containerId,
+    containerNo,
+    storedStatus,
+    createdAt,
+    totalPallets: 0,
+    activeTotalPallets: 0,
+    effectiveLoadedPallets: 0,
+    loadedPallets: 0,
+    adjustedOutPallets: 0,
+    cancelledPallets: 0,
+    remainingPallets: 0,
+    hasLoadingSignal: false,
+    hasGeneratedLabels: false,
+    hasGeneratedReport: false,
+    ...overrides,
   };
 }

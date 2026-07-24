@@ -72,6 +72,25 @@ export const zhMessages = {
   "Checked at": "检查时间",
   Clear: "清除",
   "Clear filters": "清除筛选",
+  "From operations dashboard": "来自运营中控台",
+  "Filtered results": "筛选结果",
+  "View all": "查看全部",
+  "Unknown dashboard filter": "未知中控台筛选",
+  "Selected record": "已选记录",
+  "Operations review": "运营复核",
+  "Review records": "复核记录",
+  "Background job": "后台任务",
+  "Container line": "柜子明细行",
+  "Pallet event": "托盘事件",
+  "Wage generated file": "工资生成文件",
+  "No matching review records": "没有匹配的复核记录",
+  "Review records could not be loaded": "无法加载复核记录",
+  "Record": "记录",
+  "Updated": "更新时间",
+  "Pagination": "分页",
+  "Duplicate": "重复",
+  "Invalid": "无效",
+  "Needs review": "需要复核",
   "Click upload to start": "点击上传开始",
   Close: "关闭",
   Closed: "已关闭",
@@ -723,6 +742,8 @@ export const zhMessages = {
   "The container detail could not be loaded.": "无法加载柜子详情。",
   "The container list could not be loaded.": "无法加载柜子列表。",
   "The file could not be uploaded.": "文件无法上传。",
+  "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.":
+    "该文件超过应用的 50 MB 上传限制。请选择较小的 .xlsx 文件。",
   "File uploads must be started from a browser session.":
     "文件上传必须从浏览器会话启动。",
   "The import could not be deleted.": "导入无法删除。",
@@ -2328,4 +2349,39 @@ export const zhMessages = {
     "考勤删除审计数据不一致，请联系管理员。",
   "This employee has no active attendance rows. Review deletion history below.":
     "该员工已无当前考勤行，请在下方查看删除历史。",
+  "Delete attendance import": "删除考勤导入",
+  "i18n.workHours.deleteImportAria": "删除考勤导入 {filename}",
+  "Loading deletion impact.": "正在加载删除影响。",
+  "Enter at least 5 characters for the deletion reason.":
+    "删除原因至少需要 5 个字符。",
+  "Deleting attendance import.": "正在删除考勤导入。",
+  "Remove this attendance import from active settlement?":
+    "将此考勤导入移出当前结算？",
+  "This batch will leave active settlement and downloads. The original workbook, parsed rows, generated files, jobs, and audit evidence remain preserved.":
+    "该批次将退出当前结算和下载；原始工作簿、解析行、生成文件、任务及审计证据仍会保留。",
+  "Attendance rows": "考勤行",
+  "Employees and days": "员工与天数",
+  "i18n.workHours.importDeletionRows":
+    "当前 {active} 行 · 先前已删除 {deleted} 行",
+  "i18n.workHours.importDeletionPeopleDays":
+    "{employees} 名员工 · {days} 天",
+  "i18n.workHours.deletionReasonLength": "{count}/500 个字符 · 最少 5 个",
+  "Deleted attendance imports": "已删除的考勤导入",
+  "i18n.workHours.importDeletionHistoryCount":
+    "{count} 条不可变导入删除事件",
+  "Audit history only": "仅供审计查看",
+  "Attendance import deletion history could not be loaded":
+    "无法加载考勤导入删除历史",
+  "No attendance imports have been deleted.": "尚无已删除的考勤导入。",
+  "Attendance import deleted and audit history recorded.":
+    "考勤导入已删除并记录审计历史。",
+  "This attendance import was deleted. Showing the next active import.":
+    "该考勤导入已删除，现显示下一条有效导入。",
+  "Attendance import deletion audit is inconsistent. Contact an administrator.":
+    "考勤导入删除审计数据不一致，请联系管理员。",
+  "Refreshing session": "正在刷新会话",
+  "Too many sign-in attempts": "登录尝试次数过多",
+  "Wait a moment, then try signing in again.": "请稍候再尝试登录。",
+  "Sign-in protection is temporarily unavailable. Try again later.":
+    "登录保护服务暂时不可用，请稍后再试。",
 } satisfies Record<MessageKey, string>;

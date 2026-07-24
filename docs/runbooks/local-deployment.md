@@ -140,7 +140,13 @@ NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
 WEB_SERVER_API_BASE_URL=http://api:4000/api
 WEB_API_PROXY_BASE_URL=http://api:4000/api
 JWT_SECRET=replace-with-long-random-secret
-JWT_EXPIRES_IN_SECONDS=34560000
+JWT_EXPIRES_IN_SECONDS=900
+BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
+AUTH_RATE_LIMIT_MAX=10
+AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+AUTH_RATE_LIMIT_FAIL_CLOSED=false
 NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
 NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
 NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=157680000
@@ -154,19 +160,22 @@ strong values before starting services. The compose file builds the API
 `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
 Do not use the example values as production credentials.
 
-`JWT_EXPIRES_IN_SECONDS` controls both the API JWT `exp` and the Web
-`bestar_auth_token` cookie `Max-Age`. The default is `34560000` seconds
-(400 days) so office browsers stay signed in unless the user logs out, clears
-cookies, the account is disabled, or the configured token lifetime is reached.
-Browsers may cap very long persistent cookies, and shorter values can be set
-for stricter workstation security.
+`JWT_EXPIRES_IN_SECONDS` is now the short lifetime for legacy/non-browser JWTs;
+it no longer provides browser persistence. Browser Web login uses a 15-minute
+HttpOnly access cookie plus a rotating opaque HttpOnly refresh/session cookie.
+`BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS` and
+`BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS` are independently configurable
+up to 400 days. Logout, administrator revoke, password reset and account
+deactivation revoke the server-side refresh family. Redis-backed login,
+browser refresh and password-reset limits are shared across API instances;
+local mode can use its strict in-process fallback if Redis is temporarily
+unavailable, while public mode is configured to fail closed.
 
 Native sessions use separate settings: a 15-minute access token, a rolling
-400-day idle window capped at five years, and a per-process refresh rate limit
-of 10 attempts per 60 seconds by default. Refresh tokens rotate once and only
-their SHA-256 hashes are stored. Changing the browser JWT lifetime does not
-change the Native session policy. Multi-instance API deployment must replace
-the local in-memory rate limiter with a shared store before adding replicas.
+400-day idle window capped at five years, and their existing refresh limit of
+10 attempts per 60 seconds by default. Refresh tokens rotate once and only
+their SHA-256 hashes are stored. Changing Browser session settings does not
+change the Native session policy.
 
 `TZ`, `OPERATIONAL_TIME_ZONE`, and `NEXT_PUBLIC_OPERATIONAL_TIME_ZONE` must use
 an IANA timezone name. `America/Edmonton` is the Calgary/Edmonton warehouse
@@ -235,6 +244,26 @@ Mobile:    http://<server-lan-ip>/mobile/load-jobs
 Do not use `http://127.0.0.1:3000` or `http://127.0.0.1:4000` for the standard
 local workflow. Those are internal service ports in this project and can hide
 nginx or browser routing problems.
+
+## Cloudflare Named-Tunnel Overlay
+
+PUBLIC-DEPLOY-02 adds a dedicated overlay without replacing this canonical
+stack:
+
+```bash
+scripts/verify-cloudflare-tunnel-contract.sh
+scripts/test-cloudflare-tunnel-contract.sh
+scripts/verify-cloudflare-tunnel-local-integration.sh
+```
+
+Use `scripts/cloudflare-tunnel-local.sh` for preflight/start/stop/status/logs
+after the approved named tunnel token exists. Stopping that connector must not
+stop this local Compose stack. nginx remains reachable on the approved LAN,
+while PostgreSQL, Redis and the internal API have no host publication in the
+public profile. See
+[public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md)
+for secret ownership, Access/MFA, cache, backup, firewall and external browser
+gates.
 
 ## Initialize Accounts
 

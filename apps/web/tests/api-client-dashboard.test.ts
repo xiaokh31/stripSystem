@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getOperationsDashboard } from "../src/lib/api-client";
+import {
+  getOperationsDashboard,
+  getOperationsReview,
+} from "../src/lib/api-client";
 
 test("getOperationsDashboard calls the operations dashboard endpoint", async () => {
   const urls: string[] = [];
@@ -41,4 +44,35 @@ test("getOperationsDashboard calls the operations dashboard endpoint", async () 
     "http://api.test/api/dashboard/operations?range=7d&month=2026-07",
   );
   assert.equal(dashboard.range, "7d");
+});
+
+test("getOperationsReview sends only allowlisted review query fields", async () => {
+  const urls: string[] = [];
+  await getOperationsReview(
+    {
+      code: "SCAN_EXCEPTIONS",
+      page: 2,
+      pageSize: 25,
+      recordId: "event-1",
+    },
+    {
+      authToken: "token",
+      baseUrl: "http://api.test/api",
+      fetcher: async (input) => {
+        urls.push(String(input));
+        return Response.json({
+          code: "SCAN_EXCEPTIONS",
+          items: [],
+          page: 2,
+          pageSize: 25,
+          totalItems: 0,
+          totalPages: 1,
+        });
+      },
+    },
+  );
+  assert.equal(
+    urls[0],
+    "http://api.test/api/dashboard/review?code=SCAN_EXCEPTIONS&page=2&pageSize=25&recordId=event-1",
+  );
 });

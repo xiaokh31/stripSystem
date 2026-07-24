@@ -112,7 +112,10 @@ test("brand logo variants keep native geometry and explicit alt behavior", () =>
     assert.match(meaningfulHtml, new RegExp(`data-brand-logo="${variant}"`));
     assert.doesNotMatch(meaningfulHtml, /object-fit:cover|filter:/);
     if (variant === "onDark") {
-      assert.match(meaningfulHtml, /class="brand-logo-transparent-on-dark"/);
+      assert.match(
+        meaningfulHtml,
+        /class="brand-logo-transparent-on-dark brand-logo-fluid brand-logo-wordmark"/,
+      );
     } else {
       assert.doesNotMatch(meaningfulHtml, /brand-logo-transparent-on-dark/);
     }

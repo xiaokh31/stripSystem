@@ -5,6 +5,7 @@ import {
   AttendanceUploadPanel,
 } from "@/components/wage/work-hours-actions";
 import { AttendanceRowDeleteButton } from "@/components/wage/attendance-row-deletion";
+import { AttendanceImportDeleteButton } from "@/components/wage/attendance-import-deletion";
 import {
   attendanceApiErrorMessage,
   formatHours,
@@ -26,10 +27,12 @@ import {
 import {
   ApiClientError,
   getAttendanceParseResult,
+  getAttendanceImportDeletionHistory,
   getAttendanceRowHistory,
   listAttendanceImportFiles,
   listAttendanceImports,
   type AttendanceImportListResponse,
+  type AttendanceImportDeletionHistoryResponse,
   type AttendanceImportResponse,
   type AttendanceParseResultResponse,
   type AttendanceRowHistoryResponse,
@@ -40,12 +43,19 @@ import { getServerLocale } from "@/lib/i18n/server";
 import { createTranslator } from "@/lib/i18n/translator";
 import {
   canGenerateWorkHours,
+  canDeleteAttendanceImports,
   canDeleteAttendanceRows,
   canParseWorkHours,
   canReviewWorkHours,
   canUploadWorkHours,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import {
+  appendDashboardDrilldownContext,
+  firstValue,
+  normalizeDashboardDrilldownContext,
+} from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +64,10 @@ const PAGE_SIZE = 25;
 interface WorkHoursSearchParams {
   attendanceImportId?: string | string[];
   employeeKey?: string | string[];
+  notice?: string | string[];
+  parseStatus?: string | string[];
+  from?: string | string[];
+  code?: string | string[];
 }
 
 type WorkHoursState =
@@ -63,10 +77,13 @@ type WorkHoursState =
       filesError: ApiClientError | null;
       history: AttendanceRowHistoryResponse;
       historyError: ApiClientError | null;
+      importDeletionHistory: AttendanceImportDeletionHistoryResponse;
+      importDeletionHistoryError: ApiClientError | null;
       imports: AttendanceImportListResponse;
       listError: null;
       parseResult: AttendanceParseResultResponse | null;
       selectedImportId: string | null;
+      staleRequestedImport: boolean;
     }
   | {
       detailError: null;
@@ -74,15 +91,19 @@ type WorkHoursState =
       filesError: null;
       history: AttendanceRowHistoryResponse;
       historyError: null;
+      importDeletionHistory: AttendanceImportDeletionHistoryResponse;
+      importDeletionHistoryError: ApiClientError | null;
       imports: null;
       listError: ApiClientError;
       parseResult: null;
       selectedImportId: null;
+      staleRequestedImport: false;
     };
 
 interface WorkHoursPermissions {
   canGenerate: boolean;
   canDelete: boolean;
+  canDeleteImport: boolean;
   canParse: boolean;
   canRead: boolean;
   canUpload: boolean;
@@ -169,6 +190,133 @@ function AttendanceDeletionHistory({
   );
 }
 
+function AttendanceImportDeletionHistory({
+  history,
+  historyError,
+  locale,
+}: {
+  history: AttendanceImportDeletionHistoryResponse;
+  historyError: ApiClientError | null;
+  locale: Locale;
+}) {
+  const { format, t } = createTranslator(locale);
+  return (
+    <section
+      aria-labelledby="attendance-import-history-heading"
+      className="border border-zinc-200 bg-white p-5 shadow-sm"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2
+            className="text-base font-semibold text-zinc-950"
+            id="attendance-import-history-heading"
+          >
+            {t("Deleted attendance imports")}
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            {format("i18n.workHours.importDeletionHistoryCount", {
+              count: history.total,
+            })}
+          </p>
+        </div>
+        <span className="border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700">
+          {t("Audit history only")}
+        </span>
+      </div>
+      {historyError ? (
+        <div className="mt-4">
+          <ApiErrorPanel
+            error={historyError}
+            locale={locale}
+            title="Attendance import deletion history could not be loaded"
+          />
+        </div>
+      ) : history.items.length === 0 ? (
+        <p className="mt-4 border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600">
+          {t("No attendance imports have been deleted.")}
+        </p>
+      ) : (
+        <div
+          aria-label={t("Deleted attendance imports")}
+          className="mt-4 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 lg:grid-cols-2"
+          role="region"
+          tabIndex={0}
+        >
+          {history.items.map((event) => (
+            <article
+              className="min-w-0 border border-red-200 bg-red-50 p-4"
+              key={event.id}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 break-all font-semibold text-zinc-950">
+                  {event.originalFilename}
+                </h3>
+                <span className="shrink-0 text-xs text-zinc-600">
+                  {formatDateTime(event.occurredAt, locale)}
+                </span>
+              </div>
+              <p className="mt-2 break-words text-sm text-zinc-700">
+                {event.reason}
+              </p>
+              <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                <HistoryFact
+                  label={t("Period")}
+                  value={
+                    event.settlementMonth ??
+                    `${event.periodStart ?? "-"} ${t("to")} ${event.periodEnd ?? "-"}`
+                  }
+                />
+                <HistoryFact
+                  label={t("Deleted by")}
+                  value={event.actor.displayLabel}
+                />
+                <HistoryFact
+                  label={t("Attendance rows")}
+                  value={format("i18n.workHours.importDeletionRows", {
+                    active: event.activeRowCount,
+                    deleted: event.deletedRowCount,
+                  })}
+                />
+                <HistoryFact
+                  label={t("Generated files")}
+                  value={String(event.generatedFiles.length)}
+                />
+              </dl>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function HistoryFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-zinc-500">{label}</dt>
+      <dd className="break-words font-medium text-zinc-800">{value}</dd>
+    </div>
+  );
+}
+
+function WorkHoursNotice({
+  locale,
+  text,
+}: {
+  locale: Locale;
+  text: MessageKey;
+}) {
+  return (
+    <section
+      aria-live="polite"
+      className="border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-950"
+      role="status"
+    >
+      {createTranslator(locale).t(text)}
+    </section>
+  );
+}
+
 export default async function WorkHoursPage({
   searchParams,
 }: {
@@ -180,23 +328,54 @@ export default async function WorkHoursPage({
   const permissions: WorkHoursPermissions = {
     canGenerate: canGenerateWorkHours(currentUser),
     canDelete: canDeleteAttendanceRows(currentUser),
+    canDeleteImport: canDeleteAttendanceImports(currentUser),
     canParse: canParseWorkHours(currentUser),
     canRead: canReviewWorkHours(currentUser),
     canUpload: canUploadWorkHours(currentUser),
   };
   if (!permissions.canRead) {
     return (
-      <WorkHoursPageShell locale={locale}>
+      <WorkHoursPageShell href="/work-hours" locale={locale}>
         <PermissionRequiredPanel locale={locale} />
       </WorkHoursPageShell>
     );
   }
 
-  const state = await loadWorkHoursState(firstSearchValue(params.attendanceImportId));
+  const parseStatus = normalizeAttendanceParseStatus(
+    firstValue(params.parseStatus),
+  );
+  const dashboardContext = normalizeDashboardDrilldownContext(params);
+  const state = await loadWorkHoursState(
+    firstSearchValue(params.attendanceImportId),
+    parseStatus,
+  );
 
   return (
-    <WorkHoursPageShell locale={locale}>
+    <WorkHoursPageShell
+      href={workHoursHref({
+        attendanceImportId: state.selectedImportId ?? undefined,
+        context: dashboardContext,
+        parseStatus,
+      })}
+      locale={locale}
+    >
+      {dashboardContext ? (
+        <DashboardFilterContext
+          clearHref="/work-hours"
+          context={dashboardContext}
+          locale={locale}
+        />
+      ) : null}
       <AttendanceUploadPanel canUpload={permissions.canUpload} />
+      {firstSearchValue(params.notice) === "import-deleted" ? (
+        <WorkHoursNotice locale={locale} text="Attendance import deleted and audit history recorded." />
+      ) : null}
+      {!state.listError && state.staleRequestedImport ? (
+        <WorkHoursNotice
+          locale={locale}
+          text="This attendance import was deleted. Showing the next active import."
+        />
+      ) : null}
 
       {state.listError ? (
         <ApiErrorPanel
@@ -208,7 +387,10 @@ export default async function WorkHoursPage({
         <>
           <AttendanceImportTable
             imports={state.imports}
+            canDeleteImport={permissions.canDeleteImport}
+            context={dashboardContext}
             locale={locale}
+            parseStatus={parseStatus}
             selectedImportId={state.selectedImportId}
           />
           {state.detailError ? (
@@ -221,6 +403,7 @@ export default async function WorkHoursPage({
             <AttendanceDetail
               canGenerate={permissions.canGenerate}
               canDelete={permissions.canDelete}
+              canDeleteImport={permissions.canDeleteImport}
               canParse={permissions.canParse}
               files={state.files}
               filesError={state.filesError}
@@ -237,6 +420,11 @@ export default async function WorkHoursPage({
               )}
             </section>
           )}
+          <AttendanceImportDeletionHistory
+            history={state.importDeletionHistory}
+            historyError={state.importDeletionHistoryError}
+            locale={locale}
+          />
         </>
       )}
     </WorkHoursPageShell>
@@ -245,9 +433,11 @@ export default async function WorkHoursPage({
 
 function WorkHoursPageShell({
   children,
+  href,
   locale,
 }: {
   children: ReactNode;
+  href: string;
   locale: Locale;
 }) {
   const { t } = createTranslator(locale);
@@ -271,7 +461,7 @@ function WorkHoursPageShell({
           </div>
           <Link
             className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-            href="/work-hours"
+            href={href}
           >
             {t("Refresh")}
           </Link>
@@ -301,32 +491,63 @@ function PermissionRequiredPanel({ locale }: { locale: Locale }) {
 
 async function loadWorkHoursState(
   requestedImportId: string | null,
+  parseStatus?: string,
 ): Promise<WorkHoursState> {
   const apiOptions = await getServerApiOptions();
   try {
     const imports = await listAttendanceImports(
-      { limit: PAGE_SIZE, offset: 0 },
+      { limit: PAGE_SIZE, offset: 0, parseStatus },
       apiOptions,
     );
-    const selectedImportId = requestedImportId ?? imports.items[0]?.id ?? null;
+    const deletionHistoryPromise = getAttendanceImportDeletionHistory(
+      { limit: 25, offset: 0 },
+      apiOptions,
+    );
+    const requestedIsActive = Boolean(
+      requestedImportId &&
+        imports.items.some((item) => item.id === requestedImportId),
+    );
+    const staleRequestedImport = Boolean(
+      requestedImportId && !requestedIsActive,
+    );
+    const selectedImportId = requestedIsActive
+      ? requestedImportId
+      : imports.items[0]?.id ?? null;
     if (!selectedImportId) {
+      const deletionHistoryResult = await Promise.allSettled([
+        deletionHistoryPromise,
+      ]);
+      const deletionHistory = deletionHistoryResult[0];
       return {
         detailError: null,
         files: [],
         filesError: null,
         history: { items: [], limit: 50, offset: 0, total: 0 },
         historyError: null,
+        importDeletionHistory:
+          deletionHistory.status === "fulfilled"
+            ? deletionHistory.value
+            : { items: [], limit: 25, offset: 0, total: 0 },
+        importDeletionHistoryError:
+          deletionHistory.status === "rejected"
+            ? toApiClientError(
+                deletionHistory.reason,
+                "Attendance import deletion history failed.",
+              )
+            : null,
         imports,
         listError: null,
         parseResult: null,
         selectedImportId: null,
+        staleRequestedImport,
       };
     }
 
-    const [parseResult, filesResult, historyResult] = await Promise.allSettled([
+    const [parseResult, filesResult, historyResult, deletionHistoryResult] = await Promise.allSettled([
       getAttendanceParseResult(selectedImportId, apiOptions),
       listAttendanceImportFiles(selectedImportId, apiOptions),
       getAttendanceRowHistory(selectedImportId, { limit: 50, offset: 0 }, apiOptions),
+      deletionHistoryPromise,
     ]);
 
     return {
@@ -347,10 +568,22 @@ async function loadWorkHoursState(
         historyResult.status === "rejected"
           ? toApiClientError(historyResult.reason, "Attendance deletion history failed.")
           : null,
+      importDeletionHistory:
+        deletionHistoryResult.status === "fulfilled"
+          ? deletionHistoryResult.value
+          : { items: [], limit: 25, offset: 0, total: 0 },
+      importDeletionHistoryError:
+        deletionHistoryResult.status === "rejected"
+          ? toApiClientError(
+              deletionHistoryResult.reason,
+              "Attendance import deletion history failed.",
+            )
+          : null,
       imports,
       listError: null,
       parseResult: parseResult.status === "fulfilled" ? parseResult.value : null,
       selectedImportId,
+      staleRequestedImport,
     };
   } catch (error) {
     return {
@@ -359,21 +592,64 @@ async function loadWorkHoursState(
       filesError: null,
       history: { items: [], limit: 50, offset: 0, total: 0 },
       historyError: null,
+      importDeletionHistory: { items: [], limit: 25, offset: 0, total: 0 },
+      importDeletionHistoryError: null,
       imports: null,
       listError: toApiClientError(error, "Attendance imports failed."),
       parseResult: null,
       selectedImportId: null,
+      staleRequestedImport: false,
     };
   }
 }
 
+function normalizeAttendanceParseStatus(
+  value: string | undefined,
+): string | undefined {
+  return [
+    "NOT_PARSED",
+    "PARSING",
+    "PARSED",
+    "REVIEW_REQUIRED",
+    "WARNING",
+    "ERROR",
+  ].includes(value ?? "")
+    ? value
+    : undefined;
+}
+
+function workHoursHref({
+  attendanceImportId,
+  context,
+  parseStatus,
+}: {
+  attendanceImportId?: string;
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
+  parseStatus?: string;
+}): string {
+  const params = new URLSearchParams();
+  if (attendanceImportId) {
+    params.set("attendanceImportId", attendanceImportId);
+  }
+  if (parseStatus) params.set("parseStatus", parseStatus);
+  appendDashboardDrilldownContext(params, context);
+  const query = params.toString();
+  return query ? `/work-hours?${query}` : "/work-hours";
+}
+
 function AttendanceImportTable({
+  canDeleteImport,
+  context,
   imports,
   locale,
+  parseStatus,
   selectedImportId,
 }: {
+  canDeleteImport: boolean;
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
   imports: AttendanceImportListResponse;
   locale: Locale;
+  parseStatus?: string;
   selectedImportId: string | null;
 }) {
   const { format, t } = createTranslator(locale);
@@ -412,10 +688,10 @@ function AttendanceImportTable({
         <p className="text-xs font-medium text-zinc-500">{limitText}</p>
       </div>
       <div className="mt-5 max-w-full overflow-x-auto">
-        <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[1080px] table-fixed border-collapse text-left text-sm">
           <thead>
             <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
-              <th className="w-[28%] px-3 py-3 font-semibold">{t("File")}</th>
+              <th className="w-[24%] px-3 py-3 font-semibold">{t("File")}</th>
               <th className="w-[13%] px-3 py-3 font-semibold">{t("Status")}</th>
               <th className="w-[15%] px-3 py-3 font-semibold">{t("Period")}</th>
               <th className="w-[10%] px-3 py-3 text-right font-semibold">
@@ -425,12 +701,18 @@ function AttendanceImportTable({
                 {t("Issues")}
               </th>
               <th className="w-[15%] px-3 py-3 font-semibold">{t("Uploaded")}</th>
-              <th className="w-[10%] px-3 py-3 font-semibold">{t("Action")}</th>
+              <th className="w-[14%] px-3 py-3 font-semibold">{t("Action")}</th>
             </tr>
           </thead>
           <tbody>
             {imports.items.map((item) => (
               <AttendanceImportRow
+                canDeleteImport={canDeleteImport}
+                href={workHoursHref({
+                  attendanceImportId: item.id,
+                  context,
+                  parseStatus,
+                })}
                 importFile={item}
                 isSelected={item.id === selectedImportId}
                 key={item.id}
@@ -445,10 +727,14 @@ function AttendanceImportTable({
 }
 
 function AttendanceImportRow({
+  canDeleteImport,
+  href,
   importFile,
   isSelected,
   locale,
 }: {
+  canDeleteImport: boolean;
+  href: string;
   importFile: AttendanceImportResponse;
   isSelected: boolean;
   locale: Locale;
@@ -492,16 +778,25 @@ function AttendanceImportRow({
         {formatDateTime(importFile.createdAt, locale)}
       </td>
       <td className="px-3 py-4">
-        <Link
+        <div className="flex items-center gap-2">
+          <Link
           className={`inline-flex min-h-9 items-center border px-3 text-xs font-semibold uppercase ${
             isSelected
               ? "border-teal-700 bg-teal-700 text-white"
               : "border-teal-700 bg-white text-teal-800 hover:bg-teal-50"
           }`}
-          href={`/work-hours?attendanceImportId=${encodeURIComponent(importFile.id)}`}
-        >
-          {isSelected ? t("Selected") : t("Review")}
-        </Link>
+          href={href}
+          >
+            {isSelected ? t("Selected") : t("Review")}
+          </Link>
+          {canDeleteImport ? (
+            <AttendanceImportDeleteButton
+              attendanceImport={importFile}
+              compact
+              isSelected={isSelected}
+            />
+          ) : null}
+        </div>
       </td>
     </tr>
   );
@@ -509,6 +804,7 @@ function AttendanceImportRow({
 
 function AttendanceDetail({
   canDelete,
+  canDeleteImport,
   canGenerate,
   canParse,
   files,
@@ -520,6 +816,7 @@ function AttendanceDetail({
   selectedEmployeeKey,
 }: {
   canDelete: boolean;
+  canDeleteImport: boolean;
   canGenerate: boolean;
   canParse: boolean;
   files: WageGeneratedFileResponse[];
@@ -559,11 +856,19 @@ function AttendanceDetail({
                 })}
               </p>
             </div>
-            <AttendanceImportActions
-              attendanceImport={importFile}
-              canGenerate={canGenerate}
-              canParse={canParse}
-            />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <AttendanceImportActions
+                attendanceImport={importFile}
+                canGenerate={canGenerate}
+                canParse={canParse}
+              />
+              {canDeleteImport ? (
+                <AttendanceImportDeleteButton
+                  attendanceImport={importFile}
+                  isSelected
+                />
+              ) : null}
+            </div>
           </div>
           {issues.length > 0 ? (
             <div className="mt-4 border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">

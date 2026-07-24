@@ -3,20 +3,23 @@ import { ConfigService } from '@nestjs/config';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { PERMISSIONS, ROLE_CODES } from '../auth/permissions';
 import {
-  AsyncJobStatus,
   ContainerStatus,
-  GeneratedFileStatus,
-  GeneratedFileType,
   ImportStatus,
   LoadJobStatus,
-  PalletEventType,
   PalletStatus,
   ParseStatus,
 } from '../generated/prisma/enums';
 import {
+  operationalDayRangeUtc,
   operationalLocalDate,
   operationalTimeZone,
 } from '../common/operational-time';
+import { ContainerIndexService } from '../corrections/container-index.service';
+import { importListWhere } from '../imports/import-list-filter';
+import { attendanceImportListWhere } from '../attendance/attendance-import-list-filter';
+import { loadJobListWhere } from '../load-jobs/load-job-list-filter';
+import { OperationsReviewService } from './operations-review.service';
+import { unloadingWageSettlementWhere } from '../unloading-wage/unloading-wage-settlement-filter';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   DashboardContainerLifecycleDto,
@@ -50,37 +53,37 @@ const CONTAINER_LIFECYCLE_STAGES = [
   {
     code: 'UPLOADED',
     labelKey: 'dashboard.lifecycle.uploaded',
-    href: '/imports',
+    href: '/imports?importStatus=UPLOADED&parseStatus=NOT_PARSED&from=dashboard&code=UPLOADED',
   },
   {
     code: ContainerStatus.PARSED,
     labelKey: 'dashboard.lifecycle.parsed',
-    href: '/containers',
+    href: '/containers?lifecycleStatus=PARSED&from=dashboard&code=PARSED',
   },
   {
     code: ContainerStatus.REPORT_GENERATED,
     labelKey: 'dashboard.lifecycle.reportGenerated',
-    href: '/containers',
+    href: '/containers?lifecycleStatus=REPORT_GENERATED&from=dashboard&code=REPORT_GENERATED',
   },
   {
     code: ContainerStatus.LABELS_GENERATED,
     labelKey: 'dashboard.lifecycle.labelsGenerated',
-    href: '/containers',
+    href: '/containers?lifecycleStatus=LABELS_GENERATED&from=dashboard&code=LABELS_GENERATED',
   },
   {
     code: ContainerStatus.UNLOADED,
     labelKey: 'dashboard.lifecycle.unloaded',
-    href: '/unloading-summary',
+    href: '/containers?lifecycleStatus=UNLOADED&from=dashboard&code=UNLOADED',
   },
   {
     code: ContainerStatus.LOADING_IN_PROGRESS,
     labelKey: 'dashboard.lifecycle.loadingInProgress',
-    href: '/load-jobs',
+    href: '/containers?lifecycleStatus=LOADING_IN_PROGRESS&from=dashboard&code=LOADING_IN_PROGRESS',
   },
   {
     code: ContainerStatus.LOADED,
     labelKey: 'dashboard.lifecycle.deliveredToDestination',
-    href: '/reports/inventory?status=LOADED',
+    href: '/containers?lifecycleStatus=LOADED&from=dashboard&code=LOADED',
   },
 ] as const;
 
@@ -89,13 +92,6 @@ interface InventoryDestinationRecord {
   pallets: Array<{
     status: string;
   }>;
-}
-
-interface ContainerStatusGroupRecord {
-  status: string;
-  _count: {
-    _all: number;
-  };
 }
 
 interface LoadJobRecord {
@@ -172,6 +168,8 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly containerIndexService: ContainerIndexService,
+    private readonly operationsReviewService: OperationsReviewService,
   ) {}
 
   async operations(
@@ -235,23 +233,22 @@ export class DashboardService {
           'IMPORTS_AWAITING_PARSE',
           'dashboard.workQueue.importsAwaitingParse',
           await this.prisma.importFile.count({
-            where: {
-              deletedAt: null,
+            where: importListWhere({
               importStatus: ImportStatus.UPLOADED,
               parseStatus: ParseStatus.NOT_PARSED,
-            },
+            }),
           }),
           'attention',
-          '/imports',
+          '/imports?importStatus=UPLOADED&parseStatus=NOT_PARSED&from=dashboard&code=IMPORTS_AWAITING_PARSE',
         ),
         this.queueItem(
           'IMPORTS_PARSE_FAILED',
           'dashboard.workQueue.importsParseFailed',
           await this.prisma.importFile.count({
-            where: { deletedAt: null, parseStatus: ParseStatus.ERROR },
+            where: importListWhere({ parseStatus: ParseStatus.ERROR }),
           }),
           'blocked',
-          '/imports',
+          '/imports?parseStatus=ERROR&from=dashboard&code=IMPORTS_PARSE_FAILED',
         ),
       );
     }
@@ -261,53 +258,35 @@ export class DashboardService {
         this.queueItem(
           'CONTAINERS_MISSING_REPORT',
           'dashboard.workQueue.containersMissingReport',
-          await this.prisma.container.count({
-            where: {
-              status: { not: ContainerStatus.ERROR },
-              generatedFiles: {
-                none: {
-                  fileType: GeneratedFileType.EXCEL_REPORT,
-                  status: GeneratedFileStatus.GENERATED,
-                },
-              },
-            },
-          }),
+          (
+            await this.containerIndexService.list({
+              review: 'MISSING_REPORT',
+              sort: 'createdAt',
+              direction: 'desc',
+            })
+          ).items.length,
           'attention',
-          '/containers',
+          '/containers?review=MISSING_REPORT&from=dashboard&code=CONTAINERS_MISSING_REPORT',
         ),
         this.queueItem(
           'CONTAINERS_MISSING_LABELS',
           'dashboard.workQueue.containersMissingLabels',
-          await this.prisma.container.count({
-            where: {
-              status: {
-                in: [
-                  ContainerStatus.REPORT_GENERATED,
-                  ContainerStatus.CORRECTED,
-                  ContainerStatus.PARSED,
-                ],
-              },
-              generatedFiles: {
-                none: {
-                  fileType: GeneratedFileType.PALLET_LABEL_PDF,
-                  status: GeneratedFileStatus.GENERATED,
-                },
-              },
-            },
-          }),
+          (
+            await this.containerIndexService.list({
+              review: 'MISSING_LABELS',
+              sort: 'createdAt',
+              direction: 'desc',
+            })
+          ).items.length,
           'attention',
-          '/containers',
+          '/containers?review=MISSING_LABELS&from=dashboard&code=CONTAINERS_MISSING_LABELS',
         ),
       );
     }
 
     if (this.hasAny(permissions, [PERMISSIONS.loadJobs.read])) {
       const openLoadJobs = await this.prisma.loadJob.count({
-        where: {
-          status: {
-            in: [LoadJobStatus.PLANNED, LoadJobStatus.IN_PROGRESS],
-          },
-        },
+        where: loadJobListWhere({ scope: 'OPEN' }),
       });
       items.push(
         this.queueItem(
@@ -315,7 +294,7 @@ export class DashboardService {
           'dashboard.workQueue.openLoadJobs',
           openLoadJobs,
           openLoadJobs > 0 ? 'attention' : 'normal',
-          '/load-jobs',
+          '/load-jobs?scope=OPEN&from=dashboard&code=OPEN_LOAD_JOBS',
         ),
       );
     }
@@ -327,7 +306,7 @@ export class DashboardService {
           'dashboard.workQueue.unloadingCompletionDateMissing',
           await this.missingCompletionReviewCount(),
           'blocked',
-          '/unloading-summary',
+          '/operations/review?code=UNLOADING_COMPLETION_DATE_MISSING&from=dashboard',
         ),
       );
     }
@@ -338,10 +317,12 @@ export class DashboardService {
           'ATTENDANCE_IMPORTS_NEED_PARSE',
           'dashboard.workQueue.attendanceImportsNeedParse',
           await this.prisma.attendanceImport.count({
-            where: { parseStatus: ParseStatus.NOT_PARSED },
+            where: attendanceImportListWhere({
+              parseStatus: ParseStatus.NOT_PARSED,
+            }),
           }),
           'attention',
-          '/work-hours',
+          '/work-hours?parseStatus=NOT_PARSED&from=dashboard&code=ATTENDANCE_IMPORTS_NEED_PARSE',
         ),
       );
     }
@@ -364,35 +345,33 @@ export class DashboardService {
       return { totalContainers: 0, stages: [] };
     }
 
-    const [uploadedImports, totalContainers, groupedContainers] =
+    const [uploadedImports, containerIndex] =
       await Promise.all([
         this.canReadImports(permissions)
           ? this.prisma.importFile.count({
-              where: {
-                deletedAt: null,
+              where: importListWhere({
                 importStatus: ImportStatus.UPLOADED,
                 parseStatus: ParseStatus.NOT_PARSED,
-              },
+              }),
             })
           : 0,
         this.hasAny(permissions, [PERMISSIONS.containers.read])
-          ? this.prisma.container.count()
-          : 0,
-        this.hasAny(permissions, [PERMISSIONS.containers.read])
-          ? this.prisma.container.groupBy({
-              by: ['status'],
-              _count: { _all: true },
+          ? this.containerIndexService.list({
+              sort: 'createdAt',
+              direction: 'desc',
             })
-          : [],
+          : { items: [] },
       ]);
-    const groupedContainerRecords =
-      groupedContainers as ContainerStatusGroupRecord[];
-    const statusCounts = new Map<string, number>(
-      groupedContainerRecords.map((row) => [row.status, row._count._all]),
-    );
+    const statusCounts = new Map<string, number>();
+    for (const container of containerIndex.items) {
+      statusCounts.set(
+        container.status,
+        (statusCounts.get(container.status) ?? 0) + 1,
+      );
+    }
 
     return {
-      totalContainers,
+      totalContainers: containerIndex.items.length,
       stages: CONTAINER_LIFECYCLE_STAGES.map((stage) => ({
         code: stage.code,
         labelKey: stage.labelKey,
@@ -449,11 +428,18 @@ export class DashboardService {
       byDestination.set(destination.destinationCode, {
         destinationCode: destination.destinationCode,
         ...stats,
+        href: `/inventory?scope=REMAINING&destinationCode=${encodeURIComponent(destination.destinationCode)}&from=dashboard&code=INVENTORY_DESTINATION_REMAINING`,
       });
     }
 
     return {
       ...totals,
+      hrefs: {
+        active: '/inventory?scope=ACTIVE&from=dashboard&code=INVENTORY_ACTIVE',
+        loaded: '/inventory?scope=LOADED&from=dashboard&code=INVENTORY_LOADED',
+        remaining:
+          '/inventory?scope=REMAINING&from=dashboard&code=INVENTORY_REMAINING',
+      },
       topDestinations: [...byDestination.values()]
         .sort(
           (left, right) =>
@@ -473,15 +459,14 @@ export class DashboardService {
 
     const [openCount, inProgressCount, dueTodayCount, activeJobs] =
       await Promise.all([
-        this.prisma.loadJob.count({ where: { status: LoadJobStatus.PLANNED } }),
         this.prisma.loadJob.count({
-          where: { status: LoadJobStatus.IN_PROGRESS },
+          where: loadJobListWhere({ scope: 'OPEN' }),
         }),
         this.prisma.loadJob.count({
-          where: {
-            status: { not: LoadJobStatus.CANCELLED },
-            scheduledDepartureAt: this.todayRange(),
-          },
+          where: loadJobListWhere({ scope: 'IN_PROGRESS' }),
+        }),
+        this.prisma.loadJob.count({
+          where: loadJobListWhere({ scope: 'DUE_TODAY' }),
         }),
         this.prisma.loadJob.findMany({
           where: {
@@ -502,6 +487,13 @@ export class DashboardService {
       openCount,
       inProgressCount,
       dueTodayCount,
+      hrefs: {
+        dueToday:
+          '/load-jobs?scope=DUE_TODAY&from=dashboard&code=LOAD_JOBS_DUE_TODAY',
+        inProgress:
+          '/load-jobs?scope=IN_PROGRESS&from=dashboard&code=LOAD_JOBS_IN_PROGRESS',
+        open: '/load-jobs?scope=OPEN&from=dashboard&code=OPEN_LOAD_JOBS',
+      },
       activeJobs: (activeJobs as LoadJobRecord[]).map((job) =>
         this.toLoadJob(job),
       ),
@@ -519,10 +511,10 @@ export class DashboardService {
           'PARSER_ERRORS',
           'dashboard.exceptions.parserErrors',
           await this.prisma.importFile.count({
-            where: { deletedAt: null, parseStatus: ParseStatus.ERROR },
+            where: importListWhere({ parseStatus: ParseStatus.ERROR }),
           }),
           'blocked',
-          '/imports',
+          '/imports?parseStatus=ERROR&from=dashboard&code=PARSER_ERRORS',
         ),
       );
     }
@@ -532,49 +524,30 @@ export class DashboardService {
         this.exceptionItem(
           'DESTINATION_CARTON_VOLUME_MISSING',
           'dashboard.exceptions.destinationCartonVolumeMissing',
-          await this.prisma.containerLine.count({
-            where: {
-              OR: [
-                { destinationCode: null },
-                { cartons: null },
-                { volume: null },
-              ],
-            },
-          }),
+          await this.operationsReviewService.count(
+            'DESTINATION_CARTON_VOLUME_MISSING',
+          ),
           'attention',
-          '/containers',
+          '/operations/review?code=DESTINATION_CARTON_VOLUME_MISSING&from=dashboard',
         ),
         this.exceptionItem(
           'ZERO_VOLUME_WITH_CARTONS',
           'dashboard.exceptions.zeroVolumeWithCartons',
-          await this.prisma.containerLine.count({
-            where: {
-              cartons: { gt: 0 },
-              volume: 0,
-            },
-          }),
+          await this.operationsReviewService.count('ZERO_VOLUME_WITH_CARTONS'),
           'attention',
-          '/containers',
+          '/operations/review?code=ZERO_VOLUME_WITH_CARTONS&from=dashboard',
         ),
       );
     }
 
     if (this.hasAny(permissions, [PERMISSIONS.reports.read])) {
-      const [generatedFailed, wageGeneratedFailed] = await Promise.all([
-        this.prisma.generatedFile.count({
-          where: { status: GeneratedFileStatus.FAILED },
-        }),
-        this.prisma.wageGeneratedFile.count({
-          where: { status: GeneratedFileStatus.FAILED },
-        }),
-      ]);
       items.push(
         this.exceptionItem(
           'FAILED_GENERATED_FILES',
           'dashboard.exceptions.failedGeneratedFiles',
-          generatedFailed + wageGeneratedFailed,
+          await this.operationsReviewService.count('FAILED_GENERATED_FILES'),
           'blocked',
-          '/reports',
+          '/operations/review?code=FAILED_GENERATED_FILES&from=dashboard',
         ),
       );
     }
@@ -589,18 +562,9 @@ export class DashboardService {
         this.exceptionItem(
           'SCAN_EXCEPTIONS',
           'dashboard.exceptions.scanExceptions',
-          await this.prisma.palletEvent.count({
-            where: {
-              eventType: {
-                in: [
-                  PalletEventType.INVALID_SCAN,
-                  PalletEventType.DUPLICATE_SCAN,
-                ],
-              },
-            },
-          }),
+          await this.operationsReviewService.count('SCAN_EXCEPTIONS'),
           'attention',
-          '/load-jobs/history',
+          '/operations/review?code=SCAN_EXCEPTIONS&from=dashboard',
         ),
       );
     }
@@ -615,11 +579,9 @@ export class DashboardService {
         this.exceptionItem(
           'FAILED_ASYNC_JOBS',
           'dashboard.exceptions.failedAsyncJobs',
-          await this.prisma.asyncJob.count({
-            where: { status: AsyncJobStatus.FAILED },
-          }),
+          await this.operationsReviewService.count('FAILED_ASYNC_JOBS'),
           'blocked',
-          '/imports',
+          '/operations/review?code=FAILED_ASYNC_JOBS&from=dashboard',
         ),
       );
     }
@@ -675,6 +637,12 @@ export class DashboardService {
       rowCount,
       reviewWarningCount: await this.missingCompletionReviewCount(),
       href: `/unloading-summary?month=${month}`,
+      hrefs: {
+        completedContainers: `/unloading-summary?month=${month}&focus=completedContainers&from=dashboard&code=MONTHLY_COMPLETED_CONTAINERS#completed-containers`,
+        reviewWarnings:
+          '/operations/review?code=UNLOADING_COMPLETION_DATE_MISSING&from=dashboard',
+        summaryRows: `/unloading-summary?month=${month}&focus=summaryRows&from=dashboard&code=MONTHLY_SUMMARY_ROWS#summary-rows`,
+      },
     };
   }
 
@@ -698,19 +666,21 @@ export class DashboardService {
     ] = await Promise.all([
       canReadAttendance
         ? this.prisma.attendanceImport.count({
-            where: { parseStatus: ParseStatus.NOT_PARSED },
+            where: attendanceImportListWhere({
+              parseStatus: ParseStatus.NOT_PARSED,
+            }),
           })
         : Promise.resolve(null),
       canReadAttendance
         ? this.prisma.attendanceImport.count({
-            where: { parseStatus: ParseStatus.ERROR },
+            where: attendanceImportListWhere({
+              parseStatus: ParseStatus.ERROR,
+            }),
           })
         : Promise.resolve(null),
       canReadUnloadingWage
         ? this.prisma.unloadingWageSettlement.count({
-            where: {
-              OR: [{ warningCount: { gt: 0 } }, { errorCount: { gt: 0 } }],
-            },
+            where: unloadingWageSettlementWhere('NEEDS_REVIEW'),
           })
         : Promise.resolve(null),
     ]);
@@ -720,8 +690,12 @@ export class DashboardService {
       attendanceImportsWithErrors,
       wageSettlementsNeedingReview,
       hrefs: {
-        attendance: '/work-hours',
-        unloadingWage: '/unloading-wage',
+        attendance:
+          '/work-hours?parseStatus=NOT_PARSED&from=dashboard&code=ATTENDANCE_IMPORTS_NEED_PARSE',
+        attendanceErrors:
+          '/work-hours?parseStatus=ERROR&from=dashboard&code=ATTENDANCE_IMPORTS_WITH_ERRORS',
+        unloadingWage:
+          '/unloading-wage?review=NEEDS_REVIEW&from=dashboard&code=WAGE_SETTLEMENTS_NEED_REVIEW',
       },
     };
   }
@@ -853,7 +827,7 @@ export class DashboardService {
           label: record.jobNo ?? record.id,
           status: record.status,
           occurredAt: this.isoDate(record.updatedAt),
-          href: '/load-jobs',
+          href: `/load-jobs?selectedId=${encodeURIComponent(record.id)}&from=dashboard&code=RECENT_LOAD_JOB`,
         })),
       );
     }
@@ -902,18 +876,9 @@ export class DashboardService {
   }
 
   private async missingCompletionReviewCount(): Promise<number> {
-    return await this.prisma.container.count({
-      where: {
-        status: { in: [...COMPLETED_UNLOADING_STATUS_VALUES] },
-        payContainerLinks: {
-          every: {
-            payContainer: {
-              completedAt: null,
-            },
-          },
-        },
-      },
-    });
+    return this.operationsReviewService.count(
+      'UNLOADING_COMPLETION_DATE_MISSING',
+    );
   }
 
   private queueItem(
@@ -995,31 +960,22 @@ export class DashboardService {
       totalPallets,
       loadedPallets,
       remainingPallets: Math.max(0, totalPallets - loadedPallets),
-      href: '/load-jobs',
+      href: `/load-jobs?selectedId=${encodeURIComponent(job.id)}&from=dashboard&code=ACTIVE_LOAD_JOB`,
     };
   }
 
   private generatedFileHref(record: RecentGeneratedFileRecord): string {
     if (record.containerId) {
-      return `/containers/${record.containerId}`;
+      return `/containers/${record.containerId}?fileId=${encodeURIComponent(record.id)}#generated-files`;
     }
-    if (record.importFileId) {
-      return `/imports/${record.importFileId}`;
-    }
-    return '/reports';
+    return `/operations/review?code=GENERATED_FILE_DETAIL&recordId=${encodeURIComponent(record.id)}`;
   }
 
   private correctionHref(record: RecentCorrectionRecord): string {
     if (record.containerId) {
-      return `/containers/${record.containerId}`;
+      return `/containers/${record.containerId}/corrections?correctionId=${encodeURIComponent(record.id)}#correction-history`;
     }
-    if (record.importFileId) {
-      return `/imports/${record.importFileId}`;
-    }
-    if (record.generatedFileId) {
-      return '/reports';
-    }
-    return '/containers';
+    return `/operations/review?code=CORRECTION_DETAIL&recordId=${encodeURIComponent(record.id)}`;
   }
 
   private permissions(user: AuthenticatedUser): Set<string> {
@@ -1081,12 +1037,7 @@ export class DashboardService {
   }
 
   private todayRange(): { gte: Date; lt: Date } {
-    const localDate = operationalLocalDate();
-    const [year, month, day] = localDate.split('-').map(Number);
-    return {
-      gte: new Date(Date.UTC(year, month - 1, day)),
-      lt: new Date(Date.UTC(year, month - 1, day + 1)),
-    };
+    return operationalDayRangeUtc();
   }
 
   private rangeStart(range: DashboardRange): Date {

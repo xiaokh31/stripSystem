@@ -21,6 +21,8 @@ interface ApiErrorBody {
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new StructuredLogger(ApiExceptionFilter.name);
 
+  constructor(private readonly publicDeploymentEnabled = false) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -42,8 +44,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     response.status(status).json({
       code,
-      message,
-      details: this.errorDetails(exception),
+      message: this.publicDeploymentEnabled ? code : message,
+      details:
+        this.publicDeploymentEnabled && status >= 500
+          ? {}
+          : this.errorDetails(exception),
       timestamp: operationalDateTime(),
       path: request.url ?? '',
     } satisfies ApiErrorBody);

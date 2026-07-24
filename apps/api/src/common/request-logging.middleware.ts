@@ -1,10 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { StructuredLogger } from './structured-logger.service';
+import { canonicalClientAddress } from './trusted-proxy';
+import type { PublicDeploymentConfiguration } from '../config/public-deployment.config';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 
 export function requestLoggingMiddleware(
+  publicDeployment: PublicDeploymentConfiguration,
   logger = new StructuredLogger('HttpRequest'),
 ) {
   return (request: Request, response: Response, next: NextFunction): void => {
@@ -22,7 +25,7 @@ export function requestLoggingMiddleware(
         event: 'http_request',
         method: request.method,
         path: request.path,
-        remoteAddress: request.ip || request.socket.remoteAddress || null,
+        remoteAddress: canonicalClientAddress(request, publicDeployment),
         requestId,
         statusCode,
         userAgent: request.get('user-agent') ?? null,

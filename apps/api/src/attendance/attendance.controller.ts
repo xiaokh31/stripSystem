@@ -30,9 +30,14 @@ import {
   WageGeneratedFileListResponseDto,
   AttendanceRowHistoryResponseDto,
   DeleteAttendanceRowResponseDto,
+  AttendanceImportDeletionHistoryResponseDto,
+  AttendanceImportDeletionImpactResponseDto,
+  DeleteAttendanceImportResponseDto,
 } from './dto/attendance-response.dto';
 import { DeleteAttendanceRowDto } from './dto/delete-attendance-row.dto';
+import { DeleteAttendanceImportDto } from './dto/delete-attendance-import.dto';
 import { ListAttendanceRowHistoryQueryDto } from './dto/list-attendance-row-history-query.dto';
+import { ListAttendanceImportHistoryQueryDto } from './dto/list-attendance-import-history-query.dto';
 import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-query.dto';
 
 @Controller('attendance-imports')
@@ -75,10 +80,36 @@ export class AttendanceController {
     return this.attendanceService.list(query);
   }
 
+  @Get('deletion-history')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.deletionHistory)
+  deletionHistory(
+    @Query() query: ListAttendanceImportHistoryQueryDto,
+  ): Promise<AttendanceImportDeletionHistoryResponseDto> {
+    return this.attendanceService.listDeletionHistory(query);
+  }
+
   @Get(':id')
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.getById)
   getById(@Param('id') id: string): Promise<AttendanceImportResponseDto> {
     return this.attendanceService.getById(id);
+  }
+
+  @Get(':id/deletion-impact')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.deletionImpact)
+  deletionImpact(
+    @Param('id') id: string,
+  ): Promise<AttendanceImportDeletionImpactResponseDto> {
+    return this.attendanceService.getDeletionImpact(id);
+  }
+
+  @Delete(':id')
+  @RequirePermissions(...ROUTE_PERMISSIONS.attendance.deleteImport)
+  deleteImport(
+    @Param('id') id: string,
+    @Body() body: DeleteAttendanceImportDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<DeleteAttendanceImportResponseDto> {
+    return this.attendanceService.deleteImport(id, body.reason, actor);
   }
 
   @Post(':id/parse')
@@ -89,10 +120,11 @@ export class AttendanceController {
 
   @Post(':id/parse-job')
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.parse)
-  submitParseJob(
+  async submitParseJob(
     @Param('id') id: string,
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<AsyncJobResponseDto> {
+    await this.attendanceService.assertActiveForJobSubmission(id);
     return this.asyncJobsService.submitJob({
       jobType: AsyncJobType.ATTENDANCE_PARSE,
       targetType: ASYNC_JOB_TARGET_TYPES.attendanceImport,
@@ -144,10 +176,11 @@ export class AttendanceController {
 
   @Post(':id/generate-wage-record-job')
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.generateWageRecord)
-  submitGenerateWageRecordJob(
+  async submitGenerateWageRecordJob(
     @Param('id') id: string,
     @CurrentUser() actor: AuthenticatedUser,
   ): Promise<AsyncJobResponseDto> {
+    await this.attendanceService.assertActiveForJobSubmission(id);
     return this.asyncJobsService.submitJob({
       jobType: AsyncJobType.WAGE_RECORD_GENERATION,
       targetType: ASYNC_JOB_TARGET_TYPES.attendanceImport,

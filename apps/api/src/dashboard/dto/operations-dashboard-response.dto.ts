@@ -45,6 +45,7 @@ export interface DashboardInventoryDestinationDto {
   activeTotalPallets: number;
   loadedPallets: number;
   remainingPallets: number;
+  href: string;
 }
 
 export interface DashboardInventoryDto {
@@ -53,6 +54,11 @@ export interface DashboardInventoryDto {
   loadedPallets: number;
   remainingPallets: number;
   topDestinations: DashboardInventoryDestinationDto[];
+  hrefs: {
+    active: string;
+    loaded: string;
+    remaining: string;
+  };
 }
 
 export interface DashboardLoadJobDto {
@@ -73,6 +79,11 @@ export interface DashboardLoadJobsDto {
   inProgressCount: number;
   dueTodayCount: number;
   activeJobs: DashboardLoadJobDto[];
+  hrefs: {
+    dueToday: string;
+    inProgress: string;
+    open: string;
+  };
 }
 
 export interface DashboardExceptionItemDto {
@@ -89,6 +100,11 @@ export interface DashboardMonthlySummaryDto {
   rowCount: number;
   reviewWarningCount: number;
   href: string;
+  hrefs: {
+    completedContainers: string;
+    reviewWarnings: string;
+    summaryRows: string;
+  };
 }
 
 export interface DashboardWageAndAttendanceDto {

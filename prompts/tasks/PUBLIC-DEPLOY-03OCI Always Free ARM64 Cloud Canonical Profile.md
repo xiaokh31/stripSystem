@@ -1,8 +1,15 @@
+Task-Status: ARCHIVED
+Archived-On: 2026-07-22
+Archive-Scope: OCI Always Free A1 ARM64 cloud-canonical deployment route
+Archive-Reason: Product reversed the OCI decision and reopened PUBLIC-DEPLOY-02 named-tunnel local-canonical deployment.
+Archive-Note: The interrupted PUBLIC-DEPLOY-03 repository changes were reverted; do not execute this historical Task.
+Reactivation: Requires explicit product approval, removal of this marker, and synchronized Task index/completion report updates.
+
 # 执行 PUBLIC-DEPLOY-03：OCI Always Free ARM64 Cloud Canonical Profile
 
 ## 决策门槛与执行边界
 
-- 优先级：P1 公网部署替代路线，默认不立即执行。
+- 优先级：已归档，不在当前执行队列；以下内容仅供以后恢复参考。
 - 只有产品明确选择“远程可用性优先，接受仓库依赖 Internet”，并且
   `PUBLIC-DEPLOY-01Public Internet Security Baseline.md` 已 `DONE` 后才能启动。
 - 若本地 canonical stack 已通过 PUBLIC-DEPLOY-02 对外服务，本 Task 是受控 migration/cutover，不是新增第二个 writer。

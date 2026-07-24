@@ -4,11 +4,14 @@ import {
   completeContainerUnloading,
   completePayContainer,
   deleteAttendanceRow,
+  deleteAttendanceImport,
   createUnloadingWageWorker,
   createPayContainer,
   exportUnloadingSummary,
   generateAttendanceWageRecord,
   getAttendanceRowHistory,
+  getAttendanceImportDeletionHistory,
+  getAttendanceImportDeletionImpact,
   generateUnloadingWageSettlement,
   getAttendanceGeneratedFileDownloadUrl,
   getUnloadingSummary,
@@ -77,6 +80,19 @@ test("attendance API client calls P1 attendance endpoints", async () => {
     { limit: 25, offset: 50 },
     { baseUrl: "http://api.local/api", fetcher },
   );
+  await getAttendanceImportDeletionImpact("attendance 1", {
+    baseUrl: "http://api.local/api",
+    fetcher,
+  });
+  await deleteAttendanceImport(
+    "attendance 1",
+    "Wrong monthly import",
+    { baseUrl: "http://api.local/api", fetcher },
+  );
+  await getAttendanceImportDeletionHistory(
+    { limit: 20, offset: 40 },
+    { baseUrl: "http://api.local/api", fetcher },
+  );
 
   assert.deepEqual(requests, [
     {
@@ -98,6 +114,18 @@ test("attendance API client calls P1 attendance endpoints", async () => {
     {
       method: "GET",
       url: "http://api.local/api/attendance-imports/attendance%201/row-history?limit=25&offset=50",
+    },
+    {
+      method: "GET",
+      url: "http://api.local/api/attendance-imports/attendance%201/deletion-impact",
+    },
+    {
+      method: "DELETE",
+      url: "http://api.local/api/attendance-imports/attendance%201",
+    },
+    {
+      method: "GET",
+      url: "http://api.local/api/attendance-imports/deletion-history?limit=20&offset=40",
     },
   ]);
 });

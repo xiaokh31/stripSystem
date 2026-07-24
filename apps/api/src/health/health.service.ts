@@ -7,8 +7,8 @@ import { QueueHealthResponseDto } from '../async-jobs/async-job-response.dto';
 
 export interface HealthResponse {
   status: 'ok' | 'degraded';
-  version: string;
-  database: DatabaseHealth;
+  version?: string;
+  database?: DatabaseHealth;
   queue?: QueueHealthResponseDto;
   timestamp: string;
 }
@@ -28,12 +28,20 @@ export class HealthService {
     const queueHealthy =
       !queue || queue.status === 'up' || queue.status === 'disabled';
 
-    return {
+    const response: HealthResponse = {
       status: database.status === 'up' && queueHealthy ? 'ok' : 'degraded',
-      version: this.configService.get<string>('app.version') ?? '0.0.1',
+      timestamp: operationalDateTime(),
+    };
+    if (
+      this.configService.get<boolean>('app.publicDeployment.enabled') === true
+    ) {
+      return response;
+    }
+    return {
+      ...response,
       database,
       queue,
-      timestamp: operationalDateTime(),
+      version: this.configService.get<string>('app.version') ?? '0.0.1',
     };
   }
 }

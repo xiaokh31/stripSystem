@@ -11,12 +11,17 @@ import {
   ParseStatus,
 } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { ContainerIndexService } from '../corrections/container-index.service';
+import { OperationsReviewService } from './operations-review.service';
 
 describe('DashboardService', () => {
   it('builds the operations dashboard from database-backed records', async () => {
+    const prisma = createDashboardPrismaMock();
     const service = new DashboardService(
-      createDashboardPrismaMock() as unknown as PrismaService,
+      prisma as unknown as PrismaService,
       configService(),
+      containerIndexService(),
+      new OperationsReviewService(prisma as unknown as PrismaService),
     );
 
     const dashboard = await service.operations({ range: 'today' }, adminUser());
@@ -85,12 +90,26 @@ describe('DashboardService', () => {
       attendanceImportsWithErrors: 1,
       wageSettlementsNeedingReview: 1,
     });
+    expect(
+      (prisma.attendanceImport as { count: jest.Mock }).count,
+    ).toHaveBeenCalledWith({
+      where: { deletedAt: null, parseStatus: ParseStatus.NOT_PARSED },
+    });
+    expect(
+      (prisma.attendanceImport as { count: jest.Mock }).count,
+    ).toHaveBeenCalledWith({
+      where: { deletedAt: null, parseStatus: ParseStatus.ERROR },
+    });
   });
 
   it('hides unauthorized sections without leaking business data', async () => {
     const service = new DashboardService(
       createDashboardPrismaMock() as unknown as PrismaService,
       configService(),
+      containerIndexService(),
+      new OperationsReviewService(
+        createDashboardPrismaMock() as unknown as PrismaService,
+      ),
     );
 
     const dashboard = await service.operations(
@@ -121,9 +140,12 @@ describe('DashboardService', () => {
   });
 
   it('returns stable label keys and raw labels instead of localized UI text', async () => {
+    const prisma = createDashboardPrismaMock();
     const service = new DashboardService(
-      createDashboardPrismaMock() as unknown as PrismaService,
+      prisma as unknown as PrismaService,
       configService(),
+      containerIndexService(),
+      new OperationsReviewService(prisma as unknown as PrismaService),
     );
     const dashboard = await service.operations({ range: '7d' }, adminUser());
     const labelKeys = [
@@ -174,6 +196,45 @@ function configService(): ConfigService {
   return {
     get: (key: string) => (key === 'app.version' ? '0.0.1-test' : undefined),
   } as unknown as ConfigService;
+}
+
+function containerIndexService(): ContainerIndexService {
+  return {
+    list: jest.fn(async (query) => ({
+      items: query.review
+        ? [
+            {
+              activeTotalPallets: 1,
+              adjustedOutPallets: 0,
+              cancelledPallets: 0,
+              containerId: `review-${query.review}`,
+              containerNo: `REVIEW-${query.review}`,
+              createdAt: '2026-07-11T12:00:00.000Z',
+              loadedPallets: 0,
+              remainingPallets: 1,
+              status: ContainerStatus.PARSED,
+              totalPallets: 1,
+            },
+          ]
+        : [
+            ContainerStatus.PARSED,
+            ContainerStatus.LABELS_GENERATED,
+            ContainerStatus.UNLOADED,
+            ContainerStatus.LOADED,
+          ].map((status, index) => ({
+            activeTotalPallets: 1,
+            adjustedOutPallets: 0,
+            cancelledPallets: 0,
+            containerId: `container-${index}`,
+            containerNo: `CONTAINER-${index}`,
+            createdAt: '2026-07-11T12:00:00.000Z',
+            loadedPallets: status === ContainerStatus.LOADED ? 1 : 0,
+            remainingPallets: status === ContainerStatus.LOADED ? 0 : 1,
+            status,
+            totalPallets: 1,
+          })),
+    })),
+  } as unknown as ContainerIndexService;
 }
 
 function createDashboardPrismaMock(): Record<string, unknown> {
@@ -253,7 +314,7 @@ function createDashboardPrismaMock(): Record<string, unknown> {
     },
     loadJob: {
       count: jest.fn(async (args) => {
-        if (args?.where?.status === LoadJobStatus.PLANNED) {
+        if (args?.where?.status?.in) {
           return 2;
         }
         if (args?.where?.status === LoadJobStatus.IN_PROGRESS) {

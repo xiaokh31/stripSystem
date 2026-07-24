@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from '../config/auth-session.constants';
+import { DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '../config/auth-session.constants';
 
 export interface AuthTokenPayload {
   sub: string;
@@ -15,6 +15,7 @@ export interface AuthTokenPayload {
   exp: number;
   permissionsIssuedAt: number;
   nativeSessionId?: string;
+  browserSessionId?: string;
 }
 
 @Injectable()
@@ -29,7 +30,7 @@ export class AuthTokenService {
       Number.isFinite(configured) &&
       configured > 0
       ? configured
-      : DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS;
+      : DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS;
   }
 
   sign(
@@ -158,7 +159,9 @@ export class AuthTokenService {
       typeof (value as AuthTokenPayload).exp === 'number' &&
       typeof (value as AuthTokenPayload).permissionsIssuedAt === 'number' &&
       ((value as AuthTokenPayload).nativeSessionId === undefined ||
-        typeof (value as AuthTokenPayload).nativeSessionId === 'string')
+        typeof (value as AuthTokenPayload).nativeSessionId === 'string') &&
+      ((value as AuthTokenPayload).browserSessionId === undefined ||
+        typeof (value as AuthTokenPayload).browserSessionId === 'string')
     );
   }
 

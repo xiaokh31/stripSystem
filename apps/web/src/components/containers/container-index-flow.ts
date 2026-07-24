@@ -12,7 +12,11 @@ export type ContainerIndexSortDirection =
 
 export interface ContainerIndexFilters {
   containerNo?: string;
+  code?: string;
   direction: ContainerIndexSortDirection;
+  from?: "dashboard";
+  lifecycleStatus?: string;
+  review?: string;
   sort: ContainerIndexSortField;
 }
 
@@ -39,9 +43,27 @@ export function normalizeContainerIndexFilters(
     firstSearchValue(searchParams.direction),
     DEFAULT_DIRECTION_BY_FIELD[sort],
   );
+  const lifecycleStatus = firstSearchValue(searchParams.lifecycleStatus);
+  const review = firstSearchValue(searchParams.review);
+  const from =
+    firstSearchValue(searchParams.from) === "dashboard"
+      ? ("dashboard" as const)
+      : undefined;
+  const code = firstSearchValue(searchParams.code);
 
   return {
     ...(containerNo ? { containerNo } : {}),
+    ...(from && code ? { code, from } : {}),
+    ...(CONTAINER_LIFECYCLE_FILTERS.includes(
+      (lifecycleStatus ?? "") as (typeof CONTAINER_LIFECYCLE_FILTERS)[number],
+    )
+      ? { lifecycleStatus }
+      : {}),
+    ...(CONTAINER_REVIEW_FILTERS.includes(
+      (review ?? "") as (typeof CONTAINER_REVIEW_FILTERS)[number],
+    )
+      ? { review }
+      : {}),
     direction,
     sort,
   };
@@ -50,10 +72,31 @@ export function normalizeContainerIndexFilters(
 export function containerIndexHref(filters: ContainerIndexFilters): string {
   const params = new URLSearchParams();
   if (filters.containerNo) params.set("containerNo", filters.containerNo);
+  if (filters.lifecycleStatus) {
+    params.set("lifecycleStatus", filters.lifecycleStatus);
+  }
+  if (filters.review) params.set("review", filters.review);
+  if (filters.from && filters.code) {
+    params.set("from", filters.from);
+    params.set("code", filters.code);
+  }
   params.set("sort", filters.sort);
   params.set("direction", filters.direction);
   return `/containers?${params.toString()}`;
 }
+
+const CONTAINER_LIFECYCLE_FILTERS = [
+  "PARSED",
+  "REPORT_GENERATED",
+  "LABELS_GENERATED",
+  "UNLOADED",
+  "LOADING_IN_PROGRESS",
+  "LOADED",
+] as const;
+const CONTAINER_REVIEW_FILTERS = [
+  "MISSING_REPORT",
+  "MISSING_LABELS",
+] as const;
 
 export function nextContainerIndexSort(
   current: Pick<ContainerIndexFilters, "direction" | "sort">,

@@ -11,6 +11,7 @@ import {
 } from "@playwright/test";
 import {
   authHeaders,
+  configureBrowserActor,
   E2E_BASE_URL,
   ensureTestUser,
   loginThroughApi,
@@ -456,17 +457,7 @@ async function verifyRealBrowserZoom(
   });
   try {
     const worker = await getBrowserZoomWorker(context);
-    const url = new URL(E2E_BASE_URL).origin;
-    await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url,
-        value: token,
-      },
-    ]);
+    await configureBrowserActor(context, token);
     const page = context.pages()[0] ?? (await context.newPage());
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));

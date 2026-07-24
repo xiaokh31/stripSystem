@@ -1,0 +1,31 @@
+# Provider-neutral public overlay. Use together with compose.local.yml.
+# It publishes only nginx on loopback for a local tunnel/edge connector and
+# removes every host binding for PostgreSQL and Redis.
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  api:
+    environment:
+      PUBLIC_DEPLOYMENT_ENABLED: "true"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      BROWSER_COOKIE_SECURE: "true"
+      TRUSTED_PROXY_MODE: ${TRUSTED_PROXY_MODE:?TRUSTED_PROXY_MODE is required}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?TRUSTED_PROXY_CIDRS is required}
+      AUTH_RATE_LIMIT_FAIL_CLOSED: "true"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      REDIS_URL: redis://redis:6379
+
+  web:
+    environment:
+      PUBLIC_DEPLOYMENT_ENABLED: "true"
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:${PUBLIC_HTTP_PORT:-8080}:80"
+    volumes:
+      - ../nginx/nginx.public.conf:/etc/nginx/nginx.conf:ro

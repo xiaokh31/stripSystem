@@ -52,6 +52,56 @@ export function operationalTimeZone(): string {
     : DEFAULT_OPERATIONAL_TIME_ZONE;
 }
 
+export function operationalDayRangeUtc(
+  value: Date = new Date(),
+  timeZone = operationalTimeZone(),
+): { gte: Date; lt: Date } {
+  const localDate = operationalLocalDate(value, timeZone);
+  const [year, month, day] = localDate.split('-').map(Number);
+  const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+
+  return {
+    gte: zonedMidnightUtc(year, month, day, timeZone),
+    lt: zonedMidnightUtc(
+      nextDate.getUTCFullYear(),
+      nextDate.getUTCMonth() + 1,
+      nextDate.getUTCDate(),
+      timeZone,
+    ),
+  };
+}
+
+function zonedMidnightUtc(
+  year: number,
+  month: number,
+  day: number,
+  timeZone: string,
+): Date {
+  const desiredUtc = Date.UTC(year, month - 1, day);
+  let candidate = new Date(desiredUtc);
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = operationalDateTimeParts(candidate, timeZone);
+    const representedLocalTime = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const corrected = new Date(
+      candidate.getTime() + desiredUtc - representedLocalTime,
+    );
+    if (corrected.getTime() === candidate.getTime()) {
+      return corrected;
+    }
+    candidate = corrected;
+  }
+
+  return candidate;
+}
+
 function isValidTimeZone(timeZone: string): boolean {
   try {
     new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(0));

@@ -90,6 +90,7 @@ describe('default RBAC seed data', () => {
         PERMISSIONS.attendance.parse,
         PERMISSIONS.attendance.generate,
         PERMISSIONS.attendance.deleteRows,
+        PERMISSIONS.attendance.deleteImports,
       ]),
     );
     expect(hasAnyUnloadingWagePermission(hrPermissions)).toBe(false);

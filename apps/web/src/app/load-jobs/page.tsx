@@ -15,6 +15,14 @@ import {
   canViewMobileLoadJobs,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import {
+  appendDashboardDrilldownContext,
+  firstValue,
+  normalizeDashboardDrilldownContext,
+} from "@/components/dashboard/drilldown-flow";
+import { SelectedRecordFocus } from "@/components/dashboard/selected-record-focus";
+import type { LoadJobListFilters } from "@/lib/api-client";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +38,12 @@ type LoadJobsPageState =
       ok: false;
     };
 
-export default async function LoadJobsPage() {
+export default async function LoadJobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
@@ -39,10 +52,19 @@ export default async function LoadJobsPage() {
     return <LoadJobManagementDenied currentUser={currentUser} locale={locale} />;
   }
 
-  const state = await loadLoadJobs();
+  const filters = normalizeLoadJobFilters(params);
+  const context = normalizeDashboardDrilldownContext(params);
+  const state = await loadLoadJobs(filters);
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
+      {context ? (
+        <DashboardFilterContext
+          clearHref="/load-jobs"
+          context={context}
+          locale={locale}
+        />
+      ) : null}
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -67,7 +89,7 @@ export default async function LoadJobsPage() {
             </Link>
             <Link
               className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-              href="/load-jobs"
+              href={loadJobsHref(filters, context)}
             >
               {t("Refresh")}
             </Link>
@@ -84,7 +106,11 @@ export default async function LoadJobsPage() {
       <LoadJobPlanningForm />
 
       {state.ok ? (
-        <LoadJobHistory loadJobs={state.loadJobs} locale={locale} />
+        <LoadJobHistory
+          loadJobs={state.loadJobs}
+          locale={locale}
+          selectedId={filters.selectedId}
+        />
       ) : (
         <ApiErrorPanel error={state.error} locale={locale} />
       )}
@@ -138,10 +164,12 @@ function LoadJobManagementDenied({
   );
 }
 
-async function loadLoadJobs(): Promise<LoadJobsPageState> {
+async function loadLoadJobs(
+  filters: LoadJobListFilters,
+): Promise<LoadJobsPageState> {
   try {
     const loadJobs = await listLoadJobs(
-      { limit: PAGE_SIZE, offset: 0 },
+      { ...filters, limit: PAGE_SIZE, offset: 0 },
       await getServerApiOptions(),
     );
     return { loadJobs, ok: true };
@@ -153,9 +181,11 @@ async function loadLoadJobs(): Promise<LoadJobsPageState> {
 function LoadJobHistory({
   loadJobs,
   locale,
+  selectedId,
 }: {
   loadJobs: LoadJobListResponse;
   locale: Locale;
+  selectedId?: string;
 }) {
   const { format, t } = createTranslator(locale);
   const showingText = format("i18n.loadJobs.latestSummary", {
@@ -202,12 +232,49 @@ function LoadJobHistory({
       </div>
 
       <div className="mt-5 grid gap-3">
-        {loadJobs.items.map((loadJob) => (
-          <LoadJobCard key={loadJob.id} loadJob={loadJob} locale={locale} />
-        ))}
+        {loadJobs.items.map((loadJob) =>
+          loadJob.id === selectedId ? (
+            <SelectedRecordFocus
+              key={loadJob.id}
+              locale={locale}
+              recordId={loadJob.id}
+            >
+              <LoadJobCard loadJob={loadJob} locale={locale} />
+            </SelectedRecordFocus>
+          ) : (
+            <div data-record-id={loadJob.id} key={loadJob.id}>
+              <LoadJobCard loadJob={loadJob} locale={locale} />
+            </div>
+          ),
+        )}
       </div>
     </section>
   );
+}
+
+function normalizeLoadJobFilters(
+  params: Record<string, string | string[] | undefined>,
+): LoadJobListFilters {
+  const scope = firstValue(params.scope);
+  const selectedId = firstValue(params.selectedId)?.trim();
+  return {
+    ...(["OPEN", "IN_PROGRESS", "DUE_TODAY"].includes(scope ?? "")
+      ? { scope: scope as LoadJobListFilters["scope"] }
+      : {}),
+    ...(selectedId ? { selectedId } : {}),
+  };
+}
+
+function loadJobsHref(
+  filters: LoadJobListFilters,
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>,
+): string {
+  const params = new URLSearchParams();
+  if (filters.scope) params.set("scope", filters.scope);
+  if (filters.selectedId) params.set("selectedId", filters.selectedId);
+  appendDashboardDrilldownContext(params, context);
+  const query = params.toString();
+  return query ? `/load-jobs?${query}` : "/load-jobs";
 }
 
 function ApiErrorPanel({

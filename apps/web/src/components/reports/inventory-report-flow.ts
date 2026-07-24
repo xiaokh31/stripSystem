@@ -10,6 +10,11 @@ import { formatOperationalDateTime } from "../../lib/date-time";
 import { DEFAULT_LOCALE, type Locale } from "../../lib/i18n/catalog";
 import { palletStatusLabel } from "../../lib/i18n/status-labels";
 import { createTranslator } from "../../lib/i18n/translator";
+import {
+  appendDashboardDrilldownContext,
+  normalizeDashboardDrilldownContext,
+  type DashboardDrilldownCode,
+} from "../dashboard/drilldown-flow";
 
 export const DEFAULT_INVENTORY_POLLING_INTERVAL_MS = 15_000;
 export const MAX_INVENTORY_POLLING_INTERVAL_MS = 30_000;
@@ -82,13 +87,19 @@ const INVENTORY_SORT_DIRECTIONS: ContainerIndexSortDirection[] = [
 export function normalizeInventoryFilters(
   searchParams: InventorySearchParams,
 ): InventoryReportFilters {
+  const context = normalizeDashboardDrilldownContext(searchParams);
+  const scope = firstSearchValue(searchParams.scope);
   return {
+    ...(context ?? {}),
     ...optionalFilter("containerNo", firstSearchValue(searchParams.containerNo)),
     ...optionalFilter(
       "destinationCode",
       firstSearchValue(searchParams.destinationCode),
     ),
     ...optionalFilter("status", firstSearchValue(searchParams.status)),
+    ...(["ACTIVE", "LOADED", "REMAINING"].includes(scope ?? "")
+      ? { scope: scope as InventoryReportFilters["scope"] }
+      : {}),
   };
 }
 
@@ -135,7 +146,17 @@ export function inventoryWorkspaceHref(
 
   appendFilter(params, "containerNo", filters.containerNo);
   appendFilter(params, "destinationCode", filters.destinationCode);
+  appendFilter(params, "scope", filters.scope);
   appendFilter(params, "status", filters.status);
+  appendDashboardDrilldownContext(
+    params,
+    filters.from === "dashboard" && filters.code
+      ? {
+          code: filters.code as DashboardDrilldownCode,
+          from: "dashboard",
+        }
+      : null,
+  );
   appendFilter(params, "containerId", containerId);
   params.set("page", String(pagination.page));
   params.set("pageSize", String(pagination.pageSize));
@@ -152,6 +173,7 @@ export function activeInventoryFilterCount(
   return [
     filters.containerNo?.trim(),
     filters.destinationCode?.trim(),
+    filters.scope?.trim(),
     filters.status?.trim(),
   ].filter(Boolean).length;
 }

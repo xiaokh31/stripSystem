@@ -1,4 +1,4 @@
-import { getBrowserAuthToken } from "./auth-token";
+import { getBrowserCsrfToken } from "./auth-token";
 import type {
   ParserInspectResponse,
   ParserPreviewResponse,
@@ -14,8 +14,8 @@ export interface ApiErrorResponse {
 
 export interface ApiHealthResponse {
   status: "ok" | "degraded";
-  version: string;
-  database: {
+  version?: string;
+  database?: {
     status: "up" | "down";
     message?: string;
   };
@@ -75,6 +75,7 @@ export interface DashboardInventoryDestinationResponse {
   loadedPallets: number;
   remainingPallets: number;
   totalPallets: number;
+  href: string;
 }
 
 export interface DashboardInventoryResponse {
@@ -83,6 +84,11 @@ export interface DashboardInventoryResponse {
   remainingPallets: number;
   topDestinations: DashboardInventoryDestinationResponse[];
   totalPallets: number;
+  hrefs: {
+    active: string;
+    loaded: string;
+    remaining: string;
+  };
 }
 
 export interface DashboardLoadJobResponse {
@@ -103,6 +109,11 @@ export interface DashboardLoadJobsResponse {
   dueTodayCount: number;
   inProgressCount: number;
   openCount: number;
+  hrefs: {
+    dueToday: string;
+    inProgress: string;
+    open: string;
+  };
 }
 
 export interface DashboardExceptionItemResponse {
@@ -119,6 +130,11 @@ export interface DashboardMonthlySummaryResponse {
   month: string;
   reviewWarningCount: number;
   rowCount: number;
+  hrefs: {
+    completedContainers: string;
+    reviewWarnings: string;
+    summaryRows: string;
+  };
 }
 
 export interface DashboardWageAndAttendanceResponse {
@@ -224,9 +240,9 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string;
+  accessExpiresAt: string;
   expiresIn: number;
-  tokenType: "Bearer";
+  sessionExpiresAt: string;
   user: AuthUserResponse;
 }
 
@@ -425,6 +441,7 @@ export interface AttendanceImportListResponse {
 export interface AttendanceImportListFilters {
   limit?: number;
   offset?: number;
+  parseStatus?: string;
 }
 
 export interface AttendanceRowResponse {
@@ -508,6 +525,74 @@ export interface DeleteAttendanceRowResponse {
   row: AttendanceRowResponse;
   event: AttendanceRowAuditEventResponse;
   affectedGeneratedFiles: Array<{ id: string; status: "SUPERSEDED" }>;
+}
+
+export interface AttendanceImportFileImpact {
+  id: string;
+  fileType: string;
+  previousStatus: string;
+  nextStatus: string;
+}
+
+export interface AttendanceImportDeletionImpactResponse {
+  attendanceImportId: string;
+  originalFilename: string;
+  settlementMonth: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employeeCount: number;
+  dayCount: number;
+  activeRowCount: number;
+  deletedRowCount: number;
+  warningCount: number;
+  errorCount: number;
+  generatedFileCount: number;
+  generatedFileSummary: Array<{
+    fileType: string;
+    status: string;
+    count: number;
+  }>;
+}
+
+export interface AttendanceImportAuditEventResponse {
+  id: string;
+  eventCode: "DELETED";
+  attendanceImportId: string;
+  originalFilename: string;
+  fileSha256: string;
+  importStatus: string;
+  parseStatus: string;
+  settlementMonth: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employeeCount: number;
+  dayCount: number;
+  activeRowCount: number;
+  deletedRowCount: number;
+  warningCount: number;
+  errorCount: number;
+  generatedFiles: AttendanceImportFileImpact[];
+  actor: { id: string | null; displayLabel: string };
+  reason: string;
+  occurredAt: string;
+}
+
+export interface AttendanceImportDeletionHistoryResponse {
+  items: AttendanceImportAuditEventResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface DeleteAttendanceImportResponse {
+  code:
+    | "ATTENDANCE_IMPORT_DELETED"
+    | "ATTENDANCE_IMPORT_ALREADY_DELETED";
+  deleted: boolean;
+  alreadyDeleted: boolean;
+  event: AttendanceImportAuditEventResponse;
+  affectedGeneratedFiles: AttendanceImportFileImpact[];
+  fallbackImport: AttendanceImportResponse | null;
 }
 
 export interface WageGeneratedFileListResponse {
@@ -934,8 +1019,10 @@ export interface ImportFileListResponse {
 }
 
 export interface ImportListFilters {
+  importStatus?: string;
   limit?: number;
   offset?: number;
+  parseStatus?: string;
 }
 
 export interface DeleteImportRequest {
@@ -1631,6 +1718,8 @@ export type ContainerIndexSortDirection = "asc" | "desc";
 export interface ContainerIndexFilters {
   containerNo?: string;
   direction: ContainerIndexSortDirection;
+  lifecycleStatus?: string;
+  review?: string;
   sort: ContainerIndexSortField;
 }
 
@@ -1663,8 +1752,11 @@ export interface InventoryListResponse {
 }
 
 export interface InventoryReportFilters {
+  code?: string;
   containerNo?: string;
   destinationCode?: string;
+  from?: "dashboard";
+  scope?: "ACTIVE" | "LOADED" | "REMAINING";
   status?: string;
 }
 
@@ -1808,7 +1900,40 @@ export interface LoadJobListFilters {
   limit?: number;
   loadNo?: string;
   offset?: number;
+  scope?: "DUE_TODAY" | "IN_PROGRESS" | "OPEN";
+  selectedId?: string;
   status?: string;
+}
+
+export type OperationsReviewCode =
+  | "UNLOADING_COMPLETION_DATE_MISSING"
+  | "DESTINATION_CARTON_VOLUME_MISSING"
+  | "ZERO_VOLUME_WITH_CARTONS"
+  | "FAILED_GENERATED_FILES"
+  | "SCAN_EXCEPTIONS"
+  | "FAILED_ASYNC_JOBS"
+  | "GENERATED_FILE_DETAIL"
+  | "CORRECTION_DETAIL";
+
+export interface OperationsReviewItemResponse {
+  id: string;
+  code: OperationsReviewCode;
+  sourceType: string;
+  targetId: string | null;
+  primaryValue: string | null;
+  status: string | null;
+  occurredAt: string;
+  href: string;
+  details: Record<string, string | number | boolean | null>;
+}
+
+export interface OperationsReviewResponse {
+  code: OperationsReviewCode;
+  items: OperationsReviewItemResponse[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface CreateLoadJobLineRequest {
@@ -1931,6 +2056,7 @@ export interface LoadJobOperatorHistoryResponse {
 export interface ApiClientOptions {
   baseUrl?: string;
   authToken?: string | null;
+  cookieHeader?: string;
   fetcher?: typeof fetch;
 }
 
@@ -2019,6 +2145,24 @@ export function getOperationsDashboard(
   );
 }
 
+export function getOperationsReview(
+  filters: {
+    code: OperationsReviewCode;
+    page?: number;
+    pageSize?: number;
+    recordId?: string;
+  },
+  options: ApiClientOptions = {},
+): Promise<OperationsReviewResponse> {
+  const params = new URLSearchParams({ code: filters.code });
+  appendNumberQueryParam(params, "page", filters.page);
+  appendNumberQueryParam(params, "pageSize", filters.pageSize);
+  appendQueryParam(params, "recordId", filters.recordId);
+  return createApiClient(options).get<OperationsReviewResponse>(
+    `/dashboard/review?${params.toString()}`,
+  );
+}
+
 export function getQueueHealth(
   options: ApiClientOptions = {},
 ): Promise<QueueHealthResponse> {
@@ -2047,6 +2191,20 @@ export function getCurrentUser(
   options: ApiClientOptions = {},
 ): Promise<AuthUserResponse> {
   return createApiClient(options).get<AuthUserResponse>("/auth/me");
+}
+
+export function refreshBrowserSession(
+  options: ApiClientOptions = {},
+): Promise<LoginResponse> {
+  return runBrowserRefresh(options);
+}
+
+export function browserLogout(
+  options: ApiClientOptions = {},
+): Promise<{ revoked: true }> {
+  return createApiClient(options).post<{ revoked: true }>(
+    "/auth/browser/logout",
+  );
 }
 
 export function listUsers(
@@ -2181,6 +2339,39 @@ export function getAttendanceImport(
 ): Promise<AttendanceImportResponse> {
   return createApiClient(options).get<AttendanceImportResponse>(
     `/attendance-imports/${encodeURIComponent(id)}`,
+  );
+}
+
+export function getAttendanceImportDeletionImpact(
+  id: string,
+  options: ApiClientOptions = {},
+): Promise<AttendanceImportDeletionImpactResponse> {
+  return createApiClient(options).get<AttendanceImportDeletionImpactResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}/deletion-impact`,
+  );
+}
+
+export function deleteAttendanceImport(
+  id: string,
+  reason: string,
+  options: ApiClientOptions = {},
+): Promise<DeleteAttendanceImportResponse> {
+  return createApiClient(options).request<DeleteAttendanceImportResponse>(
+    `/attendance-imports/${encodeURIComponent(id)}`,
+    { method: "DELETE", body: { reason } },
+  );
+}
+
+export function getAttendanceImportDeletionHistory(
+  filters: { limit?: number; offset?: number } = {},
+  options: ApiClientOptions = {},
+): Promise<AttendanceImportDeletionHistoryResponse> {
+  const params = new URLSearchParams();
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) params.set("offset", String(filters.offset));
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  return createApiClient(options).get<AttendanceImportDeletionHistoryResponse>(
+    `/attendance-imports/deletion-history${suffix}`,
   );
 }
 
@@ -2477,10 +2668,14 @@ export function generateUnloadingWageSettlement(
 }
 
 export function listUnloadingWageSettlements(
+  filters: { review?: "NEEDS_REVIEW" } = {},
   options: ApiClientOptions = {},
 ): Promise<UnloadingWageSettlementListResponse> {
+  const params = new URLSearchParams();
+  appendQueryParam(params, "review", filters.review);
+  const query = params.toString();
   return createApiClient(options).get<UnloadingWageSettlementListResponse>(
-    "/unloading-wage-settlements",
+    `/unloading-wage-settlements${query ? `?${query}` : ""}`,
   );
 }
 
@@ -2822,6 +3017,10 @@ export function listContainers(
     sort: filters.sort,
   });
   if (filters.containerNo) params.set("containerNo", filters.containerNo);
+  if (filters.lifecycleStatus) {
+    params.set("lifecycleStatus", filters.lifecycleStatus);
+  }
+  if (filters.review) params.set("review", filters.review);
   return createApiClient(options).get<ContainerIndexListResponse>(
     `/containers?${params.toString()}`,
   );
@@ -3067,14 +3266,13 @@ export function uploadAttendanceImportFile(
 export class ApiClient {
   private readonly authToken: string | null;
   private readonly baseUrl: string;
+  private readonly cookieHeader?: string;
   private readonly fetcher: typeof fetch;
 
   constructor(options: ApiClientOptions = {}) {
-    this.authToken =
-      options.authToken === undefined
-        ? getBrowserAuthToken()
-        : options.authToken;
+    this.authToken = options.authToken ?? null;
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? getApiBaseUrl());
+    this.cookieHeader = options.cookieHeader;
     this.fetcher = options.fetcher ?? defaultFetcher();
   }
 
@@ -3132,6 +3330,10 @@ export class ApiClient {
     if (authToken) {
       headers.set("Authorization", `Bearer ${authToken}`);
     }
+    if (this.cookieHeader) {
+      headers.set("Cookie", this.cookieHeader);
+    }
+    this.applyBrowserCsrfHeader(headers, options.method);
 
     let response: Response;
     try {
@@ -3139,6 +3341,7 @@ export class ApiClient {
         ...options,
         body,
         cache: options.cache ?? "no-store",
+        credentials: options.credentials ?? "include",
         headers,
       });
     } catch (error) {
@@ -3150,6 +3353,23 @@ export class ApiClient {
             : "The API request could not be sent.",
         status: 0,
         details: { baseUrl: this.baseUrl, path },
+      });
+    }
+
+    if (
+      response.status === 401 &&
+      this.usesBrowserSession(authToken) &&
+      !path.startsWith("/auth/browser/") &&
+      path !== "/auth/login"
+    ) {
+      await runBrowserRefresh({ baseUrl: this.baseUrl, fetcher: this.fetcher });
+      this.applyBrowserCsrfHeader(headers, options.method, true);
+      response = await this.fetcher(this.urlFor(path), {
+        ...options,
+        body,
+        cache: options.cache ?? "no-store",
+        credentials: options.credentials ?? "include",
+        headers,
       });
     }
 
@@ -3167,6 +3387,61 @@ export class ApiClient {
   private urlFor(path: string): string {
     return buildApiUrl(path, this.baseUrl);
   }
+
+  private usesBrowserSession(authToken: string | null): boolean {
+    return typeof window !== "undefined" && !authToken;
+  }
+
+  private applyBrowserCsrfHeader(
+    headers: Headers,
+    method: string | undefined,
+    replace = false,
+  ): void {
+    const normalizedMethod = (method ?? "GET").toUpperCase();
+    if (
+      typeof window === "undefined" ||
+      ["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)
+    ) {
+      return;
+    }
+    const csrfToken = getBrowserCsrfToken();
+    if (csrfToken && (replace || !headers.has("X-CSRF-Token"))) {
+      headers.set("X-CSRF-Token", csrfToken);
+    }
+  }
+}
+
+let browserRefreshPromise: Promise<LoginResponse> | null = null;
+
+function runBrowserRefresh(options: ApiClientOptions): Promise<LoginResponse> {
+  if (browserRefreshPromise) return browserRefreshPromise;
+  const csrfToken = getBrowserCsrfToken();
+  if (!csrfToken) {
+    return Promise.reject(
+      new ApiClientError({
+        code: "AUTH_REFRESH_EXPIRED",
+        message: "Browser session refresh is unavailable.",
+        status: 401,
+      }),
+    );
+  }
+  const fetcher = options.fetcher ?? defaultFetcher();
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? getApiBaseUrl());
+  browserRefreshPromise = fetcher(buildApiUrl("/auth/browser/refresh", baseUrl), {
+    body: undefined,
+    cache: "no-store",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+    method: "POST",
+  })
+    .then(async (response) => {
+      if (!response.ok) throw await toApiClientError(response);
+      return (await parseResponseBody(response)) as LoginResponse;
+    })
+    .finally(() => {
+      browserRefreshPromise = null;
+    });
+  return browserRefreshPromise;
 }
 
 export function buildApiUrl(path: string, baseUrl = getApiBaseUrl()): string {
@@ -3244,6 +3519,7 @@ function toInventoryQueryString(filters: InventoryReportFilters): string {
 
   appendQueryParam(params, "containerNo", filters.containerNo);
   appendQueryParam(params, "destinationCode", filters.destinationCode);
+  appendQueryParam(params, "scope", filters.scope);
   appendQueryParam(params, "status", filters.status);
 
   const query = params.toString();
@@ -3261,6 +3537,7 @@ function toInventoryContainerSummaryQueryString(
   });
   appendQueryParam(params, "containerNo", query.containerNo);
   appendQueryParam(params, "destinationCode", query.destinationCode);
+  appendQueryParam(params, "scope", query.scope);
   appendQueryParam(params, "status", query.status);
   return `?${params.toString()}`;
 }
@@ -3282,6 +3559,8 @@ function toImportListQueryString(filters: ImportListFilters): string {
 
   appendNumberQueryParam(params, "limit", filters.limit);
   appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "importStatus", filters.importStatus);
+  appendQueryParam(params, "parseStatus", filters.parseStatus);
 
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -3294,6 +3573,7 @@ function toAttendanceImportListQueryString(
 
   appendNumberQueryParam(params, "limit", filters.limit);
   appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "parseStatus", filters.parseStatus);
 
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -3321,6 +3601,8 @@ function toLoadJobListQueryString(filters: LoadJobListFilters): string {
   appendNumberQueryParam(params, "limit", filters.limit);
   appendQueryParam(params, "loadNo", filters.loadNo);
   appendNumberQueryParam(params, "offset", filters.offset);
+  appendQueryParam(params, "scope", filters.scope);
+  appendQueryParam(params, "selectedId", filters.selectedId);
   appendQueryParam(params, "status", filters.status);
 
   const query = params.toString();
@@ -3421,13 +3703,15 @@ function uploadFormData<TResponse>(
     xhr.open("POST", buildApiUrl(path, options.baseUrl));
     xhr.responseType = "text";
 
-    const authToken =
-      options.authToken === undefined
-        ? getBrowserAuthToken()
-        : options.authToken;
+    const authToken = options.authToken ?? null;
     if (authToken) {
       xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
     }
+    const csrfToken = getBrowserCsrfToken();
+    if (csrfToken) {
+      xhr.setRequestHeader("X-CSRF-Token", csrfToken);
+    }
+    xhr.withCredentials = true;
 
     xhr.upload.onprogress = (event) => {
       options.onProgress?.({

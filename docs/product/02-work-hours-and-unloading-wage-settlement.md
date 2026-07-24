@@ -62,6 +62,13 @@ and future diagnostic artifacts remain preserved and recorded for backend audit
 and support, but they are not useful office deliverables and must not appear as
 cards or download links on `/work-hours`.
 
+The 2026-07-22 follow-up also lets an authorized HR manager remove an entire
+attendance import from the active Work Hours workflow. This is an audited
+import-level soft deletion, not storage cleanup: the original `.xls`, parsed
+rows, row-deletion history, generated artifacts and job records remain evidence.
+The deleted import leaves active lists and actions, while its deletion actor,
+time, reason and snapshot remain reviewable.
+
 ## Solution
 
 Add two office workflows:
@@ -86,7 +93,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 ## Actors
 
 - HR manager (`HR_MANAGER`): uploads attendance records, parses attendance,
-  reviews employee-day rows, and generates work hours wage records.
+  reviews employee-day rows, generates work hours wage records, and can remove
+  an entire erroneous attendance import with an immutable audit trail.
 - Warehouse manager (`WAREHOUSE_MANAGER`): opens container detail, classifies
   the container, records trailer/association data, marks unloading as
   completed, maintains/selects temporary unloaders, and generates monthly
@@ -176,6 +184,13 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 28. As an HR manager, I want the generated-file area to show only wage record
     workbooks, so that parser JSON and technical task reports do not distract
     office users from the file they actually need.
+29. As an HR manager, I want to remove an incorrectly imported attendance
+    workbook from the active Work Hours workflow, so that it can no longer be
+    parsed, generated, downloaded or mistaken for the current monthly record.
+30. As an auditor or HR manager, I want import-deletion history to show who
+    removed the batch, when, why and what it contained, while preserving the
+    original workbook and allowing the same bytes to be uploaded as a new
+    active import when reprocessing is required.
 
 ## Business Rules
 
@@ -192,6 +207,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   - can generate wage record workbooks
   - can soft-delete an employee-day attendance row with an audit reason and
     review the deletion history
+  - can soft-delete an entire attendance import with an audit reason and review
+    import-deletion history
   - must not manage unloading wage classification, completion, unloaders, or
     settlement unless another role explicitly grants those permissions
 - `WAREHOUSE_MANAGER` manages only unloading wage settlement:
@@ -223,6 +240,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   from `attendance.read`, `attendance.parse`, or `attendance.generate`, and do
   not grant it to `SYSTEM`, `WAREHOUSE_MANAGER`, `OFFICE`, or `WAREHOUSE` by
   default.
+- Attendance-import deletion uses a separate
+  `attendance.imports.delete` permission with the same default role boundary.
+  Do not infer it from attendance read/create/parse/generate or
+  `attendance.rows.delete`. Users with `attendance.read` may review the
+  immutable import-deletion history but cannot execute the mutation.
 
 ### Temporary Unloader Directory Rules
 
@@ -256,8 +278,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 
 ### Attendance Record Rules
 
-- The original uploaded attendance workbook must always be preserved.
-- Duplicate attendance uploads must be detected by SHA-256.
+- The original uploaded attendance workbook must always be preserved, including
+  after its attendance import is removed from active settlement.
+- Duplicate active attendance uploads must be detected by SHA-256. A deleted
+  import retains its SHA and audit chain but does not permanently block a new
+  active import of the same bytes.
 - The first supported fixtures are:
   - `samples/wage/workAttendanceRecordForm_June.xls`
   - `samples/wage/20260601-0630_wageRecords.xls`
@@ -300,9 +325,10 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 
 ### Attendance Row Deletion and History Rules
 
-- The deletable unit is one parsed employee-day `AttendanceRow`. Deleting an
-  individual punch inside the row, restoring a deleted row, or deleting the
-  attendance import itself is not part of this revision.
+- The deletable unit for the row action is one parsed employee-day
+  `AttendanceRow`. Deleting an individual punch or restoring a deleted row is
+  not supported. Whole-import deletion is a separate action governed by the
+  following section and must not reuse or overwrite row tombstones.
 - Deletion is a soft delete. Keep the row, original `rawJson`, punch list,
   calculation metadata, warnings/errors and source workbook unchanged. Never
   physically remove source evidence to satisfy the UI action.
@@ -336,6 +362,48 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Users with `attendance.read` may view deletion history. Only users with
   `attendance.rows.delete` may execute deletion. The Web action requires a
   confirmation and non-empty reason.
+
+### Attendance Import Deletion and History Rules
+
+- Deleting an attendance import removes the complete batch from active Work
+  Hours settlement. It is a soft deletion of `AttendanceImport`, never a hard
+  delete or storage cleanup.
+- Preserve the original `.xls` bytes and SHA-256, parsed rows, employee-day
+  tombstones and events, generated-file records and bytes, asynchronous job
+  records, and all provenance. The unrelated unloading-import cleanup contract
+  must not be applied to attendance imports.
+- The delete request requires a non-empty reason and uses only the authenticated
+  actor. Store `deletedAt`, `deletedById` and the reason, then append one
+  immutable import-deletion event with a durable actor display snapshot and an
+  import/file/row/generated-artifact summary.
+- The deletion event must remain readable after the actor is renamed,
+  deactivated or removed. It must not expose internal storage paths, credentials
+  or session data.
+- In one transaction, increment the import data revision and move every current
+  `GENERATED` artifact attached to that import to `SUPERSEDED`. Keep its
+  original SHA, generator, timestamps and file bytes; keep existing failed or
+  superseded history unchanged.
+- Repeated deletion is idempotent and returns the first actor, time, reason and
+  event without overwriting them or incrementing the revision again.
+- Active import lists, Dashboard attendance counts and all normal settlement
+  actions use only imports where `deletedAt` is null. Deleted imports appear
+  only in an explicit, paginated deletion-history surface.
+- Old URLs and normal get/parse/reparse/generate/job/files/download routes must
+  reject a deleted import with a stable code. The Work Hours page falls back to
+  another active import or its empty state rather than crashing or retrying.
+- SHA-256 uniqueness applies to active imports. If only deleted imports carry a
+  SHA, uploading the same bytes creates a new active import id and audit chain;
+  it never restores or mutates the deleted import. A database active-only unique
+  constraint must prevent concurrent uploads from creating two active rows.
+- Deletion is rejected with a stable conflict while an attendance parse or wage
+  generation job is queued/running or the import is parsing. Synchronous and
+  asynchronous workers must recheck the import tombstone and revision before
+  committing rows or generated-file status so late results cannot resurrect the
+  batch.
+- Only `ADMIN` and `HR_MANAGER` receive
+  `attendance.imports.delete` by default. `attendance.read` permits history
+  review only. No restore, bulk deletion or automatic retention cleanup is part
+  of this revision.
 
 ### Attendance Generated File Visibility Rules
 
@@ -536,7 +604,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 ## Data Concepts
 
 - Attendance import: original attendance workbook plus SHA-256, parse status,
-  parser version, warnings, errors, and raw metadata.
+  parser version, warnings, errors, raw metadata and an optional active-workflow
+  deletion tombstone.
+- Attendance import deletion event: immutable snapshot of the removed batch,
+  authenticated actor, durable actor display, reason, time, row counts and
+  generated-artifact state transitions.
 - Attendance row: one employee-day parsed from the workbook, preserving raw
   source data, normalized punch times, calculation method, interval breakdown
   and calculated hours.
@@ -628,6 +700,9 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
    LibreOffice visual regression gates.
 6. `WAGE-HOURS-06`: restrict the office generated-file area to wage workbook
    history while retaining parser/task artifacts as backend audit evidence.
+7. `WAGE-HOURS-07`: add whole attendance-import audited soft deletion,
+   active-only SHA uniqueness, job/race protection, deleted-import history and
+   strict bilingual UI.
 
 ## Proposed API Surface
 
@@ -635,6 +710,9 @@ The exact route names can change during implementation, but the behavior should
 be stable. The user-facing workflow must still start from container detail.
 
 - `POST /api/attendance-imports`
+- `GET /api/attendance-imports/deletion-history`
+- `GET /api/attendance-imports/:id/deletion-impact`
+- `DELETE /api/attendance-imports/:id`
 - `POST /api/attendance-imports/:id/parse`
 - `GET /api/attendance-imports/:id/parse-result`
 - `DELETE /api/attendance-imports/:id/rows/:rowId`
@@ -668,6 +746,18 @@ using the existing container detail.
   actions by default.
 - Upload one monthly `.xls` attendance workbook.
 - Display filename, SHA-256, parse status, warning count, and error count.
+- For users with `attendance.imports.delete`, expose an import-level delete
+  command on each active batch and the selected batch. Use an accessible
+  confirmation dialog that loads impact counts, identifies the workbook and
+  period, explains that source/audit evidence remains, and requires a reason.
+- After deleting the selected import, navigate to the first remaining active
+  import or the localized empty state. Deleting a non-selected import preserves
+  the current import and employee selection. A stale deleted id follows the
+  same fallback without a retry loop.
+- Show a separate newest-first, paginated import-deletion history for users
+  with `attendance.read`, including filename, period, actor snapshot, time,
+  reason and row/file counts. Do not offer restore, parse, generation or
+  download actions from this history.
 - Group parsed rows by stable employee identity and display the employee name as
   the primary selector/group label. Employee id and department remain visible
   secondary identity fields.
@@ -800,6 +890,10 @@ Required controls:
   event history. The original workbook, raw parsed row and historical generated
   files remain immutable evidence; current summaries and new generation filter
   active rows at the backend.
+- Attendance-import deletion is a separate durable tombstone plus append-only
+  event. Active-only SHA uniqueness permits a new import of the same bytes after
+  deletion, while the old source, rows, files, jobs and audit chain remain
+  immutable evidence.
 - Separate generated-file retention from office visibility. The API and
   database keep all attendance artifacts, while `/work-hours` uses a typed,
   default-deny allowlist whose only office-visible type is `WAGE_RECORD_XLS`.
@@ -856,6 +950,13 @@ Required controls:
   repeated Parse without resurrection, generation excluding deleted rows,
   stale historical files, parse/generate race protection and en/zh-CN history
   UI behavior.
+- Attendance-import deletion tests should cover dedicated RBAC, required reason,
+  immutable actor/snapshot history, idempotent repeat, active list and Dashboard
+  filtering, unchanged original/generated bytes, generated-file superseding,
+  old-route rejection, selected-import fallback, active duplicate rejection,
+  same-SHA re-upload as a new import, concurrent SHA uniqueness, queued/running
+  job conflicts, synchronous/async late-result protection, and strict
+  en/zh-CN SSR/hydration/refresh/locale-switch behavior.
 - Work-hours generated-file visibility tests should prove that the API still
   records and returns `ATTENDANCE_PARSED_JSON` and `TASK_REPORT_HTML`, while the
   English and Chinese page renders only `WAGE_RECORD_XLS` cards/download links.
@@ -902,6 +1003,23 @@ checks and the real Chromium flow passed with English/Chinese, HR/ADMIN/read-onl
 mobile/desktop, real 200% zoom, refresh, locale switch, current/superseded wage
 history and browser-proxy download SHA equality.
 
+### WAGE-HOURS-07 Whole-Import Deletion Evidence
+
+The 2026-07-23 delivery is complete. `ADMIN` and `HR_MANAGER` can remove one
+whole attendance import from active settlement through an accessible impact
+dialog and a required audit reason. The transaction writes an immutable
+import-level deletion event, increments the revision and supersedes only
+current generated files. The source `.xls`, SHA-256, rows, employee-day
+tombstones/events, generated records/bytes and jobs remain preserved.
+
+All active reads, dashboard counts, parse/generate paths, downloads and job
+submission now exclude or reject deleted imports. A partial unique SHA index
+still admits only one active upload under concurrency, while the same source
+can create a new independent import id after deletion. Work Hours safely falls
+back from a deleted selection, keeps deletion history separate from active
+actions/downloads and remains strictly single-language across English/Chinese,
+light/dark, mobile/desktop and real 200% zoom.
+
 ## Acceptance Criteria
 
 - A developer can identify the first worker tasks without building UI first.
@@ -918,6 +1036,10 @@ history and browser-proxy download SHA equality.
   active summaries and newly generated workbooks exclude it, while the original
   workbook, raw row, previous files and attributed deletion history remain
   available and a repeat Parse does not restore the row.
+- An authorized HR manager can soft-delete an entire attendance import with a
+  reason. It leaves active lists/actions and cannot be used through an old URL,
+  while its original workbook, rows, generated bytes, jobs and immutable
+  attributed history remain. The same SHA can then create one new active import.
 - The Work Hours generated-file area exposes only wage workbook history and
   wage workbook downloads. Parsed JSON and task reports remain auditable in the
   backend but are absent from office-visible and accessibility-visible markup.
@@ -957,6 +1079,8 @@ history and browser-proxy download SHA equality.
   scan workflows.
 - A separate warehouse-manager pay-container maintenance page as the primary
   workflow.
+- Physical deletion, restore, bulk deletion or automatic retention cleanup of
+  attendance imports and their source/audit artifacts.
 
 ## Open Questions
 

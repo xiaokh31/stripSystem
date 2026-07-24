@@ -14,13 +14,12 @@ public or LAN IP while preserving local warehouse access during an Internet
 outage; remote access still stops if the warehouse host, power or Internet is
 down.
 
-If off-site availability must not depend on the warehouse network, the whole
-canonical stack may instead be cut over to one OCI Always Free Ampere A1 VM in
-a Canadian home region. This is a migration, not a replica: writes are frozen,
-PostgreSQL and `storage/` are restored and verified together, and the old local
-deployment remains read-only or stopped after cutover. OCI's free capacity,
-idle-reclamation policy and lack of a production SLA are accepted pilot risks;
-a paid VM is the fallback when those risks are unacceptable.
+An OCI Always Free Ampere A1 cloud-canonical migration was evaluated and then
+archived by product decision on 2026-07-22. It is not an approved current
+deployment route and `PUBLIC-DEPLOY-03` must not execute while archived. If
+explicitly reactivated later, it remains a migration rather than a replica:
+writes must be frozen, PostgreSQL and `storage/` restored and verified together,
+and the old local deployment kept read-only or stopped after cutover.
 
 Splitting Web, API, PostgreSQL, Redis and generated files across unrelated free
 PaaS products, running local/cloud active-active, copying only the database, or

@@ -10,7 +10,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import { authHeaders, E2E_BASE_URL, loginThroughApi } from "./helpers";
+import { authHeaders, configureBrowserActor, E2E_BASE_URL, loginThroughApi } from "./helpers";
 
 const OUTPUT_DIR = "test-results/web-ops-08";
 const viewports = [
@@ -373,16 +373,7 @@ async function captureZoomMatrix(token: string, route: string, userDataDir: stri
   });
   try {
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
-    await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url: new URL(E2E_BASE_URL).origin,
-        value: token,
-      },
-    ]);
+    await configureBrowserActor(context, token);
     const zoomPage = context.pages()[0] ?? (await context.newPage());
     for (const locale of ["en", "zh-CN"] as const) {
       for (const theme of ["light", "dark"] as const) {

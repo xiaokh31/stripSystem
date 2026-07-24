@@ -12,6 +12,7 @@ import {
 import {
   E2E_BASE_URL,
   authHeaders,
+  configureBrowserActor,
   loginThroughApi,
 } from "./helpers";
 
@@ -398,15 +399,8 @@ async function verifyRealBrowserZoom(
   try {
     const worker = await getBrowserZoomWorker(context);
     const url = new URL(E2E_BASE_URL).origin;
+    await configureBrowserActor(context, token);
     await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url,
-        value: token,
-      },
       { name: "bestar_locale", sameSite: "Lax", url, value: "en" },
       { name: "bestar_theme", sameSite: "Lax", url, value: "light" },
     ]);
@@ -464,7 +458,7 @@ async function forEachCriticalPagePresentation(
 }
 
 async function verifyCompactRoutes(page: Page, token: string): Promise<void> {
-  await page.context().clearCookies({ name: "bestar_auth_token" });
+  await configureBrowserActor(page.context(), null);
   await setPresentation(page.context(), "en", "light");
   await page.setViewportSize({ height: 1440, width: 2560 });
 
@@ -475,16 +469,7 @@ async function verifyCompactRoutes(page: Page, token: string): Promise<void> {
   expect((await loginMain.boundingBox())?.width).toBeLessThanOrEqual(1280.5);
   await page.screenshot({ path: `${OUTPUT_DIR}/login-compact-2560x1440.png` });
 
-  await page.context().addCookies([
-    {
-      httpOnly: false,
-      name: "bestar_auth_token",
-      sameSite: "Lax",
-      secure: false,
-      url: new URL(E2E_BASE_URL).origin,
-      value: token,
-    },
-  ]);
+  await configureBrowserActor(page.context(), token);
   await page.goto("/mobile/load-jobs");
   await expect(page).toHaveURL(/\/mobile\/load-jobs$/);
   const mobileMain = page.locator("main");

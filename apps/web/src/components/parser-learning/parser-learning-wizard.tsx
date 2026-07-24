@@ -1356,8 +1356,7 @@ function SourcePreview({
         </div>
       </div>
       <div
-        className="max-h-[420px] min-w-0 max-w-full overflow-auto"
-        style={{ contain: "inline-size paint" }}
+        className="contain-inline-paint max-h-[420px] min-w-0 max-w-full overflow-auto"
       >
         <table className="w-full min-w-[720px] border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-zinc-100">

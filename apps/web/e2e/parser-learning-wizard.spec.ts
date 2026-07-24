@@ -11,6 +11,7 @@ import {
 } from "@playwright/test";
 import {
   authHeaders,
+  configureBrowserActor,
   E2E_BASE_URL,
   ensureTestUser,
   loginForAccessToken,
@@ -1024,16 +1025,7 @@ async function captureGovernanceRealBrowserZoom(
     const worker =
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
-    await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url: new URL(E2E_BASE_URL).origin,
-        value: token,
-      },
-    ]);
+    await configureBrowserActor(context, token);
     const zoomPage = context.pages()[0] ?? (await context.newPage());
     for (const presentation of [
       { locale: "en", theme: "light" },
@@ -1183,16 +1175,7 @@ async function captureRealBrowserZoom(
     const worker =
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
-    await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url: new URL(E2E_BASE_URL).origin,
-        value: token,
-      },
-    ]);
+    await configureBrowserActor(context, token);
     const zoomPage = context.pages()[0] ?? (await context.newPage());
     for (const presentation of [
       { locale: "en", theme: "light" },

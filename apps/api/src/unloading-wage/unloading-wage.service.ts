@@ -49,6 +49,8 @@ import {
   UnloadingWageSettlementListResponseDto,
   UnloadingWageSettlementResponseDto,
 } from './dto/unloading-wage.dto';
+import { ListUnloadingWageSettlementsQueryDto } from './dto/list-unloading-wage-settlements-query.dto';
+import { unloadingWageSettlementWhere } from './unloading-wage-settlement-filter';
 
 type ClassificationValue =
   (typeof ContainerPayClassification)[keyof typeof ContainerPayClassification];
@@ -973,8 +975,11 @@ export class UnloadingWageService {
     return this.getSettlement(settlement.id);
   }
 
-  async listSettlements(): Promise<UnloadingWageSettlementListResponseDto> {
+  async listSettlements(
+    query: ListUnloadingWageSettlementsQueryDto = {},
+  ): Promise<UnloadingWageSettlementListResponseDto> {
     const records = (await this.prisma.unloadingWageSettlement.findMany({
+      where: unloadingWageSettlementWhere(query.review),
       include: {
         workerSummaries: { orderBy: { workerCode: 'asc' } },
         lines: { orderBy: [{ workerCode: 'asc' }, { payContainerNo: 'asc' }] },

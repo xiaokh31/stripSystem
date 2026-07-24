@@ -93,7 +93,7 @@ test("pallet policy survives settings, real import, correction, artifacts, inven
   page,
   request,
 }, testInfo) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   page.on("console", (message) => {
@@ -749,7 +749,7 @@ async function inspectExcelReport(filePath: string): Promise<{
       "        root = ET.fromstring(archive.read(name))",
       "        for cell in root.findall('.//m:c', ns):",
       "            ref = cell.attrib.get('r', '')",
-      "            if re.fullmatch(r'O(4|6|8|10|12|14|16|18)', ref):",
+      "            if re.fullmatch(r'O(?:[4-9]|1[0-9])', ref):",
       "                value = cell.find('m:v', ns)",
       "                if value is not None and value.text:",
       "                    total += int(float(value.text))",

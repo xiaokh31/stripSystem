@@ -1,4 +1,4 @@
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
 import {
   BRAND_ASSETS,
   type BrandLogoVariant,
@@ -28,6 +28,12 @@ export function BrandLogo(props: BrandLogoProps) {
   const className = [
     props.variant === "onDark" ? "brand-logo-transparent-on-dark" : null,
     props.responsiveCompact ? "shell-brand-logo-responsive" : null,
+    props.responsiveCompact ? null : "brand-logo-fluid",
+    props.responsiveCompact
+      ? null
+      : props.variant === "icon"
+        ? "brand-logo-icon"
+        : "brand-logo-wordmark",
   ]
     .filter(Boolean)
     .join(" ") || undefined;
@@ -37,23 +43,18 @@ export function BrandLogo(props: BrandLogoProps) {
       : "";
 
   const image = (
-    <Image
+    <img
       alt={alt}
       className={className}
       data-brand-logo={props.variant}
       height={asset.naturalHeight}
-      preload={props.preload ?? false}
+      fetchPriority={props.preload ? "high" : undefined}
       sizes={
         props.responsiveCompact
           ? `(max-width: 359px) ${BRAND_ASSETS.icon.naturalWidth}px, ${asset.naturalWidth}px`
           : `${asset.naturalWidth}px`
       }
       src={asset.src}
-      style={
-        props.responsiveCompact
-          ? undefined
-          : { height: "auto", maxWidth: "100%", width: asset.naturalWidth }
-      }
       width={asset.naturalWidth}
     />
   );

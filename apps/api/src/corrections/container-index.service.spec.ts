@@ -21,6 +21,8 @@ interface ContainerIndexRow {
   cancelledPallets: number;
   remainingPallets: number;
   hasLoadingSignal: boolean;
+  hasGeneratedLabels: boolean;
+  hasGeneratedReport: boolean;
 }
 
 const rows: ContainerIndexRow[] = [
@@ -209,6 +211,54 @@ describe('ContainerIndexService', () => {
       String.raw`%a\%\_\\\\b%`,
     ]);
   });
+
+  it('filters lifecycle with the same effective status returned by the list', async () => {
+    const result = await service.list({
+      direction: 'asc',
+      lifecycleStatus: 'LOADING_IN_PROGRESS',
+      sort: 'status',
+    });
+    expect(result.items.map((item) => item.containerId)).toEqual([
+      'middle-loading',
+    ]);
+  });
+
+  it('filters missing report and label review records from generated-file evidence', async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      row('missing-report', 'R1', 'PARSED', '2026-03-01T08:00:00.000Z'),
+      row('has-report', 'R2', 'PARSED', '2026-03-02T08:00:00.000Z', {
+        hasGeneratedReport: true,
+      }),
+      row('has-label', 'R3', 'PARSED', '2026-03-03T08:00:00.000Z', {
+        hasGeneratedLabels: true,
+      }),
+      row('error', 'R4', 'ERROR', '2026-03-04T08:00:00.000Z'),
+    ]);
+    await expect(
+      service.list({
+        direction: 'asc',
+        review: 'MISSING_REPORT',
+        sort: 'createdAt',
+      }),
+    ).resolves.toMatchObject({
+      items: [
+        { containerId: 'missing-report' },
+        { containerId: 'has-label' },
+      ],
+    });
+    await expect(
+      service.list({
+        direction: 'asc',
+        review: 'MISSING_LABELS',
+        sort: 'createdAt',
+      }),
+    ).resolves.toMatchObject({
+      items: [
+        { containerId: 'missing-report' },
+        { containerId: 'has-report' },
+      ],
+    });
+  });
 });
 
 function row(
@@ -227,6 +277,8 @@ function row(
     createdAt: new Date(createdAt),
     effectiveLoadedPallets: 0,
     hasLoadingSignal: false,
+    hasGeneratedLabels: false,
+    hasGeneratedReport: false,
     loadedPallets: 0,
     remainingPallets: 0,
     storedStatus,

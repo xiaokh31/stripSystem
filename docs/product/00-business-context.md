@@ -25,12 +25,11 @@ public IP or host LAN IP. The system must still have exactly one canonical
 writable PostgreSQL database and matching durable `storage/` tree; local and
 cloud deployments must never accept concurrent business writes.
 
-The approved first pilot keeps the local Docker stack canonical and publishes
-nginx through a protected Cloudflare named tunnel. If off-site availability
-must remain independent of company power/Internet, the complete canonical stack
-may instead be migrated to one cloud VM under the cutover rules in
-`docs/adr/0005-single-writer-public-access-and-cloud-hosting.md`. Public access
-requires HTTPS, external identity/MFA, application RBAC, revocable sessions,
-rate limits, audit, backup/restore and privacy review. All new user-visible
-deployment, authentication and failure states remain strictly localized through
-the typed `en` and `zh-CN` catalogs.
+The approved pilot keeps the local Docker stack canonical and publishes nginx
+through a protected Cloudflare named tunnel. The OCI cloud-canonical
+alternative is archived and must not execute without explicit product
+reactivation plus synchronized Task/index/report updates. Public access requires
+HTTPS, external identity/MFA, application RBAC, revocable sessions, rate limits,
+audit, backup/restore and privacy review. All new user-visible deployment,
+authentication and failure states remain strictly localized through the typed
+`en` and `zh-CN` catalogs.

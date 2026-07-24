@@ -1,5 +1,5 @@
 import { appConfig } from './app.config';
-import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from './auth-session.constants';
+import { DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from './auth-session.constants';
 import {
   DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
@@ -24,11 +24,11 @@ describe('appConfig auth session defaults', () => {
     );
   });
 
-  it('defaults browser login JWT expiry to a 400-day persistent session', () => {
+  it('defaults legacy access JWT expiry to a short session', () => {
     delete process.env.JWT_EXPIRES_IN_SECONDS;
 
     expect(appConfig().app.jwtExpiresInSeconds).toBe(
-      DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
+      DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
     );
   });
 
@@ -38,11 +38,11 @@ describe('appConfig auth session defaults', () => {
     expect(appConfig().app.jwtExpiresInSeconds).toBe(900);
   });
 
-  it('falls back to the persistent default for invalid expiry values', () => {
+  it('falls back to the short default for invalid expiry values', () => {
     process.env.JWT_EXPIRES_IN_SECONDS = 'not-a-number';
 
     expect(appConfig().app.jwtExpiresInSeconds).toBe(
-      DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
+      DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
     );
   });
 

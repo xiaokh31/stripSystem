@@ -12,6 +12,7 @@ import {
   authorizedRequest,
   configureAuthTestEnv,
   installAuthMock,
+  adminAuthHeader,
   hrManagerAuthHeader,
   officeAuthHeader,
 } from './auth-test-helpers';
@@ -37,6 +38,9 @@ interface AttendanceImportRecord {
   errorCount: number;
   errorMessage: string | null;
   dataRevision: number;
+  deletedAt?: Date | null;
+  deletedById?: string | null;
+  deletionReason?: string | null;
   rawMetadata: unknown;
   importedById: string | null;
   createdAt: Date;
@@ -625,6 +629,172 @@ describe('AttendanceImportsController (e2e)', () => {
     });
   });
 
+  it('audits whole-import deletion, blocks old routes, preserves bytes, and allows a new active same-SHA import', async () => {
+    const uploaded = await authorizedRequest(app, hrManagerAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    const uploadedBody = uploaded.body as AttendanceImportBody;
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
+      .expect(201);
+    const generated = await authorizedRequest(app, hrManagerAuthHeader())
+      .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
+      .expect(201);
+    const generatedBody = generated.body as GenerateWageRecordBody;
+    const originalBefore = await readFile(uploadedBody.storedPath);
+    const originalShaBefore = createHash('sha256')
+      .update(originalBefore)
+      .digest('hex');
+    const generatedPaths = wageGeneratedFiles
+      .filter((file) => file.attendanceImportId === uploadedBody.id)
+      .map((file) => file.storagePath);
+
+    await authorizedRequest(app, officeAuthHeader())
+      .get(`/api/attendance-imports/${uploadedBody.id}/deletion-impact`)
+      .expect(403);
+    await authorizedRequest(app, officeAuthHeader())
+      .delete(`/api/attendance-imports/${uploadedBody.id}`)
+      .send({ reason: 'Office cannot remove attendance imports.' })
+      .expect(403);
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${uploadedBody.id}`)
+      .send({ reason: 'bad' })
+      .expect(400);
+
+    const impact = await authorizedRequest(app, hrManagerAuthHeader())
+      .get(`/api/attendance-imports/${uploadedBody.id}/deletion-impact`)
+      .expect(200);
+    expect(impact.body).toMatchObject({
+      attendanceImportId: uploadedBody.id,
+      originalFilename: uploadedBody.originalFilename,
+      activeRowCount: 390,
+      deletedRowCount: 0,
+      generatedFileCount: expect.any(Number),
+    });
+    expect(impact.body).not.toHaveProperty('storedPath');
+
+    const deleted = await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${uploadedBody.id}`)
+      .send({ reason: 'Uploaded the wrong monthly attendance workbook.' })
+      .expect(200);
+    expect(deleted.body).toMatchObject({
+      code: 'ATTENDANCE_IMPORT_DELETED',
+      deleted: true,
+      alreadyDeleted: false,
+      event: {
+        attendanceImportId: uploadedBody.id,
+        originalFilename: uploadedBody.originalFilename,
+        fileSha256: uploadedBody.fileSha256,
+        activeRowCount: 390,
+        deletedRowCount: 0,
+        actor: {
+          id: 'auth-hr-manager',
+          displayLabel: 'HR_MANAGER User',
+        },
+        reason: 'Uploaded the wrong monthly attendance workbook.',
+      },
+    });
+    expect(deleted.body.event).not.toHaveProperty('storedPath');
+    expect(
+      wageGeneratedFiles
+        .filter((file) => file.attendanceImportId === uploadedBody.id)
+        .every((file) => file.status !== 'GENERATED'),
+    ).toBe(true);
+    expect(attendanceRows).toHaveLength(390);
+    expect(await readFile(uploadedBody.storedPath)).toEqual(originalBefore);
+    expect(await fileSha256(uploadedBody.storedPath)).toBe(originalShaBefore);
+    for (const path of generatedPaths) {
+      await expect(stat(path)).resolves.toBeDefined();
+    }
+
+    const repeated = await authorizedRequest(app, hrManagerAuthHeader())
+      .delete(`/api/attendance-imports/${uploadedBody.id}`)
+      .send({ reason: 'A later reason must not replace the first.' })
+      .expect(200);
+    expect(repeated.body).toMatchObject({
+      code: 'ATTENDANCE_IMPORT_ALREADY_DELETED',
+      alreadyDeleted: true,
+      event: {
+        id: deleted.body.event.id,
+        reason: deleted.body.event.reason,
+        occurredAt: deleted.body.event.occurredAt,
+      },
+    });
+
+    for (const route of [
+      `/api/attendance-imports/${uploadedBody.id}`,
+      `/api/attendance-imports/${uploadedBody.id}/parse-result`,
+      `/api/attendance-imports/${uploadedBody.id}/row-history`,
+      `/api/attendance-imports/${uploadedBody.id}/files`,
+    ]) {
+      await authorizedRequest(app, hrManagerAuthHeader())
+        .get(route)
+        .expect(409)
+        .expect(({ body }) =>
+          expect((body as ErrorBody).code).toBe('ATTENDANCE_IMPORT_DELETED'),
+        );
+    }
+    for (const route of [
+      `/api/attendance-imports/${uploadedBody.id}/parse`,
+      `/api/attendance-imports/${uploadedBody.id}/parse-job`,
+      `/api/attendance-imports/${uploadedBody.id}/generate-wage-record`,
+      `/api/attendance-imports/${uploadedBody.id}/generate-wage-record-job`,
+    ]) {
+      await authorizedRequest(app, hrManagerAuthHeader())
+        .post(route)
+        .expect(409)
+        .expect(({ body }) =>
+          expect((body as ErrorBody).code).toBe('ATTENDANCE_IMPORT_DELETED'),
+        );
+    }
+    await authorizedRequest(app, hrManagerAuthHeader())
+      .get(
+        `/api/attendance-imports/${uploadedBody.id}/files/${generatedBody.generatedFile.id}/download`,
+      )
+      .expect(409);
+
+    const history = await authorizedRequest(app, hrManagerAuthHeader())
+      .get('/api/attendance-imports/deletion-history?limit=10&offset=0')
+      .expect(200);
+    expect(history.body).toMatchObject({
+      total: 1,
+      items: [{ id: deleted.body.event.id }],
+    });
+    const activeList = await authorizedRequest(app, hrManagerAuthHeader())
+      .get('/api/attendance-imports?limit=25&offset=0')
+      .expect(200);
+    expect(activeList.body.items).toEqual([]);
+
+    const reuploaded = await authorizedRequest(app, hrManagerAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath)
+      .expect(201);
+    expect(reuploaded.body).toMatchObject({
+      fileSha256: uploadedBody.fileSha256,
+      parseStatus: 'NOT_PARSED',
+    });
+    expect(reuploaded.body.id).not.toBe(uploadedBody.id);
+    await authorizedRequest(app, adminAuthHeader())
+      .get(`/api/attendance-imports/${reuploaded.body.id}/deletion-impact`)
+      .expect(200);
+    await authorizedRequest(app, adminAuthHeader())
+      .delete(`/api/attendance-imports/${reuploaded.body.id}`)
+      .send({ reason: 'Administrator confirmed this replacement was incorrect.' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: 'ATTENDANCE_IMPORT_DELETED',
+          event: {
+            actor: {
+              id: 'auth-admin',
+              displayLabel: 'ADMIN User',
+            },
+          },
+        });
+      });
+  });
+
   function createPrismaMock(
     importRecords: AttendanceImportRecord[],
     rowRecords: AttendanceRowRecord[],
@@ -633,6 +803,15 @@ describe('AttendanceImportsController (e2e)', () => {
     const prismaMock: any = {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       attendanceImport: {
+        findFirst: jest.fn(({ where } = { where: {} }) => {
+          const found = importRecords.find(
+            (record) =>
+              (!where.fileSha256 ||
+                record.fileSha256 === where.fileSha256) &&
+              !(where.deletedAt === null && record.deletedAt),
+          );
+          return Promise.resolve(found ?? null);
+        }),
         findUnique: jest.fn(({ where }: FindUniqueArgs) => {
           const found = where.id
             ? importRecords.find((record) => record.id === where.id)
@@ -662,6 +841,9 @@ describe('AttendanceImportsController (e2e)', () => {
             errorCount: data.errorCount,
             errorMessage: data.errorMessage,
             dataRevision: 0,
+            deletedAt: null,
+            deletedById: null,
+            deletionReason: null,
             rawMetadata: null,
             importedById: data.importedById ?? null,
             createdAt: now,
@@ -670,8 +852,15 @@ describe('AttendanceImportsController (e2e)', () => {
           importRecords.push(record);
           return Promise.resolve(record);
         }),
-        findMany: jest.fn(({ take, skip }) =>
-          Promise.resolve(importRecords.slice(skip, skip + take).reverse()),
+        findMany: jest.fn(({ where, take, skip }) =>
+          Promise.resolve(
+            importRecords
+              .filter(
+                (record) => !(where?.deletedAt === null && record.deletedAt),
+              )
+              .slice(skip, skip + take)
+              .reverse(),
+          ),
         ),
         update: jest.fn(({ where, data }) => {
           const record = importRecords.find((item) => item.id === where.id);
@@ -687,6 +876,26 @@ describe('AttendanceImportsController (e2e)', () => {
             updatedAt: new Date('2026-07-04T10:01:00.000Z'),
           });
           return Promise.resolve(record);
+        }),
+        updateMany: jest.fn(({ where, data }) => {
+          const record = importRecords.find((item) => item.id === where.id);
+          if (
+            !record ||
+            (where.deletedAt === null && record.deletedAt) ||
+            (where.dataRevision !== undefined &&
+              record.dataRevision !== where.dataRevision)
+          ) {
+            return Promise.resolve({ count: 0 });
+          }
+          const nextRevision =
+            data.dataRevision?.increment !== undefined
+              ? record.dataRevision + data.dataRevision.increment
+              : (data.dataRevision ?? record.dataRevision);
+          Object.assign(record, data, {
+            dataRevision: nextRevision,
+            updatedAt: new Date('2026-07-04T10:01:00.000Z'),
+          });
+          return Promise.resolve({ count: 1 });
         }),
       },
       attendanceRow: {
@@ -839,10 +1048,14 @@ describe('AttendanceImportsController (e2e)', () => {
           const ids = where.id?.in as string[] | undefined;
           let count = 0;
           for (const file of generatedFileRecords) {
-            if (!ids || ids.includes(file.id)) {
-              Object.assign(file, data);
-              count += 1;
-            }
+            if (ids && !ids.includes(file.id)) continue;
+            if (
+              where.attendanceImportId &&
+              file.attendanceImportId !== where.attendanceImportId
+            ) continue;
+            if (where.status && file.status !== where.status) continue;
+            Object.assign(file, data);
+            count += 1;
           }
           return Promise.resolve({ count });
         }),
@@ -889,6 +1102,36 @@ describe('AttendanceImportsController (e2e)', () => {
       ),
     };
     prismaMock.asyncJob = { findFirst: jest.fn(() => Promise.resolve(null)) };
+
+    const importAuditEvents: any[] = [];
+    prismaMock.attendanceImportAuditEvent = {
+      create: jest.fn(({ data }) => {
+        const event = {
+          id: `attendance-import-audit-${importAuditEvents.length + 1}`,
+          ...data,
+        };
+        importAuditEvents.push(event);
+        return Promise.resolve(event);
+      }),
+      findUnique: jest.fn(({ where }) => {
+        const key = where.attendanceImportId_eventCode;
+        return Promise.resolve(
+          importAuditEvents.find(
+            (event) =>
+              event.attendanceImportId === key.attendanceImportId &&
+              event.eventCode === key.eventCode,
+          ) ?? null,
+        );
+      }),
+      findMany: jest.fn(({ take, skip }) =>
+        Promise.resolve(
+          [...importAuditEvents]
+            .reverse()
+            .slice(skip, skip + take),
+        ),
+      ),
+      count: jest.fn(() => Promise.resolve(importAuditEvents.length)),
+    };
 
     prismaMock.$transaction = jest.fn((callback) => callback(prismaMock));
 

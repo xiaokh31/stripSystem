@@ -79,6 +79,95 @@ export function installAuthMock(
       return user;
     },
   };
+  installBrowserAuthStorageMock(prisma);
+}
+
+/**
+ * Adds the session/audit models required by the browser-cookie login contract to
+ * older in-memory Prisma fixtures. Full refresh/replay behaviour is covered by
+ * auth-native.e2e-spec.ts; management suites only need durable login creation.
+ */
+export function installBrowserAuthStorageMock(
+  prisma: Record<string, any>,
+): void {
+  const sessions = new Map<string, Record<string, any>>();
+  const refreshTokens = new Map<string, Record<string, any>>();
+  let nextSessionId = 1;
+
+  prisma.nativeAuthSession ??= {};
+  prisma.nativeAuthSession.create ??= jest.fn(async ({ data }: any) => {
+    const session = {
+      ...data,
+      id: `browser-session-${nextSessionId++}`,
+      lastUsedAt: new Date(),
+      revokedAt: null,
+    };
+    sessions.set(session.id, session);
+    const nested = data.refreshTokens?.create;
+    if (nested) {
+      refreshTokens.set(nested.tokenHash, {
+        ...nested,
+        id: `refresh-${nextSessionId}`,
+        revokedAt: null,
+        sessionId: session.id,
+        usedAt: null,
+      });
+    }
+    return session;
+  });
+  prisma.nativeAuthSession.findMany ??= jest.fn(async ({ where }: any) =>
+    [...sessions.values()]
+      .filter(
+        (session) =>
+          (!where.userId || session.userId === where.userId) &&
+          (where.revokedAt !== null || session.revokedAt === null),
+      )
+      .map(({ id }) => ({ id })),
+  );
+  prisma.nativeAuthSession.findUnique ??= jest.fn(
+    async ({ where }: any) => sessions.get(where.id) ?? null,
+  );
+  prisma.nativeAuthSession.updateMany ??= jest.fn(
+    async ({ where, data }: any) => {
+      const ids = Array.isArray(where.id?.in)
+        ? where.id.in
+        : where.id
+          ? [where.id]
+          : [...sessions.keys()];
+      const matched = ids
+        .map((id: string) => sessions.get(id))
+        .filter(
+          (session: Record<string, any> | undefined) =>
+            session &&
+            (where.revokedAt !== null || session.revokedAt === null),
+        ) as Array<Record<string, any>>;
+      matched.forEach((session) => Object.assign(session, data));
+      return { count: matched.length };
+    },
+  );
+  prisma.nativeRefreshToken ??= {};
+  prisma.nativeRefreshToken.updateMany ??= jest.fn(
+    async ({ where, data }: any) => {
+      const sessionIds = Array.isArray(where.sessionId?.in)
+        ? where.sessionId.in
+        : [where.sessionId];
+      const matched = [...refreshTokens.values()].filter(
+        (token) =>
+          sessionIds.includes(token.sessionId) &&
+          (where.revokedAt !== null || token.revokedAt === null),
+      );
+      matched.forEach((token) => Object.assign(token, data));
+      return { count: matched.length };
+    },
+  );
+  prisma.authAuditEvent ??= {};
+  prisma.authAuditEvent.create ??= jest.fn(async ({ data }: any) => ({
+    ...data,
+    id: `auth-audit-${Date.now()}`,
+  }));
+  prisma.authAuditEvent.createMany ??= jest.fn(async ({ data }: any) => ({
+    count: Array.isArray(data) ? data.length : 1,
+  }));
 }
 
 export function adminAuthHeader(): string {

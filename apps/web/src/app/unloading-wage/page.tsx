@@ -30,12 +30,21 @@ import {
   canSettleUnloadingWage,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import {
+  appendDashboardDrilldownContext,
+  firstValue,
+  normalizeDashboardDrilldownContext,
+} from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
 interface UnloadingWageSearchParams {
   settlementId?: string | string[];
   settlementMonth?: string | string[];
+  review?: string | string[];
+  from?: string | string[];
+  code?: string | string[];
 }
 
 interface UnloadingWageState {
@@ -57,13 +66,21 @@ export default async function UnloadingWagePage({
   const settlementMonth =
     firstSearchValue(params.settlementMonth) ?? currentSettlementMonth();
   const requestedSettlementId = firstSearchValue(params.settlementId);
+  const review =
+    firstValue(params.review) === "NEEDS_REVIEW"
+      ? ("NEEDS_REVIEW" as const)
+      : undefined;
+  const dashboardContext = normalizeDashboardDrilldownContext(params);
   const currentUser = await getServerCurrentUser();
   const canRead = canReviewUnloadingWage(currentUser);
   const canSettle = canSettleUnloadingWage(currentUser);
 
   if (!canRead) {
     return (
-      <UnloadingWagePageShell locale={locale} settlementMonth={settlementMonth}>
+      <UnloadingWagePageShell
+        href={unloadingWageHref({ settlementMonth })}
+        locale={locale}
+      >
         <PermissionRequiredPanel locale={locale} />
       </UnloadingWagePageShell>
     );
@@ -73,17 +90,37 @@ export default async function UnloadingWagePage({
     settlementMonth,
     requestedSettlementId,
     locale,
+    review,
   );
 
   return (
-    <UnloadingWagePageShell locale={locale} settlementMonth={settlementMonth}>
+    <UnloadingWagePageShell
+      href={unloadingWageHref({
+        context: dashboardContext,
+        review,
+        settlementMonth,
+      })}
+      locale={locale}
+    >
+      {dashboardContext ? (
+        <DashboardFilterContext
+          clearHref="/unloading-wage"
+          context={dashboardContext}
+          locale={locale}
+        />
+      ) : null}
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {canSettle ? (
           <SettlementGeneratePanel defaultSettlementMonth={settlementMonth} />
         ) : (
           <SettlementPermissionPanel locale={locale} />
         )}
-        <SettlementMonthFilter locale={locale} settlementMonth={settlementMonth} />
+        <SettlementMonthFilter
+          context={dashboardContext}
+          locale={locale}
+          review={review}
+          settlementMonth={settlementMonth}
+        />
       </section>
 
       {state.sourceRecordsError ? (
@@ -111,8 +148,10 @@ export default async function UnloadingWagePage({
       ) : (
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <SettlementVersions
+            context={dashboardContext}
             selectedSettlementId={state.selectedSettlement?.id ?? null}
             locale={locale}
+            review={review}
             settlementMonth={settlementMonth}
             settlements={state.monthSettlements}
           />
@@ -132,12 +171,12 @@ export default async function UnloadingWagePage({
 
 function UnloadingWagePageShell({
   children,
+  href,
   locale,
-  settlementMonth,
 }: {
   children: ReactNode;
+  href: string;
   locale: Locale;
-  settlementMonth: string;
 }) {
   const { t } = createTranslator(locale);
 
@@ -160,9 +199,7 @@ function UnloadingWagePageShell({
           </div>
           <Link
             className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-            href={`/unloading-wage?settlementMonth=${encodeURIComponent(
-              settlementMonth,
-            )}`}
+            href={href}
           >
             {t("Refresh")}
           </Link>
@@ -211,11 +248,12 @@ async function loadUnloadingWageState(
   settlementMonth: string,
   requestedSettlementId: string | null,
   locale: Locale,
+  review?: "NEEDS_REVIEW",
 ): Promise<UnloadingWageState> {
   const apiOptions = await getServerApiOptions();
   const [sourceRecordsResult, settlementsResult] = await Promise.allSettled([
     listPayContainers({ limit: 100, offset: 0, settlementMonth }, apiOptions),
-    listUnloadingWageSettlements(apiOptions),
+    listUnloadingWageSettlements({ review }, apiOptions),
   ]);
   const settlements =
     settlementsResult.status === "fulfilled"
@@ -223,15 +261,21 @@ async function loadUnloadingWageState(
       : [];
 
   return {
-    monthSettlements: settlementsForMonth(settlements, settlementMonth),
+    monthSettlements: review
+      ? settlements
+      : settlementsForMonth(settlements, settlementMonth),
     reviewAlerts: settlementReviewAlerts(settlements, settlementMonth, locale),
     selectedSettlement:
       settlementsResult.status === "fulfilled"
-        ? selectSettlementForMonth(
-            settlements,
-            settlementMonth,
-            requestedSettlementId,
-          )
+        ? review
+          ? settlements.find(
+              (settlement) => settlement.id === requestedSettlementId,
+            ) ?? settlements[0] ?? null
+          : selectSettlementForMonth(
+              settlements,
+              settlementMonth,
+              requestedSettlementId,
+            )
         : null,
     settlementsError:
       settlementsResult.status === "rejected"
@@ -252,10 +296,14 @@ async function loadUnloadingWageState(
 }
 
 function SettlementMonthFilter({
+  context,
   locale,
+  review,
   settlementMonth,
 }: {
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
   locale: Locale;
+  review?: "NEEDS_REVIEW";
   settlementMonth: string;
 }) {
   const { t } = createTranslator(locale);
@@ -266,6 +314,13 @@ function SettlementMonthFilter({
         {t("Review month filter")}
       </h2>
       <form className="mt-4 flex flex-wrap items-end gap-3">
+        {review ? <input name="review" type="hidden" value={review} /> : null}
+        {context ? (
+          <>
+            <input name="from" type="hidden" value={context.from} />
+            <input name="code" type="hidden" value={context.code} />
+          </>
+        ) : null}
         <label className="grid gap-1 text-sm">
           <span className="font-semibold text-zinc-700">
             {t("Settlement month")}
@@ -286,6 +341,21 @@ function SettlementMonthFilter({
       </form>
     </section>
   );
+}
+
+function unloadingWageHref({
+  context = null,
+  review,
+  settlementMonth,
+}: {
+  context?: ReturnType<typeof normalizeDashboardDrilldownContext>;
+  review?: "NEEDS_REVIEW";
+  settlementMonth: string;
+}): string {
+  const params = new URLSearchParams({ settlementMonth });
+  if (review) params.set("review", review);
+  appendDashboardDrilldownContext(params, context);
+  return `/unloading-wage?${params.toString()}`;
 }
 
 function MonthSourceRecords({
@@ -444,12 +514,16 @@ function ReviewAlerts({
 }
 
 function SettlementVersions({
+  context,
   locale,
+  review,
   selectedSettlementId,
   settlementMonth,
   settlements,
 }: {
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
   locale: Locale;
+  review?: "NEEDS_REVIEW";
   selectedSettlementId: string | null;
   settlementMonth: string;
   settlements: UnloadingWageSettlementResponse[];
@@ -476,9 +550,13 @@ function SettlementVersions({
                   ? "border-teal-700 bg-teal-50"
                   : "border-zinc-200 bg-zinc-50 hover:bg-white"
               }`}
-              href={`/unloading-wage?settlementMonth=${encodeURIComponent(
+              data-record-id={settlement.id}
+              href={unloadingWageSettlementHref({
+                context,
+                review,
+                settlementId: settlement.id,
                 settlementMonth,
-              )}&settlementId=${encodeURIComponent(settlement.id)}`}
+              })}
               key={settlement.id}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -499,6 +577,26 @@ function SettlementVersions({
       )}
     </section>
   );
+}
+
+function unloadingWageSettlementHref({
+  context,
+  review,
+  settlementId,
+  settlementMonth,
+}: {
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
+  review?: "NEEDS_REVIEW";
+  settlementId: string;
+  settlementMonth: string;
+}): string {
+  const params = new URLSearchParams({ settlementId, settlementMonth });
+  if (review) params.set("review", review);
+  if (context) {
+    params.set("from", context.from);
+    params.set("code", context.code);
+  }
+  return `/unloading-wage?${params.toString()}`;
 }
 
 function NoSettlementSelected({

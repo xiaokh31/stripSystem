@@ -110,6 +110,74 @@ export interface DeleteAttendanceRowResponseDto {
   affectedGeneratedFiles: Array<{ id: string; status: 'SUPERSEDED' }>;
 }
 
+export interface AttendanceImportFileImpactDto {
+  id: string;
+  fileType: string;
+  previousStatus: string;
+  nextStatus: string;
+}
+
+export interface AttendanceImportDeletionImpactResponseDto {
+  attendanceImportId: string;
+  originalFilename: string;
+  settlementMonth: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employeeCount: number;
+  dayCount: number;
+  activeRowCount: number;
+  deletedRowCount: number;
+  warningCount: number;
+  errorCount: number;
+  generatedFileCount: number;
+  generatedFileSummary: Array<{
+    fileType: string;
+    status: string;
+    count: number;
+  }>;
+}
+
+export interface AttendanceImportAuditEventResponseDto {
+  id: string;
+  eventCode: 'DELETED';
+  attendanceImportId: string;
+  originalFilename: string;
+  fileSha256: string;
+  importStatus: string;
+  parseStatus: string;
+  settlementMonth: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  employeeCount: number;
+  dayCount: number;
+  activeRowCount: number;
+  deletedRowCount: number;
+  warningCount: number;
+  errorCount: number;
+  generatedFiles: AttendanceImportFileImpactDto[];
+  actor: { id: string | null; displayLabel: string };
+  reason: string;
+  occurredAt: string;
+}
+
+export interface AttendanceImportDeletionHistoryResponseDto {
+  items: AttendanceImportAuditEventResponseDto[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export interface DeleteAttendanceImportResponseDto {
+  code:
+    | 'ATTENDANCE_IMPORT_DELETED'
+    | 'ATTENDANCE_IMPORT_ALREADY_DELETED';
+  deleted: boolean;
+  alreadyDeleted: boolean;
+  event: AttendanceImportAuditEventResponseDto;
+  affectedGeneratedFiles: AttendanceImportFileImpactDto[];
+  fallbackImport: AttendanceImportResponseDto | null;
+}
+
 export interface WageGeneratedFileListResponseDto {
   items: WageGeneratedFileResponseDto[];
 }

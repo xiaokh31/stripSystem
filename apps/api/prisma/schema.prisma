@@ -221,6 +221,10 @@ enum AttendanceRowAuditEventCode {
   DELETED
 }
 
+enum AttendanceImportAuditEventCode {
+  DELETED
+}
+
 enum ContainerPayClassification {
   OCEAN_CONTAINER
   US_TO_CANADA_TRANSFER
@@ -245,6 +249,22 @@ enum UnloadingWageSettlementStatus {
   NEEDS_REVIEW
 }
 
+enum AuthSessionClient {
+  BROWSER
+  NATIVE
+}
+
+enum AuthAuditEventCode {
+  BROWSER_LOGIN_SUCCEEDED
+  BROWSER_LOGIN_FAILED
+  BROWSER_REFRESH_SUCCEEDED
+  BROWSER_REFRESH_REUSED
+  BROWSER_LOGOUT
+  BROWSER_SESSION_REVOKED
+  CSRF_REJECTED
+  AUTH_RATE_LIMITED
+}
+
 model User {
   id                            String                    @id @default(cuid())
   email                         String?                   @unique
@@ -265,6 +285,8 @@ model User {
   correctionFeedback            CorrectionFeedback[]      @relation("CorrectionFeedbackCorrectedBy")
   operationalSettings           OperationalSetting[]      @relation("OperationalSettingUpdatedBy")
   attendanceImports             AttendanceImport[]        @relation("AttendanceImportImportedBy")
+  deletedAttendanceImports      AttendanceImport[]        @relation("AttendanceImportDeletedBy")
+  attendanceImportAuditEvents   AttendanceImportAuditEvent[] @relation("AttendanceImportAuditActor")
   wageGeneratedFiles            WageGeneratedFile[]       @relation("WageGeneratedFileGeneratedBy")
   deletedAttendanceRows         AttendanceRow[]            @relation("AttendanceRowDeletedBy")
   attendanceRowAuditEvents      AttendanceRowAuditEvent[]  @relation("AttendanceRowAuditActor")
@@ -277,6 +299,8 @@ model User {
   wageSettlementsGenerated      UnloadingWageSettlement[] @relation("UnloadingWageSettlementGeneratedBy")
   nativeAuthSessions            NativeAuthSession[]
   revokedNativeAuthSessions     NativeAuthSession[]       @relation("NativeAuthSessionRevokedBy")
+  authAuditEvents               AuthAuditEvent[]          @relation("AuthAuditEventUser")
+  actedAuthAuditEvents          AuthAuditEvent[]          @relation("AuthAuditEventActor")
   parserProfileFamiliesCreated  ParserProfileFamily[]     @relation("ParserProfileFamilyCreatedBy")
   parserProfileVersionsCreated  ParserProfileVersion[]    @relation("ParserProfileVersionCreatedBy")
   parserProfileVersionsApproved ParserProfileVersion[]    @relation("ParserProfileVersionApprovedBy")
@@ -297,8 +321,12 @@ model NativeAuthSession {
   userId                   String               @map("user_id")
   user                     User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   deviceId                 String               @map("device_id")
+  clientType               AuthSessionClient    @default(NATIVE) @map("client_type")
   platform                 String?
   appVersion               String?              @map("app_version")
+  csrfTokenHash            String?              @map("csrf_token_hash")
+  userAgentHash            String?              @map("user_agent_hash")
+  createdIpHash            String?              @map("created_ip_hash")
   refreshTokenHash         String               @unique @map("refresh_token_hash")
   previousRefreshTokenHash String?              @map("previous_refresh_token_hash")
   createdAt                DateTime             @default(now()) @map("created_at")
@@ -311,10 +339,31 @@ model NativeAuthSession {
   expiresAt                DateTime             @map("expires_at")
   absoluteExpiresAt        DateTime             @map("absolute_expires_at")
   refreshTokens            NativeRefreshToken[]
+  auditEvents              AuthAuditEvent[]
 
   @@index([userId, revokedAt])
+  @@index([userId, clientType, revokedAt])
   @@index([expiresAt])
   @@map("native_auth_sessions")
+}
+
+model AuthAuditEvent {
+  id                String             @id @default(cuid())
+  eventCode         AuthAuditEventCode @map("event_code")
+  sessionId         String?            @map("session_id")
+  session           NativeAuthSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  userId            String?            @map("user_id")
+  user              User?              @relation("AuthAuditEventUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorUserId       String?            @map("actor_user_id")
+  actorUser         User?              @relation("AuthAuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  clientAddressHash String?            @map("client_address_hash")
+  metadata          Json?
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  @@index([eventCode, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([userId, createdAt])
+  @@map("auth_audit_events")
 }
 
 model NativeRefreshToken {
@@ -983,7 +1032,7 @@ model AttendanceImport {
   id                 String               @id @default(cuid())
   originalFilename   String               @map("original_filename")
   storedPath         String               @map("stored_path")
-  fileSha256         String               @unique @map("file_sha256")
+  fileSha256         String               @map("file_sha256")
   mimeType           String?              @map("mime_type")
   fileSizeBytes      BigInt?              @map("file_size_bytes")
   importStatus       ImportStatus         @default(UPLOADED) @map("import_status")
@@ -998,22 +1047,63 @@ model AttendanceImport {
   errorCount         Int                  @default(0) @map("error_count")
   errorMessage       String?              @map("error_message")
   dataRevision       Int                  @default(0) @map("data_revision")
+  deletedAt          DateTime?            @map("deleted_at")
+  deletedById        String?              @map("deleted_by_id")
+  deletedBy          User?                @relation("AttendanceImportDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deletionReason     String?              @map("deletion_reason")
   rawMetadata        Json?                @map("raw_metadata")
   importedById       String?              @map("imported_by_id")
   importedBy         User?                @relation("AttendanceImportImportedBy", fields: [importedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   rows               AttendanceRow[]
   rowAuditEvents     AttendanceRowAuditEvent[]
+  auditEvents        AttendanceImportAuditEvent[]
   generatedFiles     WageGeneratedFile[]
   asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
-  @@index([parseStatus])
+  @@index([fileSha256])
+  @@index([deletedAt, createdAt])
+  @@index([parseStatus, deletedAt])
   @@index([settlementMonth])
   @@index([importedById])
+  @@index([deletedById])
   @@index([createdAt])
   @@map("attendance_imports")
+}
+
+model AttendanceImportAuditEvent {
+  id                     String                         @id @default(cuid())
+  attendanceImportId     String                         @map("attendance_import_id")
+  attendanceImport       AttendanceImport               @relation(fields: [attendanceImportId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  eventCode              AttendanceImportAuditEventCode @map("event_code")
+  originalFilename       String                         @map("original_filename")
+  fileSha256             String                         @map("file_sha256")
+  importStatusSnapshot   ImportStatus                   @map("import_status_snapshot")
+  parseStatusSnapshot    ParseStatus                    @map("parse_status_snapshot")
+  settlementMonth        String?                        @map("settlement_month")
+  periodStart            DateTime?                      @map("period_start") @db.Date
+  periodEnd              DateTime?                      @map("period_end") @db.Date
+  employeeCount          Int                            @map("employee_count")
+  dayCount               Int                            @map("day_count")
+  activeRowCount         Int                            @map("active_row_count")
+  deletedRowCount        Int                            @map("deleted_row_count")
+  warningCount           Int                            @map("warning_count")
+  errorCount             Int                            @map("error_count")
+  generatedFilesSnapshot Json                           @map("generated_files_snapshot")
+  actorUserId            String?                        @map("actor_user_id")
+  actorUser              User?                          @relation("AttendanceImportAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorDisplaySnapshot   String                         @map("actor_display_snapshot")
+  reason                 String
+  occurredAt             DateTime                       @default(now()) @map("occurred_at")
+  createdAt              DateTime                       @default(now()) @map("created_at")
+
+  @@unique([attendanceImportId, eventCode])
+  @@index([occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([fileSha256])
+  @@map("attendance_import_audit_events")
 }
 
 model AttendanceRow {

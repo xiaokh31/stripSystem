@@ -12,6 +12,7 @@ import {
 } from "@playwright/test";
 import {
   authHeaders,
+  configureBrowserActor,
   E2E_BASE_URL,
   ensureTestUser,
   loginThroughApi,
@@ -83,8 +84,10 @@ test("dedicated inventory workspace performs audited destination depletion and r
     );
 
     const filterForm = page.locator('form[action="/inventory"]');
-    await filterForm.locator('input[name="containerNo"]').fill(fixture.containerNo);
-    await filterForm.locator('input[name="destinationCode"]').fill("");
+    await filterForm
+      .getByRole("combobox", { name: "Container No." })
+      .fill(fixture.containerNo);
+    await filterForm.getByRole("searchbox", { name: "Destination" }).fill("");
     await filterForm.locator('select[name="status"]').selectOption("");
     await filterForm.getByRole("button", { name: "Apply filters" }).click();
     await expect(page).toHaveURL(new RegExp(`containerNo=${fixture.containerNo}`));
@@ -577,17 +580,7 @@ async function verifyRealBrowserZoom(
   });
   try {
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
-    const url = new URL(E2E_BASE_URL).origin;
-    await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url,
-        value: token,
-      },
-    ]);
+    await configureBrowserActor(context, token);
     const zoomPage = context.pages()[0] ?? (await context.newPage());
     for (const locale of ["en", "zh-CN"] as const) {
       for (const theme of ["light", "dark"] as const) {

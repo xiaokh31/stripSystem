@@ -1,5 +1,5 @@
 import { resolve, sep } from 'node:path';
-import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from './auth-session.constants';
+import { DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from './auth-session.constants';
 import {
   DEFAULT_NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
   DEFAULT_NATIVE_REFRESH_RATE_LIMIT_MAX,
@@ -7,6 +7,10 @@ import {
   DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
   DEFAULT_NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS,
 } from './native-auth.constants';
+import {
+  parsePublicDeploymentConfiguration,
+  PublicDeploymentConfiguration,
+} from './public-deployment.config';
 
 export const DEFAULT_DATABASE_URL =
   'postgresql://bestar:bestar_dev_password@localhost:15432/bestar_unloading?schema=public';
@@ -31,10 +35,31 @@ export interface AppConfiguration {
   nativeSessionAbsoluteExpiresInSeconds: number;
   nativeRefreshRateLimitMax: number;
   nativeRefreshRateLimitWindowSeconds: number;
+  publicDeployment: PublicDeploymentConfiguration;
 }
 
-export const appConfig = (): { app: AppConfiguration } => ({
-  app: {
+export const appConfig = (): { app: AppConfiguration } => {
+  const publicDeployment = parsePublicDeploymentConfiguration({
+    publicDeploymentEnabled: process.env.PUBLIC_DEPLOYMENT_ENABLED,
+    publicBaseUrl: process.env.PUBLIC_BASE_URL,
+    corsOrigins: process.env.CORS_ORIGINS,
+    browserCookieSecure: process.env.BROWSER_COOKIE_SECURE,
+    trustedProxyMode: process.env.TRUSTED_PROXY_MODE,
+    trustedProxyCidrs: process.env.TRUSTED_PROXY_CIDRS,
+    browserAccessExpiresInSeconds:
+      process.env.BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+    browserSessionIdleExpiresInSeconds:
+      process.env.BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS,
+    browserSessionAbsoluteExpiresInSeconds:
+      process.env.BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
+    authRateLimitMax: process.env.AUTH_RATE_LIMIT_MAX,
+    authRateLimitWindowSeconds: process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    authRateLimitFailClosed: process.env.AUTH_RATE_LIMIT_FAIL_CLOSED,
+    jwtSecret: process.env.JWT_SECRET,
+    redisUrl: process.env.REDIS_URL,
+  });
+
+  return { app: {
     port: Number.parseInt(
       process.env.PORT ?? process.env.API_PORT ?? '4000',
       10,
@@ -54,7 +79,7 @@ export const appConfig = (): { app: AppConfiguration } => ({
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresInSeconds: parsePositiveInteger(
       process.env.JWT_EXPIRES_IN_SECONDS,
-      DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS,
+      DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
     ),
     nativeAccessTokenExpiresInSeconds: parsePositiveInteger(
       process.env.NATIVE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
@@ -76,8 +101,10 @@ export const appConfig = (): { app: AppConfiguration } => ({
       process.env.NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS,
       DEFAULT_NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS,
     ),
+    publicDeployment,
   },
-});
+  };
+};
 
 function parsePositiveInteger(
   value: string | undefined,

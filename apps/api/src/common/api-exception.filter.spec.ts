@@ -1,4 +1,8 @@
-import { ArgumentsHost, UnauthorizedException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  PayloadTooLargeException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiExceptionFilter } from './api-exception.filter';
 
 describe('ApiExceptionFilter', () => {
@@ -44,6 +48,32 @@ describe('ApiExceptionFilter', () => {
         code: 'UNAUTHENTICATED',
         path: '/api/reports/download',
         timestamp: '2026-06-29 14:47:49 MDT',
+      }),
+    );
+  });
+
+  it('returns a stable redacted code for oversized public uploads', () => {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => ({ url: '/api/imports' }),
+      }),
+    } as unknown as ArgumentsHost;
+
+    new ApiExceptionFilter(true).catch(
+      new PayloadTooLargeException('File too large'),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'PAYLOAD_TOO_LARGE',
+        details: {},
+        path: '/api/imports',
       }),
     );
   });

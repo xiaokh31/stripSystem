@@ -2,6 +2,7 @@ import type { Locale } from "../../lib/i18n/catalog";
 import { uploadQueueStatusLabel } from "../../lib/i18n/status-labels";
 
 export const XLSX_EXTENSION = ".xlsx";
+export const MAX_IMPORT_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 export type UploadStatus =
   | "queued"
@@ -45,9 +46,15 @@ export function isAllowedXlsxFile(file: FileLike): boolean {
   return file.name.trim().toLowerCase().endsWith(XLSX_EXTENSION);
 }
 
+export function isWithinImportUploadLimit(file: FileLike): boolean {
+  return (file.size ?? 0) <= MAX_IMPORT_UPLOAD_BYTES;
+}
+
 export function buildUploadQueue(files: readonly FileLike[]): UploadQueueItem[] {
   return files.map((file, index) => {
-    const valid = isAllowedXlsxFile(file);
+    const validType = isAllowedXlsxFile(file);
+    const validSize = isWithinImportUploadLimit(file);
+    const valid = validType && validSize;
 
     return {
       id: `${index}-${file.name}-${file.size ?? 0}`,
@@ -55,8 +62,16 @@ export function buildUploadQueue(files: readonly FileLike[]): UploadQueueItem[] 
       fileSizeBytes: file.size ?? 0,
       progressPercent: valid ? 0 : null,
       status: valid ? "queued" : "invalid",
-      errorCode: valid ? undefined : "INVALID_FILE_TYPE",
-      errorMessage: valid ? undefined : "Only .xlsx files can be uploaded.",
+      errorCode: valid
+        ? undefined
+        : validType
+          ? "UPLOAD_FILE_TOO_LARGE"
+          : "INVALID_FILE_TYPE",
+      errorMessage: valid
+        ? undefined
+        : validType
+          ? "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file."
+          : "Only .xlsx files can be uploaded.",
     };
   });
 }

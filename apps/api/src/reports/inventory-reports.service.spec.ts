@@ -199,6 +199,39 @@ describe('InventoryReportsService', () => {
     });
     expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
+
+  it('applies composite remaining scope to selected detail without pretending it is one status', async () => {
+    prisma.container.findUnique.mockResolvedValue({
+      containerNo: 'SCOPE-REMAINING',
+      destinations: [
+        {
+          destinationCode: 'YYC',
+          destinationType: null,
+          id: 'destination-scope',
+          pallets: [
+            { id: 'planned', status: 'PLANNED' },
+            { id: 'loading', status: 'LOADING' },
+            { id: 'loaded', status: 'LOADED' },
+            { id: 'cancelled', status: 'CANCELLED' },
+            { id: 'adjusted', status: 'ADJUSTED_OUT' },
+          ],
+        },
+      ],
+      id: 'scope-container',
+      status: 'LABELS_GENERATED',
+    });
+
+    await expect(
+      service.containerDetailSummary('scope-container', {
+        scope: 'REMAINING',
+      }),
+    ).resolves.toMatchObject({
+      activeTotalPallets: 2,
+      loadedPallets: 0,
+      remainingPallets: 2,
+      totalPallets: 2,
+    });
+  });
 });
 
 function row(

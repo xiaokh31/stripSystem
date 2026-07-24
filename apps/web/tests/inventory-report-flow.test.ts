@@ -42,6 +42,31 @@ test("inventory workspace href preserves API filters and exact container selecti
   );
 });
 
+test("inventory composite scope and dashboard context survive pagination and sorting", () => {
+  const filters = normalizeInventoryFilters({
+    code: "INVENTORY_DESTINATION_REMAINING",
+    destinationCode: " YYC ",
+    from: "dashboard",
+    scope: "REMAINING",
+  });
+  assert.deepEqual(filters, {
+    code: "INVENTORY_DESTINATION_REMAINING",
+    destinationCode: "YYC",
+    from: "dashboard",
+    scope: "REMAINING",
+  });
+  assert.equal(
+    inventoryWorkspaceHref(filters, undefined, {
+      page: 3,
+      pageSize: 20,
+      sortBy: "status",
+      sortDirection: "asc",
+    }),
+    "/inventory?destinationCode=YYC&scope=REMAINING&from=dashboard&code=INVENTORY_DESTINATION_REMAINING&page=3&pageSize=20&sortBy=status&sortDirection=asc",
+  );
+  assert.equal(activeInventoryFilterCount(filters), 2);
+});
+
 test("inventory exact suggestion selection stores canonical container text with stable identity", () => {
   assert.equal(
     inventoryWorkspaceHref(

@@ -35,6 +35,7 @@ import {
   INVENTORY_READ_PERMISSION,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { firstValue } from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +60,14 @@ interface ContainerInventoryAdjustmentState {
 
 export default async function ContainerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const requestedSearchParams = await searchParams;
+  const selectedFileId = firstValue(requestedSearchParams.fileId)?.trim();
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
   const state = await loadContainerDetail(id);
@@ -259,12 +264,15 @@ export default async function ContainerDetailPage({
           title={t("Generated files could not be loaded")}
         />
       ) : (
-        <ContainerGeneratedFiles
-          canReprintLabels={canReprintLabels(currentUser)}
-          containerId={state.container.id}
-          containerStatus={state.container.status}
-          initialFiles={state.files}
-        />
+        <div id="generated-files">
+          <ContainerGeneratedFiles
+            canReprintLabels={canReprintLabels(currentUser)}
+            containerId={state.container.id}
+            containerStatus={state.container.status}
+            initialFiles={state.files}
+            selectedFileId={selectedFileId}
+          />
+        </div>
       )}
     </main>
   );

@@ -14,8 +14,8 @@ import {
   type E2ETestUser,
 } from "./helpers";
 
-const settlementMonth = "2026-06";
-const completedAt = "2026-06-18T20:30:00.000Z";
+const settlementMonth = "2099-06";
+const completedAt = "2099-06-18T20:30:00.000Z";
 
 interface TemporaryUnloader {
   id: string;
@@ -68,6 +68,12 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   await page.goto(`/containers/${fixture.containerId}`);
   await expect(page.getByRole("heading", { name: fixture.containerNoA }))
     .toBeVisible();
+  const expandWageSection = page.getByRole("button", {
+    name: "Expand unloading wage section",
+  });
+  if (await expandWageSection.isVisible()) {
+    await expandWageSection.click();
+  }
   await expect(page.getByRole("button", { name: "Save unloaders" }))
     .toBeVisible();
   await expect(

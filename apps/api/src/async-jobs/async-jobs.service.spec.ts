@@ -26,6 +26,13 @@ describe('AsyncJobsService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      attendanceImport: {
+        findUnique: jest.fn(),
+      },
+      $queryRawUnsafe: jest.fn(),
+      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
+        callback(prisma),
+      ),
     };
     service = new AsyncJobsService(prisma, {
       get: jest.fn((key: string) => {
@@ -138,6 +145,28 @@ describe('AsyncJobsService', () => {
       bullJobId: 'bull-job-1',
       importFileId: 'import-1',
     });
+  });
+
+  it('locks and rejects a deleted attendance import before recording its job', async () => {
+    prisma.asyncJob.findFirst.mockResolvedValue(null);
+    prisma.attendanceImport.findUnique.mockResolvedValue({
+      id: 'attendance-import-1',
+      deletedAt: new Date('2026-07-23T19:45:00.000Z'),
+    });
+
+    await expect(service.submitJob(attendanceParseJobInput())).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'ATTENDANCE_IMPORT_DELETED',
+      }),
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT id FROM attendance_imports WHERE id = $1 FOR UPDATE',
+      'attendance-import-1',
+    );
+    expect(prisma.asyncJob.create).not.toHaveBeenCalled();
+    expect(queueAdd).not.toHaveBeenCalled();
   });
 
   it('marks the database job failed when Redis enqueue fails', async () => {
@@ -360,6 +389,19 @@ describe('AsyncJobsService', () => {
       actor,
       metadata: {
         sourceRoute: 'POST /imports/:id/parse-job',
+      },
+    };
+  }
+
+  function attendanceParseJobInput() {
+    return {
+      jobType: AsyncJobType.ATTENDANCE_PARSE,
+      targetType: ASYNC_JOB_TARGET_TYPES.attendanceImport,
+      targetId: 'attendance-import-1',
+      attendanceImportId: 'attendance-import-1',
+      actor,
+      metadata: {
+        sourceRoute: 'POST /attendance-imports/:id/parse-job',
       },
     };
   }

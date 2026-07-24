@@ -11,6 +11,7 @@ import {
   CreateLoadJobLineDto,
 } from './dto/create-load-job.dto';
 import { ListLoadJobsQueryDto } from './dto/list-load-jobs-query.dto';
+import { loadJobListWhere } from './load-job-list-filter';
 import {
   LoadJobLoadedPalletsResponseDto,
   LoadJobContainerSuggestionResponseDto,
@@ -396,22 +397,7 @@ export class LoadJobsService {
   }
 
   async list(query: ListLoadJobsQueryDto): Promise<LoadJobListResponseDto> {
-    const where: Prisma.LoadJobWhereInput = {};
-    if (query.containerId) {
-      where.OR = [
-        { containerId: query.containerId },
-        { lines: { some: { containerId: query.containerId } } },
-      ];
-    }
-    if (query.loadNo) {
-      where.jobNo = query.loadNo;
-    }
-    if (query.destinationRegion) {
-      where.destinationRegion = query.destinationRegion;
-    }
-    if (query.status) {
-      where.status = this.status(query.status);
-    }
+    const where = loadJobListWhere(query);
 
     const records = (await this.prisma.loadJob.findMany({
       where,

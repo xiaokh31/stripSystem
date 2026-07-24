@@ -6,11 +6,9 @@ import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
   login,
-  type LoginResponse,
 } from "@/lib/api-client";
 import {
   safeAuthRedirectTarget,
-  setBrowserAuthToken,
 } from "@/lib/auth-token";
 import type { MessageKey } from "@/lib/i18n/catalog";
 import type { Translator } from "@/lib/i18n/translator";
@@ -34,8 +32,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
     const password = String(form.get("password") ?? "");
 
     try {
-      const result: LoginResponse = await login({ email, password });
-      setBrowserAuthToken(result.accessToken, result.expiresIn);
+      await login({ email, password });
       router.replace(safeAuthRedirectTarget(nextPath));
       router.refresh();
     } catch (caught) {
@@ -124,6 +121,14 @@ interface LocalizedLoginError {
 }
 
 const LOGIN_ERROR_MESSAGES: Record<string, LocalizedLoginError> = {
+  AUTH_RATE_LIMITED: {
+    title: "Too many sign-in attempts",
+    message: "Wait a moment, then try signing in again.",
+  },
+  AUTH_RATE_LIMIT_UNAVAILABLE: {
+    title: "Authentication service unavailable",
+    message: "Sign-in protection is temporarily unavailable. Try again later.",
+  },
   FORBIDDEN: {
     title: "Sign-in failed",
     message: "The signed-in user does not have permission for this page.",

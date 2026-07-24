@@ -213,7 +213,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-22</p>
+        <p class="small">Generated: 2026-07-23</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -230,11 +230,11 @@
           source boundary、readiness script、build-machine checklist 和 handoff docs
           仅作为以后恢复资料，不再是当前 release gate。
           2026-07-22 新增公网使用需求。架构与免费平台调研已完成并形成 ADR 0005
-          和公网部署 runbook：推荐先通过 Cloudflare named tunnel 暴露现有唯一
-          local canonical stack；若必须在公司断网/主机停机时仍支持远程使用，则
-          受控迁移完整 stack 到 OCI Canadian-region Always Free A1。两条路线不能
-          同时接受写入，均不得公开 PostgreSQL/Redis。当前尚未实施公网安全基线、
-          Tunnel 或 OCI profile，因此公网交付状态为 Planned，而不是已上线。
+          和公网部署 runbook。PUBLIC-DEPLOY-01 公网安全基线及 PUBLIC-DEPLOY-02
+          Cloudflare named-tunnel 仓库实现与当前环境自动化已完成；真实 Tunnel/
+          Access 尚未激活。PUBLIC-DEPLOY-03 OCI 路线已归档且中断修改已还原。
+          不得公开 PostgreSQL/Redis，当前公网交付状态为 Code Complete / External
+          Activation Pending，而不是已上线。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -313,7 +313,12 @@
           dashboard，接入 work queue、lifecycle strip、inventory pressure、
           active load jobs、exceptions、monthly summary / wage queues 和 recent
           activity。WEB-DASHBOARD-04 已完成 API/Web/i18n/Playwright/full-stack
-          QA 回归，覆盖 role smoke、locale switch 和 mobile/desktop 宽度。
+          QA 回归，覆盖 role smoke、locale switch 和 mobile/desktop 宽度；但
+          2026-07-23 现场反馈和代码审计确认该回归只验证链接存在与 URL 改变，没有验证
+          目标页展示构成统计值的对应记录。Work Queue、lifecycle、inventory、load jobs、
+          exceptions、monthly/wage 和 recent activity 多处仍落到未筛选总列表。WEB-DASHBOARD-07
+          已完成共享 count/list predicate、typed URL filters、exact record selection、运营复核页和
+          matching/non-matching Chromium vertical slice；WEB-DASHBOARD-08 仍负责全点击矩阵退出门禁。
           API 只返回 stable code、labelKey、enum 和 raw source data，Web 统一通过
           catalog/status-label helpers 本地化。AUTH-SESSION-01 已完成持久化浏览器
           登录：默认 `JWT_EXPIRES_IN_SECONDS=34560000` 秒，API JWT `exp`、
@@ -409,7 +414,7 @@
           已完成当前环境 full-stack、负向/RBAC、严格 i18n、视觉、性能、迁移、清理和文档门禁；因业务尚未提供同一
           新客户布局的 4 组不同 SHA source + approved outcome pair，以及初次批准和三次连续无实质修正复核签字，状态为
           Code complete / External data gate，不能标记 Complete；该 parser Task 不再重复运行，但其外部数据门禁
-          不阻塞当前 PUBLIC-DEPLOY-01。
+          不阻塞当前公网开发线路。
           WEB-BRAND-01 已把用户提供的 wordmark、compact mark、favicon 与 Apple touch icon 规范到
           <code>apps/web/public/images/logos/</code>，完成 typed frozen asset map、BrandLogo、browser metadata identity、
           starter 清理与 Docker/nginx/Chromium 门禁；WEB-BRAND-02 已接入 desktop rail、responsive mobile Shell 与
@@ -424,16 +429,20 @@
           localized method/issues 并移除全局前 100 行截断。新需求还要求 employee-day row 可审计软删除、记录 JWT 删除人
           并显示历史，且 reparse 不得复活。最终 full-stack/BIFF/LibreOffice/Chromium exit gate 已通过，WAGE-HOURS-01 至 06
           均 complete。06 已使工时页面只展示工资表历史；解析 JSON、任务报告和未知技术工件继续在后台留存审计，但不显示卡片或下载入口。
-          2026-07-22 公网访问规划新增 PUBLIC-DEPLOY-01 至 03：01 是当前唯一下一项，负责 public mode、可撤销
-          HttpOnly browser session、CSRF、Redis rate limit、trusted proxy、安全 headers 与严格双语门禁；01 Done 后
-          默认执行 02 的 Cloudflare named-tunnel local-canonical 路线，只有产品明确选择远程可用性优先时才执行 03 的
-          OCI ARM64 canonical migration。02/03 不得形成两个 writer，免费平台也不被记录为 SLA。
+          WAGE-HOURS-07 已于 2026-07-23 完成：工时页现支持整次考勤导入的可审计软删除，保留原始 `.xls`、行、生成物和
+          job 证据，并交付 active-only SHA 唯一约束、删除后同 SHA 新建导入、并发保护和严格双语历史 UI。
+          2026-07-22 公网访问规划新增 PUBLIC-DEPLOY-01 至 03；01 已完成 public mode、可撤销
+          HttpOnly browser session、CSRF、Redis rate limit、trusted proxy、安全 headers 与严格双语门禁。02 的
+          Cloudflare named-tunnel local-canonical 仓库实现和当前环境自动化也已完成，仅等待真实 Cloudflare
+          domain/account、Access MFA、非公司网络与 token rotate/revoke 外部激活证据。产品短暂选择后撤回 03 的
+          OCI ARM64 canonical migration；03 已归档且中断实现已还原。local/cloud 不得形成两个 writer，免费平台也不被记录为 SLA。
           此前 WEB-OPS-06 至 09 均已达到
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
-          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05 已全部关闭且不得重跑；
-          另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、
-          Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
+          Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05/06 已全部关闭且不得重跑；
+          WAGE-HOURS-07 与 WEB-DASHBOARD-07 已关闭；当前新的立即执行 Task 是 WEB-DASHBOARD-08，且必须使用
+          fresh Session。另有此前尚未关闭的 9 个活动 Task 仍依赖真实业务
+          workbook、目标打印机/Microsoft Excel、Android/iOS 人工设备矩阵或目标部署主机；另有 5 个 Windows 原生/MSIX
           P6 Task 标记为 Archived。归档 Task 不得执行，也不得继续作为关联任务 blocker。
         </p>
       </header>
@@ -648,7 +657,8 @@
           新增的 Work Hours Settlement 与 Unloading Wage Settlement P0/P1/P2 扩展；
           不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 05 修正线路，既有完成记录保留为
           历史基线；01 至 05 已由 05 关闭并保持 complete。后续新增的 WAGE-HOURS-06 也已关闭办公室页面的生成文件可见性，
-          未删除或停止生成后台技术工件。按用户要求，每个阶段完成后更新本 HTML。
+          未删除或停止生成后台技术工件。WAGE-HOURS-07 已于 2026-07-23 达到 Done / 100%，交付整次
+          attendance import 可审计软删除；它是独立需求，不改写 01 至 06 的关闭证据。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
           <thead>
@@ -905,6 +915,13 @@
               <td>100%</td>
               <td><code>/work-hours</code> 使用 typed、default-deny file-type allowlist，只渲染全部 <code>WAGE_RECORD_XLS</code> 历史；<code>ATTENDANCE_PARSED_JSON</code>、<code>TASK_REPORT_HTML</code> 及未知技术类型不进入 SSR、DOM、辅助功能树或下载链接。技术工件仍由 Worker/API 生成，并保留数据库、storage、SHA、actor、状态及受保护 API 审计能力。</td>
               <td>Docker Web lint/typecheck、265 unit、production build 与 Chromium 5/5 通过；覆盖 en/zh-CN、HR/ADMIN/read-only、320/390/768/1366/1920、真实 200% zoom、refresh/locale switch、SSR、代理下载 SHA 及零技术工件 DOM/href。9 张截图和 manifest 位于 <code>test-results/wage-hours-06/</code>；精确清理后测试 import/files/jobs/users/roles 为 0，原始上传与 fixture 保留。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.6: WAGE-HOURS-07 Attendance Import Audited Deletion</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>整次考勤导入从 active Work Hours 退出，但原始 `.xls`、SHA、parsed rows、row audit、generated records/bytes 和 async jobs 全部留存；删除使用 authenticated actor、必填 reason、不可变 import event 和独立 <code>attendance.imports.delete</code> 权限。active-only SHA 唯一约束允许删除后以新 id 重传同一文件，同时阻止并发产生两个 active import；旧 URL、job 和同步 Worker 均有 active/revision 防线。</td>
+              <td>36 个 migration、API 359 unit / 126 E2E、Web 271 unit、Worker 183、lint/typecheck/build、真实 Chromium Work Hours 6/6、双语/主题/mobile/desktop/200% zoom、SHA/字节留存和精确清理均通过。四张原分辨率截图已检查；本 Task 不得重跑。</td>
             </tr>
           </tbody>
         </table>
@@ -1179,7 +1196,10 @@
           真实运营中控台。WEB-DASHBOARD-00 关闭视觉方向和治理 brief；
           WEB-DASHBOARD-01 已完成真实 dashboard 汇总 API；WEB-DASHBOARD-02
           已完成 Shell visual system；WEB-DASHBOARD-03 已完成首页运营中控台 UI。
-          WEB-DASHBOARD-04 已完成最终 QA/i18n/full-stack 回归。
+          WEB-DASHBOARD-04 已完成当时的 QA/i18n/full-stack 回归；WEB-DASHBOARD-05/06
+          已关闭 typography 与 Dock Lane Strip 视觉缺陷。2026-07-23 现场导航反馈暴露出
+          aggregate count 与目标结果未建立精确契约；WEB-DASHBOARD-07 已关闭 canonical predicate 与目标筛选
+          vertical slice，剩余全点击矩阵由 WEB-DASHBOARD-08 处理。
           后续实现必须严格遵守 i18n catalog/status-label
           管理：API 只返回 stable code、labelKey、enum 和 raw source data，Web 按当前 locale 渲染可见文案。
         </p>
@@ -1227,7 +1247,21 @@
               <td><span class="badge done">Done</span></td>
               <td>QA Complete</td>
               <td>已补 `apps/web/e2e/dashboard.spec.ts`，覆盖 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER dashboard role smoke、English -> 中文 -> refresh -> English、1366/1920/mobile 宽度无页面级横向溢出；更新 core/auth/locale-switch E2E；i18n unit gate 新增 API dashboard labelKey catalog 检查；Docker full-stack 重建后 `/api/dashboard/operations` 经 nginx 返回受保护 route。</td>
-              <td>Dashboard redesign 任务组完成；后续现场反馈另开具体 bugfix。</td>
+              <td>既有角色/i18n/布局证据保持有效；其“链接存在/URL 改变”断言不足的问题已由 WEB-DASHBOARD-07 的真实 matching/non-matching vertical slice 修正，完整 click-surface matrix 留给 WEB-DASHBOARD-08。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-07 Dashboard Drilldown Navigation and Target Filters</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100% / P0 Vertical Slice</td>
+              <td>已为 imports、containers、inventory、load jobs、exceptions、monthly/wage/attendance 和 recent activity 交付 typed drilldown、共享 count/list predicate、server-side URL filters、exact record selection、bounded operations review、RBAC 与 strict en/zh-CN。</td>
+              <td>Docker API 370 unit/128 E2E、Web 276 unit/build、Worker 183、Chromium 5/5、healthcheck、diff check 与专用数据精确清理通过；无 schema/migration 或外部验证剩余。</td>
+            </tr>
+            <tr>
+              <td>WEB-DASHBOARD-08 Dashboard Drilldown Full Stack I18n Visual Exit Gate</td>
+              <td><span class="badge partial">Ready / Next</span></td>
+              <td>0% / Exit Gate</td>
+              <td>任务已定义 machine-readable click-surface inventory、真实 matching/non-matching fixture、全 aggregate/record 点击结果、角色、SSR no-flash、视觉、性能和精确清理门禁。</td>
+              <td>使用 fresh supervisor Session 执行；不得只断言 href、route heading 或 URL，也不得在 WEB-DASHBOARD-07 Session 中继续。</td>
             </tr>
           </tbody>
         </table>
@@ -1573,8 +1607,10 @@
       <section>
         <h2>公网访问与免费云部署进度</h2>
         <p class="note">
-          2026-07-22 已完成平台可行性调研、单一 writer 架构决定和操作文档，未创建
-          任何公网或云资源。当前栈包含 Next.js、NestJS、PostgreSQL、Redis、Python
+          2026-07-22 已完成平台可行性调研、单一 writer 架构决定、操作文档、PUBLIC-DEPLOY-01 公网安全基线及
+          PUBLIC-DEPLOY-02 Cloudflare named-tunnel 仓库实现和当前环境自动化。PUBLIC-DEPLOY-03 OCI 路线已归档，
+          中断 Session 的修改已还原。尚未创建任何真实公网或云资源。
+          当前栈包含 Next.js、NestJS、PostgreSQL、Redis、Python
           文档生成和持久化文件，不适合拆到会休眠、无持久盘或仅限个人用途的普通免费
           PaaS。免费平台额度按 2026-07-22 官方资料记录，执行前必须重新核对。
         </p>
@@ -1592,25 +1628,25 @@
               <td>PUBLIC-DEPLOY architecture and runbook</td>
               <td><span class="badge done">Done</span></td>
               <td>ADR 0005 固定唯一 canonical PostgreSQL + storage writer；公网 runbook 比较 Cloudflare、OCI 和不适用的免费 PaaS，并记录 privacy、backup、cutover 和 rollback。</td>
-              <td>文档完成不等于公网已上线。先执行 PUBLIC-DEPLOY-01。</td>
+              <td>文档和安全基线完成不等于公网已上线；下一步只关闭 02 的真实 Cloudflare external activation gate。</td>
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-01 Public Internet Security Baseline</td>
-              <td><span class="badge partial">Ready / Current Next</span></td>
-              <td>尚未实现。需要 public-mode fail-closed、revocable HttpOnly browser session、CSRF/Origin、Redis rate limit、trusted proxy、安全 headers、audit 与 strict en/zh-CN。</td>
-              <td>以一个 fresh supervised Session 完整执行并达到 Done；本 Task 不创建云资源。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>已交付 public-mode fail-closed、短 access + 最长 400 天 opaque refresh 的可撤销 HttpOnly browser session、rotation/reuse detection、CSRF/Origin、Redis rate limit、trusted proxy、安全 headers、health/error 脱敏、audit、strict en/zh-CN、provider-neutral Compose/network contract 和 Prisma migration。API 350 unit/125 E2E、Web 266 unit/build、Worker 183 tests、Chromium 业务矩阵、35 个迁移以及公网运行时和三项危险配置拒绝均通过。</td>
+              <td>未创建 domain、Tunnel、Access 或 OCI 资源；下一步关闭 02 的真实外部门禁，03 已归档。</td>
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-02 Cloudflare Tunnel Local Canonical Pilot</td>
-              <td><span class="badge deferred">Planned / Recommended Branch</span></td>
-              <td>named tunnel + Access 只连接 nginx，本地数据库和 storage 保持唯一 writer。解决动态 IP；公司 Internet、供电或主机故障时远程仍不可用，LAN 可继续。</td>
-              <td>仅在 01 Done 后执行。真实 domain/Access/MFA/外网验证可以作为最后 external gate。</td>
+              <td><span class="badge partial">Code Complete / External Activation Pending</span></td>
+              <td>已交付 digest-pinned remotely-managed named tunnel、secret-file/fail-closed/network isolation contract、nginx no-store 与稳定 413、50 MB 应用上传门禁、严格双语错误、运维/备份/监控/故障演练 runbook。API 351 unit/125 E2E、Web 267 unit/build、Worker 183 tests、18 项相关 Chromium、35 migrations、healthcheck、备份/恢复 dry-run、正负向契约与本地故障演练均通过；本地 PostgreSQL + storage 仍是唯一 writer，LAN 不依赖 Tunnel。</td>
+              <td>仓库实现不得重跑。按 runbook 在真实 domain/account 上补 named tunnel、Access deny-by-default + MFA/session、非公司网络、public cache/upload/download、重连及 token rotate/revoke 脱敏证据；未关闭前不宣称公网已上线。</td>
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-03 OCI Always Free ARM64 Cloud Canonical Profile</td>
-              <td><span class="badge deferred">Planned / Decision Gate</span></td>
-              <td>仅当业务选择远程可用性优先时，把完整 stack 迁到 Canadian-region A1；按保守 2 OCPU/12 GB、ARM64、durable volume 和 no-SLA/capacity/reclaim 风险设计。</td>
-              <td>与 02 的 local writer 路线互斥。必须 write freeze、DB + storage 同一恢复点、hash/count 验证及安全回退。</td>
+              <td><span class="badge archived">Archived / Do Not Execute</span></td>
+              <td>产品已撤回 OCI Always Free A1 cloud-canonical 路线；中断 Session 的 cloud Compose、ARM64、备份、迁移和运维修改已还原。</td>
+              <td>不得执行；恢复必须先取得产品批准、移除 Task 归档标记并同步索引/完成报告。</td>
             </tr>
           </tbody>
         </table>
@@ -1630,15 +1666,15 @@
           <tbody>
             <tr>
               <td>Public Internet access security baseline</td>
-              <td><span class="badge partial">Ready</span></td>
-              <td>公网架构文档已完成，但现有 local/LAN browser session、proxy、CORS 和 network profile 尚未经过 PUBLIC-DEPLOY-01 的公网硬化，不得直接暴露当前 Compose/nginx。</td>
-              <td>当前唯一下一开发项为 PUBLIC-DEPLOY-01；完成 public mode、browser session、CSRF、rate limit、headers、audit 和 strict i18n 后再选择部署路线。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>PUBLIC-DEPLOY-01 已完成 public/local 双模式、browser session、CSRF、rate limit、trusted proxy、headers、audit、strict i18n 和仅 nginx loopback ingress 的 provider-neutral profile；local/LAN 与 Native contract 回归通过。</td>
+              <td>基线和 02 仓库实现完成仍不表示已上线；不得直接端口转发 local profile，只能关闭 02 的真实 Cloudflare external gate，或经明确产品决定另行评估 03。</td>
             </tr>
             <tr>
               <td>Public hosting route activation</td>
-              <td><span class="badge deferred">Decision After Baseline</span></td>
-              <td>Cloudflare local-canonical 和 OCI cloud-canonical 均未实施。前者不解决公司断网，后者让仓库依赖公网且免费资源无 SLA。</td>
-              <td>01 后默认执行 02；只有产品明确接受 OCI 风险并选择远程可用性优先时执行 03。任何时刻只有一个 writer。</td>
+              <td><span class="badge partial">Cloudflare External Activation Pending</span></td>
+              <td>Cloudflare local-canonical 的仓库实现和无凭据自动化已完成，但真实 hostname/Access 尚未激活；OCI cloud-canonical 已归档。</td>
+              <td>按公网 runbook 关闭 02 的真实 Cloudflare domain/Access/MFA、非公司网络、故障恢复和 token rotation gate。任何时刻只有一个 writer。</td>
             </tr>
             <tr>
               <td>Work hours calculation, employee review and generated workbook revision</td>
@@ -1653,10 +1689,16 @@
               <td>Stable file type allowlist、filtered empty state、typed 双语文案、SSR/render unit 与真实 Chromium DOM/download 证据均已关闭；不需要新的管理员技术工件页面。</td>
             </tr>
             <tr>
-              <td>Operations dashboard redesign</td>
+              <td>Whole attendance-import deletion from Work Hours</td>
               <td><span class="badge done">Done</span></td>
-              <td>WEB-DASHBOARD-00 至 06 已完成视觉方向、真实汇总 API、Shell、运营首页、双语 typography 与 Dock Lane Strip 视觉退出门禁；WEB-OPS-01 至 05 已完成 authenticated office workspace、柜子详情、canonical 库存、动态运营时钟及综合关闭门禁；WEB-OPS-06 至 09 已补齐独立 RBAC 柜号联想、稳定柜子排序、库存服务端分页、全局 totals、自适应工作区及 i18n/accessibility/transaction/visual 最终门禁。</td>
-              <td>Dashboard redesign 与 WEB-OPS-01 至 09 已关闭，不重复启动；新 WEB-BRAND 是独立的企业 identity 接入，不重做 Dashboard。</td>
+              <td>WAGE-HOURS-07 已完成 import tombstone、不可变删除事件、HR/Admin dedicated permission、删除影响确认、历史、active-only SHA uniqueness、deleted-route gate、同 SHA 新导入及 job/Worker 竞态保护。</td>
+              <td>API/Web/Worker、现有与空库 migration、真实 nginx/Chromium、严格双语、响应式/200% zoom、原始与生成字节留存和精确清理证据均已关闭；不提供 restore 或物理清理。</td>
+            </tr>
+            <tr>
+              <td>Operations dashboard redesign</td>
+              <td><span class="badge partial">Vertical Slice Done</span></td>
+              <td>WEB-DASHBOARD-00 至 07 的视觉方向、真实汇总 API、Shell、运营首页、双语 typography、Dock Lane Strip 与精确 drilldown vertical slice 证据保持完成；WEB-OPS-01 至 09 也保持关闭。WEB-DASHBOARD-08 全点击矩阵通过前仍不宣称现场导航回归完全退出。</td>
+              <td>下一步仅以 fresh Session 执行 WEB-DASHBOARD-08。不得重跑 00-07 或借机重做 Dashboard 视觉。</td>
             </tr>
             <tr>
               <td>Web corporate logo integration</td>
@@ -1821,9 +1863,8 @@
           主机完成 Docker Desktop full stack 启动、数据库 migration、
           RBAC seed、首个 ADMIN 登录、OFFICE/WAREHOUSE 登录、权限拒绝、备份恢复 dry-run、
           真实打印机和真实 PDA/手机扫码验证后，再正式切换给仓库使用。
-          若产品后续选择 PUBLIC-DEPLOY-03 将 OCI 作为 canonical host，本节的 Windows
-          主机只能作为退役/只读回退资产，必须先按 ADR 0005 和 migration runbook 更新
-          P5 gate，不能与 OCI 同时接受业务写入。
+          PUBLIC-DEPLOY-03 OCI 路线已归档；本节仍以当前 local canonical host 为准。
+          以后恢复 03 时必须先取得产品批准、移除归档标记并更新 P5 gate，不能与 OCI 同时接受业务写入。
         </p>
         <table>
           <thead>
@@ -2025,17 +2066,19 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>当前唯一可立即执行的新开发任务是 `PUBLIC-DEPLOY-01Public Internet Security Baseline.md`。当前 LAN Compose/nginx 不得直接端口转发到 Internet。</li>
-          <li>PUBLIC-DEPLOY-01 Done 后默认选择 PUBLIC-DEPLOY-02 Cloudflare named tunnel；只有业务明确要求公司断网/主机停机时远程仍可用，才选择 PUBLIC-DEPLOY-03 OCI canonical migration。两条路线不得同时接受写入。</li>
+          <li>WEB-DASHBOARD-07 已达到 Done；下一仓库开发 Task 是 WEB-DASHBOARD-08：<code>scripts/run-business-agent.sh task 'prompts/tasks/WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md'</code>。必须使用 fresh supervisor Session，不得在当前 Session 连续执行。</li>
+          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
+          <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>
+          <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>
           <li>DOCKER-DEV-01 已完成：不要运行宿主 `pnpm`、Jest、Prisma 或 `uv` 开发命令；源码变更后用 Docker Compose rebuild，保持 host root/API/Web `node_modules` 为空。</li>
           <li>Windows 11 生产部署时固定使用 `docs/runbooks/deploy-windows.md` 的 Docker/nginx full-stack 模式，不要混用 host dev 端口。</li>
           <li>AGENT-AUTONOMY-01 已修正并增加终态监督；完整 Task 只使用 `scripts/run-business-agent.sh task '&lt;task-file&gt;'`，不要直接 prompt、原始 `exec`、手工 `resume` 或复用其他 Task 会话。项目 execpolicy 及宿主强制的凭据、外部发布和生产部署边界仍必须保留。</li>
           <li>WEB-I18N-04/05/06 已完成显式翻译、业务模块迁移及全 route/role/theme 无闪烁回归门禁；后续 Web 文案变更须保持该门禁通过。</li>
-          <li>后台体验升级 WEB-DASHBOARD-00 至 06 与 WEB-OPS-01 至 09 已完成；不要为 WEB-BRAND 重做 Dashboard 信息架构。</li>
+          <li>后台体验升级 WEB-DASHBOARD-00 至 07 与 WEB-OPS-01 至 09 的既有成果保持完成；现场 Dashboard 精确跳转回归只剩 WEB-DASHBOARD-08 全点击矩阵退出门禁。不要重跑旧任务或为 WEB-BRAND 重做 Dashboard 信息架构。</li>
           <li>WEB-BRAND-01/02/03/04 已全部完成且不得重跑；04 已关闭透明底现场回归。后续品牌范围若扩展到 PWA 192/512 icon、Native 或 Excel/PDF/label，必须另立 Task 并取得 approved master/范围决定。</li>
-          <li>持久化登录 AUTH-SESSION-01 已完成；默认 400 天长会话，现场如需缩短登录周期只调整 `JWT_EXPIRES_IN_SECONDS` 并重启服务。</li>
+          <li>Browser 公网 contract 使用短生命周期 access cookie 与最长 400 天、服务端可撤销并 rotation 的 opaque refresh session；外层 Access/MFA 可独立要求重新认证。调整周期须使用 browser session 配置并按 runbook 执行 revoke/key rotation，不能只延长 JWT。</li>
           <li>2026-07-18 新增 PARSER-PROFILE-01 至 08；01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等待 4 组真实/明确脱敏 golden pair 与业务签字，不得重跑 parser 开发。该外部 gate 不阻塞当前 PUBLIC-DEPLOY。首版批准只得到 REVIEW_REQUIRED + 0/3，不等于可信自动解析；06 已实现并验证连续 3 个 distinct-SHA 无实质修正证据门槛，07 已实现 TRUSTED 自动提交、drift/collision fallback 与 material correction demotion。</li>
           <li>NATIVE-AUTH-01 只需按现有 verification report 补 iOS 人工视觉/破坏性矩阵和 Android Release 矩阵；先保留当前真实 active session，不为追求自动终态读取 secure-store secrets 或修改未确认业务账号。Windows Credential Locker 矩阵已归档。</li>
           <li>Windows 原生安装包/MSIX 路线已归档：P6-MOBILE-09 至 13 不得执行，监督器会以 exit code 78 拒绝。以后恢复时必须先取得产品批准、移除归档标记、恢复关联验收范围并同步任务索引和本报告。</li>

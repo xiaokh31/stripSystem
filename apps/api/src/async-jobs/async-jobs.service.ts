@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -135,26 +136,7 @@ export class AsyncJobsService implements OnModuleDestroy {
     const maxAttempts = this.maxAttempts(input.maxAttempts);
     let record: AsyncJobRecord;
     try {
-      record = await this.prisma.asyncJob.create({
-        data: {
-          jobType: input.jobType,
-          status: AsyncJobStatus.QUEUED,
-          queueName: this.queueName,
-          targetType: input.targetType,
-          targetId: input.targetId,
-          idempotencyKey,
-          importFileId: input.importFileId ?? null,
-          containerId: input.containerId ?? null,
-          attendanceImportId: input.attendanceImportId ?? null,
-          parserLearningCaseId: input.parserLearningCaseId ?? null,
-          actorUserId: input.actor.id,
-          maxAttempts,
-          metadata: this.nullableJsonValue({
-            ...input.metadata,
-            actor: this.actorSnapshot(input.actor),
-          }),
-        },
-      });
+      record = await this.createJobRecord(input, idempotencyKey, maxAttempts);
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
         const raced = await this.findByIdempotencyKey(
@@ -221,6 +203,69 @@ export class AsyncJobsService implements OnModuleDestroy {
     }
 
     return this.toResponse(record);
+  }
+
+  private async createJobRecord(
+    input: SubmitAsyncJobInput,
+    idempotencyKey: string,
+    maxAttempts: number,
+  ): Promise<AsyncJobRecord> {
+    const create = async (
+      client: Pick<PrismaService, 'asyncJob'> | Prisma.TransactionClient,
+    ): Promise<AsyncJobRecord> =>
+      (await client.asyncJob.create({
+        data: {
+          jobType: input.jobType,
+          status: AsyncJobStatus.QUEUED,
+          queueName: this.queueName,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          idempotencyKey,
+          importFileId: input.importFileId ?? null,
+          containerId: input.containerId ?? null,
+          attendanceImportId: input.attendanceImportId ?? null,
+          parserLearningCaseId: input.parserLearningCaseId ?? null,
+          actorUserId: input.actor.id,
+          maxAttempts,
+          metadata: this.nullableJsonValue({
+            ...input.metadata,
+            actor: this.actorSnapshot(input.actor),
+          }),
+        },
+      })) as AsyncJobRecord;
+
+    if (!input.attendanceImportId) {
+      return create(this.prisma);
+    }
+    const attendanceImportId = input.attendanceImportId;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM attendance_imports WHERE id = $1 FOR UPDATE',
+        attendanceImportId,
+      );
+      const attendanceImport = await tx.attendanceImport.findUnique({
+        where: { id: attendanceImportId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!attendanceImport) {
+        throw new NotFoundException({
+          code: 'ATTENDANCE_IMPORT_NOT_FOUND',
+          message: 'Attendance import was not found.',
+          details: { id: attendanceImportId },
+        });
+      }
+      if (attendanceImport.deletedAt) {
+        throw new ConflictException({
+          code: 'ATTENDANCE_IMPORT_DELETED',
+          message: 'The attendance import is no longer active.',
+          details: {
+            attendanceImportId: attendanceImport.id,
+            deletedAt: attendanceImport.deletedAt.toISOString(),
+          },
+        });
+      }
+      return create(tx);
+    });
   }
 
   /**

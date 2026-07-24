@@ -48,6 +48,8 @@ import {
   getServerApiOptions,
   getServerCurrentUser,
 } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import { normalizeDashboardDrilldownContext } from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +77,7 @@ export default async function InventoryReportPage({
   const { t } = createTranslator(locale);
   const query = await searchParams;
   const filters = normalizeInventoryFilters(query);
+  const dashboardContext = normalizeDashboardDrilldownContext(query);
   const pagination = normalizeInventoryPagination(query);
   const selectedContainerId = normalizeInventorySelection(query);
   const currentUser = await getServerCurrentUser();
@@ -123,6 +126,13 @@ export default async function InventoryReportPage({
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
+      {dashboardContext ? (
+        <DashboardFilterContext
+          clearHref="/inventory"
+          context={dashboardContext}
+          locale={locale}
+        />
+      ) : null}
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -377,6 +387,15 @@ function InventoryFilterForm({
           type="hidden"
           value={pagination.sortDirection}
         />
+        {filters.scope ? (
+          <input name="scope" type="hidden" value={filters.scope} />
+        ) : null}
+        {filters.from && filters.code ? (
+          <>
+            <input name="from" type="hidden" value={filters.from} />
+            <input name="code" type="hidden" value={filters.code} />
+          </>
+        ) : null}
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
           {t("Destination")}
           <input
@@ -613,6 +632,7 @@ function ContainerSummaryTable({
                       ? "border-l-4 border-amber-600 bg-amber-50"
                       : "border-l-4 border-transparent"
                   }
+                  data-record-id={container.containerId}
                   data-selected-container={selected ? "true" : undefined}
                   key={container.containerId}
                 >
@@ -895,6 +915,13 @@ function InventoryQueryHiddenFields({
       {filters.containerNo ? <input name="containerNo" type="hidden" value={filters.containerNo} /> : null}
       {filters.destinationCode ? <input name="destinationCode" type="hidden" value={filters.destinationCode} /> : null}
       {filters.status ? <input name="status" type="hidden" value={filters.status} /> : null}
+      {filters.scope ? <input name="scope" type="hidden" value={filters.scope} /> : null}
+      {filters.from && filters.code ? (
+        <>
+          <input name="from" type="hidden" value={filters.from} />
+          <input name="code" type="hidden" value={filters.code} />
+        </>
+      ) : null}
       {selectedContainerId ? <input name="containerId" type="hidden" value={selectedContainerId} /> : null}
       <input name="page" type="hidden" value={page} />
       {pageSize ? <input name="pageSize" type="hidden" value={pageSize} /> : null}

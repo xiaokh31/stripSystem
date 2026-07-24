@@ -174,6 +174,38 @@ html[data-theme="dark"] {
   }
 }
 
+.contain-inline-paint {
+  contain: inline-size paint;
+}
+
+.lifecycle-dock-track {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(9rem, 1fr));
+  min-width: max(100%, 63rem);
+  width: 100%;
+}
+
+.secure-progress {
+  appearance: none;
+  border: 1px solid var(--line-soft);
+  background: white;
+}
+
+.secure-progress::-webkit-progress-bar {
+  background: white;
+}
+
+.secure-progress-danger::-webkit-progress-value { background: var(--exception-red); }
+.secure-progress-info::-webkit-progress-value { background: var(--dock-steel-muted); }
+.secure-progress-neutral::-webkit-progress-value { background: var(--line-strong); }
+.secure-progress-success::-webkit-progress-value { background: var(--seal-teal); }
+.secure-progress-warning::-webkit-progress-value { background: var(--forklift-amber); }
+.secure-progress-danger::-moz-progress-bar { background: var(--exception-red); }
+.secure-progress-info::-moz-progress-bar { background: var(--dock-steel-muted); }
+.secure-progress-neutral::-moz-progress-bar { background: var(--line-strong); }
+.secure-progress-success::-moz-progress-bar { background: var(--seal-teal); }
+.secure-progress-warning::-moz-progress-bar { background: var(--forklift-amber); }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -197,6 +229,20 @@ body {
   mask-repeat: no-repeat;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
+}
+
+.brand-logo-fluid {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.brand-logo-icon {
+  width: 64px;
+}
+
+.brand-logo-wordmark {
+  width: 228px;
 }
 
 .shell-brand-logo-responsive {

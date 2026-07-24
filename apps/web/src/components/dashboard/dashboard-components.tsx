@@ -42,12 +42,14 @@ export function DashboardPanel({
 }
 
 export function MetricTile({
+  code,
   detail,
   href,
   label,
   tone = "neutral",
   value,
 }: {
+  code?: string;
   detail?: string;
   href?: string;
   label: string;
@@ -71,7 +73,12 @@ export function MetricTile({
 
   if (href) {
     return (
-      <Link className={className} data-tone={tone} href={href}>
+      <Link
+        className={className}
+        data-drilldown-code={code}
+        data-tone={tone}
+        href={href}
+      >
         {content}
       </Link>
     );
@@ -121,8 +128,6 @@ export function ProgressBar({
 }) {
   const safeMax = Math.max(0, max);
   const safeValue = Math.min(Math.max(0, value), safeMax);
-  const percent = safeMax > 0 ? (safeValue / safeMax) * 100 : 0;
-
   return (
     <div className="progress-bar">
       <div className="mb-1 flex items-start justify-between gap-3 text-xs font-medium text-zinc-600">
@@ -131,19 +136,16 @@ export function ProgressBar({
           {safeValue}/{safeMax}
         </span>
       </div>
-      <div
+      <progress
         aria-label={label}
-        aria-valuemax={safeMax}
+        aria-valuemax={safeMax || 1}
         aria-valuemin={0}
         aria-valuenow={safeValue}
-        className="h-2 border border-[var(--line-soft)] bg-white"
+        className={`secure-progress secure-progress-${tone} h-2 w-full`}
+        max={safeMax || 1}
         role="progressbar"
-      >
-        <div
-          className={["h-full", toneFillClass(tone)].join(" ")}
-          style={{ width: `${percent}%` }}
-        />
-      </div>
+        value={safeValue}
+      />
     </div>
   );
 }
@@ -266,17 +268,8 @@ export function LifecycleDockStrip({
       aria-label={ariaLabel ?? t("Dock lane strip")}
       className="lifecycle-dock-strip max-w-full overflow-x-auto overscroll-x-contain border border-[var(--line-soft)] bg-[var(--panel-surface)]"
     >
-      <div
-        className="grid w-full"
-        data-testid="lifecycle-dock-track"
-        style={{
-          gridTemplateColumns: `repeat(${lanes.length}, minmax(9rem, 1fr))`,
-          minWidth: `max(100%, ${lanes.length * 9}rem)`,
-        }}
-      >
+      <div className="lifecycle-dock-track" data-testid="lifecycle-dock-track">
         {lanes.map((lane, index) => {
-          const percent = safeTotal > 0 ? (lane.count / safeTotal) * 100 : 0;
-
           return (
             <Link
               className="group relative grid h-full min-h-40 grid-rows-[minmax(5.25rem,1fr)_0.75rem_1rem] gap-3 border-r border-[var(--line-soft)] p-3 transition-colors last:border-r-0 hover:bg-[var(--panel-muted)] focus-visible:z-10"
@@ -307,18 +300,17 @@ export function LifecycleDockStrip({
                   {lane.label}
                 </p>
               </div>
-              <div
-                className="h-3 self-end border border-[var(--line-soft)] bg-white"
+              <progress
+                aria-label={lane.label}
+                aria-valuemax={safeTotal || 1}
+                aria-valuemin={0}
+                aria-valuenow={lane.count}
+                className={`secure-progress secure-progress-${lane.tone ?? "neutral"} h-3 w-full self-end`}
                 data-testid="lifecycle-lane-progress"
-              >
-                <div
-                  className={[
-                    "h-full transition-[width] group-hover:brightness-95",
-                    toneFillClass(lane.tone ?? "neutral"),
-                  ].join(" ")}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
+                max={safeTotal || 1}
+                role="progressbar"
+                value={lane.count}
+              />
               <p
                 className="font-data text-xs leading-4 text-zinc-500"
                 data-testid="lifecycle-lane-ratio"
@@ -346,19 +338,28 @@ export function PressureBar({
 
   return (
     <div className="pressure-bar">
-      <div className="flex h-3 overflow-hidden border border-[var(--line-soft)] bg-white">
-        {segments.map((segment) => (
-          <div
-            aria-label={segment.label}
-            className={toneFillClass(segment.tone ?? "neutral")}
+      <svg
+        aria-label={segments.map((segment) => segment.label).join(", ")}
+        className="h-3 w-full border border-[var(--line-soft)] bg-white"
+        preserveAspectRatio="none"
+        role="img"
+        viewBox={`0 0 ${Math.max(1, total)} 1`}
+      >
+        {segments.map((segment, index) => (
+          <rect
+            className={toneSvgFillClass(segment.tone ?? "neutral")}
+            height={1}
             key={segment.label}
-            style={{
-              width: `${total > 0 ? (segment.value / total) * 100 : 0}%`,
-            }}
-            title={segment.label}
-          />
+            width={segment.value}
+            x={segments
+              .slice(0, index)
+              .reduce((sum, item) => sum + item.value, 0)}
+            y={0}
+          >
+            <title>{segment.label}</title>
+          </rect>
         ))}
-      </div>
+      </svg>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
         {segments.map((segment) => (
           <span className="inline-flex items-center gap-1" key={segment.label}>
@@ -387,6 +388,7 @@ export function ExceptionList({
   emptyLabel?: string;
   items: Array<{
     count: number;
+    code?: string;
     href?: string;
     label: string;
     tone?: Exclude<DashboardTone, "success">;
@@ -421,6 +423,7 @@ export function ExceptionList({
             {item.href ? (
               <Link
                 className="flex min-h-12 items-center justify-between gap-4 px-3 py-2 text-sm font-medium hover:bg-[var(--panel-muted)]"
+                data-drilldown-code={item.code}
                 href={item.href}
               >
                 {content}
@@ -454,6 +457,16 @@ function toneFillClass(tone: DashboardTone): string {
     neutral: "bg-[var(--line-strong)]",
     success: "bg-[var(--seal-teal)]",
     warning: "bg-[var(--forklift-amber)]",
+  }[tone];
+}
+
+function toneSvgFillClass(tone: DashboardTone): string {
+  return {
+    danger: "fill-[var(--exception-red)]",
+    info: "fill-[var(--dock-steel-muted)]",
+    neutral: "fill-[var(--line-strong)]",
+    success: "fill-[var(--seal-teal)]",
+    warning: "fill-[var(--forklift-amber)]",
   }[tone];
 }
 

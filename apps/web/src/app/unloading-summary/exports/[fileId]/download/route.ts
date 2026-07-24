@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getApiBaseUrl } from "@/lib/api-client";
-import { AUTH_TOKEN_COOKIE_NAME } from "@/lib/auth-token";
+import { getRequestApiAuthHeaders } from "@/lib/server-auth";
 
 export async function GET(
   request: NextRequest,
@@ -10,8 +10,8 @@ export async function GET(
     params: Promise<{ fileId: string }>;
   },
 ) {
-  const token = request.cookies.get(AUTH_TOKEN_COOKIE_NAME)?.value;
-  if (!token) {
+  const authHeaders = getRequestApiAuthHeaders(request);
+  if (!authHeaders) {
     return NextResponse.json(
       {
         code: "UNAUTHENTICATED",
@@ -27,9 +27,7 @@ export async function GET(
     `${getApiBaseUrl()}/unloading-summary/exports/${encodeURIComponent(fileId)}/download`,
     {
       cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: authHeaders,
     },
   );
 

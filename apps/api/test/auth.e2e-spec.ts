@@ -5,13 +5,13 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { AuthTokenService } from './../src/auth/auth-token.service';
+import { installBrowserAuthStorageMock } from './auth-test-helpers';
 
 const CORRECT_PASSWORD_HASH =
   'scrypt$16384$8$1$64$cDEtMTAtYXV0aC10ZXN0IQ$wYMkqowHtka032P4dANTJudj8uOgLMLiia_HVRbPCHqsNXriCkT2KY3pBafDEdNWj1Pv9p4cV_7cU94RzAIMeQ';
 
 interface LoginBody {
-  accessToken: string;
-  tokenType: 'Bearer';
   expiresIn: number;
   user: {
     id: string;
@@ -110,6 +110,7 @@ describe('AuthController (e2e)', () => {
         }),
       },
     };
+    installBrowserAuthStorageMock(prisma);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -123,7 +124,7 @@ describe('AuthController (e2e)', () => {
     await app.init();
   });
 
-  it('POST /api/auth/login returns a Bearer token and current RBAC profile', async () => {
+  it('POST /api/auth/login creates HttpOnly browser cookies without returning secrets', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email: 'OFFICE@example.com', password: 'Correct#123' })
@@ -131,7 +132,6 @@ describe('AuthController (e2e)', () => {
     const body = response.body as LoginBody;
 
     expect(body).toMatchObject({
-      tokenType: 'Bearer',
       expiresIn: 900,
       user: {
         id: 'user-office',
@@ -141,40 +141,39 @@ describe('AuthController (e2e)', () => {
         permissions: ['imports.read', 'reports.generate'],
       },
     });
-    expect(body.accessToken).toEqual(expect.any(String));
+    expect(body).not.toHaveProperty('accessToken');
+    expect(body).not.toHaveProperty('refreshToken');
+    const cookies = response.headers['set-cookie'] as unknown as string[];
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^bestar_access=.*HttpOnly/),
+        expect.stringMatching(/^bestar_refresh=.*HttpOnly/),
+        expect.stringMatching(/^bestar_csrf=/),
+      ]),
+    );
     expect(body.user).not.toHaveProperty('passwordHash');
     expect(usersById.get('user-office')?.lastLoginAt).toBeInstanceOf(Date);
   });
 
-  it('POST /api/auth/login rejects wrong passwords, inactive users, and SYSTEM users', async () => {
-    await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'office@example.com', password: 'wrong-password' })
-      .expect(401)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('INVALID_CREDENTIALS');
-      });
-
-    await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'inactive@example.com', password: 'Correct#123' })
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe('USER_INACTIVE');
-      });
-
-    await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'system@example.com', password: 'Correct#123' })
-      .expect(403)
-      .expect((response) => {
-        expect((response.body as ErrorBody).code).toBe(
-          'SYSTEM_USER_LOGIN_NOT_ALLOWED',
-        );
-      });
+  it('POST /api/auth/login uses one response for wrong, inactive, and SYSTEM accounts', async () => {
+    for (const credentials of [
+      { email: 'office@example.com', password: 'wrong-password' },
+      { email: 'inactive@example.com', password: 'Correct#123' },
+      { email: 'system@example.com', password: 'Correct#123' },
+    ]) {
+      await request(app.getHttpServer())
+        .post('/api/auth/login')
+        .send(credentials)
+        .expect(401)
+        .expect((response) => {
+          expect((response.body as ErrorBody).code).toBe(
+            'INVALID_CREDENTIALS',
+          );
+        });
+    }
   });
 
-  it('GET /api/auth/me requires a Bearer token and returns the current user profile', async () => {
+  it('GET /api/auth/me requires authentication and accepts the browser cookie', async () => {
     await request(app.getHttpServer())
       .get('/api/auth/me')
       .expect(401)
@@ -182,15 +181,14 @@ describe('AuthController (e2e)', () => {
         expect((response.body as ErrorBody).code).toBe('UNAUTHENTICATED');
       });
 
-    const loginResponse = await request(app.getHttpServer())
+    const agent = request.agent(app.getHttpServer());
+    await agent
       .post('/api/auth/login')
       .send({ email: 'office@example.com', password: 'Correct#123' })
       .expect(201);
-    const loginBody = loginResponse.body as LoginBody;
 
-    await request(app.getHttpServer())
+    await agent
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${loginBody.accessToken}`)
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -205,11 +203,7 @@ describe('AuthController (e2e)', () => {
   });
 
   it('rejects an existing token on the next request after the user is disabled', async () => {
-    const loginResponse = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'office@example.com', password: 'Correct#123' })
-      .expect(201);
-    const loginBody = loginResponse.body as LoginBody;
+    const authorization = authHeaderForFixture(usersById.get('user-office')!);
 
     const user = usersById.get('user-office');
     expect(user).toBeDefined();
@@ -217,7 +211,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${loginBody.accessToken}`)
+      .set('Authorization', authorization)
       .expect(403)
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('USER_INACTIVE');
@@ -225,11 +219,7 @@ describe('AuthController (e2e)', () => {
   });
 
   it('uses current database permissions on the next request instead of stale token claims', async () => {
-    const loginResponse = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'office@example.com', password: 'Correct#123' })
-      .expect(201);
-    const loginBody = loginResponse.body as LoginBody;
+    const authorization = authHeaderForFixture(usersById.get('user-office')!);
 
     const user = usersById.get('user-office');
     expect(user).toBeDefined();
@@ -237,7 +227,7 @@ describe('AuthController (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/imports')
-      .set('Authorization', `Bearer ${loginBody.accessToken}`)
+      .set('Authorization', authorization)
       .expect(403)
       .expect((response) => {
         expect((response.body as ErrorBody).code).toBe('FORBIDDEN');
@@ -294,6 +284,24 @@ function restoreEnv(key: string, value: string | undefined): void {
     return;
   }
   process.env[key] = value;
+}
+
+function authHeaderForFixture(user: UserFixture): string {
+  const tokenService = new AuthTokenService({
+    get: (key: string) =>
+      key === 'app.jwtSecret'
+        ? 'e2e-test-secret'
+        : key === 'app.jwtExpiresInSeconds'
+          ? 900
+          : undefined,
+  } as never);
+  return `Bearer ${
+    tokenService.sign({
+      sub: user.id,
+      email: user.email,
+      roles: [user.role],
+    }).accessToken
+  }`;
 }
 
 interface UserWhereUnique {

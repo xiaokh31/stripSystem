@@ -2,16 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/i18n/i18n-provider";
-import { clearBrowserAuthToken } from "@/lib/auth-token";
+import { browserLogout } from "@/lib/api-client";
 
 export function LogoutButton() {
   const router = useRouter();
   const { t } = useI18n();
 
-  function handleLogout() {
-    clearBrowserAuthToken();
-    router.replace("/login");
-    router.refresh();
+  async function handleLogout() {
+    try {
+      await browserLogout();
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
   }
 
   return (

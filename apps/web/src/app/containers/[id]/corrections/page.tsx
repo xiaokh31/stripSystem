@@ -11,6 +11,7 @@ import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { createTranslator } from "@/lib/i18n/translator";
 import { getServerApiOptions } from "@/lib/server-auth";
+import { firstValue } from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,15 @@ type CorrectionHistoryState =
 
 export default async function ContainerCorrectionHistoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const selectedCorrectionId = firstValue(
+    (await searchParams).correctionId,
+  )?.trim();
   const locale = await getServerLocale();
   const { format, t } = createTranslator(locale);
   const state = await loadCorrectionHistory(id);
@@ -41,7 +47,10 @@ export default async function ContainerCorrectionHistoryPage({
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section
+        className="border border-zinc-200 bg-white p-5 shadow-sm"
+        id="correction-history"
+      >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
@@ -96,9 +105,26 @@ export default async function ContainerCorrectionHistoryPage({
                 </tr>
               </thead>
               <tbody>
-                {state.corrections.map((correction) => (
-                  <tr className="border-b border-zinc-100" key={correction.id}>
+                {state.corrections.map((correction) => {
+                  const selected = correction.id === selectedCorrectionId;
+                  return (
+                  <tr
+                    aria-current={selected ? "true" : undefined}
+                    className={
+                      selected
+                        ? "border-b border-amber-300 bg-amber-50"
+                        : "border-b border-zinc-100"
+                    }
+                    data-record-id={correction.id}
+                    data-selected-record={selected ? "true" : undefined}
+                    key={correction.id}
+                  >
                     <td className="px-3 py-4 align-top text-zinc-700">
+                      {selected ? (
+                        <span className="mb-1 block text-xs font-semibold uppercase text-amber-900">
+                          {t("Selected record")}
+                        </span>
+                      ) : null}
                       {formatOperationalDateTime(correction.createdAt)}
                     </td>
                     <td className="px-3 py-4 align-top">
@@ -128,7 +154,8 @@ export default async function ContainerCorrectionHistoryPage({
                       {correction.note ?? "-"}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

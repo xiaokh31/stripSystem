@@ -7,11 +7,12 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   authHeaders,
+  configureBrowserActor,
   ensureTestUser,
   expectNoPageError,
   loginForAccessToken,
@@ -21,19 +22,20 @@ import {
 } from "./helpers";
 
 const repoRoot = path.resolve(process.cwd(), "../..");
-const attendanceFixturePath = path.join(
+const sourceAttendanceFixturePath = path.join(
   repoRoot,
   "samples",
   "wage",
   "workAttendanceRecordForm_June.xls",
 );
+let attendanceFixturePath = sourceAttendanceFixturePath;
 const invalidXlsxFixturePath = path.join(
   repoRoot,
   "samples",
   "unloading-plans",
   "BEAU5601716 UNLOADING PLAN.xlsx",
 );
-const attendanceFixtureSha256 =
+let attendanceFixtureSha256 =
   "4c3a5c0750e04f99cd614da033d54d948b5fd1b72e0ffec4f19a3d35c9f682b3";
 const wageTemplatePath = path.join(
   repoRoot,
@@ -46,6 +48,29 @@ const exitGateSourceDirectory = path.join(exitGateDirectory, "source");
 const exitGateManifestPath = path.join(exitGateDirectory, "evidence-manifest.json");
 const screenshotDirectory = path.join(exitGateDirectory, "browser");
 const auditedDeletionScreenshotDirectory = screenshotDirectory;
+
+test.beforeAll(async () => {
+  const source = await readFile(sourceAttendanceFixturePath);
+  const runId = randomUUID();
+  const derivedDirectory = path.join(
+    process.cwd(),
+    "test-results",
+    "work-hours-isolated",
+    runId,
+  );
+  attendanceFixturePath = path.join(
+    derivedDirectory,
+    "workAttendanceRecordForm_June.xls",
+  );
+  const derived = Buffer.from(source);
+  // Bytes 52-55 are the Compound File transaction signature. Changing only
+  // this non-business header field gives each run a fresh SHA without altering
+  // workbook cells, formatting, or the attendance rows under test.
+  createHash("sha256").update(runId).digest().copy(derived, 52, 0, 4);
+  await mkdir(derivedDirectory, { recursive: true });
+  await writeFile(attendanceFixturePath, derived);
+  attendanceFixtureSha256 = sha256(derived);
+});
 
 test("HR can review attendance import, parse rows, generate wage file, and use download links", async ({
   page,
@@ -335,6 +360,9 @@ test("read-only attendance user can open work hours but cannot see mutation acti
     page.getByText("Attendance parse or wage generation permission required."),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete row" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Delete attendance import/ }),
+  ).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Deletion history" })).toBeVisible();
 
   const readOnlyToken = await loginForAccessToken(request, credentials);
@@ -347,6 +375,14 @@ test("read-only attendance user can open work hours but cannot see mutation acti
     },
   );
   expect(readOnlyDelete.status()).toBe(403);
+  const readOnlyImportDelete = await request.delete(
+    `/api/attendance-imports/${attendanceImportId}`,
+    {
+      data: { reason: "Read-only whole import deletion must remain forbidden." },
+      headers: authHeaders(readOnlyToken),
+    },
+  );
+  expect(readOnlyImportDelete.status()).toBe(403);
   const readOnlyHistory = await request.get(
     `/api/attendance-imports/${attendanceImportId}/row-history?limit=1&offset=0`,
     { headers: authHeaders(readOnlyToken) },
@@ -367,6 +403,7 @@ test("read-only attendance user can open work hours but cannot see mutation acti
     rbac: {
       readOnlyDelete: readOnlyDelete.status(),
       readOnlyHistory: readOnlyHistory.status(),
+      readOnlyImportDelete: readOnlyImportDelete.status(),
     },
   });
   const groups = realEmployeeGroups(rows);
@@ -651,6 +688,430 @@ test("HR deletion stays audited through refresh, reparse, generation, download, 
   );
 });
 
+test("whole attendance import deletion preserves evidence, falls back safely, and permits a new active same-SHA import", async ({
+  page,
+  request,
+}, testInfo) => {
+  testInfo.setTimeout(360_000);
+  const evidenceDirectory = "test-results/wage-hours-07";
+  const browserEvidenceDirectory = path.join(evidenceDirectory, "browser");
+  const fixtureDirectory = testInfo.outputPath("wage-hours-07-fixture");
+  const fixturePath = path.join(
+    fixtureDirectory,
+    "workAttendanceRecordForm_WAGE-HOURS-07.xls",
+  );
+  const source = await readFile(sourceAttendanceFixturePath);
+  const fixture = Buffer.from(source);
+  createHash("sha256")
+    .update(`WAGE-HOURS-07:${randomUUID()}`)
+    .digest()
+    .copy(fixture, 52, 0, 4);
+  await mkdir(fixtureDirectory, { recursive: true });
+  await writeFile(fixturePath, fixture);
+  const fixtureSha = sha256(fixture);
+  const reason = `WAGE-HOURS-07 audited import removal ${Date.now()}`;
+  const browserErrors: string[] = [];
+  const failedRequests: string[] = [];
+  const deleteRequests: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" ||
+      /hydration|missing translation|mismatch/i.test(message.text())
+    ) {
+      browserErrors.push(message.text());
+    }
+  });
+  page.on("request", (browserRequest) => {
+    if (
+      browserRequest.method() === "DELETE" &&
+      /\/api\/attendance-imports\/[^/]+$/.test(
+        new URL(browserRequest.url()).pathname,
+      )
+    ) {
+      deleteRequests.push(browserRequest.url());
+    }
+  });
+  page.on("requestfailed", (browserRequest) => {
+    const failure = browserRequest.failure()?.errorText ?? "failed";
+    const isCancelledRscPrefetch =
+      failure === "net::ERR_ABORTED" &&
+      new URL(browserRequest.url()).searchParams.has("_rsc");
+    const isCancelledCompletedJobPoll =
+      failure === "net::ERR_ABORTED" &&
+      browserRequest.method() === "GET" &&
+      /\/api\/queue\/jobs\/[^/]+$/.test(
+        new URL(browserRequest.url()).pathname,
+      );
+    if (!isCancelledRscPrefetch && !isCancelledCompletedJobPoll) {
+      failedRequests.push(
+        `${browserRequest.method()} ${browserRequest.url()} ${failure}`,
+      );
+    }
+  });
+
+  const adminToken = await loginThroughApi(page, request);
+  const hrManager = await ensureTestUser(request, adminToken, {
+    email: "e2e-hr-manager@bestarcca.com",
+    name: "E2E HR Manager",
+    password: "Bestar-E2E-HR-123!",
+    roleCodes: ["HR_MANAGER"],
+  });
+  const warehouseManager = await ensureTestUser(request, adminToken, {
+    email: "e2e-work-hours-warehouse-manager@bestarcca.com",
+    name: "E2E Work Hours Warehouse Manager",
+    password: "Bestar-E2E-WM-123!",
+    roleCodes: ["WAREHOUSE_MANAGER"],
+  });
+  const warehouseToken = await loginForAccessToken(request, warehouseManager);
+  const hrToken = await loginWithCredentials(page, request, hrManager);
+  await setPresentation(page.context(), "en", "light");
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto("/work-hours", { waitUntil: "networkidle" });
+
+  await page.locator('input[type="file"]').setInputFiles(fixturePath);
+  const uploadResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/attendance-imports") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Upload .xls" }).click();
+  const uploadResponse = await uploadResponsePromise;
+  expect(uploadResponse.status()).toBe(201);
+  const uploaded = (await uploadResponse.json()) as AttendanceImportUploadBody;
+  expect(uploaded.fileSha256).toBe(fixtureSha);
+  await expect(page).toHaveURL(
+    new RegExp(`attendanceImportId=${uploaded.id}`),
+  );
+
+  const parseResponsePromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(`/api/attendance-imports/${uploaded.id}/parse`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Parse" }).click();
+  expect((await parseResponsePromise).status()).toBe(201);
+  const generateResponsePromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(
+          `/api/attendance-imports/${uploaded.id}/generate-wage-record`,
+        ) && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Generate wage record" }).click();
+  expect((await generateResponsePromise).status()).toBe(201);
+  const filesBeforeDelete = await expectGeneratedFilesHaveAuditMetadata(
+    request,
+    hrToken,
+    uploaded.id,
+  );
+  const originalBefore = await readFile(uploaded.storedPath);
+  const generatedBefore = await Promise.all(
+    filesBeforeDelete.map(async (file) => ({
+      id: file.id,
+      path: file.storagePath,
+      sha256: sha256(await readFile(file.storagePath)),
+    })),
+  );
+
+  const blockedDelete = await request.delete(
+    `/api/attendance-imports/${uploaded.id}`,
+    {
+      data: { reason: "Warehouse manager cannot delete attendance imports." },
+      headers: authHeaders(warehouseToken),
+    },
+  );
+  expect(blockedDelete.status()).toBe(403);
+
+  const deleteButton = page
+    .getByRole("button", {
+      name: `Delete attendance import ${uploaded.originalFilename}`,
+    })
+    .first();
+  await deleteButton.click();
+  const englishDialog = page.getByRole("dialog", {
+    name: "Remove this attendance import from active settlement?",
+  });
+  await expect(englishDialog).toBeVisible();
+  await expect(
+    englishDialog.getByTestId("attendance-import-deletion-impact"),
+  ).toContainText("390 active rows");
+  await expect(englishDialog).toContainText(uploaded.originalFilename);
+  await englishDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(englishDialog).toBeHidden();
+  expect(deleteRequests).toEqual([]);
+
+  await deleteButton.click();
+  await englishDialog.getByRole("button", { name: "Delete import" }).click();
+  await expect(
+    englishDialog.getByText(
+      "Enter at least 5 characters for the deletion reason.",
+    ),
+  ).toBeVisible();
+  await englishDialog.getByLabel("Deletion reason").fill(reason);
+  await mkdir(browserEvidenceDirectory, { recursive: true });
+  await page.screenshot({
+    path: `${browserEvidenceDirectory}/delete-dialog-en-light-1366x900.png`,
+  });
+  await englishDialog.getByRole("button", { name: "Cancel" }).click();
+
+  await setPresentation(page.context(), "zh-CN", "dark");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page
+    .getByRole("button", {
+      name: `删除考勤导入 ${uploaded.originalFilename}`,
+    })
+    .first()
+    .click();
+  const chineseDialog = page.getByRole("dialog", {
+    name: "将此考勤导入移出当前结算？",
+  });
+  await expect(chineseDialog).toBeVisible();
+  await chineseDialog.getByLabel("删除原因").fill(reason);
+  await expectNoDocumentOverflow(page, 390);
+  await page.screenshot({
+    path: `${browserEvidenceDirectory}/delete-dialog-zh-dark-390x844.png`,
+  });
+  const deletionResponsePromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .endsWith(`/api/attendance-imports/${uploaded.id}`) &&
+      response.request().method() === "DELETE",
+  );
+  await chineseDialog.getByRole("button", { name: "删除导入" }).dblclick();
+  const deletionResponse = await deletionResponsePromise;
+  expect(deletionResponse.status()).toBe(200);
+  expect(deleteRequests).toHaveLength(1);
+
+  await expect(
+    page.getByText("考勤导入已删除并记录审计历史。"),
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("attendanceImportId")).not.toBe(
+    uploaded.id,
+  );
+  expect(new URL(page.url()).searchParams.has("employeeKey")).toBe(false);
+  const historyRegion = page.locator(
+    'div[role="region"][aria-label="已删除的考勤导入"]',
+  );
+  await expect(historyRegion).toContainText(uploaded.originalFilename);
+  await expect(historyRegion).toContainText(reason);
+  await expect(historyRegion).toContainText("E2E HR Manager");
+  await expect(historyRegion.getByRole("link", { name: /下载/ })).toHaveCount(0);
+  await expect(historyRegion.getByRole("button", { name: /解析|生成|恢复/ }))
+    .toHaveCount(0);
+  await expectNoDocumentOverflow(page, 390);
+  await historyRegion.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `${browserEvidenceDirectory}/fallback-history-zh-dark-390x844.png`,
+  });
+
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(historyRegion).toContainText(reason);
+  await page.goto(
+    `/work-hours?attendanceImportId=${uploaded.id}&employeeKey=stale`,
+    { waitUntil: "networkidle" },
+  );
+  await expect(
+    page.getByText("该考勤导入已删除，现显示下一条有效导入。"),
+  ).toBeVisible();
+  await expect(page.getByText(reason)).toBeVisible();
+
+  expect(await readFile(uploaded.storedPath)).toEqual(originalBefore);
+  for (const file of generatedBefore) {
+    expect(sha256(await readFile(file.path))).toBe(file.sha256);
+  }
+  const oldHistory = await request.get(
+    "/api/attendance-imports/deletion-history?limit=100&offset=0",
+    { headers: authHeaders(hrToken) },
+  );
+  expect(oldHistory.status()).toBe(200);
+  const oldHistoryBody = (await oldHistory.json()) as {
+    items: Array<{
+      attendanceImportId: string;
+      actor: { displayLabel: string };
+      reason: string;
+    }>;
+  };
+  expect(
+    oldHistoryBody.items.find(
+      (event) => event.attendanceImportId === uploaded.id,
+    ),
+  ).toMatchObject({
+    actor: { displayLabel: "E2E HR Manager" },
+    reason,
+  });
+
+  await setPresentation(page.context(), "en", "light");
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/work-hours", { waitUntil: "networkidle" });
+  await page.locator('input[type="file"]').setInputFiles(fixturePath);
+  const reuploadResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/attendance-imports") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Upload .xls" }).click();
+  const reuploadResponse = await reuploadResponsePromise;
+  expect(reuploadResponse.status()).toBe(201);
+  const replacement =
+    (await reuploadResponse.json()) as AttendanceImportUploadBody;
+  expect(replacement.id).not.toBe(uploaded.id);
+  expect(replacement.fileSha256).toBe(uploaded.fileSha256);
+  await page.goto(
+    `/work-hours?attendanceImportId=${encodeURIComponent(replacement.id)}`,
+    { waitUntil: "networkidle" },
+  );
+  await expect(page).toHaveURL(
+    new RegExp(`attendanceImportId=${replacement.id}`),
+  );
+  await expect(
+    page.getByText(replacement.originalFilename, { exact: true }).first(),
+  ).toBeVisible();
+  const replacementParseResponsePromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(`/api/attendance-imports/${replacement.id}/parse`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Parse" }).click();
+  expect((await replacementParseResponsePromise).status()).toBe(201);
+  await expect(page.getByText(/390 row\(s\) from/)).toBeVisible();
+  const replacementGenerationResponsePromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(
+          `/api/attendance-imports/${replacement.id}/generate-wage-record`,
+        ) && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Generate wage record" }).click();
+  expect((await replacementGenerationResponsePromise).status()).toBe(201);
+  await expect(page.getByText("Wage record", { exact: true }).first())
+    .toBeVisible();
+
+  const adminDelete = await request.delete(
+    `/api/attendance-imports/${replacement.id}`,
+    {
+      data: { reason: "Admin cleanup after same-SHA browser verification." },
+      headers: authHeaders(adminToken),
+    },
+  );
+  expect(adminDelete.status()).toBe(200);
+
+  const concurrentFixture = Buffer.from(source);
+  createHash("sha256")
+    .update(`WAGE-HOURS-07-concurrent:${randomUUID()}`)
+    .digest()
+    .copy(concurrentFixture, 52, 0, 4);
+  const concurrentUploads = await Promise.all([
+    request.post("/api/attendance-imports", {
+      headers: authHeaders(hrToken),
+      multipart: {
+        file: {
+          buffer: concurrentFixture,
+          mimeType: "application/vnd.ms-excel",
+          name: "workAttendanceRecordForm_WAGE-HOURS-07-concurrent.xls",
+        },
+      },
+    }),
+    request.post("/api/attendance-imports", {
+      headers: authHeaders(hrToken),
+      multipart: {
+        file: {
+          buffer: concurrentFixture,
+          mimeType: "application/vnd.ms-excel",
+          name: "workAttendanceRecordForm_WAGE-HOURS-07-concurrent.xls",
+        },
+      },
+    }),
+  ]);
+  expect(concurrentUploads.map((response) => response.status()).sort()).toEqual([
+    201,
+    409,
+  ]);
+  const concurrentWinner = concurrentUploads.find(
+    (response) => response.status() === 201,
+  )!;
+  const concurrentWinnerId =
+    await attendanceImportIdFromUpload(concurrentWinner);
+  expect(
+    await attendanceImportIdFromUpload(
+      concurrentUploads.find((response) => response.status() === 409)!,
+    ),
+  ).toBe(concurrentWinnerId);
+  const concurrentCleanup = await request.delete(
+    `/api/attendance-imports/${concurrentWinnerId}`,
+    {
+      data: { reason: "Admin cleanup after concurrent active-SHA verification." },
+      headers: authHeaders(adminToken),
+    },
+  );
+  expect(concurrentCleanup.status()).toBe(200);
+
+  await verifyImportDeletionHistoryRealBrowserZoom(
+    hrToken,
+    reason,
+    testInfo.outputPath("wage-hours-07-zoom-profile"),
+    `${browserEvidenceDirectory}/history-en-light-1366x768-zoom-200.png`,
+  );
+
+  const renamedActor = await request.patch(`/api/users/${hrManager.id}`, {
+    data: { name: "E2E HR Manager Renamed" },
+    headers: authHeaders(adminToken),
+  });
+  expect(renamedActor.status()).toBe(200);
+  const disabledActor = await request.patch(
+    `/api/users/${hrManager.id}/status`,
+    {
+      data: { isActive: false },
+      headers: authHeaders(adminToken),
+    },
+  );
+  expect(disabledActor.status()).toBe(200);
+  const preservedActorHistory = await request.get(
+    "/api/attendance-imports/deletion-history?limit=100&offset=0",
+    { headers: authHeaders(adminToken) },
+  );
+  expect(preservedActorHistory.status()).toBe(200);
+  const preservedActorHistoryBody =
+    (await preservedActorHistory.json()) as typeof oldHistoryBody;
+  expect(
+    preservedActorHistoryBody.items.find(
+      (event) => event.attendanceImportId === uploaded.id,
+    ),
+  ).toMatchObject({
+    actor: { displayLabel: "E2E HR Manager" },
+    reason,
+  });
+  expect(
+    (
+      await request.patch(`/api/users/${hrManager.id}`, {
+        data: { name: "E2E HR Manager" },
+        headers: authHeaders(adminToken),
+      })
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await request.patch(`/api/users/${hrManager.id}/status`, {
+        data: { isActive: true },
+        headers: authHeaders(adminToken),
+      })
+    ).status(),
+  ).toBe(200);
+
+  expect(browserErrors, "whole import deletion browser errors").toEqual([]);
+  expect(failedRequests, "whole import deletion failed requests").toEqual([]);
+});
+
 interface RealAttendanceRow {
   calculatedHours: string | null;
   calculationMethod: string;
@@ -682,6 +1143,13 @@ interface GenerateWageRecordBody {
   generatedFile: GeneratedFileEvidence;
   taskReport: GeneratedFileEvidence | null;
   warnings: unknown[];
+}
+
+interface AttendanceImportUploadBody {
+  fileSha256: string;
+  id: string;
+  originalFilename: string;
+  storedPath: string;
 }
 
 async function saveBaselineExitGateEvidence(input: {
@@ -1144,6 +1612,27 @@ async function setLocale(
   ]);
 }
 
+async function setPresentation(
+  context: BrowserContext,
+  locale: "en" | "zh-CN",
+  theme: "dark" | "light",
+): Promise<void> {
+  await context.addCookies([
+    {
+      name: "bestar_locale",
+      sameSite: "Lax",
+      url: new URL(E2E_BASE_URL).origin,
+      value: locale,
+    },
+    {
+      name: "bestar_theme",
+      sameSite: "Lax",
+      url: new URL(E2E_BASE_URL).origin,
+      value: theme,
+    },
+  ]);
+}
+
 async function expectLocalizedEmployeeReview(
   page: Page,
   locale: "en" | "zh-CN",
@@ -1192,6 +1681,18 @@ async function expectNoPageOverflow(page: Page, viewportWidth: number): Promise<
   );
 }
 
+async function expectNoDocumentOverflow(
+  page: Page,
+  viewportWidth: number,
+): Promise<void> {
+  const geometry = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    pageScrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(geometry.clientWidth).toBe(viewportWidth);
+  expect(geometry.pageScrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
+}
+
 async function verifyRealBrowserZoom(
   token: string,
   route: string,
@@ -1218,15 +1719,8 @@ async function verifyRealBrowserZoom(
   });
 
   try {
+    await configureBrowserActor(context, token);
     await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url: new URL(E2E_BASE_URL).origin,
-        value: token,
-      },
       {
         name: "bestar_locale",
         sameSite: "Lax",
@@ -1280,6 +1774,52 @@ async function verifyRealBrowserZoom(
       screenshotPath,
     );
     expect(browserErrors, "200% zoom browser errors").toEqual([]);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyImportDeletionHistoryRealBrowserZoom(
+  token: string,
+  historyReason: string,
+  userDataDir: string,
+  screenshotPath: string,
+): Promise<void> {
+  const extensionPath = path.join(
+    process.cwd(),
+    "e2e/fixtures/browser-zoom-extension",
+  );
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+    ],
+    baseURL: E2E_BASE_URL,
+    channel: "chromium",
+    headless: true,
+    viewport: { height: 768, width: 1366 },
+  });
+  try {
+    await configureBrowserActor(context, token);
+    await setPresentation(context, "en", "light");
+    const worker = await getBrowserZoomWorker(context);
+    const zoomPage = context.pages()[0] ?? (await context.newPage());
+    const browserErrors: string[] = [];
+    zoomPage.on("pageerror", (error) => browserErrors.push(error.message));
+    zoomPage.on("console", (message) => {
+      if (message.type() === "error") browserErrors.push(message.text());
+    });
+    await zoomPage.goto("/work-hours", { waitUntil: "networkidle" });
+    await setRealBrowserZoom(zoomPage, worker, 2, 1366);
+    await expect(
+      zoomPage.getByRole("heading", { name: "Deleted attendance imports" }),
+    ).toBeVisible();
+    await expect(zoomPage.getByText(historyReason)).toBeVisible();
+    await expectNoDocumentOverflow(zoomPage, 683);
+    await zoomPage.getByText(historyReason).scrollIntoViewIfNeeded();
+    await mkdir(path.dirname(screenshotPath), { recursive: true });
+    await captureBrowserViewport(zoomPage, screenshotPath);
+    expect(browserErrors, "import history 200% zoom browser errors").toEqual([]);
   } finally {
     await context.close();
   }

@@ -18,6 +18,12 @@ import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
 import { createTranslator } from "@/lib/i18n/translator";
 import { canDeleteImports } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import {
+  appendDashboardDrilldownContext,
+  firstValue,
+  normalizeDashboardDrilldownContext,
+} from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -33,15 +39,29 @@ type ImportsPageState =
       error: ApiClientError;
     };
 
-export default async function ImportsPage() {
+export default async function ImportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
   const currentUser = await getServerCurrentUser();
-  const state = await loadImports();
+  const filters = normalizeImportFilters(params);
+  const context = normalizeDashboardDrilldownContext(params);
+  const state = await loadImports(filters);
   const canDelete = canDeleteImports(currentUser);
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
+      {context ? (
+        <DashboardFilterContext
+          clearHref="/imports"
+          context={context}
+          locale={locale}
+        />
+      ) : null}
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -60,7 +80,7 @@ export default async function ImportsPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex min-h-11 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-              href="/imports"
+              href={importsHref(filters, context)}
             >
               {t("Refresh")}
             </Link>
@@ -87,11 +107,13 @@ export default async function ImportsPage() {
   );
 }
 
-async function loadImports(): Promise<ImportsPageState> {
+async function loadImports(
+  filters: { importStatus?: string; parseStatus?: string },
+): Promise<ImportsPageState> {
   try {
     const apiOptions = await getServerApiOptions();
     const imports = await listImportFiles(
-      { limit: PAGE_SIZE, offset: 0 },
+      { ...filters, limit: PAGE_SIZE, offset: 0 },
       apiOptions,
     );
     return { ok: true, imports };
@@ -194,7 +216,10 @@ function ImportRow({
   const { t } = createTranslator(locale);
 
   return (
-    <tr className="border-b border-zinc-100 align-top last:border-0">
+    <tr
+      className="border-b border-zinc-100 align-top last:border-0"
+      data-record-id={importFile.id}
+    >
       <td className="py-3 pr-4">
         <p className="break-all font-medium text-zinc-950">
           {importFile.originalFilename}
@@ -258,6 +283,45 @@ function ImportRow({
       </td>
     </tr>
   );
+}
+
+const IMPORT_STATUSES = ["UPLOADED", "DUPLICATE", "FAILED"] as const;
+const PARSE_STATUSES = [
+  "NOT_PARSED",
+  "PARSING",
+  "PARSED",
+  "REVIEW_REQUIRED",
+  "WARNING",
+  "ERROR",
+] as const;
+
+function normalizeImportFilters(
+  params: Record<string, string | string[] | undefined>,
+): { importStatus?: string; parseStatus?: string } {
+  const importStatus = firstValue(params.importStatus);
+  const parseStatus = firstValue(params.parseStatus);
+  return {
+    ...(IMPORT_STATUSES.includes(
+      importStatus as (typeof IMPORT_STATUSES)[number],
+    )
+      ? { importStatus }
+      : {}),
+    ...(PARSE_STATUSES.includes(parseStatus as (typeof PARSE_STATUSES)[number])
+      ? { parseStatus }
+      : {}),
+  };
+}
+
+function importsHref(
+  filters: { importStatus?: string; parseStatus?: string },
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>,
+): string {
+  const params = new URLSearchParams();
+  if (filters.importStatus) params.set("importStatus", filters.importStatus);
+  if (filters.parseStatus) params.set("parseStatus", filters.parseStatus);
+  appendDashboardDrilldownContext(params, context);
+  const query = params.toString();
+  return query ? `/imports?${query}` : "/imports";
 }
 
 function StatusBadge({

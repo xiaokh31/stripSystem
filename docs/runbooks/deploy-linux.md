@@ -126,7 +126,10 @@ REDIS_URL=redis://redis:6379
 STORAGE_ROOT=/workspace/storage
 HOST_STORAGE_ROOT=./storage
 JWT_SECRET=replace-with-long-random-secret
-JWT_EXPIRES_IN_SECONDS=34560000
+JWT_EXPIRES_IN_SECONDS=900
+BROWSER_ACCESS_TOKEN_EXPIRES_IN_SECONDS=900
+BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
+BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
 ```
@@ -140,9 +143,9 @@ Notes:
   `WEB_API_PROXY_BASE_URL=http://api:4000/api` for Docker network routing.
 - Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
   automatically switches between MDT and MST.
-- `JWT_EXPIRES_IN_SECONDS=34560000` keeps browser login sessions persistent for
-  up to 400 days by default. Shorten it if the site requires tighter
-  workstation security. Browsers may still cap persistent cookie lifetimes.
+- Browser access cookies are short lived; the rotating opaque server-side
+  session uses the separate idle/absolute values and is capped at 400 days.
+  Browsers may still cap persistent cookie lifetimes.
 - Do not commit `.env`.
 
 ## Start Services

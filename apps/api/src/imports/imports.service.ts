@@ -28,6 +28,7 @@ import {
 } from './dto/import-file-response.dto';
 import { DeleteImportDto } from './dto/delete-import.dto';
 import { ListImportsQueryDto } from './dto/list-imports-query.dto';
+import { importListWhere } from './import-list-filter';
 import {
   WorkerDestinationSummary,
   WorkerIssue,
@@ -283,7 +284,7 @@ export class ImportsService {
 
   async list(query: ListImportsQueryDto): Promise<ImportFileListResponseDto> {
     const records = await this.prisma.importFile.findMany({
-      where: { deletedAt: null },
+      where: importListWhere(query),
       include: this.importContainersInclude(),
       orderBy: { createdAt: 'desc' },
       take: query.limit,

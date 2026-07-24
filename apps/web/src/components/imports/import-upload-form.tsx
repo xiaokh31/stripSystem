@@ -315,12 +315,12 @@ function ProgressCell({
 
   return (
     <div>
-      <div className="h-2 w-full min-w-32 bg-zinc-100">
-        <div
-          className="h-2 bg-teal-600 transition-[width]"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
+      <progress
+        aria-label={t("Uploading")}
+        className="secure-progress secure-progress-success h-2 w-full min-w-32"
+        max={100}
+        value={percent}
+      />
       <p className="mt-1 text-xs text-zinc-500">
         {item.progressPercent === null ? t("Uploading") : `${percent}%`}
       </p>
@@ -377,11 +377,6 @@ function ResultCell({
   if (item.existingImport) {
     return (
       <div className="space-y-1 text-xs text-amber-900">
-        {item.errorCode ? (
-          <p className="font-semibold" data-i18n-ignore>
-            {item.errorCode}
-          </p>
-        ) : null}
         <p>{uploadFailureMessage(item, t)}</p>
         <p>
           {t("Existing import:")}{" "}
@@ -399,11 +394,6 @@ function ResultCell({
   if (item.errorMessage) {
     return (
       <div className="space-y-1 text-xs text-red-900">
-        {item.errorCode ? (
-          <p className="font-semibold" data-i18n-ignore>
-            {item.errorCode}
-          </p>
-        ) : null}
         <p>{uploadFailureMessage(item, t)}</p>
       </div>
     );
@@ -421,7 +411,13 @@ function ResultCell({
 const uploadFailureMessageKeys: Record<string, MessageKey> = {
   API_NETWORK_ERROR: "The file could not be uploaded.",
   DUPLICATE_IMPORT: "A file with this SHA-256 already exists.",
+  HTTP_413:
+    "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.",
   INVALID_FILE_TYPE: "Only .xlsx files can be uploaded.",
+  PAYLOAD_TOO_LARGE:
+    "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.",
+  UPLOAD_FILE_TOO_LARGE:
+    "This file is larger than the 50 MB application upload limit. Choose a smaller .xlsx file.",
   UPLOAD_FAILED: "The file could not be uploaded.",
   UPLOAD_UNAVAILABLE: "File uploads must be started from a browser session.",
 };

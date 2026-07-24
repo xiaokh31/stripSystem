@@ -141,6 +141,20 @@ visible UI action. Default RBAC seeding is exact: `ADMIN` receives all four,
 `OFFICE` receives read/train/review, and all other default interactive roles
 receive none.
 
+## Attendance Import Deletion Permission
+
+`attendance.imports.delete` is independent from attendance read/create/parse,
+generate and employee-day deletion permissions.
+
+| Permission | ADMIN | HR_MANAGER | OFFICE | WAREHOUSE_MANAGER | WAREHOUSE | SYSTEM |
+| --- | --- | --- | --- | --- | --- | --- |
+| `attendance.imports.delete` | yes | yes | no | no | no | no |
+
+Deletion impact and whole-import mutation require this permission. Immutable
+import deletion history uses `attendance.read`. The Web hides the command
+without the dedicated permission, while the API route matrix remains the
+authority.
+
 ## Enforcement Rules
 
 - Every mutating endpoint should receive an authenticated user identity.

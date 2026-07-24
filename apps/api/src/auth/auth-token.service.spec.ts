@@ -1,14 +1,14 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthTokenService } from './auth-token.service';
-import { DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS } from '../config/auth-session.constants';
+import { DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '../config/auth-session.constants';
 
 describe('AuthTokenService', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  it('uses the persistent browser session default when config has no override', () => {
+  it('uses the short legacy access default when config has no override', () => {
     const service = new AuthTokenService(configService());
 
     const token = service.sign({
@@ -17,7 +17,9 @@ describe('AuthTokenService', () => {
       roles: ['OFFICE'],
     });
 
-    expect(token.expiresIn).toBe(DEFAULT_BROWSER_SESSION_EXPIRES_IN_SECONDS);
+    expect(token.expiresIn).toBe(
+      DEFAULT_LEGACY_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+    );
   });
 
   it('rejects expired tokens with explicit AUTH_TOKEN_EXPIRED', () => {

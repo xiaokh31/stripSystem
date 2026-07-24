@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
+import { createHash } from 'node:crypto';
+import request, { Response } from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
@@ -155,8 +156,14 @@ describe('Native revocable auth session (e2e)', () => {
     fixture.users.get('warehouse@example.com')!.isActive = true;
     const activeLogin = await nativeLogin(app);
     const adminLogin = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'admin@example.com', password: 'Correct#123' })
+      .post('/api/auth/native/login')
+      .send({
+        appVersion: '1.2.3',
+        deviceId: 'admin-test-device',
+        email: 'admin@example.com',
+        password: 'Correct#123',
+        platform: 'test',
+      })
       .expect(201);
     await request(app.getHttpServer())
       .post('/api/auth/native/users/user-warehouse/revoke-sessions')
@@ -174,6 +181,108 @@ describe('Native revocable auth session (e2e)', () => {
     await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${activeLogin.body.accessToken}`)
+      .expect(401);
+  });
+
+  it('keeps browser secrets in cookies and rotates refresh without exposing them in JSON', async () => {
+    const browser = request.agent(app.getHttpServer());
+    const login = await browser
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'Correct#123' })
+      .expect(201);
+
+    expect(login.body).not.toHaveProperty('accessToken');
+    expect(login.body).not.toHaveProperty('refreshToken');
+    const loginCookies = setCookies(login);
+    expect(loginCookies).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^bestar_access=.*HttpOnly/),
+        expect.stringMatching(/^bestar_refresh=.*HttpOnly/),
+      ]),
+    );
+    expect(
+      loginCookies.find((cookie) => cookie.startsWith('bestar_csrf=')),
+    ).not.toContain('HttpOnly');
+    const csrf = cookieValue(loginCookies, 'bestar_csrf');
+
+    await browser.get('/api/auth/me').expect(200);
+    const refresh = await browser
+      .post('/api/auth/browser/refresh')
+      .set('Origin', 'http://127.0.0.1')
+      .set('X-CSRF-Token', csrf)
+      .expect(201);
+    expect(refresh.body).not.toHaveProperty('accessToken');
+    expect(cookieValue(setCookies(refresh), 'bestar_refresh')).not.toBe(
+      cookieValue(loginCookies, 'bestar_refresh'),
+    );
+  });
+
+  it('serializes browser refresh, tolerates the short concurrency race, and revokes delayed replay', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'Correct#123' })
+      .expect(201);
+    const cookies = setCookies(login);
+    const cookieHeader = requestCookieHeader(cookies);
+    const csrf = cookieValue(cookies, 'bestar_csrf');
+    const originalRefresh = cookieValue(cookies, 'bestar_refresh');
+
+    const concurrent = await Promise.all([
+      browserRefresh(app, cookieHeader, csrf),
+      browserRefresh(app, cookieHeader, csrf),
+    ]);
+    expect(concurrent.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(concurrent.find(({ status }) => status === 409)?.body.code).toBe(
+      'AUTH_REFRESH_CONCURRENT',
+    );
+    const originalToken = fixture.tokens.get(sha256(originalRefresh));
+    expect(originalToken).toBeDefined();
+    originalToken!.usedAt = new Date(Date.now() - 6_000);
+
+    await browserRefresh(app, cookieHeader, csrf)
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body.code).toBe('AUTH_REFRESH_REPLAYED');
+      });
+    const session = fixture.sessions.get(originalToken!.sessionId);
+    expect(session?.revokeReason).toBe('REFRESH_REPLAY');
+  });
+
+  it('requires browser CSRF for unsafe routes and logout revokes access immediately', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'Correct#123' })
+      .expect(201);
+    const cookies = setCookies(login);
+    const cookieHeader = requestCookieHeader(cookies);
+    const csrf = cookieValue(cookies, 'bestar_csrf');
+
+    await request(app.getHttpServer())
+      .post('/api/auth/browser/users/user-warehouse/revoke-sessions')
+      .set('Cookie', cookieHeader)
+      .set('Origin', 'http://127.0.0.1')
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body.code).toBe('CSRF_REJECTED');
+      });
+
+    const logout = await request(app.getHttpServer())
+      .post('/api/auth/browser/logout')
+      .set('Cookie', cookieHeader)
+      .set('Origin', 'http://127.0.0.1')
+      .set('X-CSRF-Token', csrf)
+      .expect(201)
+      .expect({ revoked: true });
+    expect(setCookies(logout)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^bestar_access=;/),
+        expect.stringMatching(/^bestar_refresh=;/),
+        expect.stringMatching(/^bestar_csrf=;/),
+      ]),
+    );
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', cookieHeader)
       .expect(401);
   });
 
@@ -215,7 +324,9 @@ interface TestUser {
 interface TestSession {
   absoluteExpiresAt: Date;
   appVersion: string | null;
+  clientType: 'BROWSER' | 'NATIVE';
   createdAt: Date;
+  csrfTokenHash: string | null;
   deviceId: string;
   expiresAt: Date;
   id: string;
@@ -284,7 +395,9 @@ class NativeAuthPrismaFixture {
         const session: TestSession = {
           absoluteExpiresAt: data.absoluteExpiresAt as Date,
           appVersion: (data.appVersion as string | null) ?? null,
+          clientType: (data.clientType as 'BROWSER' | 'NATIVE') ?? 'NATIVE',
           createdAt: now,
+          csrfTokenHash: (data.csrfTokenHash as string | null) ?? null,
           deviceId: data.deviceId as string,
           expiresAt: data.expiresAt as Date,
           id,
@@ -362,6 +475,12 @@ class NativeAuthPrismaFixture {
         matched.forEach((token) => Object.assign(token, data));
         return { count: matched.length };
       },
+    },
+    authAuditEvent: {
+      create: async ({ data }: { data: Record<string, unknown> }) => data,
+      createMany: async ({ data }: { data: unknown[] }) => ({
+        count: data.length,
+      }),
     },
     user: {
       findUnique: async ({
@@ -455,4 +574,35 @@ function testUser(
       },
     ],
   };
+}
+
+function browserRefresh(
+  app: INestApplication<App>,
+  cookieHeader: string,
+  csrf: string,
+) {
+  return request(app.getHttpServer())
+    .post('/api/auth/browser/refresh')
+    .set('Cookie', cookieHeader)
+    .set('Origin', 'http://127.0.0.1')
+    .set('X-CSRF-Token', csrf);
+}
+
+function setCookies(response: Response): string[] {
+  return (response.headers['set-cookie'] ?? []) as unknown as string[];
+}
+
+function cookieValue(cookies: string[], name: string): string {
+  const prefix = `${name}=`;
+  const cookie = cookies.find((value) => value.startsWith(prefix));
+  if (!cookie) throw new Error(`Missing ${name} cookie`);
+  return decodeURIComponent(cookie.slice(prefix.length).split(';')[0]);
+}
+
+function requestCookieHeader(cookies: string[]): string {
+  return cookies.map((cookie) => cookie.split(';')[0]).join('; ');
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }

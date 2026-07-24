@@ -10,6 +10,7 @@ import {
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  configureBrowserActor,
   E2E_BASE_URL,
   authHeaders,
   expectNoPageError,
@@ -310,8 +311,8 @@ async function expectNoJavaScriptSsr(
   const page = await context.newPage();
 
   try {
+    await configureBrowserActor(context, token);
     await context.addCookies([
-      browserCookie("bestar_auth_token", token),
       browserCookie("bestar_theme", "dark"),
     ]);
 
@@ -419,8 +420,8 @@ async function expectChineseFirstFramesWithoutHydrationWarnings(
   checks: LocalePageCheck[],
 ): Promise<void> {
   const context = await browser.newContext();
+  await configureBrowserActor(context, token);
   await context.addCookies([
-    browserCookie("bestar_auth_token", token),
     browserCookie("bestar_locale", "zh-CN"),
     browserCookie("bestar_theme", "dark"),
   ]);

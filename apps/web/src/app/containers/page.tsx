@@ -19,6 +19,8 @@ import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { createTranslator } from "@/lib/i18n/translator";
 import { getServerApiOptions } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import { normalizeDashboardDrilldownContext } from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +41,20 @@ export default async function ContainersPage({
 }) {
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
-  const filters = normalizeContainerIndexFilters(await searchParams);
+  const params = await searchParams;
+  const filters = normalizeContainerIndexFilters(params);
+  const context = normalizeDashboardDrilldownContext(params);
   const state = await loadContainers(filters);
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
+      {context ? (
+        <DashboardFilterContext
+          clearHref="/containers"
+          context={context}
+          locale={locale}
+        />
+      ) : null}
       <section className="border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -100,6 +111,22 @@ export default async function ContainersPage({
           </label>
           <div className="flex flex-wrap items-end gap-2">
             <input name="direction" type="hidden" value={filters.direction} />
+            {filters.lifecycleStatus ? (
+              <input
+                name="lifecycleStatus"
+                type="hidden"
+                value={filters.lifecycleStatus}
+              />
+            ) : null}
+            {filters.review ? (
+              <input name="review" type="hidden" value={filters.review} />
+            ) : null}
+            {filters.from && filters.code ? (
+              <>
+                <input name="from" type="hidden" value={filters.from} />
+                <input name="code" type="hidden" value={filters.code} />
+              </>
+            ) : null}
             <button
               className="inline-flex min-h-11 items-center justify-center border border-teal-800 bg-teal-800 px-4 text-sm font-semibold text-white hover:bg-teal-900"
               type="submit"
@@ -236,7 +263,11 @@ function ContainerTable({
           </thead>
           <tbody>
             {containers.map((container) => (
-              <tr className="border-b border-zinc-100" key={container.containerId}>
+              <tr
+                className="border-b border-zinc-100"
+                data-record-id={container.containerId}
+                key={container.containerId}
+              >
                 <td className="px-3 py-4 font-semibold text-zinc-950">{container.containerNo}</td>
                 <td className="whitespace-nowrap px-3 py-4 text-zinc-700">
                   <time dateTime={container.createdAt}>

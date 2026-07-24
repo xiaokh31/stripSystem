@@ -10,6 +10,8 @@ for a usable system.
 - PostgreSQL database.
   - includes users, password hashes, roles, permissions, role assignments, and
     audit records that reference `userId`
+  - includes Browser/Native session rows, hashed refresh tokens, revocation
+    state and `auth_audit_events`; plaintext refresh/CSRF secrets are not stored
 - `storage/` directory, including:
   - original uploaded Excel files
   - parsed JSON
@@ -25,6 +27,12 @@ for a usable system.
 The `.env` file is not part of the PostgreSQL dump. Preserve deployment
 secrets such as `JWT_SECRET` and database passwords in the warehouse password
 manager or another approved secure location.
+
+Restoring the database also restores the session/revocation state at that
+recovery point. After a restore, rotate JWT/database/Redis credentials that may
+have been exposed and revoke affected users through the application endpoints.
+Do not delete/truncate session or auth audit tables to “clean up” a restore;
+that destroys incident and revocation evidence.
 
 ## Backup Location
 
@@ -213,3 +221,36 @@ If restore fails:
 - do not run another destructive command immediately
 - verify current database/storage state
 - restore from the pre-restore backup if needed
+
+## Credential Rotation And Auth Incident Check
+
+1. Restrict ingress and take a matched PostgreSQL plus `storage/` recovery
+   point before planned rotation.
+2. Replace the credential in the approved secret manager, then recreate only
+   the affected containers. Never copy the new value into this runbook, Git,
+   logs or `HANDOFF.md`.
+3. A JWT signing-key rotation invalidates outstanding access JWTs immediately,
+   but a still-active refresh family can later mint access under the new key.
+   When compromise is suspected, also use both Browser and Native per-user
+   revoke endpoints (or deactivate/reset the account) so forced re-login is
+   complete and auditable.
+4. Verify old credentials/tokens fail, new browser login/refresh/logout works,
+   Native login/refresh still works, `/health` is redacted in public mode and
+   auth audit history remains queryable.
+5. Record who approved rotation, time, affected systems and verification
+   result in the approved incident system without storing secret values.
+
+## Cloudflare Route A Activation Recovery Point
+
+Before the first named-tunnel activation, pause business mutations and create a
+PostgreSQL dump plus `storage/` archive in the same maintenance window. Record
+their filenames, timestamps, checksums and approved backup location outside the
+repository. Run both restore scripts with `DRY_RUN=1`; perform the existing
+non-production restore rehearsal and verify database counts plus representative
+stored-file hashes before sharing the public hostname.
+
+Adding, stopping, rotating or removing `cloudflared` must not run a restore,
+migration, seed, database copy or storage copy. After the tunnel stop,
+connector-network isolation and nginx/tunnel recreation drills, verify the same
+PostgreSQL volume and storage mount remain canonical and that no import, scan,
+correction or generated-file mutation was duplicated.

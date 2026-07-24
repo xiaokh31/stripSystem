@@ -1,8 +1,22 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
 
 export const E2E_ADMIN_EMAIL = readRequiredEnv("E2E_ADMIN_EMAIL");
 export const E2E_ADMIN_PASSWORD = readRequiredEnv("E2E_ADMIN_PASSWORD");
 export const E2E_BASE_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1";
+
+const credentialsByAccessToken = new Map<string, E2ECredentials>();
+const browserAuthCookieNames = [
+  "bestar_access",
+  "bestar_refresh",
+  "bestar_csrf",
+  "bestar_session",
+  "bestar_auth_token",
+] as const;
 
 export interface E2ECredentials {
   email: string;
@@ -31,27 +45,51 @@ export async function loginWithCredentials(
   credentials: E2ECredentials,
 ): Promise<string> {
   const accessToken = await loginForAccessToken(request, credentials);
-  await page.context().addCookies([
-    {
-      httpOnly: false,
-      name: "bestar_auth_token",
-      sameSite: "Lax",
-      secure: false,
-      url: E2E_BASE_URL,
-      value: accessToken,
-    },
-  ]);
+  await establishBrowserSession(page.context(), credentials);
   return accessToken;
+}
+
+export async function configureBrowserActor(
+  context: BrowserContext,
+  accessToken: string | null,
+): Promise<void> {
+  for (const name of browserAuthCookieNames) {
+    await context.clearCookies({ name });
+  }
+  if (!accessToken) return;
+  const credentials = credentialsByAccessToken.get(accessToken);
+  expect(credentials, "Browser actor credentials were not registered by the E2E login helper.").toBeDefined();
+  await establishBrowserSession(context, credentials!);
+}
+
+async function establishBrowserSession(
+  context: BrowserContext,
+  credentials: E2ECredentials,
+): Promise<void> {
+  const browserLogin = await context.request.post("/api/auth/login", {
+    data: {
+      email: credentials.email,
+      password: credentials.password,
+    },
+    headers: { Origin: new URL(E2E_BASE_URL).origin },
+  });
+  expect(browserLogin.status()).toBe(201);
+  const browserBody = (await browserLogin.json()) as Record<string, unknown>;
+  expect(browserBody).not.toHaveProperty("accessToken");
+  expect(browserBody).not.toHaveProperty("refreshToken");
 }
 
 export async function loginForAccessToken(
   request: APIRequestContext,
   credentials: E2ECredentials,
 ): Promise<string> {
-  const response = await request.post("/api/auth/login", {
+  const response = await request.post("/api/auth/native/login", {
     data: {
+      appVersion: "e2e",
+      deviceId: `playwright-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       email: credentials.email,
       password: credentials.password,
+      platform: "playwright",
     },
   });
 
@@ -64,6 +102,10 @@ export async function loginForAccessToken(
     accessToken: string;
     expiresIn: number;
   };
+  credentialsByAccessToken.set(body.accessToken, {
+    email: credentials.email,
+    password: credentials.password,
+  });
   return body.accessToken;
 }
 

@@ -10,7 +10,7 @@ import {
   type Page,
   type Worker,
 } from "@playwright/test";
-import { authHeaders, E2E_BASE_URL, loginThroughApi } from "./helpers";
+import { authHeaders, configureBrowserActor, E2E_BASE_URL, loginThroughApi } from "./helpers";
 
 const OUTPUT_DIR = "test-results/parser-profile-06";
 
@@ -308,15 +308,8 @@ async function captureRealBrowserZoom(
     const worker =
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
+    await configureBrowserActor(context, token);
     await context.addCookies([
-      {
-        httpOnly: false,
-        name: "bestar_auth_token",
-        sameSite: "Lax",
-        secure: false,
-        url: new URL(E2E_BASE_URL).origin,
-        value: token,
-      },
       {
         name: "bestar_locale",
         sameSite: "Lax",

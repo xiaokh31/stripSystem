@@ -25,6 +25,8 @@ interface ContainerIndexRow {
   cancelledPallets: number;
   remainingPallets: number;
   hasLoadingSignal: boolean;
+  hasGeneratedLabels: boolean;
+  hasGeneratedReport: boolean;
 }
 
 @Injectable()
@@ -66,7 +68,21 @@ export class ContainerIndexService {
             AND (p."status" = 'LOADING' OR p."load_job_id" IS NOT NULL)
           ),
           false
-        ) AS "hasLoadingSignal"
+        ) AS "hasLoadingSignal",
+        EXISTS (
+          SELECT 1
+          FROM "generated_files" AS report
+          WHERE report."container_id" = c."id"
+            AND report."file_type" = 'EXCEL_REPORT'
+            AND report."status" = 'GENERATED'
+        ) AS "hasGeneratedReport",
+        EXISTS (
+          SELECT 1
+          FROM "generated_files" AS label
+          WHERE label."container_id" = c."id"
+            AND label."file_type" = 'PALLET_LABEL_PDF'
+            AND label."status" = 'GENERATED'
+        ) AS "hasGeneratedLabels"
       FROM "containers" AS c
       LEFT JOIN "container_destinations" AS d ON d."container_id" = c."id"
       LEFT JOIN "pallets" AS p ON p."container_destination_id" = d."id"
@@ -74,7 +90,10 @@ export class ContainerIndexService {
       GROUP BY c."id", c."container_no", c."status", c."created_at"
     `;
 
-    const items = rows.map((row) => this.toItem(row));
+    const items = rows
+      .filter((row) => this.matchesLifecycle(row, query.lifecycleStatus))
+      .filter((row) => this.matchesReview(row, query.review))
+      .map((row) => this.toItem(row));
     items.sort((left, right) =>
       compareContainerOrder(left, right, query.sort, query.direction),
     );
@@ -103,6 +122,34 @@ export class ContainerIndexService {
     };
   }
 
+  private matchesLifecycle(
+    row: ContainerIndexRow,
+    lifecycleStatus: ContainerIndexQueryDto['lifecycleStatus'],
+  ): boolean {
+    if (!lifecycleStatus) return true;
+    return (
+      effectiveStatus(
+        row.storedStatus,
+        Number(row.activeTotalPallets),
+        Number(row.effectiveLoadedPallets),
+        row.hasLoadingSignal,
+      ) === lifecycleStatus
+    );
+  }
+
+  private matchesReview(
+    row: ContainerIndexRow,
+    review: ContainerIndexQueryDto['review'],
+  ): boolean {
+    if (!review) return true;
+    if (review === 'MISSING_REPORT') {
+      return row.storedStatus !== 'ERROR' && !row.hasGeneratedReport;
+    }
+    return (
+      ['REPORT_GENERATED', 'CORRECTED', 'PARSED'].includes(row.storedStatus) &&
+      !row.hasGeneratedLabels
+    );
+  }
 }
 
 function effectiveStatus(

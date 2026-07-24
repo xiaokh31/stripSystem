@@ -11,6 +11,27 @@ Scheduler, Splunk forwarders, Filebeat, Graylog, or another SIEM collector.
   exceptions.
 - Backup freshness alert for PostgreSQL and storage backups.
 - Disk usage warning and critical alerts.
+
+## Public Named-Tunnel Pilot Signals
+
+When PUBLIC-DEPLOY-02 is activated, add site-owned checks for:
+
+- `cloudflared` container health/restart count and connector status;
+- a public synthetic request that confirms the hostname and Access gate are
+  reachable without bypassing Access or storing credentials in the probe;
+- Cloudflare Access allow/deny/MFA failures and emergency revocation review;
+- Bestar login/refresh/rate-limit/CSRF failures from `auth_audit_events`;
+- nginx 413/429/5xx rates and confirmation that authenticated/private
+  responses remain `Cache-Control: no-store`;
+- local API/database/Redis/queue/document-generation health;
+- disk thresholds and matched PostgreSQL plus `storage/` backup freshness.
+
+Correlate an outage with the official Cloudflare status page before changing
+the local stack. A public synthetic failure plus healthy LAN/API/database
+signals indicates an edge/tunnel/Internet problem; unhealthy LAN signals
+indicate an origin problem. Record external alert routing only after a real test
+notification is observed. Do not claim an alert platform is connected from
+repository configuration alone.
 - JSONL audit exports for scan, correction, generated-file, import, and wage
   audit streams.
 

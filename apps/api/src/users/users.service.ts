@@ -8,6 +8,7 @@ import {
 import { AuthenticatedUser } from '../auth/auth-user';
 import { ROLE_CODES, RoleCode } from '../auth/permissions';
 import { PasswordService } from '../auth/password.service';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -148,10 +149,14 @@ export class UsersService {
   ): Promise<UserMutationResponseDto> {
     await this.findUserOrThrow(id);
     const passwordHash = await this.passwordService.hashPassword(dto.password);
-    const user = (await this.prisma.user.update({
-      where: { id },
-      data: { passwordHash },
-      include: USER_INCLUDE,
+    const user = (await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id },
+        data: { passwordHash },
+        include: USER_INCLUDE,
+      });
+      await this.revokeActiveSessions(tx, id, actor.id, 'PASSWORD_RESET');
+      return updated;
     })) as UserRecord;
 
     this.audit(actor, 'users.reset_password', id, {});
@@ -195,16 +200,45 @@ export class UsersService {
     actor: AuthenticatedUser,
   ): Promise<UserMutationResponseDto> {
     await this.findUserOrThrow(id);
-    const user = (await this.prisma.user.update({
-      where: { id },
-      data: { isActive: dto.isActive },
-      include: USER_INCLUDE,
+    const user = (await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id },
+        data: { isActive: dto.isActive },
+        include: USER_INCLUDE,
+      });
+      if (!dto.isActive) {
+        await this.revokeActiveSessions(tx, id, actor.id, 'USER_INACTIVE');
+      }
+      return updated;
     })) as UserRecord;
 
     this.audit(actor, 'users.update_status', id, {
       isActive: dto.isActive,
     });
     return this.mutationResponse(user, actor, 'users.update_status');
+  }
+
+  private async revokeActiveSessions(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    actorUserId: string,
+    reason: string,
+  ): Promise<void> {
+    const sessions = await tx.nativeAuthSession.findMany({
+      where: { revokedAt: null, userId },
+      select: { id: true },
+    });
+    if (sessions.length === 0) return;
+    const sessionIds = sessions.map(({ id }) => id);
+    const revokedAt = new Date();
+    await tx.nativeAuthSession.updateMany({
+      where: { id: { in: sessionIds }, revokedAt: null },
+      data: { revokeReason: reason, revokedAt, revokedByUserId: actorUserId },
+    });
+    await tx.nativeRefreshToken.updateMany({
+      where: { revokedAt: null, sessionId: { in: sessionIds } },
+      data: { revokedAt },
+    });
   }
 
   private async findUserOrThrow(id: string): Promise<UserRecord> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/components/i18n/i18n-provider";
 import {
   ApiClientError,
@@ -69,11 +69,13 @@ export function ContainerGeneratedFiles({
   containerId,
   containerStatus,
   initialFiles,
+  selectedFileId,
 }: {
   canReprintLabels: boolean;
   containerId: string;
   containerStatus: string;
   initialFiles: GeneratedFileResponse[];
+  selectedFileId?: string;
 }) {
   const { format, locale, t } = useI18n();
   const router = useRouter();
@@ -96,6 +98,15 @@ export function ContainerGeneratedFiles({
     files,
     locale,
   );
+
+  useEffect(() => {
+    if (!selectedFileId) return;
+    const selected = document.querySelector<HTMLElement>(
+      `[data-generated-file-id="${CSS.escape(selectedFileId)}"]`,
+    );
+    selected?.focus({ preventScroll: true });
+    selected?.scrollIntoView({ behavior: "auto", block: "center" });
+  }, [selectedFileId]);
 
   async function generate(action: GenerationAction) {
     if (runningAction || locked) {
@@ -304,6 +315,7 @@ export function ContainerGeneratedFiles({
         containerId={containerId}
         files={files}
         locale={locale}
+        selectedFileId={selectedFileId}
       />
     </section>
   );
@@ -313,10 +325,12 @@ function GeneratedFilesTable({
   containerId,
   files,
   locale,
+  selectedFileId,
 }: {
   containerId: string;
   files: GeneratedFileResponse[];
   locale: Locale;
+  selectedFileId?: string;
 }) {
   const { t } = useI18n();
 
@@ -342,9 +356,28 @@ function GeneratedFilesTable({
           </tr>
         </thead>
         <tbody>
-          {files.map((file) => (
-            <tr className="border-b border-zinc-100" key={file.id}>
+          {files.map((file) => {
+            const selected = file.id === selectedFileId;
+            return (
+            <tr
+              aria-current={selected ? "true" : undefined}
+              className={
+                selected
+                  ? "border-b border-amber-300 bg-amber-50 outline-none focus-visible:ring-2 focus-visible:ring-amber-700"
+                  : "border-b border-zinc-100"
+              }
+              data-generated-file-id={file.id}
+              data-record-id={file.id}
+              data-selected-record={selected ? "true" : undefined}
+              key={file.id}
+              tabIndex={selected ? -1 : undefined}
+            >
               <td className="max-w-72 px-3 py-4 align-top">
+                {selected ? (
+                  <span className="mb-1 block text-xs font-semibold uppercase text-amber-900">
+                    {t("Selected record")}
+                  </span>
+                ) : null}
                 <p className="break-all font-medium text-zinc-950">
                   {filenameFromStoragePath(file.storagePath)}
                 </p>
@@ -381,7 +414,8 @@ function GeneratedFilesTable({
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -6,6 +6,8 @@ import {
   classifyUploadFailure,
   formatFileSize,
   isAllowedXlsxFile,
+  isWithinImportUploadLimit,
+  MAX_IMPORT_UPLOAD_BYTES,
 } from "../src/components/imports/import-upload-flow";
 
 test("upload flow accepts only xlsx files", () => {
@@ -26,6 +28,29 @@ test("upload queue marks invalid files without treating them as uploaded", () =>
   assert.equal(queue[0]?.progressPercent, 0);
   assert.equal(queue[1]?.status, "invalid");
   assert.equal(queue[1]?.errorCode, "INVALID_FILE_TYPE");
+});
+
+test("upload queue rejects files above the application limit before network upload", () => {
+  assert.equal(
+    isWithinImportUploadLimit({
+      name: "within-limit.xlsx",
+      size: MAX_IMPORT_UPLOAD_BYTES,
+    }),
+    true,
+  );
+  assert.equal(
+    isWithinImportUploadLimit({
+      name: "over-limit.xlsx",
+      size: MAX_IMPORT_UPLOAD_BYTES + 1,
+    }),
+    false,
+  );
+
+  const [item] = buildUploadQueue([
+    { name: "over-limit.xlsx", size: MAX_IMPORT_UPLOAD_BYTES + 1 },
+  ]);
+  assert.equal(item?.status, "invalid");
+  assert.equal(item?.errorCode, "UPLOAD_FILE_TOO_LARGE");
 });
 
 test("duplicate import errors expose existing import details", () => {

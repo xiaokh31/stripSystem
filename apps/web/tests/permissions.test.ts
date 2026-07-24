@@ -7,6 +7,7 @@ import {
   canClassifyUnloadingWage,
   canDeleteImports,
   canDeleteAttendanceRows,
+  canDeleteAttendanceImports,
   canCompleteUnloadingWage,
   canManageContainerUnloadingWage,
   canManageOfficeLoadJobs,
@@ -377,7 +378,11 @@ test("work hours actions follow attendance action permissions independently", ()
     email: "hr-delete@example.com",
     name: "HR Delete",
     roles: ["HR_MANAGER"],
-    permissions: ["attendance.read", "attendance.rows.delete"],
+    permissions: [
+      "attendance.read",
+      "attendance.rows.delete",
+      "attendance.imports.delete",
+    ],
   };
   const adminUser: AuthUserResponse = {
     id: "admin-work-hours-1",
@@ -392,13 +397,16 @@ test("work hours actions follow attendance action permissions independently", ()
   assert.equal(canParseWorkHours(readOnlyHrUser), false);
   assert.equal(canGenerateWorkHours(readOnlyHrUser), false);
   assert.equal(canDeleteAttendanceRows(readOnlyHrUser), false);
+  assert.equal(canDeleteAttendanceImports(readOnlyHrUser), false);
   assert.equal(canParseWorkHours(parseOnlyHrUser), true);
   assert.equal(canGenerateWorkHours(parseOnlyHrUser), false);
   assert.equal(canDeleteAttendanceRows(deleteHrUser), true);
+  assert.equal(canDeleteAttendanceImports(deleteHrUser), true);
   assert.equal(canUploadWorkHours(adminUser), true);
   assert.equal(canParseWorkHours(adminUser), true);
   assert.equal(canGenerateWorkHours(adminUser), true);
   assert.equal(canDeleteAttendanceRows(adminUser), true);
+  assert.equal(canDeleteAttendanceImports(adminUser), true);
 });
 
 test("monthly unloading summary follows dedicated summary permissions", () => {

@@ -37,6 +37,11 @@ import {
   canReviewUnloadingSummary,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
+import {
+  appendDashboardDrilldownContext,
+  normalizeDashboardDrilldownContext,
+} from "@/components/dashboard/drilldown-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +60,9 @@ export default async function UnloadingSummaryPage({
 }) {
   const locale = await getServerLocale();
   const requestedSearchParams = await searchParams;
+  const dashboardContext = normalizeDashboardDrilldownContext(
+    requestedSearchParams,
+  );
   const currentUser = await getServerCurrentUser();
   const canRead = canReviewUnloadingSummary(currentUser);
   const canExport = canExportUnloadingSummary(currentUser);
@@ -62,7 +70,7 @@ export default async function UnloadingSummaryPage({
   if (!canRead) {
     const month = resolveUnloadingSummaryMonth(requestedSearchParams, []);
     return (
-      <UnloadingSummaryPageShell locale={locale} month={month}>
+      <UnloadingSummaryPageShell href={unloadingSummaryHref(month)} locale={locale}>
         <PermissionRequiredPanel locale={locale} />
       </UnloadingSummaryPageShell>
     );
@@ -74,7 +82,17 @@ export default async function UnloadingSummaryPage({
     state.summary?.availableMonths ?? state.availableMonths;
 
   return (
-    <UnloadingSummaryPageShell locale={locale} month={month}>
+    <UnloadingSummaryPageShell
+      href={summaryDashboardHref(month, dashboardContext)}
+      locale={locale}
+    >
+      {dashboardContext ? (
+        <DashboardFilterContext
+          clearHref={`/unloading-summary?month=${encodeURIComponent(month)}`}
+          context={dashboardContext}
+          locale={locale}
+        />
+      ) : null}
       <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {canExport ? (
           <UnloadingSummaryExportPanel
@@ -85,7 +103,12 @@ export default async function UnloadingSummaryPage({
         ) : (
           <ExportPermissionPanel locale={locale} />
         )}
-        <MonthFilter availableMonths={availableMonths} locale={locale} month={month} />
+        <MonthFilter
+          availableMonths={availableMonths}
+          context={dashboardContext}
+          locale={locale}
+          month={month}
+        />
       </section>
 
       <CompletionStatusRule locale={locale} />
@@ -100,13 +123,17 @@ export default async function UnloadingSummaryPage({
 
       {state.summary ? (
         <>
-          <SummaryMetrics locale={locale} summary={state.summary} />
+          <div id="completed-containers">
+            <SummaryMetrics locale={locale} summary={state.summary} />
+          </div>
           <ReviewWarnings locale={locale} summary={state.summary} />
-          <SummaryRowsTable
-            availableMonths={state.summary.availableMonths}
-            locale={locale}
-            rows={state.summary.rows}
-          />
+          <div id="summary-rows">
+            <SummaryRowsTable
+              availableMonths={state.summary.availableMonths}
+              locale={locale}
+              rows={state.summary.rows}
+            />
+          </div>
           <GeneratedSummaryFiles locale={locale} summary={state.summary} />
         </>
       ) : null}
@@ -154,12 +181,12 @@ async function loadUnloadingSummaryState(
 
 function UnloadingSummaryPageShell({
   children,
+  href,
   locale,
-  month,
 }: {
   children: ReactNode;
+  href: string;
   locale: Locale;
-  month: string;
 }) {
   const { t } = createTranslator(locale);
 
@@ -189,7 +216,7 @@ function UnloadingSummaryPageShell({
             </Link>
             <Link
               className="inline-flex min-h-10 items-center border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 hover:bg-zinc-50"
-              href={unloadingSummaryHref(month)}
+              href={href}
             >
               {t("Refresh")}
             </Link>
@@ -237,10 +264,12 @@ function ExportPermissionPanel({ locale }: { locale: Locale }) {
 
 function MonthFilter({
   availableMonths,
+  context,
   locale,
   month,
 }: {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>;
   locale: Locale;
   month: string;
 }) {
@@ -255,6 +284,12 @@ function MonthFilter({
         action="/unloading-summary"
         className="mt-4 flex flex-wrap items-end gap-3"
       >
+        {context ? (
+          <>
+            <input name="from" type="hidden" value={context.from} />
+            <input name="code" type="hidden" value={context.code} />
+          </>
+        ) : null}
         <label className="grid gap-1 text-sm">
           <span className="font-semibold text-zinc-700">
             {t("Selected month")}
@@ -273,16 +308,22 @@ function MonthFilter({
           {t("Apply")}
         </button>
       </form>
-      <AvailableMonthShortcuts availableMonths={availableMonths} locale={locale} />
+      <AvailableMonthShortcuts
+        availableMonths={availableMonths}
+        context={context}
+        locale={locale}
+      />
     </section>
   );
 }
 
 function AvailableMonthShortcuts({
   availableMonths,
+  context = null,
   locale,
 }: {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  context?: ReturnType<typeof normalizeDashboardDrilldownContext>;
   locale: Locale;
 }) {
   const { format, t } = createTranslator(locale);
@@ -304,7 +345,7 @@ function AvailableMonthShortcuts({
         {availableMonths.slice(0, 8).map((availableMonth) => (
           <Link
             className="inline-flex min-h-9 items-center border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
-            href={unloadingSummaryHref(availableMonth.month)}
+            href={summaryDashboardHref(availableMonth.month, context)}
             key={availableMonth.month}
           >
             {format("i18n.unloadingSummary.availableMonth", {
@@ -317,6 +358,21 @@ function AvailableMonthShortcuts({
       </div>
     </div>
   );
+}
+
+function summaryDashboardHref(
+  month: string,
+  context: ReturnType<typeof normalizeDashboardDrilldownContext>,
+): string {
+  const params = new URLSearchParams({ month });
+  appendDashboardDrilldownContext(params, context);
+  const hash =
+    context?.code === "MONTHLY_COMPLETED_CONTAINERS"
+      ? "#completed-containers"
+      : context?.code === "MONTHLY_SUMMARY_ROWS"
+        ? "#summary-rows"
+        : "";
+  return `/unloading-summary?${params.toString()}${hash}`;
 }
 
 function CompletionStatusRule({ locale }: { locale: Locale }) {

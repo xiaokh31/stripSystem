@@ -69,6 +69,7 @@ docs/reports/*
 .env
 .env.local
 .env.*.local
+.secrets/
 
 # node
 node_modules/

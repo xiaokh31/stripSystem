@@ -46,6 +46,26 @@ test("container index URLs serialize only stable English values and preserve sea
   );
 });
 
+test("container lifecycle and review filters preserve the dashboard URL context", () => {
+  const filters = normalizeContainerIndexFilters({
+    code: "LOADING_IN_PROGRESS",
+    from: "dashboard",
+    lifecycleStatus: "LOADING_IN_PROGRESS",
+    review: "invalid",
+  });
+  assert.deepEqual(filters, {
+    code: "LOADING_IN_PROGRESS",
+    direction: "desc",
+    from: "dashboard",
+    lifecycleStatus: "LOADING_IN_PROGRESS",
+    sort: "createdAt",
+  });
+  assert.equal(
+    containerIndexHref(filters),
+    "/containers?lifecycleStatus=LOADING_IN_PROGRESS&from=dashboard&code=LOADING_IN_PROGRESS&sort=createdAt&direction=desc",
+  );
+});
+
 test("sort toggle uses field-specific defaults then reverses the active direction", () => {
   assert.deepEqual(
     nextContainerIndexSort({ direction: "desc", sort: "createdAt" }, "containerNo"),
