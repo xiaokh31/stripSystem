@@ -4,6 +4,7 @@ import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { UnloadingWageService } from './unloading-wage.service';
+import { BusinessTimeService } from '../common/business-time.service';
 
 function tempWorker(
   id: string,
@@ -438,6 +439,9 @@ describe('UnloadingWageService', () => {
           throw new Error(`Unexpected config key ${key}`);
         }),
       } as unknown as ConfigService,
+      new BusinessTimeService({
+        now: () => new Date('2026-07-24T18:00:00.000Z'),
+      }),
     );
   });
 
@@ -647,6 +651,69 @@ describe('UnloadingWageService', () => {
       });
     },
   );
+
+  it('rejects future completion at both public entry points before transaction side effects', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+    prisma.$transaction.mockClear();
+    prisma.payContainer.update.mockClear();
+    prisma.correctionFeedback.create.mockClear();
+
+    await expect(
+      service.completeContainerUnloading(
+        'container-zcsu',
+        { completedAt: '2026-07-24T18:05:00.001Z' },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+      }),
+    });
+    await expect(
+      service.completePayContainer(
+        'pay-container-1',
+        {
+          allocationMethod: 'EQUAL_SPLIT',
+          completedAt: '2099-06-18T20:30:00.000Z',
+          unloaders: [
+            { workerCode: 'TEMP-A', workerName: 'Temporary A' },
+          ],
+        },
+        officeActor,
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+      }),
+    });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.payContainer.update).not.toHaveBeenCalled();
+    expect(prisma.correctionFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts the exact five-minute completion tolerance boundary', async () => {
+    await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'OCEAN_CONTAINER' },
+      officeActor,
+    );
+
+    await expect(
+      service.completeContainerUnloading(
+        'container-zcsu',
+        { completedAt: '2026-07-24T18:05:00.000Z' },
+        officeActor,
+      ),
+    ).resolves.toMatchObject({
+      completedAt: '2026-07-24T18:05:00.000Z',
+      status: 'COMPLETED',
+    });
+  });
 
   it('rejects US-to-Canada container detail wage without trailer number', async () => {
     await expect(

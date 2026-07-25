@@ -21,6 +21,7 @@ export interface ApiHealthResponse {
   };
   queue?: QueueHealthResponse;
   timestamp: string;
+  serverTime: string;
 }
 
 export type DashboardRange = "today" | "7d" | "30d";
@@ -674,6 +675,7 @@ export interface ContainerUnloadingWageUnloaderResponse {
 }
 
 export interface ContainerDetailUnloadingWageResponse {
+  serverTime?: string;
   payContainerId: string;
   payContainerNo: string;
   classification: ContainerPayClassification;
@@ -689,6 +691,7 @@ export interface ContainerDetailUnloadingWageResponse {
 }
 
 export interface ContainerUnloadingWageResponse {
+  serverTime?: string;
   associatedContainers: ContainerUnloadingWageAssociatedContainerResponse[];
   completedAt: string | null;
   completedById: string | null;
@@ -786,6 +789,7 @@ export interface CompleteUnloadingRequest {
 }
 
 export interface PayContainerResponse {
+  serverTime?: string;
   id: string;
   payContainerNo: string;
   classification: string;
@@ -891,7 +895,9 @@ export interface UnloadingSummaryAvailableMonthResponse {
 
 export interface UnloadingSummaryMonthMetadataResponse {
   availableMonths: UnloadingSummaryAvailableMonthResponse[];
+  currentMonth: string;
   missingCompletionReviewCount: number;
+  serverTime: string;
 }
 
 export interface UnloadingSummaryRowResponse {
@@ -1104,6 +1110,7 @@ export interface ContainerDetailDestinationResponse {
 }
 
 export interface ContainerDetailResponse {
+  serverTime?: string;
   id: string;
   importFileId: string | null;
   containerNo: string;
@@ -1909,6 +1916,7 @@ export interface LoadJobListFilters {
 
 export type OperationsReviewCode =
   | "UNLOADING_COMPLETION_DATE_MISSING"
+  | "UNLOADING_COMPLETION_DATE_IN_FUTURE"
   | "DESTINATION_CARTON_VOLUME_MISSING"
   | "ZERO_VOLUME_WITH_CARTONS"
   | "FAILED_GENERATED_FILES"

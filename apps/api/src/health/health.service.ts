@@ -4,6 +4,10 @@ import { DatabaseHealth, PrismaService } from '../prisma/prisma.service';
 import { operationalDateTime } from '../common/operational-time';
 import { AsyncJobsService } from '../async-jobs/async-jobs.service';
 import { QueueHealthResponseDto } from '../async-jobs/async-job-response.dto';
+import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
 
 export interface HealthResponse {
   status: 'ok' | 'degraded';
@@ -11,18 +15,27 @@ export interface HealthResponse {
   database?: DatabaseHealth;
   queue?: QueueHealthResponseDto;
   timestamp: string;
+  serverTime: string;
 }
 
 @Injectable()
 export class HealthService {
+  private readonly businessTime: BusinessTimeService;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @Optional()
     private readonly asyncJobsService?: AsyncJobsService,
-  ) {}
+    @Optional()
+    businessTime?: BusinessTimeService,
+  ) {
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
+  }
 
   async check(): Promise<HealthResponse> {
+    const serverNow = this.businessTime.now();
     const database = await this.prisma.checkConnection();
     const queue = await this.asyncJobsService?.checkHealth();
     const queueHealthy =
@@ -30,7 +43,8 @@ export class HealthService {
 
     const response: HealthResponse = {
       status: database.status === 'up' && queueHealthy ? 'ok' : 'degraded',
-      timestamp: operationalDateTime(),
+      timestamp: operationalDateTime(serverNow),
+      serverTime: serverNow.toISOString(),
     };
     if (
       this.configService.get<boolean>('app.publicDeployment.enabled') === true

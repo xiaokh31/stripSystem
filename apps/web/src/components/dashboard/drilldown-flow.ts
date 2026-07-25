@@ -8,6 +8,7 @@ export const DASHBOARD_DRILLDOWN_CODES = [
   "CONTAINERS_MISSING_LABELS",
   "OPEN_LOAD_JOBS",
   "UNLOADING_COMPLETION_DATE_MISSING",
+  "UNLOADING_COMPLETION_DATE_IN_FUTURE",
   "ATTENDANCE_IMPORTS_NEED_PARSE",
   "UPLOADED",
   "PARSED",
@@ -108,6 +109,8 @@ export function dashboardDrilldownLabel(
     UNLOADED: "dashboard.lifecycle.unloaded",
     UNLOADING_COMPLETION_DATE_MISSING:
       "dashboard.workQueue.unloadingCompletionDateMissing",
+    UNLOADING_COMPLETION_DATE_IN_FUTURE:
+      "dashboard.exceptions.futureUnloadingCompletion",
     UPLOADED: "dashboard.lifecycle.uploaded",
     WAGE_SETTLEMENTS_NEED_REVIEW:
       "Wage settlements needing review",

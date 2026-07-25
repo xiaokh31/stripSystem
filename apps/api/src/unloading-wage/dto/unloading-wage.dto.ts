@@ -320,6 +320,7 @@ export class ListPayContainersQueryDto {
 }
 
 export interface PayContainerResponseDto {
+  serverTime: string;
   id: string;
   payContainerNo: string;
   classification: string;
@@ -353,6 +354,7 @@ export interface PayContainerResponseDto {
 }
 
 export interface ContainerUnloadingWageResponseDto {
+  serverTime: string;
   containerId: string;
   containerNo: string;
   classification: string | null;

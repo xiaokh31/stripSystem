@@ -64,6 +64,24 @@ export function formatLocalizedOperationalDateTime(
   return formatter.format(date);
 }
 
+export function operationalMonthValue(value: string | Date): string {
+  const date = parseDate(value);
+  if (!date) {
+    throw new Error("Invalid operational date");
+  }
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      month: "2-digit",
+      timeZone: OPERATIONAL_TIME_ZONE,
+      year: "numeric",
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}`;
+}
+
 export function createOperationalDateTimeFormatterCache(
   factory: DateTimeFormatterFactory = (locale, options) =>
     new Intl.DateTimeFormat(locale, options),

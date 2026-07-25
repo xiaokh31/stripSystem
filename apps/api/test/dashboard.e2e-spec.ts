@@ -379,6 +379,7 @@ function createDashboardPrismaMock(): Record<string, unknown> {
       count: jest.fn().mockResolvedValue(1),
     },
     payContainer: {
+      count: jest.fn().mockResolvedValue(0),
       findFirst: jest.fn().mockResolvedValue({ completedAt: now }),
       findMany: jest.fn().mockResolvedValue([
         {

@@ -104,6 +104,7 @@ export interface ContainerDetailDestinationResponseDto {
 }
 
 export interface ContainerDetailResponseDto {
+  serverTime: string;
   id: string;
   importFileId: string | null;
   containerNo: string;

@@ -511,6 +511,10 @@ function apiErrorMessage(error: unknown, locale: Locale): string {
       "Selected temporary unloader is inactive or unavailable.",
     UNLOADING_WORKER_NOT_FOUND: "Selected temporary unloader could not be found.",
     UNLOADING_WORKER_REQUIRED: "Add at least one unloader.",
+    UNLOADING_COMPLETION_DATE_IN_FUTURE:
+      "Completion time cannot be more than five minutes after server time.",
+    UNLOADING_WAGE_MONTH_IN_FUTURE:
+      "Choose the current month or an earlier month.",
   } as const;
 
   if (error instanceof ApiClientError) {

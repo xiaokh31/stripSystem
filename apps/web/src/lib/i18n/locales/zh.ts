@@ -269,6 +269,7 @@ export const zhMessages = {
     "目的仓、箱数或体积缺失",
   "dashboard.exceptions.failedAsyncJobs": "失败异步任务",
   "dashboard.exceptions.failedGeneratedFiles": "失败生成文件",
+  "dashboard.exceptions.futureUnloadingCompletion": "未来拆柜完成时间",
   "dashboard.exceptions.parserErrors": "解析错误",
   "dashboard.exceptions.scanExceptions": "扫码异常",
   "dashboard.exceptions.zeroVolumeWithCartons": "有箱数但体积为 0",
@@ -568,6 +569,12 @@ export const zhMessages = {
   "Operational profile": "运营配置",
   "Operational settings": "运营设置",
   "Operational time": "运营时间",
+  "Device time is out of sync": "设备时间不同步",
+  "Completion time cannot be more than five minutes after server time.":
+    "完成时间不得晚于服务器时间五分钟以上。",
+  "Choose the current month or an earlier month.": "请选择当前月份或更早月份。",
+  "Choose the current dashboard month or an earlier completed month.":
+    "请选择当前仪表盘月份或更早的已完成月份。",
   "Operational time zone": "运营时区",
   Operator: "操作人",
   OK: "正常",

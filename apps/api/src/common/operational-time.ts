@@ -71,7 +71,35 @@ export function operationalDayRangeUtc(
   };
 }
 
-function zonedMidnightUtc(
+export function operationalMonthRangeUtc(
+  month: string,
+  timeZone = operationalTimeZone(),
+): { gte: Date; lt: Date } {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error(`Invalid operational month: ${month}`);
+  }
+  const [year, monthNumber] = month.split('-').map(Number);
+  const nextMonth = new Date(Date.UTC(year, monthNumber, 1));
+
+  return {
+    gte: zonedMidnightUtc(year, monthNumber, 1, timeZone),
+    lt: zonedMidnightUtc(
+      nextMonth.getUTCFullYear(),
+      nextMonth.getUTCMonth() + 1,
+      1,
+      timeZone,
+    ),
+  };
+}
+
+export function operationalMonth(
+  value: Date = new Date(),
+  timeZone = operationalTimeZone(),
+): string {
+  return operationalLocalDate(value, timeZone).slice(0, 7);
+}
+
+export function zonedMidnightUtc(
   year: number,
   month: number,
   day: number,

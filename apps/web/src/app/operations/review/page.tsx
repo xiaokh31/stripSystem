@@ -21,6 +21,7 @@ export const dynamic = "force-dynamic";
 
 const REVIEW_CODES: OperationsReviewCode[] = [
   "UNLOADING_COMPLETION_DATE_MISSING",
+  "UNLOADING_COMPLETION_DATE_IN_FUTURE",
   "DESTINATION_CARTON_VOLUME_MISSING",
   "ZERO_VOLUME_WITH_CARTONS",
   "FAILED_GENERATED_FILES",
@@ -97,13 +98,18 @@ export default async function OperationsReviewPage({
           </div>
           {state.review.items.length ? (
             <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full border-collapse text-left text-sm">
+              <table className="w-full table-fixed border-collapse text-left text-sm md:table-auto">
                 <thead>
                   <tr className="border-y border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-600">
                     <th className="px-3 py-3 font-semibold">{t("Type")}</th>
                     <th className="px-3 py-3 font-semibold">{t("Record")}</th>
                     <th className="px-3 py-3 font-semibold">{t("Status")}</th>
-                    <th className="px-3 py-3 font-semibold">{t("Updated")}</th>
+                    <th className="px-3 py-3 font-semibold">
+                      {state.review.code ===
+                      "UNLOADING_COMPLETION_DATE_IN_FUTURE"
+                        ? t("Completed at")
+                        : t("Updated")}
+                    </th>
                     <th className="px-3 py-3 font-semibold">{t("Action")}</th>
                   </tr>
                 </thead>
@@ -125,7 +131,7 @@ export default async function OperationsReviewPage({
                       <td className="px-3 py-3">
                         {reviewSourceLabel(item.sourceType, locale)}
                       </td>
-                      <td className="px-3 py-3 font-medium">
+                      <td className="break-all px-3 py-3 font-medium">
                         {selected ? (
                           <span className="mb-1 block text-xs font-semibold uppercase text-amber-900">
                             {t("Selected record")}
@@ -141,7 +147,7 @@ export default async function OperationsReviewPage({
                       <td className="px-3 py-3">
                         {reviewStatusLabel(item.status, locale)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3">
+                      <td className="break-words px-3 py-3 md:whitespace-nowrap">
                         {formatLocalizedOperationalDateTime(
                           item.occurredAt,
                           locale,
@@ -182,9 +188,6 @@ export default async function OperationsReviewPage({
           <h2 className="font-semibold">
             {t("Review records could not be loaded")}
           </h2>
-          <p className="mt-2 text-xs font-semibold" data-i18n-ignore>
-            {state.error.code}
-          </p>
         </section>
       )}
     </main>
@@ -293,6 +296,7 @@ function reviewSourceLabel(sourceType: string, locale: Locale): string {
     CORRECTION: "Correction",
     GENERATED_FILE: "Generated file",
     PALLET_EVENT: "Pallet event",
+    PAY_CONTAINER: "Pay container",
     WAGE_GENERATED_FILE: "Wage generated file",
   };
   return createTranslator(locale).t(labels[sourceType] ?? "Record");

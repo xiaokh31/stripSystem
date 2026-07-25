@@ -24,7 +24,9 @@ export interface UnloadingSummaryAvailableMonthDto {
 
 export interface UnloadingSummaryMonthMetadataDto {
   availableMonths: UnloadingSummaryAvailableMonthDto[];
+  currentMonth: string;
   missingCompletionReviewCount: number;
+  serverTime: string;
 }
 
 export interface UnloadingSummaryRowDto {

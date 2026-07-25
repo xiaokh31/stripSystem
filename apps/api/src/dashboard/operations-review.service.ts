@@ -15,6 +15,10 @@ import {
   type OperationsReviewQueryDto,
   type OperationsReviewResponseDto,
 } from './dto/operations-review-query.dto';
+import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
 
 const COMPLETED_UNLOADING_STATUSES = [
   ContainerStatus.UNLOADED,
@@ -37,13 +41,27 @@ export function missingCompletionDateWhere(): Prisma.ContainerWhereInput {
 
 @Injectable()
 export class OperationsReviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly businessTime: BusinessTimeService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    businessTime?: BusinessTimeService,
+  ) {
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
+  }
 
   async count(code: OperationsReviewCode): Promise<number> {
     switch (code) {
       case 'UNLOADING_COMPLETION_DATE_MISSING':
         return this.prisma.container.count({
           where: missingCompletionDateWhere(),
+        });
+      case 'UNLOADING_COMPLETION_DATE_IN_FUTURE':
+        return this.prisma.payContainer.count({
+          where: {
+            completedAt: { gt: this.businessTime.completionCutoff() },
+          },
         });
       case 'DESTINATION_CARTON_VOLUME_MISSING':
         return this.prisma.containerLine.count({
@@ -152,6 +170,57 @@ export class OperationsReviewService {
             href: `/containers/${record.id}`,
             details: {},
           })),
+        };
+      }
+      case 'UNLOADING_COMPLETION_DATE_IN_FUTURE': {
+        const where = {
+          completedAt: { gt: this.businessTime.completionCutoff() },
+        };
+        const [totalItems, records] = await Promise.all([
+          this.prisma.payContainer.count({ where }),
+          this.prisma.payContainer.findMany({
+            where,
+            select: {
+              id: true,
+              payContainerNo: true,
+              status: true,
+              completedAt: true,
+              sourceContainers: {
+                select: {
+                  containerId: true,
+                  containerNo: true,
+                },
+                orderBy: { containerNo: 'asc' },
+              },
+            },
+            orderBy: [{ completedAt: 'desc' }, { id: 'asc' }],
+            skip,
+            take,
+          }),
+        ]);
+        return {
+          totalItems,
+          items: records.map((record) => {
+            const firstSource = record.sourceContainers[0];
+            return {
+              id: record.id,
+              code,
+              sourceType: 'PAY_CONTAINER',
+              targetId: firstSource?.containerId ?? null,
+              primaryValue: record.payContainerNo,
+              status: record.status,
+              occurredAt: record.completedAt?.toISOString() ?? new Date(0).toISOString(),
+              href: firstSource
+                ? `/containers/${firstSource.containerId}`
+                : `/operations/review?code=${code}&recordId=${encodeURIComponent(record.id)}`,
+              details: {
+                completedAt: record.completedAt?.toISOString() ?? null,
+                containerNumbers: record.sourceContainers
+                  .map((source) => source.containerNo)
+                  .join(', '),
+              },
+            };
+          }),
         };
       }
       case 'DESTINATION_CARTON_VOLUME_MISSING':
@@ -525,7 +594,8 @@ export class OperationsReviewService {
     if (
       code === 'DESTINATION_CARTON_VOLUME_MISSING' ||
       code === 'ZERO_VOLUME_WITH_CARTONS' ||
-      code === 'UNLOADING_COMPLETION_DATE_MISSING'
+      code === 'UNLOADING_COMPLETION_DATE_MISSING' ||
+      code === 'UNLOADING_COMPLETION_DATE_IN_FUTURE'
     ) {
       return [PERMISSIONS.containers.read, PERMISSIONS.unloadingSummary.read];
     }

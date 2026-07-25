@@ -13,9 +13,13 @@ import {
   loginWithCredentials,
   type E2ETestUser,
 } from "./helpers";
+import {
+  cleanupUnloadingWageFixture,
+  unloadingWageFixtureCount,
+} from "./fixtures/unloading-wage-fixture";
 
-const settlementMonth = "2099-06";
-const completedAt = "2099-06-18T20:30:00.000Z";
+const settlementMonth = "2001-01";
+const completedAt = "2001-01-18T20:30:00.000Z";
 
 interface TemporaryUnloader {
   id: string;
@@ -27,8 +31,13 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   page,
   request,
 }, testInfo) => {
+  const prefix =
+    process.env.UNLOADING_WAGE_E2E_PREFIX ??
+    `wd09-${process.pid}-${Date.now()}`;
+  cleanupUnloadingWageFixture(prefix);
+  try {
   const adminToken = await loginThroughApi(page, request);
-  const actors = await ensureUnloadingWageActors(request, adminToken);
+  const actors = await ensureUnloadingWageActors(request, adminToken, prefix);
   const hrToken = await loginForAccessToken(request, actors.hrManager);
   const blockedWorkerDirectoryResponse = await request.get(
     "/api/unloading-wage/workers",
@@ -45,12 +54,14 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     request,
     token,
     "E2E Temporary Unloader A",
+    prefix,
     testInfo,
   );
   const workerB = await createTemporaryUnloader(
     request,
     token,
     "E2E Temporary Unloader B",
+    prefix,
     testInfo,
   );
   await expectWorkerDirectoryIncludes(request, token, [workerA, workerB]);
@@ -62,8 +73,12 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
       workerA,
       workerB,
     },
+    prefix,
     testInfo,
   );
+  if (process.env.E2E_FORCE_FAILURE === "1") {
+    throw new Error("Intentional WEB-DASHBOARD-09 cleanup probe failure");
+  }
 
   await page.goto(`/containers/${fixture.containerId}`);
   await expect(page.getByRole("heading", { name: fixture.containerNoA }))
@@ -145,6 +160,10 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     /\/unloading-wage\/settlements\/[^/]+\/files\/[^/]+\/download/,
   );
   await expectNoPageError(page);
+  } finally {
+    cleanupUnloadingWageFixture(prefix);
+    expect(unloadingWageFixtureCount(prefix)).toBe(0);
+  }
 });
 
 async function seedCompletedTransferWageUnit(
@@ -155,6 +174,7 @@ async function seedCompletedTransferWageUnit(
     workerA: TemporaryUnloader;
     workerB: TemporaryUnloader;
   },
+  prefix: string,
   testInfo: { project: { name: string } },
 ): Promise<{
   containerId: string;
@@ -164,10 +184,10 @@ async function seedCompletedTransferWageUnit(
   workerA: string;
   workerB: string;
 }> {
-  const suffix = uniqueSuffix(testInfo.project.name);
+  const suffix = `${prefix.replace(/[^a-z0-9]/gi, "").slice(-8)}${uniqueSuffix(testInfo.project.name)}`;
   const containerNoA = `ZCSU${suffix}A`;
   const containerNoB = `TGBU${suffix}B`;
-  const trailerNumber = `TR-E2E-${suffix}`;
+  const trailerNumber = `TR-E2E-${prefix}-${suffix}`;
   const containerA = await createManualContainer(
     request,
     actors.adminToken,
@@ -242,20 +262,21 @@ async function seedCompletedTransferWageUnit(
 async function ensureUnloadingWageActors(
   request: APIRequestContext,
   adminToken: string,
+  prefix: string,
 ): Promise<{
   hrManager: E2ETestUser;
   warehouseManager: E2ETestUser;
 }> {
   const [hrManager, warehouseManager] = await Promise.all([
     ensureTestUser(request, adminToken, {
-      email: "e2e-unloading-hr-manager@bestarcca.com",
-      name: "E2E Unloading HR Manager",
+      email: `e2e-unloading-hr-${prefix}@example.invalid`,
+      name: `E2E Unloading HR Manager ${prefix}`,
       password: "Bestar-E2E-HR-123!",
       roleCodes: ["HR_MANAGER"],
     }),
     ensureTestUser(request, adminToken, {
-      email: "e2e-warehouse-manager@bestarcca.com",
-      name: "E2E Warehouse Manager",
+      email: `e2e-warehouse-${prefix}@example.invalid`,
+      name: `E2E Warehouse Manager ${prefix}`,
       password: "Bestar-E2E-WM-123!",
       roleCodes: ["WAREHOUSE_MANAGER"],
     }),
@@ -267,6 +288,7 @@ async function createTemporaryUnloader(
   request: APIRequestContext,
   token: string,
   displayName: string,
+  prefix: string,
   testInfo: { project: { name: string } },
 ): Promise<TemporaryUnloader> {
   const suffix = uniqueSuffix(testInfo.project.name);
@@ -274,8 +296,8 @@ async function createTemporaryUnloader(
     request.post("/api/unloading-wage/workers", {
       data: {
         displayName: `${displayName} ${suffix}`,
-        note: "Playwright unloading wage smoke worker",
-        workerCode: `TEMP-E2E-${displayName.endsWith("A") ? "A" : "B"}-${suffix}`,
+        note: `Playwright unloading wage smoke worker ${prefix}`,
+        workerCode: `TEMP-E2E-${prefix}-${displayName.endsWith("A") ? "A" : "B"}-${suffix}`,
       },
       headers: authHeaders(token),
     }),

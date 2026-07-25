@@ -28,6 +28,10 @@ import {
   UnloadingSummaryRowDto,
 } from './dto/unloading-summary.dto';
 import { WorkerUnloadingSummaryService } from './worker-unloading-summary.service';
+import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
 
 const SUMMARY_EXCEL_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -134,16 +138,24 @@ interface SummaryMonthAccumulator {
 @Injectable()
 export class UnloadingSummaryService {
   private readonly storageRoot: string;
+  private readonly businessTime: BusinessTimeService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly workerSummary: WorkerUnloadingSummaryService,
     configService: ConfigService,
+    businessTime?: BusinessTimeService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
   }
 
   async getSummary(month: string): Promise<UnloadingSummaryResponseDto> {
+    this.businessTime.assertMonthNotFuture(
+      month,
+      'UNLOADING_SUMMARY_MONTH_IN_FUTURE',
+    );
     const [summary, generatedFiles, availableMonths] = await Promise.all([
       this.buildSummary(month),
       this.listGeneratedFiles(month),
@@ -165,14 +177,17 @@ export class UnloadingSummaryService {
   }
 
   async getSummaryMonths(): Promise<UnloadingSummaryMonthMetadataDto> {
+    const serverNow = this.businessTime.now();
     const [availableMonths, missingCompletionItems] = await Promise.all([
-      this.availableSummaryMonths(),
+      this.availableSummaryMonths(serverNow),
       this.missingCompletionReviewItems(),
     ]);
 
     return {
       availableMonths,
+      currentMonth: this.businessTime.operationalMonth(serverNow),
       missingCompletionReviewCount: missingCompletionItems.length,
+      serverTime: serverNow.toISOString(),
     };
   }
 
@@ -309,8 +324,14 @@ export class UnloadingSummaryService {
   }
 
   private async buildSummary(month: string): Promise<SummaryBuildResult> {
+    const serverNow = this.businessTime.now();
     const payContainers = (await this.prisma.payContainer.findMany({
-      where: { completedAt: this.monthRange(month) },
+      where: {
+        completedAt: this.businessTime.validCompletionRangeForMonth(
+          month,
+          serverNow,
+        ),
+      },
       include: {
         sourceContainers: {
           orderBy: { containerNo: 'asc' },
@@ -384,11 +405,15 @@ export class UnloadingSummaryService {
     };
   }
 
-  private async availableSummaryMonths(): Promise<
+  private async availableSummaryMonths(
+    serverNow = this.businessTime.now(),
+  ): Promise<
     UnloadingSummaryAvailableMonthDto[]
   > {
     const payContainers = (await this.prisma.payContainer.findMany({
-      where: { completedAt: { not: null } },
+      where: {
+        completedAt: this.businessTime.validCompletionUpperBound(serverNow),
+      },
       include: {
         sourceContainers: {
           include: {
@@ -755,21 +780,12 @@ export class UnloadingSummaryService {
   }
 
   private monthRange(month: string): { gte: Date; lt: Date } {
-    const [yearText, monthText] = month.split('-');
-    const year = Number(yearText);
-    const monthNumber = Number(monthText);
-    return {
-      gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
-      lt: new Date(Date.UTC(year, monthNumber, 1)),
-    };
+    return this.businessTime.monthRange(month);
   }
 
   private monthKey(value: Date | string): string {
     const date = value instanceof Date ? value : new Date(value);
-    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
-      2,
-      '0',
-    )}`;
+    return this.businessTime.operationalMonth(date);
   }
 
   private missingCompletionReviewCount(

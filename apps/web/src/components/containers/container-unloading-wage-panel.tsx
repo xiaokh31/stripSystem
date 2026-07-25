@@ -805,12 +805,6 @@ export function ContainerUnloadingWagePanel({
                 <p className="font-medium">
                   {t("Worker directory could not be loaded.")}
                 </p>
-                <p
-                  className="mt-1 text-xs font-semibold uppercase"
-                  data-i18n-ignore
-                >
-                  {workerOptionsError.code}
-                </p>
               </div>
             ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1016,14 +1010,6 @@ function ActionMessage({ state }: { state: ActionState }) {
       role={state.status === "error" ? "alert" : "status"}
     >
       <p className="font-medium">{state.message}</p>
-      {state.code ? (
-        <p
-          className="mt-1 text-xs font-semibold uppercase"
-          data-i18n-ignore
-        >
-          {state.code}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -1061,6 +1047,8 @@ function toActionError(error: unknown, locale: Locale): ActionState {
       "Selected temporary unloader is inactive or unavailable.",
     UNLOADING_WORKER_NOT_FOUND: "Selected temporary unloader could not be found.",
     UNLOADING_WORKER_REQUIRED: "Add at least one unloader.",
+    UNLOADING_COMPLETION_DATE_IN_FUTURE:
+      "Completion time cannot be more than five minutes after server time.",
   };
 
   if (error instanceof ApiClientError) {

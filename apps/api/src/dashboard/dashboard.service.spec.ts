@@ -13,8 +13,13 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ContainerIndexService } from '../corrections/container-index.service';
 import { OperationsReviewService } from './operations-review.service';
+import { BusinessTimeService } from '../common/business-time.service';
 
 describe('DashboardService', () => {
+  const fixedTime = () =>
+    new BusinessTimeService({
+      now: () => new Date('2026-07-24T18:00:00.000Z'),
+    });
   it('builds the operations dashboard from database-backed records', async () => {
     const prisma = createDashboardPrismaMock();
     const service = new DashboardService(
@@ -171,6 +176,90 @@ describe('DashboardService', () => {
         { kind: 'LOAD_JOB', label: 'LOAD-001' },
       ]),
     );
+  });
+
+  it.each([
+    {
+      latest: null,
+      name: 'no completed records',
+      expected: '2026-07',
+    },
+    {
+      latest: null,
+      name: 'only future completed records',
+      expected: '2026-07',
+    },
+    {
+      latest: { completedAt: new Date('2026-06-30T20:30:00.000Z') },
+      name: 'a valid historical record plus a later future record',
+      expected: '2026-06',
+    },
+  ])(
+    'selects a bounded default month for $name',
+    async ({ latest, expected }) => {
+      const prisma = createDashboardPrismaMock();
+      (prisma.payContainer as { findFirst: jest.Mock }).findFirst.mockResolvedValue(
+        latest,
+      );
+      const time = fixedTime();
+      const service = new DashboardService(
+        prisma as unknown as PrismaService,
+        configService(),
+        containerIndexService(),
+        new OperationsReviewService(
+          prisma as unknown as PrismaService,
+          time,
+        ),
+        time,
+      );
+
+      const dashboard = await service.operations(
+        { range: 'today' },
+        adminUser(),
+      );
+
+      expect(dashboard.month).toBe(expected);
+      expect(dashboard.generatedAt).toBe('2026-07-24T18:00:00.000Z');
+      expect(
+        (prisma.payContainer as { findFirst: jest.Mock }).findFirst,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            completedAt: {
+              lt: new Date('2026-08-01T06:00:00.000Z'),
+              lte: new Date('2026-07-24T18:05:00.000Z'),
+            },
+          }),
+        }),
+      );
+    },
+  );
+
+  it('rejects an explicit future dashboard month with a stable code', async () => {
+    const prisma = createDashboardPrismaMock();
+    const time = fixedTime();
+    const service = new DashboardService(
+      prisma as unknown as PrismaService,
+      configService(),
+      containerIndexService(),
+      new OperationsReviewService(
+        prisma as unknown as PrismaService,
+        time,
+      ),
+      time,
+    );
+
+    await expect(
+      service.operations(
+        { range: 'today', month: '2099-06' },
+        adminUser(),
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'DASHBOARD_MONTH_IN_FUTURE',
+      }),
+    });
+    expect(prisma.checkConnection).not.toHaveBeenCalled();
   });
 
   it('keeps database query fan-out constant as recent record volume grows', async () => {
@@ -436,6 +525,7 @@ function createDashboardPrismaMock(): Record<string, unknown> {
       count: jest.fn().mockResolvedValue(1),
     },
     payContainer: {
+      count: jest.fn().mockResolvedValue(0),
       findFirst: jest.fn().mockResolvedValue({ completedAt: now }),
       findMany: jest.fn().mockResolvedValue([
         {

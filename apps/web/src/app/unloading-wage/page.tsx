@@ -15,6 +15,7 @@ import {
 } from "@/components/wage/wage-display";
 import {
   ApiClientError,
+  getApiHealth,
   getUnloadingWageSettlementFileDownloadUrl,
   listPayContainers,
   listUnloadingWageSettlements,
@@ -30,6 +31,7 @@ import {
   canSettleUnloadingWage,
 } from "@/lib/permissions";
 import { getServerApiOptions, getServerCurrentUser } from "@/lib/server-auth";
+import { operationalMonthValue } from "@/lib/date-time";
 import { DashboardFilterContext } from "@/components/dashboard/dashboard-filter-context";
 import {
   appendDashboardDrilldownContext,
@@ -64,7 +66,7 @@ export default async function UnloadingWagePage({
   const params = await searchParams;
   const locale = await getServerLocale();
   const settlementMonth =
-    firstSearchValue(params.settlementMonth) ?? currentSettlementMonth();
+    firstSearchValue(params.settlementMonth) ?? (await currentSettlementMonth());
   const requestedSettlementId = firstSearchValue(params.settlementId);
   const review =
     firstValue(params.review) === "NEEDS_REVIEW"
@@ -953,8 +955,12 @@ function firstSearchValue(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
-function currentSettlementMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+async function currentSettlementMonth(): Promise<string> {
+  try {
+    return operationalMonthValue((await getApiHealth()).serverTime);
+  } catch {
+    return operationalMonthValue(new Date());
+  }
 }
 
 function toApiClientError(error: unknown, fallbackMessage: string): ApiClientError {

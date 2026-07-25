@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { BusinessTimeService } from '../common/business-time.service';
 import { UnloadingSummaryService } from './unloading-summary.service';
 
 describe('UnloadingSummaryService', () => {
@@ -28,9 +29,16 @@ describe('UnloadingSummaryService', () => {
     prisma = {
       payContainer: {
         findMany: jest.fn(({ where }) => {
-          if (where?.completedAt?.not === null) {
+          if (where?.completedAt && !where.completedAt.gte) {
             return Promise.resolve(
-              payContainers.filter((payContainer) => payContainer.completedAt),
+              payContainers.filter((payContainer) => {
+                if (!payContainer.completedAt) return false;
+                const completedAt = new Date(payContainer.completedAt).getTime();
+                return (
+                  completedAt < where.completedAt.lt.getTime() &&
+                  completedAt <= where.completedAt.lte.getTime()
+                );
+              }),
             );
           }
 
@@ -109,7 +117,9 @@ describe('UnloadingSummaryService', () => {
         }
         throw new Error(`Unexpected config key ${key}`);
       }),
-    } as unknown as ConfigService);
+    } as unknown as ConfigService, new BusinessTimeService({
+      now: () => new Date('2026-07-24T17:20:00.000Z'),
+    }));
   });
 
   it('summarizes completed unloading containers by selected completion month', async () => {
@@ -196,7 +206,9 @@ describe('UnloadingSummaryService', () => {
           },
         },
       ],
+      currentMonth: '2026-07',
       missingCompletionReviewCount: 1,
+      serverTime: '2026-07-24T17:20:00.000Z',
     });
   });
 
@@ -522,6 +534,22 @@ describe('UnloadingSummaryService', () => {
             containerId: 'container-4',
             containerNo: 'JULY0000001',
             container: containers[4],
+          },
+        ],
+      },
+      {
+        id: 'pay-container-future',
+        payContainerNo: 'PC-OCEAN-FUTURE00001',
+        classification: 'OCEAN_CONTAINER',
+        trailerNumber: null,
+        status: 'SETTLED',
+        completedAt: new Date('2099-06-18T20:30:00.000Z'),
+        sourceContainers: [
+          {
+            id: 'link-future',
+            containerId: 'container-1',
+            containerNo: 'BEAU5946301',
+            container: containers[0],
           },
         ],
       },

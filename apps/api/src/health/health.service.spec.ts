@@ -57,6 +57,7 @@ describe('HealthService', () => {
       version: '1.2.3-test',
       database: { status: 'up' },
       timestamp: '2026-06-27 23:30:00 MDT',
+      serverTime: '2026-06-28T05:30:00.000Z',
     });
     expect(prisma.checkConnection).toHaveBeenCalledTimes(1);
   });

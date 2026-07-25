@@ -275,6 +275,8 @@ export const enMessages = {
     "Missing destination, cartons, or volume",
   "dashboard.exceptions.failedAsyncJobs": "Failed async jobs",
   "dashboard.exceptions.failedGeneratedFiles": "Failed generated files",
+  "dashboard.exceptions.futureUnloadingCompletion":
+    "Future unloading completion dates",
   "dashboard.exceptions.parserErrors": "Parser errors",
   "dashboard.exceptions.scanExceptions": "Scan exceptions",
   "dashboard.exceptions.zeroVolumeWithCartons": "Zero volume with cartons",
@@ -587,6 +589,13 @@ export const enMessages = {
   "Operational profile": "Operational profile",
   "Operational settings": "Operational settings",
   "Operational time": "Operational time",
+  "Device time is out of sync": "Device time is out of sync",
+  "Completion time cannot be more than five minutes after server time.":
+    "Completion time cannot be more than five minutes after server time.",
+  "Choose the current month or an earlier month.":
+    "Choose the current month or an earlier month.",
+  "Choose the current dashboard month or an earlier completed month.":
+    "Choose the current dashboard month or an earlier completed month.",
   "Operational time zone": "Operational time zone",
   Operator: "Operator",
   OK: "OK",

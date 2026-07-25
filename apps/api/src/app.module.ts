@@ -23,6 +23,7 @@ import { SettingsModule } from './settings/settings.module';
 import { UnloadingSummaryModule } from './unloading-summary/unloading-summary.module';
 import { UnloadingWageModule } from './unloading-wage/unloading-wage.module';
 import { UsersModule } from './users/users.module';
+import { BusinessTimeModule } from './common/business-time.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module';
       envFilePath: ['.env.local', '.env'],
       load: [appConfig],
     }),
+    BusinessTimeModule,
     AuthModule,
     AsyncJobsModule,
     AttendanceModule,

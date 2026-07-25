@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-23
+- 2026-07-24
 
 依据：
 - docs/reports/project-completion-status.html
@@ -78,7 +78,7 @@
 - 默认纸箱托盘计算修复已完成；包装类型真实样本验收仍需等待业务提供 pilot workbook。
 - UPS/courier destination 托数为 0 的 pilot 阻塞缺陷已在 UNLOAD-PALLET-07 修复。
 - IMPORT-DELETE-01 已完成代码实现：删除导入会清理原始上传清单和关联 generated files，保留 load job / operational pallet / pay container blocker 和 deletion audit。
-- 新增后台整体风格和 dashboard redesign 任务组：WEB-DASHBOARD-00 到 WEB-DASHBOARD-04。WEB-DASHBOARD-00 已完成 Manifest Control Room 设计 brief；WEB-DASHBOARD-01 已新增真实 `/api/dashboard/operations` 汇总 API，按权限裁剪 sections，API 只返回稳定 code/labelKey/enum/raw source data；WEB-DASHBOARD-02 已完成 Manifest Control Room Shell、宽屏 nav rail、operational topbar、视觉 tokens 和基础 dashboard 组件；WEB-DASHBOARD-03 已用真实 API 重做 `/` 运营中控台首页；WEB-DASHBOARD-04 已完成 dashboard QA、i18n hard gate、Docker full-stack healthcheck 和 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER role smoke。2026-07-23 现场反馈和代码审计确认旧 QA 只证明链接存在/URL 改变，没有证明目标页展示对应统计记录；WEB-DASHBOARD-07 已用共享 count/list predicate、typed URL filters、exact record selection、运营复核页和真实 matching/non-matching Chromium drilldown 关闭该 vertical slice；WEB-DASHBOARD-08 已用 machine-readable inventory、完整真实 PostgreSQL/Chromium 点击矩阵、五角色直接 RBAC、strict i18n/no-flash、11 张逐图视觉证据和零残留关闭最终退出门禁。
+- 新增后台整体风格和 dashboard redesign 任务组：WEB-DASHBOARD-00 到 WEB-DASHBOARD-04。WEB-DASHBOARD-00 已完成 Manifest Control Room 设计 brief；WEB-DASHBOARD-01 已新增真实 `/api/dashboard/operations` 汇总 API，按权限裁剪 sections，API 只返回稳定 code/labelKey/enum/raw source data；WEB-DASHBOARD-02 已完成 Manifest Control Room Shell、宽屏 nav rail、operational topbar、视觉 tokens 和基础 dashboard 组件；WEB-DASHBOARD-03 已用真实 API 重做 `/` 运营中控台首页；WEB-DASHBOARD-04 已完成 dashboard QA、i18n hard gate、Docker full-stack healthcheck 和 ADMIN/OFFICE/WAREHOUSE/HR_MANAGER/WAREHOUSE_MANAGER role smoke。2026-07-23 现场反馈和代码审计确认旧 QA 只证明链接存在/URL 改变，没有证明目标页展示对应统计记录；WEB-DASHBOARD-07 已用共享 count/list predicate、typed URL filters、exact record selection、运营复核页和真实 matching/non-matching Chromium drilldown 关闭该 vertical slice；WEB-DASHBOARD-08 已用 machine-readable inventory、完整真实 PostgreSQL/Chromium 点击矩阵、五角色直接 RBAC、strict i18n/no-flash、11 张逐图视觉证据和零残留关闭最终退出门禁。2026-07-24 又确认 unloading-wage Playwright 把 `2099-06` 合成完成记录留在持久化本地库，Dashboard 自动月份直接采用最大 `completedAt`，且页眉 mount 后仍信任浏览器 wall clock；WEB-DASHBOARD-09 已完成测试隔离/精确清理、未来日期写入门禁、默认月份和 server-authoritative clock，旧 00-08 保持关闭。
 - AUTH-SESSION-01 已完成：默认浏览器登录会话改为 400 天，JWT `exp`、登录响应 `expiresIn` 和 Web cookie `Max-Age` 保持一致；保留 `JWT_EXPIRES_IN_SECONDS` 覆盖、logout 清 cookie、禁用用户/权限变化后端实时校验、过期 cookie middleware 跳转和 auth/session i18n。
 - 人工消库存任务组已完成：INVENTORY-ADJUST-01 到 03 已交付独立库存调整语义，未将托盘伪装成扫码 `LOADED`；Docker full-stack scan/report/audit/i18n 回归已通过。
 - Product Planning Agent 标准已更新：以后每个新增需求和拆分任务都必须包含严格 i18n 管理要求，API 返回 stable code/enum/labelKey/raw data，Web 通过 locale catalog/status-label helpers 显示单语文案。
@@ -199,16 +199,27 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-23 MDT 复核）：
+当前执行队列（2026-07-24 MDT 复核）：
 
 ### A. 当前开发机立即执行
 
-1. `WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md` — `DONE`
+1. `WEB-DASHBOARD-09Future Month Contamination and Clock Integrity Regression.md` — `DONE`
+   - 已确认 host/API/Web container 当前时间均为 2026-07-24；2099 直接来自
+     `apps/web/e2e/unloading-wage.spec.ts` 的硬编码月份/完成时间及缺失 teardown，遗留
+     `PC-TRAILER-TR-E2E-*` pay-container 后又被 Dashboard `defaultMonth()` 作为全库最大
+     `completedAt` 采用。
+   - 已交付共用 server clock/future-date policy、Edmonton 月份边界、两个完成入口五分钟容差与
+     无副作用拒绝、future-date operations review、Dashboard/summary/wage 数据库上限谓词及
+     server baseline + monotonic 页眉时钟。
+   - 唯一 2099 fixture 经多重 provenance 证明后精确清理，非 fixture 指纹不变；工资 E2E
+     改用专用历史月、唯一前缀、Playwright finally + shell trap、故意失败探针和残留审计。
+     真实 Chromium 成功组 2/2、六张原分辨率逐图检查及 fixture/账号/storage 零残留均通过。
+2. `WEB-DASHBOARD-07Dashboard Drilldown Navigation and Target Filters.md` — `DONE`
    - 已统一 Dashboard aggregate count 与目标列表 predicate，为 imports、containers、inventory、load jobs、
      exceptions、monthly/wage/attendance 和 recent activity 交付 typed drilldown、server-side URL filters、
      exact record selection、RBAC 与 strict en/zh-CN；Docker API/Web/Worker、Chromium 5/5、healthcheck 和精确
      清理均通过。
-2. `WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md` — `DONE`
+3. `WEB-DASHBOARD-08Dashboard Drilldown Full Stack I18n Visual Exit Gate.md` — `DONE`
    - Machine-readable click-surface inventory、真实 PostgreSQL aggregate/record/open-all 矩阵、
      ADMIN 与四业务角色直接 RBAC、strict en/zh-CN/no-flash、11 张逐图视觉证据、Docker 全量检查、
      Chromium 11/11、healthcheck 和精确清理均通过；Dashboard 现场导航回归已完全退出。
@@ -371,7 +382,7 @@ Deferred，按现场反馈再执行：
 - DOCKER-CACHE-01：完成；依赖和 production build 固化到镜像分层，运行时不再安装/构建，源码与 manifest 缓存契约已自动验证。
 - Android/iOS native scan app pilot route：条件通过。
 - Windows 原生安装包/MSIX：已归档；P6-MOBILE-09 至 13 的历史实现和 handoff 资料保留，但不属于当前 pilot 前验收项。
-- WEB-DASHBOARD-00 至 08 的设计、API、Shell、首页、i18n/视觉、精确 drilldown vertical slice 与全点击退出矩阵均已完成；Dashboard 现场导航回归已完全退出，不得重复启动这些 Task。
+- WEB-DASHBOARD-00 至 09 的设计、API、Shell、首页、i18n/视觉、精确 drilldown、全点击退出矩阵及日期/时钟完整性回归均已完成；这些 Task 不得重复启动。
 - 持久化登录：完成；AUTH-SESSION-01 已关闭，默认 400 天长会话并保留后端实时账号/权限校验。
 - 柜子库存人工消库存：完成；INVENTORY-ADJUST-01 至 03 已覆盖 API/RBAC/audit/统计、Web/i18n 与 Docker full-stack regression。
 - Web 企业 logo：WEB-BRAND-01 资源 contract/browser identity、WEB-BRAND-02 Shell/login placement、
@@ -385,8 +396,9 @@ Deferred，按现场反馈再执行：
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `WEB-DASHBOARD-07/08` 均已达到 `DONE`，Dashboard 现场导航回归已关闭；不得重跑。
-   本次关闭不自动选择或启动另一个 Task，后续开发范围由产品和 Task Index 另行确定。
+2. `WEB-DASHBOARD-09` 已达到 `DONE`，不得重跑。后续工资 E2E 必须使用
+   `scripts/run-web-dashboard-09-e2e.sh`，不得直接运行旧 spec 绕过 cleanup supervisor；
+   精确清理工具不得扩展为按未来年份广泛删除业务记录。
 3. `PUBLIC-DEPLOY-01` 已达到 `DONE`；`PUBLIC-DEPLOY-02` 已完成仓库实现和当前环境自动化，不得重启开发 Task。
    下一动作是在真实 Cloudflare account/domain 上按公网 runbook 完成 named tunnel、Access MFA、非公司网络、
    cache/upload/download、故障恢复和 token rotate/revoke 脱敏验收，关闭 external activation gate。
@@ -397,8 +409,8 @@ Deferred，按现场反馈再执行：
    `test-results/wage-hours-07/`。
 6. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
-7. `WEB-DASHBOARD-00` 至 `08` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 的既有任务保持关闭，不重复启动；
-   Dashboard drilldown 后续若有新范围必须另立 Task。
+7. `WEB-DASHBOARD-00` 至 `09` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 均保持关闭，
+   不重复启动；后续日期完整性需求必须另立 Task。
 8. `WEB-OPS-09` 已以 27 张高信号截图关闭严格 i18n/RBAC/库存事务门禁；不要恢复 236 张无差别截图矩阵或重跑关闭会话。
 9. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
    不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞

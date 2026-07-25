@@ -147,17 +147,23 @@ async function loadUnloadingSummaryState(
   const apiOptions = await getServerApiOptions();
   let availableMonths: UnloadingSummaryAvailableMonthResponse[] = [];
   let missingCompletionReviewCount = 0;
+  let currentMonth: string | undefined;
 
   try {
     const metadata = await getUnloadingSummaryMonths(apiOptions);
     availableMonths = metadata.availableMonths;
+    currentMonth = metadata.currentMonth;
     missingCompletionReviewCount = metadata.missingCompletionReviewCount;
   } catch {
     availableMonths = [];
     missingCompletionReviewCount = 0;
   }
 
-  const month = resolveUnloadingSummaryMonth(searchParams, availableMonths);
+  const month = resolveUnloadingSummaryMonth(
+    searchParams,
+    availableMonths,
+    currentMonth ? new Date(`${currentMonth}-15T12:00:00Z`) : undefined,
+  );
 
   try {
     const summary = await getUnloadingSummary(month, apiOptions);
@@ -707,9 +713,6 @@ function ApiErrorPanel({
     >
       <h2 className="text-base font-semibold">{t(title)}</h2>
       <p className="mt-2 text-sm">{unloadingSummaryApiErrorMessage(error, locale)}</p>
-      <p className="mt-2 text-xs font-semibold uppercase" data-i18n-ignore>
-        {error.code}
-      </p>
     </section>
   );
 }
@@ -730,6 +733,8 @@ function unloadingSummaryApiErrorMessage(
       "Monthly unloading summary export file is unavailable.",
     UNLOADING_SUMMARY_NO_ROWS_FOR_MONTH:
       "Selected month has no summary rows. Choose an available completed month before exporting.",
+    UNLOADING_SUMMARY_MONTH_IN_FUTURE:
+      "Choose the current month or an earlier month.",
   };
 
   return t(messages[error.code] ?? "The request failed.");

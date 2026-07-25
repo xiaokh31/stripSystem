@@ -33,6 +33,7 @@ export interface OfficeShellHealth {
   apiStatus: "degraded" | "down" | "ok";
   databaseStatus: "down" | "unknown" | "up";
   version?: string;
+  serverTime: string;
 }
 
 const navItems: PermissionAwareNavItem[] = [
@@ -207,15 +208,13 @@ function OperationalStatus({
   const { t } = createTranslator(locale);
   const apiTone = health.apiStatus === "ok" ? "success" : "warning";
   const databaseTone = health.databaseStatus === "up" ? "success" : "danger";
-  const initialClockIso = new Date().toISOString();
-
   return (
     <div className="hidden flex-wrap items-center gap-2 xl:flex">
       <div className="border border-white/10 bg-white/5 px-3 py-2 text-xs">
         <p className="font-semibold text-zinc-300">
           {t("Operational time")}
         </p>
-        <OperationalClock initialIso={initialClockIso} />
+        <OperationalClock initialIso={health.serverTime} />
       </div>
       <div className="border border-white/10 bg-white/5 px-3 py-2 text-xs">
         <p className="font-semibold text-zinc-300">{t("Time zone")}</p>

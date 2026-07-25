@@ -209,9 +209,23 @@ describe('Monthly unloading summary API (e2e)', () => {
       checkConnection: jest.fn().mockResolvedValue({ status: 'up' }),
       payContainer: {
         findMany: jest.fn(({ where }) => {
-          if (where?.completedAt?.not === null) {
+          const completedAtFilter = where?.completedAt;
+          if (!completedAtFilter?.gte) {
             return Promise.resolve(
-              payContainers.filter((payContainer) => payContainer.completedAt),
+              payContainers.filter((payContainer) => {
+                if (!payContainer.completedAt) {
+                  return false;
+                }
+                const completedAt = new Date(
+                  payContainer.completedAt,
+                ).getTime();
+                return (
+                  (!completedAtFilter?.lt ||
+                    completedAt < completedAtFilter.lt.getTime()) &&
+                  (!completedAtFilter?.lte ||
+                    completedAt <= completedAtFilter.lte.getTime())
+                );
+              }),
             );
           }
 
@@ -222,8 +236,10 @@ describe('Monthly unloading summary API (e2e)', () => {
                 : Number.NaN;
               return (
                 !Number.isNaN(completedAt) &&
-                completedAt >= where.completedAt.gte.getTime() &&
-                completedAt < where.completedAt.lt.getTime()
+                completedAt >= completedAtFilter.gte.getTime() &&
+                completedAt < completedAtFilter.lt.getTime() &&
+                (!completedAtFilter.lte ||
+                  completedAt <= completedAtFilter.lte.getTime())
               );
             }),
           );

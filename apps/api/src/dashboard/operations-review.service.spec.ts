@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from '../auth/auth-user';
 import { PERMISSIONS, ROLE_CODES } from '../auth/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { OperationsReviewService } from './operations-review.service';
+import { BusinessTimeService } from '../common/business-time.service';
 
 describe('OperationsReviewService', () => {
   it('returns bounded line records using the same predicate as the dashboard count', async () => {
@@ -89,6 +90,74 @@ describe('OperationsReviewService', () => {
         user([]),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lists future completion anomalies with bounded stable ordering and real container actions', async () => {
+    const prisma = {
+      payContainer: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'pay-future-1',
+            payContainerNo: 'PC-TRAILER-E2E',
+            status: 'SETTLED',
+            completedAt: new Date('2099-06-18T20:30:00.000Z'),
+            sourceContainers: [
+              {
+                containerId: 'container-future-1',
+                containerNo: 'E2E-FUTURE-1',
+              },
+            ],
+          },
+        ]),
+      },
+    };
+    const time = new BusinessTimeService({
+      now: () => new Date('2026-07-24T18:00:00.000Z'),
+    });
+    const service = new OperationsReviewService(
+      prisma as unknown as PrismaService,
+      time,
+    );
+
+    const response = await service.list(
+      {
+        code: 'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+        page: 1,
+        pageSize: 25,
+      },
+      user([PERMISSIONS.containers.read]),
+    );
+
+    expect(response).toMatchObject({
+      totalItems: 1,
+      items: [
+        {
+          id: 'pay-future-1',
+          code: 'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+          sourceType: 'PAY_CONTAINER',
+          targetId: 'container-future-1',
+          href: '/containers/container-future-1',
+          primaryValue: 'PC-TRAILER-E2E',
+          status: 'SETTLED',
+          occurredAt: '2099-06-18T20:30:00.000Z',
+          details: {
+            completedAt: '2099-06-18T20:30:00.000Z',
+            containerNumbers: 'E2E-FUTURE-1',
+          },
+        },
+      ],
+    });
+    expect(prisma.payContainer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ completedAt: 'desc' }, { id: 'asc' }],
+        skip: 0,
+        take: 25,
+        where: {
+          completedAt: { gt: new Date('2026-07-24T18:05:00.000Z') },
+        },
+      }),
+    );
   });
 
   it('allows ADMIN through the service boundary without exposing storage fields', async () => {

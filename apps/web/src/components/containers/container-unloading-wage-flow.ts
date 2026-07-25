@@ -138,8 +138,12 @@ export function completionDraftFromContainer(
   container: ContainerDetailResponse,
   now = new Date(),
 ): ContainerUnloadingCompletionDraft {
+  const serverNow = container.serverTime ? new Date(container.serverTime) : now;
   return {
-    completedAt: datetimeLocalInput(container.unloadingWage?.completedAt, now),
+    completedAt: datetimeLocalInput(
+      container.unloadingWage?.completedAt,
+      serverNow,
+    ),
     note: container.unloadingWage?.completionNote ?? "",
     reason: "",
   };

@@ -890,10 +890,6 @@ function DashboardErrorState({
         <p className="mt-3 text-sm leading-6">
           {localizedDashboardErrorMessage(error, locale)}
         </p>
-        <p className="font-data mt-3 text-xs" data-i18n-ignore="true">
-          {error.code}
-          {error.status ? ` (${error.status})` : ""}
-        </p>
       </div>
       <DashboardPanel
         eyebrow={t("Shortcuts", locale)}
@@ -1104,9 +1100,15 @@ function toApiClientError(error: unknown, locale: Locale): ApiClientError {
 }
 
 function localizedDashboardErrorMessage(
-  _error: ApiClientError,
+  error: ApiClientError,
   locale: Locale,
 ): string {
+  if (error.code === "DASHBOARD_MONTH_IN_FUTURE") {
+    return t(
+      "Choose the current dashboard month or an earlier completed month.",
+      locale,
+    );
+  }
   return t("The dashboard API request could not be sent.", locale);
 }
 

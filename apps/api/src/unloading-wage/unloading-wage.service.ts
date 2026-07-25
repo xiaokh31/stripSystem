@@ -51,6 +51,10 @@ import {
 } from './dto/unloading-wage.dto';
 import { ListUnloadingWageSettlementsQueryDto } from './dto/list-unloading-wage-settlements-query.dto';
 import { unloadingWageSettlementWhere } from './unloading-wage-settlement-filter';
+import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
 
 type ClassificationValue =
   (typeof ContainerPayClassification)[keyof typeof ContainerPayClassification];
@@ -208,14 +212,18 @@ type UnloadingWageTransaction = Prisma.TransactionClient;
 @Injectable()
 export class UnloadingWageService {
   private readonly storageRoot: string;
+  private readonly businessTime: BusinessTimeService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly palletInventorySync: ContainerPalletInventorySyncService,
     private readonly parserLearningCases: ParserLearningCasesService,
     configService: ConfigService,
+    businessTime?: BusinessTimeService,
   ) {
     this.storageRoot = configService.getOrThrow<string>('app.storageRoot');
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
   }
 
   async listWorkers(
@@ -443,6 +451,7 @@ export class UnloadingWageService {
     const payContainer =
       await this.findPayContainerForContainerOrThrow(containerId);
     const completedAt = this.dateTime(dto.completedAt, 'completedAt');
+    this.businessTime.assertCompletionNotFuture(completedAt);
     const completedById = auditUserId(actor);
     const nextStatus =
       payContainer.status === PayContainerStatus.SETTLED
@@ -690,7 +699,13 @@ export class UnloadingWageService {
       where.status = this.payContainerStatus(query.status);
     }
     if (query.settlementMonth) {
-      where.completedAt = this.monthRange(query.settlementMonth);
+      this.businessTime.assertMonthNotFuture(
+        query.settlementMonth,
+        'UNLOADING_WAGE_MONTH_IN_FUTURE',
+      );
+      where.completedAt = this.businessTime.validCompletionRangeForMonth(
+        query.settlementMonth,
+      );
     }
 
     const records = (await this.prisma.payContainer.findMany({
@@ -723,6 +738,7 @@ export class UnloadingWageService {
     const existing = await this.findPayContainerOrThrow(id);
     this.assertCanComplete(existing);
     const completedAt = this.dateTime(dto.completedAt, 'completedAt');
+    this.businessTime.assertCompletionNotFuture(completedAt);
     const allocationMethod = this.allocationMethod(dto.allocationMethod);
     this.validateUnloaderAssignments(existing, allocationMethod, dto.unloaders);
     const completedById = auditUserId(actor);
@@ -828,12 +844,18 @@ export class UnloadingWageService {
     dto: GenerateUnloadingWageSettlementDto,
     actor: AuthenticatedUser,
   ): Promise<UnloadingWageSettlementResponseDto> {
+    this.businessTime.assertMonthNotFuture(
+      dto.settlementMonth,
+      'UNLOADING_WAGE_MONTH_IN_FUTURE',
+    );
     const payContainers = (await this.prisma.payContainer.findMany({
       where: {
         status: {
           in: [PayContainerStatus.COMPLETED, PayContainerStatus.SETTLED],
         },
-        completedAt: this.monthRange(dto.settlementMonth),
+        completedAt: this.businessTime.validCompletionRangeForMonth(
+          dto.settlementMonth,
+        ),
       },
       include: {
         sourceContainers: true,
@@ -2032,13 +2054,7 @@ export class UnloadingWageService {
   }
 
   private monthRange(settlementMonth: string): { gte: Date; lt: Date } {
-    const [yearText, monthText] = settlementMonth.split('-');
-    const year = Number(yearText);
-    const month = Number(monthText);
-    return {
-      gte: new Date(Date.UTC(year, month - 1, 1)),
-      lt: new Date(Date.UTC(year, month, 1)),
-    };
+    return this.businessTime.monthRange(settlementMonth);
   }
 
   private dateTime(value: string, field: string): Date {
@@ -2244,6 +2260,7 @@ export class UnloadingWageService {
     record: PayContainerRecord,
   ): PayContainerResponseDto {
     return {
+      serverTime: this.businessTime.nowIso(),
       id: record.id,
       payContainerNo: record.payContainerNo,
       classification: record.classification,
@@ -2283,6 +2300,7 @@ export class UnloadingWageService {
     const payContainer = record.payContainerLinks?.[0]?.payContainer ?? null;
     if (!payContainer) {
       return {
+        serverTime: this.businessTime.nowIso(),
         containerId: record.id,
         containerNo: record.containerNo,
         classification: record.payClassification,
@@ -2301,6 +2319,7 @@ export class UnloadingWageService {
     }
 
     return {
+      serverTime: this.businessTime.nowIso(),
       containerId: record.id,
       containerNo: record.containerNo,
       classification: payContainer.classification,

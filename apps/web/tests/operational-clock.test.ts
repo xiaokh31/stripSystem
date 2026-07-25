@@ -25,6 +25,7 @@ test("visible desktop uses one aligned timer for sixty current-time ticks", () =
   const shellRenderCount = 1;
   const cleanup = startOperationalClockScheduler({
     environment: fake,
+    initialServerEpochMs: fake.wallNow(),
     onTick: (epochMs) => ticks.push(epochMs),
   });
 
@@ -39,7 +40,7 @@ test("visible desktop uses one aligned timer for sixty current-time ticks", () =
 
   assert.equal(ticks.length, 61);
   assert.equal(shellRenderCount, 1);
-  assert.equal(ticks.at(-1), fake.now());
+  assert.equal(ticks.at(-1), fake.wallNow());
   assert.ok(
     fake.scheduledDelays.some((delay) => delay === 987),
     "a delayed callback must realign from Date.now instead of accumulating drift",
@@ -57,6 +58,7 @@ test("hidden and narrow clocks pause, then resume immediately with one timer", (
   const running: boolean[] = [];
   const cleanup = startOperationalClockScheduler({
     environment: fake,
+    initialServerEpochMs: fake.wallNow(),
     onRunningChange: (value) => running.push(value),
     onTick: (epochMs) => ticks.push(epochMs),
   });
@@ -67,7 +69,7 @@ test("hidden and narrow clocks pause, then resume immediately with one timer", (
   assert.equal(ticks.length, 1);
 
   fake.setDocumentVisible(true);
-  assert.equal(ticks.at(-1), fake.now());
+  assert.equal(ticks.at(-1), fake.wallNow());
   assert.equal(fake.activeTimerCount, 1);
 
   fake.setViewportVisible(false);
@@ -76,7 +78,7 @@ test("hidden and narrow clocks pause, then resume immediately with one timer", (
   assert.equal(ticks.length, 2);
 
   fake.setViewportVisible(true);
-  assert.equal(ticks.at(-1), fake.now());
+  assert.equal(ticks.at(-1), fake.wallNow());
   assert.equal(fake.activeTimerCount, 1);
   assert.deepEqual(running, [true, false, true, false, true]);
 
@@ -94,8 +96,29 @@ test("hidden and narrow clocks pause, then resume immediately with one timer", (
   assert.equal(running.length, runningChangesAfterCleanup);
 });
 
+test("a 2099 client wall clock cannot replace the server epoch and raises localized drift state", () => {
+  const serverEpochMs = Date.parse("2026-07-24T18:00:00.000Z");
+  const fake = new FakeClockEnvironment(Date.parse("2099-06-18T20:30:00.000Z"));
+  const ticks: number[] = [];
+  const driftStates: boolean[] = [];
+  const cleanup = startOperationalClockScheduler({
+    environment: fake,
+    initialServerEpochMs: serverEpochMs,
+    onDriftChange: (drifted) => driftStates.push(drifted),
+    onTick: (epochMs) => ticks.push(epochMs),
+  });
+
+  assert.equal(ticks[0], serverEpochMs);
+  assert.deepEqual(driftStates, [true]);
+  fake.advanceToNextTimer();
+  assert.ok((ticks.at(-1) ?? 0) < Date.parse("2027-01-01T00:00:00.000Z"));
+
+  cleanup();
+});
+
 class FakeClockEnvironment implements OperationalClockEnvironment<number> {
-  private currentEpochMs: number;
+  private currentWallEpochMs: number;
+  private currentMonotonicMs = 0;
   private documentVisible = true;
   private viewportVisible = true;
   private nextTimerHandle = 1;
@@ -108,7 +131,7 @@ class FakeClockEnvironment implements OperationalClockEnvironment<number> {
   readonly scheduledDelays: number[] = [];
 
   constructor(initialEpochMs: number) {
-    this.currentEpochMs = initialEpochMs;
+    this.currentWallEpochMs = initialEpochMs;
   }
 
   get activeTimerCount(): number {
@@ -135,7 +158,7 @@ class FakeClockEnvironment implements OperationalClockEnvironment<number> {
 
   isViewportVisible = () => this.viewportVisible;
 
-  now = () => this.currentEpochMs;
+  monotonicNow = () => this.currentMonotonicMs;
 
   scheduleTimer = (callback: () => void, delayMs: number) => {
     const handle = this.nextTimerHandle;
@@ -144,7 +167,7 @@ class FakeClockEnvironment implements OperationalClockEnvironment<number> {
     this.timers.set(handle, {
       callback,
       delayMs,
-      dueAt: this.currentEpochMs + delayMs,
+      dueAt: this.currentMonotonicMs + delayMs,
     });
     return handle;
   };
@@ -163,12 +186,15 @@ class FakeClockEnvironment implements OperationalClockEnvironment<number> {
     assert.equal(this.timers.size, 1);
     const [handle, timer] = [...this.timers.entries()][0];
     this.timers.delete(handle);
-    this.currentEpochMs = timer.dueAt + extraDelayMs;
+    const elapsed = timer.dueAt + extraDelayMs - this.currentMonotonicMs;
+    this.currentMonotonicMs += elapsed;
+    this.currentWallEpochMs += elapsed;
     timer.callback();
   }
 
   elapseWithoutTimers(durationMs: number): void {
-    this.currentEpochMs += durationMs;
+    this.currentMonotonicMs += durationMs;
+    this.currentWallEpochMs += durationMs;
   }
 
   emitDocumentVisibility(): void {
@@ -188,4 +214,6 @@ class FakeClockEnvironment implements OperationalClockEnvironment<number> {
     this.viewportVisible = visible;
     this.emitViewportVisibility();
   }
+
+  wallNow = () => this.currentWallEpochMs;
 }

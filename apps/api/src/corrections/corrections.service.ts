@@ -30,6 +30,10 @@ import {
   ParserSourceKind,
 } from '../generated/prisma/enums';
 import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
+import {
   effectiveContainerStatus,
   isContainerGenerationLocked,
 } from '../common/container-lifecycle';
@@ -193,12 +197,18 @@ const PALLET_RECALC_WARNING_CODES = new Set([
 
 @Injectable()
 export class CorrectionsService {
+  private readonly businessTime: BusinessTimeService;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly palletInventorySync: ContainerPalletInventorySyncService,
     private readonly palletPolicyResolver: PalletPolicyResolver,
     private readonly parserLearningCases: ParserLearningCasesService,
-  ) {}
+    businessTime?: BusinessTimeService,
+  ) {
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
+  }
 
   async getContainer(id: string): Promise<ContainerDetailResponseDto> {
     const container = (await this.prisma.container.findUnique({
@@ -1634,6 +1644,7 @@ export class CorrectionsService {
     const status = effectiveContainerStatus(record.status, destinations);
 
     return {
+      serverTime: this.businessTime.nowIso(),
       id: record.id,
       importFileId: record.importFileId,
       containerNo: record.containerNo,

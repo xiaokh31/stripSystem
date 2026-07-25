@@ -85,6 +85,10 @@ export const DASHBOARD_AGGREGATE_CLICK_SURFACES = [
     "ZERO_VOLUME_WITH_CARTONS",
   ),
   aggregate(
+    "aggregate.exception.UNLOADING_COMPLETION_DATE_IN_FUTURE",
+    "UNLOADING_COMPLETION_DATE_IN_FUTURE",
+  ),
+  aggregate(
     "aggregate.exception.FAILED_GENERATED_FILES",
     "FAILED_GENERATED_FILES",
   ),

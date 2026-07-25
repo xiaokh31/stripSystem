@@ -69,12 +69,14 @@ async function getShellHealth(): Promise<OfficeShellHealth> {
     return {
       apiStatus: health.status,
       databaseStatus: health.database?.status ?? "unknown",
+      serverTime: health.serverTime,
       version: health.version,
     };
   } catch {
     return {
       apiStatus: "down",
       databaseStatus: "unknown",
+      serverTime: new Date().toISOString(),
     };
   }
 }

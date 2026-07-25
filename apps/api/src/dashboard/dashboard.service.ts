@@ -11,9 +11,12 @@ import {
 } from '../generated/prisma/enums';
 import {
   operationalDayRangeUtc,
-  operationalLocalDate,
   operationalTimeZone,
 } from '../common/operational-time';
+import {
+  BusinessTimeService,
+  ServerClock,
+} from '../common/business-time.service';
 import { ContainerIndexService } from '../corrections/container-index.service';
 import { importListWhere } from '../imports/import-list-filter';
 import { attendanceImportListWhere } from '../attendance/attendance-import-list-filter';
@@ -165,19 +168,33 @@ interface RecentLoadJobRecord {
 
 @Injectable()
 export class DashboardService {
+  private readonly businessTime: BusinessTimeService;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly containerIndexService: ContainerIndexService,
     private readonly operationsReviewService: OperationsReviewService,
-  ) {}
+    businessTime?: BusinessTimeService,
+  ) {
+    this.businessTime =
+      businessTime ?? new BusinessTimeService(new ServerClock());
+  }
 
   async operations(
     query: DashboardOperationsQueryDto,
     user: AuthenticatedUser,
   ): Promise<OperationsDashboardResponseDto> {
+    const serverNow = this.businessTime.now();
     const range = query.range;
-    const month = query.month ?? (await this.defaultMonth());
+    if (query.month) {
+      this.businessTime.assertMonthNotFuture(
+        query.month,
+        'DASHBOARD_MONTH_IN_FUTURE',
+        serverNow,
+      );
+    }
+    const month = query.month ?? (await this.defaultMonth(serverNow));
     const permissions = this.permissions(user);
     const [health, workQueue, containerLifecycle, exceptionQueue] =
       await Promise.all([
@@ -190,13 +207,13 @@ export class DashboardService {
       await Promise.all([
         this.inventory(permissions),
         this.loadJobs(permissions),
-        this.monthlySummary(month, permissions),
+        this.monthlySummary(month, permissions, serverNow),
         this.wageAndAttendance(permissions),
         this.recentActivity(range, permissions),
       ]);
 
     return {
-      generatedAt: new Date().toISOString(),
+      generatedAt: serverNow.toISOString(),
       timeZone: operationalTimeZone(),
       range,
       month,
@@ -537,6 +554,15 @@ export class DashboardService {
           'attention',
           '/operations/review?code=ZERO_VOLUME_WITH_CARTONS&from=dashboard',
         ),
+        this.exceptionItem(
+          'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+          'dashboard.exceptions.futureUnloadingCompletion',
+          await this.operationsReviewService.count(
+            'UNLOADING_COMPLETION_DATE_IN_FUTURE',
+          ),
+          'blocked',
+          '/operations/review?code=UNLOADING_COMPLETION_DATE_IN_FUTURE&from=dashboard',
+        ),
       );
     }
 
@@ -592,13 +618,19 @@ export class DashboardService {
   private async monthlySummary(
     month: string,
     permissions: Set<string>,
+    serverNow: Date,
   ): Promise<DashboardMonthlySummaryDto | null> {
     if (!this.hasAny(permissions, [PERMISSIONS.unloadingSummary.read])) {
       return null;
     }
 
     const payContainers = (await this.prisma.payContainer.findMany({
-      where: { completedAt: this.monthRange(month) },
+      where: {
+        completedAt: this.businessTime.validCompletionRangeForMonth(
+          month,
+          serverNow,
+        ),
+      },
       include: {
         sourceContainers: {
           include: {
@@ -863,16 +895,25 @@ export class DashboardService {
       }));
   }
 
-  private async defaultMonth(): Promise<string> {
+  private async defaultMonth(serverNow: Date): Promise<string> {
     const latest = (await this.prisma.payContainer.findFirst({
-      where: { completedAt: { not: null } },
+      where: {
+        completedAt: this.businessTime.validCompletionUpperBound(serverNow),
+        sourceContainers: {
+          some: {
+            container: {
+              status: { in: [...COMPLETED_UNLOADING_STATUS_VALUES] },
+            },
+          },
+        },
+      },
       orderBy: { completedAt: 'desc' },
       select: { completedAt: true },
     })) as { completedAt: Date | string | null } | null;
 
     return latest?.completedAt
       ? this.monthKey(latest.completedAt)
-      : operationalLocalDate().slice(0, 7);
+      : this.businessTime.operationalMonth(serverNow);
   }
 
   private async missingCompletionReviewCount(): Promise<number> {
@@ -1047,21 +1088,12 @@ export class DashboardService {
   }
 
   private monthRange(month: string): { gte: Date; lt: Date } {
-    const [yearText, monthText] = month.split('-');
-    const year = Number(yearText);
-    const monthNumber = Number(monthText);
-    return {
-      gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
-      lt: new Date(Date.UTC(year, monthNumber, 1)),
-    };
+    return this.businessTime.monthRange(month);
   }
 
   private monthKey(value: Date | string): string {
     const date = value instanceof Date ? value : new Date(value);
-    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
-      2,
-      '0',
-    )}`;
+    return this.businessTime.operationalMonth(date);
   }
 
   private isoDate(value: Date | string): string {
