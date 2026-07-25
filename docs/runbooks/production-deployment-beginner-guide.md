@@ -14,6 +14,8 @@ For platform-specific details, also keep these runbooks nearby:
 
 - Windows: [deploy-windows.md](deploy-windows.md)
 - Linux: [deploy-linux.md](deploy-linux.md)
+- Cloudflare Named Tunnel 中英双语操作手册:
+  [cloudflare-named-tunnel-deployment.md](cloudflare-named-tunnel-deployment.md)
 - Public access and free cloud choices:
   [public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md)
 - Backup and restore: [backup-restore.md](backup-restore.md)
@@ -33,6 +35,8 @@ private.
 For the recommended dynamic-IP public pilot, do not hand-write a
 `docker run cloudflared ...token...` command. Follow the named-tunnel profile,
 token-file preflight, Access/MFA/cache checklist, backups and failure drills in
+[Cloudflare Named Tunnel Deployment / Cloudflare 命名隧道部署](cloudflare-named-tunnel-deployment.md).
+The broader platform comparison and architecture decision remain in
 [public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md).
 The public connector is optional to LAN operation and must never become a
 health dependency of Web, API, PostgreSQL, Redis or document generation.

@@ -7,6 +7,12 @@ from the public Internet without depending on a stable company IP address. It
 records the approved current route, archived alternatives, free-tier limits,
 security gates, cutover rules and rollback path.
 
+> **Operator shortcut / 操作入口:** follow the standalone
+> [Cloudflare Named Tunnel bilingual deployment guide / Cloudflare 命名隧道中英双语部署指南](cloudflare-named-tunnel-deployment.md)
+> for the exact Dashboard, secret-file, Access/MFA, startup, validation,
+> rotation and rollback procedure. This document remains the architecture and
+> deployment-options decision record.
+
 Platform limits in this document were checked against official provider pages
 on **2026-07-22**. Free plans can change without notice. Re-check the linked
 sources immediately before provisioning or migration.

@@ -4,104 +4,111 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-24T18:11:42Z`
-- Source: `business-task-supervisor`
-- Task: `WEB-DASHBOARD-09`
-- Task file: `prompts/tasks/WEB-DASHBOARD-09Future Month Contamination and Clock Integrity Regression.md`
-- Status: `DONE`
-- Execution mode: `full`
-- Session: `019f9506-6aa3-70c0-b93b-12669c844788`
+- Generated at: `2026-07-25T04:58:38Z`
+- Source: `manual-documentation-session`
+- Work item: `Cloudflare Named Tunnel bilingual operator runbook`
+- Task file: none; this was a direct documentation request
+- Status: `COMPLETE`
 - Git HEAD: `b82156d`
-- Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260724T164732Z-WEB-DASHBOARD-09-81864`
+- Worktree: dirty with the documentation changes listed below; preserve them
+- Previous supervised Task: `WEB-DASHBOARD-09` remains `DONE`
 
 ## 现在在做什么
 
-WEB-DASHBOARD-09 is complete; no implementation or verification remains for this Task.
+Cloudflare Named Tunnel 独立中英双语操作手册已完成；没有剩余文档实现。真实
+Cloudflare 账户、域名、Tunnel、Access/MFA、外网验收和 token 轮换仍属于外部
+部署操作，不能因文档完成而视为已启用。
 
 ## 已完成
 
-- 已完整关闭 2099 日期污染回归：精确清理旧 E2E 数据，统一服务端 Edmonton 时间/月策略，阻止未来完成日期写入，新增受权限保护的异常复核，并将页眉时钟改为服务端基线加单调计时。失败安全 E2E、全量 Docker 测试、健康检查、迁移、日志、残留数据和六张视觉证据均通过；无 schema 变更，无已知 2099 Dashboard 时间/月回归。
+- 核对现有公网部署总览、PUBLIC-DEPLOY-02 产物、Compose overlay 和
+  `scripts/cloudflare-tunnel-local.sh`。原指南内容完整但主体为英文，且埋在
+  平台比较长文中。
+- 新增独立中英双语 Named Tunnel 操作手册。两种语言均覆盖架构、安全边界、
+  Cloudflare Dashboard、公开 route、secret 文件、`.env`、Access/MFA、
+  cache bypass、启动/停止、外网验收、token 轮换/撤销、故障演练、回滚和
+  完成门槛。
+- 更新公网总览、新手生产部署指南和本地部署指南的醒目入口。
+- 将本地旧 Caddy + 公网 IP HTML 指南标记为历史备选，并指向 Named Tunnel
+  手册；通过 `.gitignore` 白名单让两份部署文档可被版本控制。
+- 依据 2026-07-24 Cloudflare 官方文档核对当前 Tunnel、token、Access/MFA、
+  cache 和 Quick Tunnel 边界。
 
 ### Changed files
 
-- .gitignore
-- HANDOFF.md（由业务任务监督器根据本终态更新）
-- apps/api/src/app.module.ts
-- apps/api/src/common/{business-time.module.ts,business-time.service.ts,business-time.service.spec.ts,operational-time.ts}
-- apps/api/src/corrections/{corrections.service.ts,dto/correction-response.dto.ts}
-- apps/api/src/dashboard/{dashboard.service.ts,dashboard.service.spec.ts,operations-review.service.ts,operations-review.service.spec.ts,dto/operations-review-query.dto.ts}
-- apps/api/src/health/{health.service.ts,health.service.spec.ts}
-- apps/api/src/unloading-summary/{unloading-summary.service.ts,unloading-summary.service.spec.ts,dto/unloading-summary.dto.ts}
-- apps/api/src/unloading-wage/{unloading-wage.service.ts,unloading-wage.service.spec.ts,dto/unloading-wage.dto.ts}
-- apps/api/test/{dashboard.e2e-spec.ts,unloading-summary.e2e-spec.ts}
-- apps/web/e2e/{unloading-wage.spec.ts,dashboard-clock-integrity.spec.ts,dashboard-09-fixture-cleanup.spec.ts}
-- apps/web/e2e/fixtures/{unloading-wage-fixture.ts,dashboard-clock-integrity-fixture.ts}
-- apps/web/src/app/{layout.tsx,page.tsx,operations/review/page.tsx,unloading-summary/page.tsx,unloading-wage/page.tsx}
-- apps/web/src/components/containers/{container-unloading-wage-flow.ts,container-unloading-wage-panel.tsx}
-- apps/web/src/components/dashboard/drilldown-flow.ts
-- apps/web/src/components/layout/{office-shell.tsx,operational-clock.tsx}
-- apps/web/src/components/wage/unloading-wage-actions.tsx
-- apps/web/src/lib/{api-client.ts,date-time.ts,operational-clock-scheduler.ts}
-- apps/web/src/lib/i18n/locales/{en.ts,zh.ts}
-- apps/web/tests/{operational-clock.test.ts,fixtures/dashboard-click-surface-inventory.ts}
-- docs/reports/project-completion-status.html
-- docs/reports/web-dashboard-09-e2e-cleanup-2026-07-24.md
-- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
-- prompts/tasks/WEB-DASHBOARD-09Future Month Contamination and Clock Integrity Regression.md
-- scripts/cleanup-web-dashboard-09-fixture.sh
-- scripts/run-web-dashboard-09-e2e.sh
+- `.gitignore`
+- `HANDOFF.md`
+- `docs/runbooks/cloudflare-named-tunnel-deployment.md`（新增）
+- `docs/runbooks/external-ip-domain-access.html`（纳入跟踪并标记历史备选）
+- `docs/runbooks/local-deployment.md`
+- `docs/runbooks/production-deployment-beginner-guide.md`
+- `docs/runbooks/public-access-and-free-cloud-deployment.md`
 
 ### Tests and verification actually run
 
-- Docker API production build、lint、typecheck 通过；unit：49 suites / 381 tests passed
-- API targeted E2E：2 suites / 9 tests passed；完整 E2E：21 suites / 128 tests passed
-- Docker Web production build、lint、typecheck 通过；unit：280 tests passed
-- Docker Worker pytest：183 passed
-- E2E image build通过；故意失败探针按预期失败并清理，成功 Chromium 组 2 passed，shell fallback cleanup 1 passed
-- 最终 residual audit：futurePayContainers、targetPayContainer、dedicatedMonthRecords、wd09Actors、wd09ClockFixtures 全部为 0
-- Prisma migrate status：36 migrations，database schema up to date；本任务无新增 migration
-- scripts/healthcheck.sh 通过；PostgreSQL、Redis、API、Web、nginx、Worker、静态资源及 storage 均健康
-- 六张 1366×768/390×844、en/zh-CN、light/dark 截图均按原始分辨率检查，无页面级溢出、覆盖、raw code 或双语闪现
-- 最终运行日志无 unexpected 5xx、hydration mismatch、missing translation、unhandled error；bash -n 与 git diff --check 通过
+- `git diff --check`：通过。
+- 对全部本次文档执行尾随空白扫描：无匹配。
+- 核对文档引用的 Named Tunnel/healthcheck/backup 脚本、三个 Compose 文件和
+  backup runbook：路径均存在。
+- 核对新增 Markdown 相对链接和中英文 17 个对应章节：结构完整。
+- `xmllint --html --noout docs/runbooks/external-ip-domain-access.html` 返回 0；
+  旧解析器仅报告 HTML5 `<main>` 标签提示。
+- 未运行 Docker、应用测试或真实 Cloudflare 连接；本次只有文档改动。
 
 ## 卡在哪里
 
 ### Remaining implementation
 
-- No remaining implementation was reported.
+- None for this documentation request.
 
 ### External verification
 
-- No external verification was reported.
+- 需要部署负责人在真实 Cloudflare 账户中创建 Named Tunnel 和唯一公开
+  hostname，配置 Access 默认拒绝、批准组、MFA 和 cache bypass。
+- 需要在非公司网络完成允许/拒绝身份、Bestar 登录/RBAC、上传下载、i18n、
+  审计、断网、停止 connector、token 轮换和回滚验收。
+- 需要在目标 Linux/Windows Docker 主机验证 file-backed secret 的 UID/GID
+  可读性和主机防火墙 LAN 范围。
 
 ### Blockers
 
-- No blocker was reported.
+- No documentation blocker. External activation requires the company domain,
+  Cloudflare account, approved identities and a maintenance window.
 
 ## 下一步
 
-- 由业务任务监督器将本终态写入 HANDOFF.md 并结束 WEB-DASHBOARD-09；不要启动另一个 Task。
+- 部署负责人先阅读
+  `docs/runbooks/cloudflare-named-tunnel-deployment.md` 的中文部分，准备域名、
+  身份组、MFA、恢复点和维护窗口；不要先复制或运行带 token 的 Dashboard
+  `docker run` 命令。
 
 ## 不要再踩的坑
 
-- 后续不得直接运行 unloading-wage.spec.ts 写共享数据库；必须使用 scripts/run-web-dashboard-09-e2e.sh。
-- cleanup-only Playwright 必须保留独立 outputDir，否则会清空前序六张截图证据。
-- API/Web E2E source baked 在 Docker image 中；修改测试或 fixture 后必须重建对应 image。
-- 不得按“未来年份”宽泛删除数据；清理必须满足精确 id、多项 fixture provenance、关联归属和 storage root 校验。
-- 不要删除被其他历史 fixture 共享的合成 actor，也不要重新用浏览器 wall clock 或 UTC 月份替代服务端 Edmonton 业务时间。
+- 不使用 Quick Tunnel，不在路由器开放入站 80/443，不暴露数据库、Redis、
+  API、SSH 或 Docker。
+- Tunnel token 只写入 `.secrets/cloudflare-tunnel-token`，不得进入 `.env`、
+  命令参数、Git、截图、日志或交接。
+- Cloudflare Access 不能替代 Bestar 登录、RBAC 和审计。
+- Named Tunnel 不会迁移数据，也不能解决仓库停电、主机停机或断网。
+- `TRUSTED_PROXY_CIDRS` 必须按目标 Docker 网络核实，不得照抄测试 fallback。
+- 当前是单 connector pilot，token 轮换可能短暂中断，不承诺零停机。
 
 ## 新会话启动清单
 
 1. Read `AGENTS.md` and `.codex/skills/bestar-handoff/SKILL.md`.
-2. Run `git status --short`; preserve all existing changes.
-3. Read the Task file above plus `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md` and `docs/reports/project-completion-status.html`.
-4. Verify this handoff against code, tests, runtime state, and artifacts before acting.
+2. Run `git status --short`; preserve all documentation changes above.
+3. For public activation, read the bilingual Named Tunnel runbook, then
+   `prompts/tasks/PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`,
+   the Task index and completion report.
+4. Reconcile external Cloudflare state; do not infer activation from repository
+   files.
 5. Do not execute any Task marked `Task-Status: ARCHIVED`.
 
 ## 权威参考
 
-- `prompts/tasks/WEB-DASHBOARD-09Future Month Contamination and Clock Integrity Regression.md`
+- `docs/runbooks/cloudflare-named-tunnel-deployment.md`
+- `docs/runbooks/public-access-and-free-cloud-deployment.md`
+- `prompts/tasks/PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

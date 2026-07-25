@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bestar Windows 公网直连历史备选教程</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5b6470;
+      --line: #d9dee7;
+      --accent: #0f766e;
+      --warn: #92400e;
+      --danger: #991b1b;
+      --code: #111827;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    h1, h2, h3 {
+      line-height: 1.25;
+      margin: 0 0 12px;
+    }
+    h1 {
+      font-size: 32px;
+      letter-spacing: 0;
+    }
+    h2 {
+      border-top: 1px solid var(--line);
+      font-size: 24px;
+      margin-top: 32px;
+      padding-top: 24px;
+    }
+    h3 {
+      font-size: 18px;
+      margin-top: 22px;
+    }
+    p, li {
+      font-size: 15px;
+    }
+    a {
+      color: var(--accent);
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin: 16px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #ecfdf5;
+      padding: 12px 14px;
+    }
+    .warn {
+      border-left: 4px solid var(--warn);
+      background: #fffbeb;
+      padding: 12px 14px;
+    }
+    .danger {
+      border-left: 4px solid var(--danger);
+      background: #fef2f2;
+      padding: 12px 14px;
+    }
+    code {
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-family: Consolas, Menlo, monospace;
+      font-size: 0.92em;
+    }
+    pre {
+      background: var(--code);
+      border-radius: 8px;
+      color: #eef2ff;
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: var(--panel);
+      margin: 12px 0;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th {
+      background: #eef2f7;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .checklist li {
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Bestar 系统 Windows 公网直连历史备选教程</h1>
+  <p class="muted">适用场景：系统部署在公司局域网内的一台 Windows 11 或 Windows Server 主机上，外部人员需要通过公司公网 IP 或公司持有的子域名访问。</p>
+
+  <div class="warn">
+    <strong>当前推荐方案：</strong>公司公网 IP 不稳定时，请使用
+    <a href="cloudflare-named-tunnel-deployment.md">Cloudflare Named Tunnel 中英双语操作手册</a>。
+    Named Tunnel 使用出站连接，不需要路由器开放 80/443 入站转发。本页以下 Caddy + 公网 IP 内容仅作为经过单独安全审批后的历史备选方案，不是当前默认部署路线。
+  </div>
+
+  <div class="danger">
+    <strong>历史直连方案的安全底线：</strong>只有在明确批准使用本页方案时，才允许将公网 <code>80</code>/<code>443</code> 转发到 nginx/Caddy。任何情况下都不要把 PostgreSQL、Redis、API 4000、Web 3000 或 Docker 直接暴露到公网。
+  </div>
+
+  <h2>1. 当前项目端口关系</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>组件</th>
+        <th>项目内端口</th>
+        <th>公网是否开放</th>
+        <th>说明</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Docker nginx</td>
+        <td><code>HTTP_PORT</code>，默认宿主机 <code>80</code></td>
+        <td>可以</td>
+        <td>统一入口，负责 <code>/</code> 到 Web、<code>/api</code> 到 API。</td>
+      </tr>
+      <tr>
+        <td>Web</td>
+        <td>容器内 <code>3000</code></td>
+        <td>不开放</td>
+        <td>只给 nginx 容器访问。</td>
+      </tr>
+      <tr>
+        <td>API</td>
+        <td>容器内 <code>4000</code></td>
+        <td>不开放</td>
+        <td>只通过 <code>/api</code> 访问。</td>
+      </tr>
+      <tr>
+        <td>PostgreSQL</td>
+        <td>宿主机 <code>15432</code></td>
+        <td>不开放</td>
+        <td>只允许本机或受控内网维护。</td>
+      </tr>
+      <tr>
+        <td>Redis</td>
+        <td>宿主机 <code>16379</code></td>
+        <td>不开放</td>
+        <td>绝不能暴露公网。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. 外网访问的前置条件</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>公司公网 IP</h3>
+      <p>需要确认公司网络是否有公网 IPv4。打开路由器 WAN 页面查看 WAN IP，再用外部网站查询出口 IP，两者一致才通常可以端口转发。</p>
+      <p>如果 WAN IP 是 <code>10.x.x.x</code>、<code>100.64.x.x</code>、<code>172.16-31.x.x</code>、<code>192.168.x.x</code>，大概率是 CGNAT 或上级路由，外部不能直接访问。</p>
+    </div>
+    <div class="card">
+      <h3>固定服务器内网 IP</h3>
+      <p>部署机器必须固定内网 IP，例如 <code>192.168.1.50</code>。推荐在路由器 DHCP Reservation 里按 MAC 地址绑定，不推荐手写一个可能冲突的静态 IP。</p>
+    </div>
+    <div class="card">
+      <h3>公司域名管理权限</h3>
+      <p>需要能进入域名 DNS 控制台，新增子域名记录，例如 <code>unloading.company.com</code> 或 <code>warehouse.company.com</code>。</p>
+    </div>
+    <div class="card">
+      <h3>HTTPS 证书</h3>
+      <p>真实公网访问必须使用 HTTPS，特别是登录账号密码和 JWT Token。推荐用 Caddy 自动申请 Let's Encrypt 证书。</p>
+    </div>
+  </div>
+
+  <h2>3. 推荐 Windows 生产方案：子域名 + HTTPS + Caddy + Docker nginx</h2>
+  <p>推荐结构如下：</p>
+  <pre><code>Internet
+  -> https://unloading.company.com
+  -> 公司公网 IP
+  -> 路由器端口转发 TCP 80/443
+  -> Windows 部署主机 Caddy
+  -> http://127.0.0.1:8080
+  -> Docker nginx
+  -> Web / API</code></pre>
+
+  <div class="note">
+    本方案让 Caddy 监听公网 <code>80/443</code> 并自动维护 HTTPS 证书；本项目 Docker nginx 改为只监听宿主机 <code>8080</code>，避免端口冲突。
+  </div>
+
+  <h2>4. Windows 部署主机配置</h2>
+  <h3>4.1 固定 Windows 主机内网 IP</h3>
+  <p>先确认部署主机在公司局域网内的 IP，例如 <code>192.168.1.50</code>。推荐在路由器里做 DHCP Reservation，让这台 Windows 主机每次都拿到同一个内网 IP。</p>
+  <ol>
+    <li>在 Windows 上打开 PowerShell。</li>
+    <li>运行 <code>ipconfig</code>，找到正在使用的 Ethernet 或 Wi-Fi 网卡。</li>
+    <li>记录 IPv4 Address，例如 <code>192.168.1.50</code>。</li>
+    <li>记录 Physical Address，也就是 MAC 地址。</li>
+    <li>登录公司路由器，进入 DHCP Reservation / Address Reservation。</li>
+    <li>把这台机器的 MAC 地址绑定到固定 IP，例如 <code>192.168.1.50</code>。</li>
+    <li>重启网络或重启电脑后，再运行 <code>ipconfig</code> 确认 IP 没变。</li>
+  </ol>
+  <pre><code>ipconfig</code></pre>
+
+  <h3>4.2 准备 Windows 项目目录</h3>
+  <p>建议项目固定放在短路径，不要放 OneDrive、桌面同步目录或中文路径下。</p>
+  <pre><code>mkdir C:\bestar-unloading
+cd C:\bestar-unloading</code></pre>
+  <p>把项目代码放入 <code>C:\bestar-unloading</code> 后，确认这些文件存在：</p>
+  <pre><code>dir infra\docker\compose.local.yml
+dir infra\nginx\nginx.conf
+dir .env.example
+dir storage</code></pre>
+
+  <h3>4.3 修改项目 <code>.env</code></h3>
+  <p>在项目根目录创建并编辑 <code>.env</code>。假设子域名是 <code>unloading.company.com</code>，Windows 主机内网 IP 是 <code>192.168.1.50</code>，推荐值如下：</p>
+  <pre><code>copy .env.example .env
+notepad .env</code></pre>
+  <pre><code>HTTP_PORT=8080
+
+# Web browser uses same-origin /api through reverse proxy.
+NEXT_PUBLIC_API_BASE_URL=/api
+WEB_SERVER_API_BASE_URL=http://api:4000/api
+WEB_API_PROXY_BASE_URL=http://api:4000/api
+
+# Add public domain and LAN URLs. Replace examples with real values.
+CORS_ORIGINS=https://unloading.company.com,http://192.168.1.50,http://localhost,http://127.0.0.1
+
+TZ=America/Edmonton
+OPERATIONAL_TIME_ZONE=America/Edmonton
+NEXT_PUBLIC_OPERATIONAL_TIME_ZONE=America/Edmonton
+
+# Must be changed before production.
+POSTGRES_PASSWORD=replace-with-strong-password
+JWT_SECRET=replace-with-long-random-secret</code></pre>
+
+  <h3>4.4 启动或重启 Docker 全栈</h3>
+  <p>确保 Docker Desktop 已启动，并且使用 Linux containers。然后在 PowerShell 中运行：</p>
+  <pre><code>cd C:\bestar-unloading
+docker compose -f infra/docker/compose.local.yml up -d --build
+docker compose -f infra/docker/compose.local.yml ps
+curl.exe http://127.0.0.1:8080/api/health
+curl.exe -I http://127.0.0.1:8080/</code></pre>
+
+  <p>如果 <code>curl.exe http://127.0.0.1:8080/api/health</code> 正常返回，说明本项目 Docker nginx 已经在 Windows 主机本机可访问。</p>
+
+  <h3>4.5 安装 Caddy 到 Windows</h3>
+  <p>Caddy 用来监听公网 <code>80/443</code>，自动申请 HTTPS 证书，然后转发到本项目的 <code>127.0.0.1:8080</code>。</p>
+  <ol>
+    <li>打开 <a href="https://caddyserver.com/download" target="_blank" rel="noreferrer">https://caddyserver.com/download</a>。</li>
+    <li>选择 Windows amd64 版本下载。</li>
+    <li>创建目录 <code>C:\caddy</code>。</li>
+    <li>把下载得到的 <code>caddy.exe</code> 放到 <code>C:\caddy\caddy.exe</code>。</li>
+  </ol>
+  <pre><code>mkdir C:\caddy
+C:\caddy\caddy.exe version</code></pre>
+
+  <h3>4.6 创建 Windows Caddyfile</h3>
+  <p>创建文件 <code>C:\caddy\Caddyfile</code>，替换成公司真实子域名：</p>
+  <pre><code>unloading.company.com {
+  encode gzip
+
+  reverse_proxy 127.0.0.1:8080 {
+    header_up Host {host}
+    header_up X-Real-IP {remote_host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto {scheme}
+  }
+}</code></pre>
+
+  <p>用 PowerShell 验证配置：</p>
+  <pre><code>C:\caddy\caddy.exe validate --config C:\caddy\Caddyfile</code></pre>
+
+  <h3>4.7 先用前台模式测试 Caddy</h3>
+  <p>第一次不要直接装服务，先在 PowerShell 里前台运行，方便看到证书申请和反向代理错误。</p>
+  <pre><code>C:\caddy\caddy.exe run --config C:\caddy\Caddyfile</code></pre>
+  <p>如果这里提示无法绑定 <code>80</code> 或 <code>443</code>，说明这些端口已经被 IIS、其他 nginx、其他代理或 Docker 直接占用了。需要先停掉占用端口的程序。</p>
+  <pre><code>netstat -ano | findstr ":80"
+netstat -ano | findstr ":443"</code></pre>
+  <p>测试通过后，在该窗口按 <code>Ctrl+C</code> 停止 Caddy。</p>
+
+  <h3>4.8 安装 Caddy 为 Windows Service</h3>
+  <p>用管理员权限打开 PowerShell，然后运行：</p>
+  <pre><code>C:\caddy\caddy.exe service install --config C:\caddy\Caddyfile
+C:\caddy\caddy.exe service start
+Get-Service caddy</code></pre>
+  <p>以后修改 <code>C:\caddy\Caddyfile</code> 后，使用：</p>
+  <pre><code>C:\caddy\caddy.exe validate --config C:\caddy\Caddyfile
+C:\caddy\caddy.exe reload --config C:\caddy\Caddyfile</code></pre>
+
+  <h2>5. 路由器端口转发</h2>
+  <p>在公司路由器或防火墙上添加端口转发。假设部署主机内网 IP 是 <code>192.168.1.50</code>：</p>
+  <table>
+    <thead>
+      <tr>
+        <th>外部端口</th>
+        <th>协议</th>
+        <th>转发到内网 IP</th>
+        <th>内网端口</th>
+        <th>用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>80</code></td>
+        <td>TCP</td>
+        <td><code>192.168.1.50</code></td>
+        <td><code>80</code></td>
+        <td>Let's Encrypt HTTP 验证和自动跳转 HTTPS。</td>
+      </tr>
+      <tr>
+        <td><code>443</code></td>
+        <td>TCP</td>
+        <td><code>192.168.1.50</code></td>
+        <td><code>443</code></td>
+        <td>正式 HTTPS 访问。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    不要转发 <code>3000</code>、<code>4000</code>、<code>15432</code>、<code>16379</code>。如果路由器有 UPnP，建议关闭，避免服务被自动暴露。
+  </div>
+
+  <h2>6. Windows 防火墙</h2>
+  <ol>
+    <li>打开 Windows Security。</li>
+    <li>进入 Firewall &amp; network protection。</li>
+    <li>确认公司网络配置为 Private network。</li>
+    <li>新增 Inbound Rule，允许 TCP <code>80</code> 和 <code>443</code>。</li>
+    <li>不要允许公网访问 PostgreSQL、Redis、Web 3000、API 4000。</li>
+  </ol>
+  <p>也可以使用管理员 PowerShell 创建规则：</p>
+  <pre><code>New-NetFirewallRule -DisplayName "Bestar HTTPS 443" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
+New-NetFirewallRule -DisplayName "Bestar HTTP 80" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow</code></pre>
+  <p>确认规则存在：</p>
+  <pre><code>Get-NetFirewallRule -DisplayName "Bestar HTTPS 443"
+Get-NetFirewallRule -DisplayName "Bestar HTTP 80"</code></pre>
+
+  <h2>7. 公司域名解析到公网 IP</h2>
+  <h3>7.1 固定公网 IP</h3>
+  <p>进入域名 DNS 控制台，新增 A 记录：</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Name / Host</th>
+        <th>Value</th>
+        <th>TTL</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>A</code></td>
+        <td><code>unloading</code></td>
+        <td>公司公网 IPv4，例如 <code>203.0.113.10</code></td>
+        <td><code>300</code> 或 <code>600</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>生效后访问：<code>https://unloading.company.com</code></p>
+
+  <h3>7.2 动态公网 IP</h3>
+  <p>如果公司公网 IP 会变化，有两种选择：</p>
+  <ol>
+    <li>向 ISP 申请固定公网 IP，这是最稳的生产方式。</li>
+    <li>使用 DDNS，让路由器或部署主机自动更新域名记录。可用 <code>CNAME</code> 指向 DDNS 域名，例如 <code>unloading.company.com CNAME company-warehouse.ddns.example</code>。</li>
+  </ol>
+
+  <h3>7.3 有 IPv6 的情况</h3>
+  <p>如果公司有公网 IPv6，可以添加 <code>AAAA</code> 记录。但必须确认防火墙允许且部署主机 IPv6 地址稳定。没有经验时，先只用 IPv4 A 记录。</p>
+
+  <h2>8. 验证步骤</h2>
+  <h3>8.1 Windows 本机验证</h3>
+  <pre><code>curl.exe http://127.0.0.1:8080/api/health
+curl.exe -I http://127.0.0.1:8080/
+curl.exe -I https://unloading.company.com/</code></pre>
+
+  <h3>8.2 DNS 验证</h3>
+  <pre><code>nslookup unloading.company.com</code></pre>
+
+  <h3>8.3 公司内网其他电脑验证</h3>
+  <ol>
+    <li>在另一台公司内网电脑打开 <code>https://unloading.company.com</code>。</li>
+    <li>如果打不开，但外网能打开，通常是路由器不支持 NAT loopback，需要公司内网 DNS 把该子域名解析到 Windows 主机内网 IP。</li>
+    <li>也可以临时访问 <code>http://192.168.1.50:8080</code> 判断 Docker nginx 是否正常。</li>
+  </ol>
+
+  <h3>8.4 外网验证</h3>
+  <ol>
+    <li>用手机关闭 Wi-Fi，使用蜂窝网络。</li>
+    <li>打开 <code>https://unloading.company.com</code>。</li>
+    <li>登录管理员账号。</li>
+    <li>打开 <code>https://unloading.company.com/api/health</code>，确认 API 可达。</li>
+    <li>测试导入、下载报告、下载面单，确认浏览器没有混用 <code>127.0.0.1</code>、<code>:3000</code> 或 <code>:4000</code>。</li>
+  </ol>
+
+  <h2>9. 临时公网 IP 直连测试</h2>
+  <p>如果只是临时测试，不配置域名和 HTTPS，可以把路由器 TCP <code>80</code> 转发到部署主机 TCP <code>80</code>，并让项目 <code>.env</code> 保持 <code>HTTP_PORT=80</code>。</p>
+  <pre><code>cd C:\bestar-unloading
+docker compose -f infra/docker/compose.local.yml up -d --build
+curl.exe http://127.0.0.1/api/health</code></pre>
+  <p>外部访问：</p>
+  <pre><code>http://公司公网IP/</code></pre>
+  <div class="danger">
+    这种方式没有 HTTPS，不适合账号登录和生产使用。只可用于短时间网络连通性验证。
+  </div>
+
+  <h2>9.1 Windows 开机自启动建议</h2>
+  <p>生产环境应保证 Windows 重启后 Docker Desktop、Bestar Docker stack 和 Caddy 都能恢复。</p>
+  <ol>
+    <li>Caddy 使用上面的 Windows Service 安装方式，随系统启动。</li>
+    <li>Docker Desktop 设置为开机启动。</li>
+    <li>Docker Compose 中服务已配置 <code>restart: unless-stopped</code>，Docker Desktop 启动后容器会自动恢复。</li>
+    <li>重启 Windows 后运行 <code>docker compose -f infra/docker/compose.local.yml ps</code> 和 <code>curl.exe https://unloading.company.com/api/health</code> 检查。</li>
+  </ol>
+
+  <h2>10. 常见问题</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>现象</th>
+        <th>原因</th>
+        <th>处理</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>外网打不开，但内网能打开</td>
+        <td>路由器端口转发、运营商 CGNAT、公司防火墙未放行。</td>
+        <td>检查 WAN IP 是否为公网 IP；检查 TCP 80/443 转发；用手机蜂窝网络测试。</td>
+      </tr>
+      <tr>
+        <td>域名解析后仍打开旧地址</td>
+        <td>DNS TTL 缓存未过期。</td>
+        <td>等待 TTL，或本机刷新 DNS 缓存；用 <code>nslookup</code> 验证。</td>
+      </tr>
+      <tr>
+        <td>HTTPS 证书申请失败</td>
+        <td>80 端口没有转发到 Caddy，或 DNS 没指到当前公网 IP。</td>
+        <td>先确保 <code>http://unloading.company.com</code> 能到 Caddy，再重载 Caddy。</td>
+      </tr>
+      <tr>
+        <td>页面能打开，API 报错</td>
+        <td><code>CORS_ORIGINS</code> 未加入域名，或前端仍使用旧 API 地址。</td>
+        <td>设置 <code>NEXT_PUBLIC_API_BASE_URL=/api</code>，把 <code>https://unloading.company.com</code> 加入 <code>CORS_ORIGINS</code>，重建容器。</td>
+      </tr>
+      <tr>
+        <td>公司内网用域名打不开，外网能打开</td>
+        <td>路由器不支持 NAT loopback。</td>
+        <td>在公司 DNS 或路由器里做 split DNS：<code>unloading.company.com</code> 内网解析到服务器 LAN IP。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>11. 生产安全检查清单</h2>
+  <ul class="checklist">
+    <li>公网只开放 TCP <code>80</code> 和 <code>443</code>。</li>
+    <li>没有开放 <code>3000</code>、<code>4000</code>、<code>15432</code>、<code>16379</code>。</li>
+    <li>域名使用 HTTPS，浏览器地址栏显示有效证书。</li>
+    <li><code>POSTGRES_PASSWORD</code>、<code>JWT_SECRET</code> 已替换为生产强密码。</li>
+    <li>管理员账号已设置强密码，默认测试账号已删除或禁用。</li>
+    <li>已配置 PostgreSQL 和 <code>storage/</code> 备份。</li>
+    <li>外网访问日志可查看，异常登录有审计记录。</li>
+    <li>手机蜂窝网络能打开页面、登录、下载报告和面单。</li>
+    <li>公司内网电脑使用域名访问时不会跳到 <code>127.0.0.1</code>、<code>:3000</code> 或 <code>:4000</code>。</li>
+  </ul>
+
+  <h2>12. 推荐最终地址</h2>
+  <pre><code>Office UI: https://unloading.company.com/
+API:       https://unloading.company.com/api
+Mobile:    https://unloading.company.com/mobile/load-jobs
+Native app API Base URL: https://unloading.company.com/api</code></pre>
+
+  <h2>13. HTTPS证书</h2>
+  <p>HTTPS 证书有三种选择：</p>
+  <ol>
+    <li>推荐：免费证书，不需要购买用 Let’s Encrypt 免费证书即可。如果按我文档里的 Caddy 方案，只要：
+      <ul>
+        <li>- 域名解析到公司公网 IP</li>
+        <li>- 路由器转发 80 和 443</li>
+        <li>- Caddy 正常运行</li>
+        <p>Caddy 会自动申请、安装、续期证书。生产环境推荐这个。</p>
+      </ul>
+
+      <li>自己创建自签名证书可以自己创建，但不推荐给正式使用。问题是浏览器、手机、扫码 App 会提示“不安全”或直接拒绝，除非你在每台设备上手动安装并信任公司根证书。维护成本高，容易出问题。</li>
+      <li>购买商业证书可以购买，但通常没必要。只有在公司政策要求、需要特定品牌证书、或不能使用 Let’s Encrypt 自动续期时才考虑。</li>
+
+  </ol>
+  <p>历史方案结论：只有在固定公网 IP、入站端口和相关安全风险均已单独批准时，才考虑 Caddy + Let’s Encrypt。当前动态 IP 公网访问应优先采用不需要入站端口转发的 <a href="cloudflare-named-tunnel-deployment.md">Cloudflare Named Tunnel</a>。</p>
+
+  <p class="muted">最后更新：2026-07-24。本教程按 Windows 部署主机编写，只保留历史公网直连方案；当前 Named Tunnel 操作以独立中英双语手册为准。</p>
+</main>
+</body>
+</html>

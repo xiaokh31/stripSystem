@@ -45,6 +45,8 @@ docs/runbooks/*
 !docs/runbooks/fresh-windows-agent-onboarding.md
 !docs/runbooks/parser-profile-operations.md
 !docs/runbooks/public-access-and-free-cloud-deployment.md
+!docs/runbooks/cloudflare-named-tunnel-deployment.md
+!docs/runbooks/external-ip-domain-access.html
 !docs/reports/
 docs/reports/*
 !docs/reports/project-completion-status.html

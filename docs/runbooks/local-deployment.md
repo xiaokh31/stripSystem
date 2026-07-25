@@ -260,10 +260,12 @@ Use `scripts/cloudflare-tunnel-local.sh` for preflight/start/stop/status/logs
 after the approved named tunnel token exists. Stopping that connector must not
 stop this local Compose stack. nginx remains reachable on the approved LAN,
 while PostgreSQL, Redis and the internal API have no host publication in the
-public profile. See
+public profile. Follow the standalone
+[Cloudflare Named Tunnel bilingual deployment guide](cloudflare-named-tunnel-deployment.md)
+for Cloudflare Dashboard setup, secret ownership, Access/MFA, cache, backup,
+firewall, external browser validation, token rotation and rollback. See
 [public-access-and-free-cloud-deployment.md](public-access-and-free-cloud-deployment.md)
-for secret ownership, Access/MFA, cache, backup, firewall and external browser
-gates.
+for the broader architecture and deployment-options decision.
 
 ## Initialize Accounts
 
