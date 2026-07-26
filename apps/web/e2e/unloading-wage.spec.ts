@@ -3,6 +3,7 @@ import {
   test,
   type APIRequestContext,
   type APIResponse,
+  type Page,
 } from "@playwright/test";
 import {
   authHeaders,
@@ -65,7 +66,7 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     testInfo,
   );
   await expectWorkerDirectoryIncludes(request, token, [workerA, workerB]);
-  const fixture = await seedCompletedTransferWageUnit(
+  const fixture = await seedCompletedTransferWageUnits(
     request,
     {
       adminToken,
@@ -77,7 +78,7 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     testInfo,
   );
   if (process.env.E2E_FORCE_FAILURE === "1") {
-    throw new Error("Intentional WEB-DASHBOARD-09 cleanup probe failure");
+    throw new Error("Intentional UNLOAD-WAGE-14 cleanup probe failure");
   }
 
   await page.goto(`/containers/${fixture.containerId}`);
@@ -91,6 +92,12 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   }
   await expect(page.getByRole("button", { name: "Save unloaders" }))
     .toBeVisible();
+  const optionalTrailerInput = page.getByLabel("Trailer number (optional)");
+  await expect(optionalTrailerInput).toBeVisible();
+  await expect(optionalTrailerInput).toHaveValue("");
+  await expect(optionalTrailerInput).not.toHaveAttribute("required");
+  await expect(optionalTrailerInput).not.toHaveAttribute("aria-required", "true");
+  await expect(page.getByText("Not provided").first()).toBeVisible();
   await expect(
     page.locator("select").filter({ hasText: fixture.workerA }).first(),
   ).toBeVisible();
@@ -123,9 +130,16 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
     settlementMonth,
   );
   await expect(page.getByText("Completed unloading source records")).toBeVisible();
-  await expect(page.getByText(fixture.trailerNumber).first()).toBeVisible();
+  await expect(page.getByText("Not provided").first()).toBeVisible();
   await expect(page.getByText(fixture.containerNoA).first()).toBeVisible();
   await expect(page.getByText(fixture.containerNoB).first()).toBeVisible();
+  await expect(page.getByText(fixture.containerNoC).first()).toBeVisible();
+  await expect(
+    page
+      .getByText("Paid units", { exact: true })
+      .locator("..")
+      .getByText("2", { exact: true }),
+  ).toBeVisible();
 
   await Promise.all([
     page.waitForResponse(
@@ -147,11 +161,36 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   await expect(page.getByText(fixture.workerA).first()).toBeVisible();
   await expect(page.getByText(fixture.workerB).first()).toBeVisible();
   await expect(page.getByText("CAD 180.00").first()).toBeVisible();
-  await expect(page.getByText(fixture.trailerNumber).first()).toBeVisible();
+  await expect(page.getByText("CAD 540.00").first()).toBeVisible();
+  await expect(page.getByText("Not provided").first()).toBeVisible();
   await expect(page.getByText(fixture.containerNoA).first()).toBeVisible();
   await expect(page.getByText(fixture.containerNoB).first()).toBeVisible();
+  await expect(page.getByText(fixture.containerNoC).first()).toBeVisible();
   await expect(page.getByText("CAD 360.00").first()).toBeVisible();
+  await expect(page.getByText("CAD 720.00").first()).toBeVisible();
   await expect(page.getByText("Equal split").first()).toBeVisible();
+  expect(fixture.payContainerNoA).not.toBe(fixture.payContainerNoB);
+
+  await page.getByRole("button", { name: "中文" }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByText("未填写").first()).toBeVisible();
+  await expect(page.getByText(/必须填写拖车号|必须填写托车号/)).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(page.getByText("未填写").first()).toBeVisible();
+  await page.getByRole("button", { name: "English" }).click();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByText("Not provided").first()).toBeVisible();
+  await expect(
+    page.getByText(/US-to-Canada transfer.*requires a trailer number/i),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Dark theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expectNoViewportOverflow(page);
+  await page.screenshot({
+    fullPage: true,
+    path: `test-results/unload-wage-14/${testInfo.project.name}-empty-trailer-dark.png`,
+  });
 
   const downloads = page.getByRole("link", { name: "Download" });
   await expect(downloads).toHaveCount(2);
@@ -166,7 +205,40 @@ test("warehouse manager can review and regenerate monthly unloading wage settlem
   }
 });
 
-async function seedCompletedTransferWageUnit(
+async function expectNoViewportOverflow(page: Page) {
+  const diagnostics = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    const overflowing = Array.from(document.querySelectorAll<HTMLElement>("*"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          className: element.className,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          tagName: element.tagName,
+          width: Math.round(rect.width),
+        };
+      })
+      .filter(
+        ({ left, right, width }) =>
+          width > 0 && (left < -1 || right > viewportWidth + 1),
+      )
+      .slice(0, 12);
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      overflowing,
+      viewportWidth,
+    };
+  });
+
+  expect(
+    diagnostics.documentWidth,
+    `Viewport overflow diagnostics: ${JSON.stringify(diagnostics)}`,
+  ).toBeLessThanOrEqual(diagnostics.viewportWidth + 1);
+}
+
+async function seedCompletedTransferWageUnits(
   request: APIRequestContext,
   actors: {
     adminToken: string;
@@ -180,31 +252,43 @@ async function seedCompletedTransferWageUnit(
   containerId: string;
   containerNoA: string;
   containerNoB: string;
-  trailerNumber: string;
+  containerNoC: string;
+  payContainerNoA: string;
+  payContainerNoB: string;
   workerA: string;
   workerB: string;
 }> {
   const suffix = `${prefix.replace(/[^a-z0-9]/gi, "").slice(-8)}${uniqueSuffix(testInfo.project.name)}`;
-  const containerNoA = `ZCSU${suffix}A`;
-  const containerNoB = `TGBU${suffix}B`;
-  const trailerNumber = `TR-E2E-${prefix}-${suffix}`;
+  const containerNoA = `UWA-${prefix}-${suffix}A`;
+  const containerNoB = `UWB-${prefix}-${suffix}B`;
+  const containerNoC = `UWC-${prefix}-${suffix}C`;
   const containerA = await createManualContainer(
     request,
     actors.adminToken,
     containerNoA,
   );
   await createManualContainer(request, actors.adminToken, containerNoB);
+  const containerC = await createManualContainer(
+    request,
+    actors.adminToken,
+    containerNoC,
+  );
 
-  await expectOk(
+  const associationResponse = await expectOk(
     request.patch(`/api/containers/${containerA.id}/unloading-wage-associations`, {
       data: {
         associatedContainerNos: [containerNoB],
         reason: "Playwright unloading wage smoke association",
-        trailerNumber,
+        trailerNumber: null,
       },
       headers: authHeaders(actors.warehouseToken),
     }),
   );
+  const association = (await associationResponse.json()) as {
+    payContainerNo: string;
+    trailerNumber: string | null;
+  };
+  expect(association.trailerNumber).toBeNull();
 
   const duplicateUnloaderResponse = await request.put(
     `/api/containers/${containerA.id}/unloaders`,
@@ -249,11 +333,50 @@ async function seedCompletedTransferWageUnit(
     201,
   );
 
+  const singleResponse = await expectOk(
+    request.patch(`/api/containers/${containerC.id}/unloading-wage`, {
+      data: {
+        classification: "US_TO_CANADA_TRANSFER",
+        reason: "Playwright empty trailer single transfer",
+        trailerNumber: null,
+      },
+      headers: authHeaders(actors.warehouseToken),
+    }),
+  );
+  const single = (await singleResponse.json()) as {
+    payContainerNo: string;
+    trailerNumber: string | null;
+  };
+  expect(single.trailerNumber).toBeNull();
+  expect(single.payContainerNo).not.toBe(association.payContainerNo);
+  await expectOk(
+    request.put(`/api/containers/${containerC.id}/unloaders`, {
+      data: {
+        reason: "Playwright second empty trailer group unloader",
+        unloaders: [{ unloadingWorkerId: actors.workerA.id }],
+      },
+      headers: authHeaders(actors.warehouseToken),
+    }),
+  );
+  await expectOk(
+    request.post(`/api/containers/${containerC.id}/complete-unloading`, {
+      data: {
+        completedAt,
+        note: "Playwright second empty trailer group completed",
+        reason: "Playwright second empty trailer group completion",
+      },
+      headers: authHeaders(actors.warehouseToken),
+    }),
+    201,
+  );
+
   return {
     containerId: containerA.id,
     containerNoA,
     containerNoB,
-    trailerNumber,
+    containerNoC,
+    payContainerNoA: association.payContainerNo,
+    payContainerNoB: single.payContainerNo,
     workerA: actors.workerA.displayName,
     workerB: actors.workerB.displayName,
   };

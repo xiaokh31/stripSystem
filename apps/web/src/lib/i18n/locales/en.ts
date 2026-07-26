@@ -1174,7 +1174,6 @@ export const enMessages = {
   "Read-only source records for": "Read-only source records for",
   "Recent pay units from the unloading wage API.":
     "Recent pay units from the unloading wage API.",
-  "Required for transfer": "Required for transfer",
   "Review issues": "Review issues",
   "Review month filter": "Review month filter",
   "Review status": "Review status",
@@ -1283,10 +1282,6 @@ export const enMessages = {
   "Trailer number": "Trailer number",
   "Trailer:": "Trailer:",
   "US-to-Canada transfer": "US-to-Canada transfer",
-  "US-to-Canada transfer pay units require a trailer number.":
-    "US-to-Canada transfer pay units require a trailer number.",
-  "US-to-Canada transfer requires a trailer number.":
-    "US-to-Canada transfer requires a trailer number.",
   "Unloading Wage": "Unloading Wage",
   "Unloading wage information could not be saved.":
     "Unloading wage information could not be saved.",
@@ -1882,6 +1877,10 @@ export const enMessages = {
   "i18n.unloadingWage.sourceRecordsForMonth":
     "Read-only source records for {month} from container detail wage data.",
   "i18n.unloadingWage.trailer": "Trailer: {trailerNumber}",
+  "i18n.unloadingWage.trailerNumberOptional": "Trailer number (optional)",
+  "i18n.unloadingWage.optionalTrailerPlaceholder":
+    "Enter a trailer number when available",
+  "i18n.unloadingWage.notProvided": "Not provided",
   "i18n.unloadingWage.noSettlementForMonth":
     "No settlement has been generated for {month}.",
   "i18n.unloadingWage.noSettlementSelected":

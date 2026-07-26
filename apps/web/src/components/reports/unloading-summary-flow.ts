@@ -173,9 +173,12 @@ export function unloadingSummaryRowKey(row: UnloadingSummaryRowResponse): string
   ].join(":");
 }
 
-export function displayText(value: string | number | null | undefined): string {
+export function displayText(
+  value: string | number | null | undefined,
+  missingValue = "-",
+): string {
   if (value === null || value === undefined || value === "") {
-    return "-";
+    return missingValue;
   }
   return String(value);
 }

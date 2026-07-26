@@ -513,8 +513,8 @@ describe('UnloadingWageService', () => {
     );
 
     expect(response).toMatchObject({
-      id: 'pay-container-1',
-      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      id: expect.any(String),
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
       classification: 'US_TO_CANADA_TRANSFER',
       trailerNumber: 'TR-P0-0604',
       rateAmount: '360.00',
@@ -523,10 +523,11 @@ describe('UnloadingWageService', () => {
       'ZCSU9025988B',
       'TXGU5580229',
     ]);
+    expect(response.payContainerNo).toBe(`PC-TRANSFER-${response.id}`);
     expect(prisma.correctionFeedback.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         targetType: 'PAY_CONTAINER',
-        payContainerId: 'pay-container-1',
+        payContainerId: response.id,
         fieldName: 'created',
       }),
     });
@@ -715,18 +716,23 @@ describe('UnloadingWageService', () => {
     });
   });
 
-  it('rejects US-to-Canada container detail wage without trailer number', async () => {
-    await expect(
-      service.saveContainerUnloadingWage(
-        'container-zcsu',
-        { classification: 'US_TO_CANADA_TRANSFER' },
-        officeActor,
-      ),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({
-        code: 'MISSING_TRAILER_NUMBER',
-      }),
+  it('saves US-to-Canada container detail wage without trailer number', async () => {
+    const response = await service.saveContainerUnloadingWage(
+      'container-zcsu',
+      { classification: 'US_TO_CANADA_TRANSFER' },
+      officeActor,
+    );
+
+    expect(response).toMatchObject({
+      classification: 'US_TO_CANADA_TRANSFER',
+      trailerNumber: null,
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
+      rateAmount: '360.00',
     });
+    expect(response.payContainerNo).toBe(
+      `PC-TRANSFER-${response.payContainerId}`,
+    );
+    expect(containers[0].payTrailerNumber).toBeNull();
   });
 
   it('associates US-to-Canada containers from container detail as one paid unit', async () => {
@@ -742,7 +748,7 @@ describe('UnloadingWageService', () => {
     expect(response).toMatchObject({
       classification: 'US_TO_CANADA_TRANSFER',
       trailerNumber: 'TR-P0-0604',
-      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
       rateAmount: '360.00',
     });
     expect(
@@ -752,6 +758,33 @@ describe('UnloadingWageService', () => {
       'TR-P0-0604',
       'TR-P0-0604',
     ]);
+  });
+
+  it('keeps persisted transfer identity stable when optional trailer metadata changes', async () => {
+    const blank = await service.updateContainerUnloadingWageAssociations(
+      'container-zcsu',
+      {
+        associatedContainerNos: ['TXGU5580229'],
+        trailerNumber: null,
+      },
+      officeActor,
+    );
+
+    const withTrailer = await service.updateContainerUnloadingWageAssociations(
+      'container-txgu',
+      {
+        associatedContainerNos: ['ZCSU9025988B'],
+        trailerNumber: '  TR-P0-0604  ',
+      },
+      officeActor,
+    );
+
+    expect(blank.trailerNumber).toBeNull();
+    expect(withTrailer).toMatchObject({
+      payContainerId: blank.payContainerId,
+      payContainerNo: blank.payContainerNo,
+      trailerNumber: 'TR-P0-0604',
+    });
   });
 
   it('rejects duplicate unloading worker directory ids for the same container detail wage unit', async () => {
@@ -848,8 +881,8 @@ describe('UnloadingWageService', () => {
     expect(response.offset).toBe(0);
     expect(response.items).toHaveLength(1);
     expect(response.items[0]).toMatchObject({
-      id: 'pay-container-1',
-      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      id: expect.any(String),
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
       status: 'DRAFT',
     });
   });
@@ -898,7 +931,7 @@ describe('UnloadingWageService', () => {
       'container-zcsu',
       {
         associatedContainerNos: ['TXGU5580229'],
-        trailerNumber: 'TR-P0-0604',
+        trailerNumber: null,
       },
       officeActor,
     );
@@ -952,9 +985,9 @@ describe('UnloadingWageService', () => {
         amount: '180.00',
         completedAt: '2026-06-04T17:10:00.000Z',
         containerNumbers: ['ZCSU9025988B', 'TXGU5580229'],
-        payContainerNo: 'PC-TRAILER-TR-P0-0604',
+        payContainerNo: payContainer.payContainerNo,
         rateAmount: '360.00',
-        trailerNumber: 'TR-P0-0604',
+        trailerNumber: null,
         workerName: 'Prototype Worker A',
       }),
       expect.objectContaining({

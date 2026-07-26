@@ -214,15 +214,36 @@ describe('Container detail unloading wage API (e2e)', () => {
     ).toContain(created.body.id);
   });
 
-  it('rejects US-to-Canada wage without trailer number through DTO-backed route', async () => {
+  it('saves US-to-Canada wage without trailer number through DTO-backed route', async () => {
     const response = await authorizedRequest(app, warehouseManagerAuthHeader())
       .patch('/api/containers/container-zcsu/unloading-wage')
       .send({ classification: 'US_TO_CANADA_TRANSFER' })
-      .expect(400);
+      .expect(200);
 
     expect(response.body).toMatchObject({
-      code: 'MISSING_TRAILER_NUMBER',
+      classification: 'US_TO_CANADA_TRANSFER',
+      trailerNumber: null,
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
+      rateAmount: '360.00',
     });
+  });
+
+  it('keeps trailer type and length validation while allowing null', async () => {
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage')
+      .send({
+        classification: 'US_TO_CANADA_TRANSFER',
+        trailerNumber: 'T'.repeat(129),
+      })
+      .expect(400);
+
+    await authorizedRequest(app, warehouseManagerAuthHeader())
+      .patch('/api/containers/container-zcsu/unloading-wage')
+      .send({
+        classification: 'US_TO_CANADA_TRANSFER',
+        trailerNumber: 42,
+      })
+      .expect(400);
   });
 
   it('associates US-to-Canada containers and returns the same wage unit from each container detail', async () => {
@@ -255,7 +276,7 @@ describe('Container detail unloading wage API (e2e)', () => {
     expect(associatedDetail.body.unloadingWage).toMatchObject({
       classification: 'US_TO_CANADA_TRANSFER',
       trailerNumber: 'TR-P0-0604',
-      payContainerNo: 'PC-TRAILER-TR-P0-0604',
+      payContainerNo: expect.stringMatching(/^PC-TRANSFER-/),
       status: 'DRAFT',
     });
     expect(
@@ -396,7 +417,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       .patch('/api/containers/container-zcsu/unloading-wage-associations')
       .send({
         associatedContainerNos: ['TXGU5580229'],
-        trailerNumber: 'TR-P0-0604',
+        trailerNumber: null,
       })
       .expect(200);
 
@@ -439,7 +460,7 @@ describe('Container detail unloading wage API (e2e)', () => {
       completedAt: '2026-06-04T17:10:00.000Z',
       containerNumbers: ['ZCSU9025988B', 'TXGU5580229'],
       rateAmount: '360.00',
-      trailerNumber: 'TR-P0-0604',
+      trailerNumber: null,
     });
     expect(
       generated.body.generatedFiles.map((file: any) => file.fileType),

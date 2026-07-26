@@ -86,20 +86,59 @@ def test_unloading_wage_settlement_preserves_raw_json_for_review() -> None:
 def test_unloading_wage_settlement_reports_validation_errors() -> None:
     payload = load_unloading_wage_input(FIXTURE)
     invalid = copy.deepcopy(payload)
-    invalid["work_items"][1]["trailer_number"] = ""
     invalid["work_items"][2]["unloaders"] = []
     invalid["work_items"][3]["manual_allocations"][0]["amount"] = 100.0
 
     result = settle_unloading_wage_payload(invalid)
 
     error_codes = {error.code for error in result.errors}
-    assert "MISSING_TRAILER_NUMBER" in error_codes
     assert "MISSING_UNLOADER_ASSIGNMENT" in error_codes
     assert "MANUAL_ALLOCATION_TOTAL_MISMATCH" in error_codes
-    assert all(
-        item.payContainerId != "PC-TRAILER-TR-P0-0604"
+    remaining_transfer = next(
+        item
         for item in result.payContainers
+        if item.payContainerId == "PC-TRAILER-TR-P0-0604"
     )
+    assert remaining_transfer.containerNumbers == ("ZCSU9025988B",)
+    assert remaining_transfer.rateAmount == 360.0
+
+
+def test_optional_trailer_uses_persisted_pay_container_identity_without_collisions() -> None:
+    payload = load_unloading_wage_input(FIXTURE)
+    blank = copy.deepcopy(payload)
+    blank["work_items"] = [
+        {
+            **blank["work_items"][1],
+            "pay_container_id": "PC-TRANSFER-BLANK-GROUP-A",
+            "trailer_number": "",
+        },
+        {
+            **blank["work_items"][2],
+            "pay_container_id": "PC-TRANSFER-BLANK-GROUP-A",
+            "trailer_number": None,
+        },
+        {
+            **blank["work_items"][0],
+            "work_item_id": "UW-P0-BLANK-B",
+            "pay_container_id": "PC-TRANSFER-BLANK-GROUP-B",
+            "classification": "US_TO_CANADA_TRANSFER",
+            "trailer_number": "",
+        },
+    ]
+
+    result = settle_unloading_wage_payload(blank)
+
+    assert result.errors == ()
+    assert result.totalAmount == 720.0
+    assert [item.payContainerId for item in result.payContainers] == [
+        "PC-TRANSFER-BLANK-GROUP-A",
+        "PC-TRANSFER-BLANK-GROUP-B",
+    ]
+    assert result.payContainers[0].containerNumbers == (
+        "ZCSU9025988B",
+        "TXGU5580229",
+    )
+    assert all(item.trailerNumber is None for item in result.payContainers)
 
 
 def test_unloading_wage_settlement_requires_completion_user_and_valid_rows() -> None:

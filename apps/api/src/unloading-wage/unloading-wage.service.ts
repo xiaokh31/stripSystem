@@ -409,7 +409,9 @@ export class UnloadingWageService {
     const primaryContainer = await this.findContainerOrThrow(containerId);
     const trailerNumber = this.trailerNumberOrNull(
       ContainerPayClassification.US_TO_CANADA_TRANSFER,
-      dto.trailerNumber ?? primaryContainer.payTrailerNumber,
+      dto.trailerNumber === undefined
+        ? primaryContainer.payTrailerNumber
+        : dto.trailerNumber,
     );
     const associatedContainers = await this.findAssociatedContainersOrThrow(
       dto.associatedContainerIds ?? [],
@@ -608,15 +610,17 @@ export class UnloadingWageService {
     const rateAmount = this.moneyString(
       dto.rateAmount ?? (await this.rateForClassification(classification)),
     );
-    const payContainerNo = this.payContainerNo(
+    const identity = this.newPayContainerIdentity(
       classification,
-      trailerNumber ?? containers[0].containerNo,
+      containers[0].containerNo,
     );
+    const payContainerNo = identity.payContainerNo;
     const createdById = auditUserId(actor);
 
     const created = (await this.prisma.$transaction(async (tx) => {
       const payContainer = await tx.payContainer.create({
         data: {
+          ...(identity.id ? { id: identity.id } : {}),
           payContainerNo,
           classification,
           trailerNumber,
@@ -1083,10 +1087,14 @@ export class UnloadingWageService {
     );
     const targetPayContainer =
       primaryLink?.payContainer ?? existingLinks[0]?.payContainer ?? null;
-    const payContainerNo = this.payContainerNo(
-      input.classification,
-      input.trailerNumber ?? primaryContainer.containerNo,
-    );
+    const identity = targetPayContainer
+      ? null
+      : this.newPayContainerIdentity(
+          input.classification,
+          primaryContainer.containerNo,
+        );
+    const payContainerNo =
+      targetPayContainer?.payContainerNo ?? identity!.payContainerNo;
     const stalePayContainerIds = [
       ...new Set(
         existingLinks
@@ -1112,6 +1120,7 @@ export class UnloadingWageService {
         })) as PayContainerRecord)
       : ((await tx.payContainer.create({
           data: {
+            ...(identity?.id ? { id: identity.id } : {}),
             payContainerNo,
             classification: input.classification,
             trailerNumber: input.trailerNumber,
@@ -2029,18 +2038,26 @@ export class UnloadingWageService {
     classification: ClassificationValue,
     value: string | null | undefined,
   ): string | null {
-    const trailerNumber = this.stringOrNull(value);
-    if (
-      classification === ContainerPayClassification.US_TO_CANADA_TRANSFER &&
-      !trailerNumber
-    ) {
-      throw new BadRequestException({
-        code: 'MISSING_TRAILER_NUMBER',
-        message: 'US_TO_CANADA_TRANSFER pay containers require trailerNumber.',
-        details: {},
-      });
+    return classification === ContainerPayClassification.US_TO_CANADA_TRANSFER
+      ? this.stringOrNull(value)
+      : null;
+  }
+
+  private newPayContainerIdentity(
+    classification: ClassificationValue,
+    containerNo: string,
+  ): { id: string | null; payContainerNo: string } {
+    if (classification === ContainerPayClassification.US_TO_CANADA_TRANSFER) {
+      const id = randomUUID();
+      return {
+        id,
+        payContainerNo: `PC-TRANSFER-${id}`,
+      };
     }
-    return trailerNumber;
+    return {
+      id: null,
+      payContainerNo: this.payContainerNo(classification, containerNo),
+    };
   }
 
   private payContainerNo(

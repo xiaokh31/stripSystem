@@ -148,7 +148,7 @@ export default async function UnloadingWagePage({
           title="Settlements could not be loaded"
         />
       ) : (
-        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="grid min-w-0 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <SettlementVersions
             context={dashboardContext}
             selectedSettlementId={state.selectedSettlement?.id ?? null}
@@ -184,7 +184,7 @@ function UnloadingWagePageShell({
 
   return (
     <main className="office-main-content flex flex-1 flex-col gap-4 py-6">
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 max-w-full border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase text-teal-700">
@@ -450,7 +450,9 @@ function MonthSourceRecords({
                   <p>{payClassificationLabel(record.classification, locale)}</p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {format("i18n.unloadingWage.trailer", {
-                      trailerNumber: record.trailerNumber ?? "-",
+                      trailerNumber:
+                        record.trailerNumber ??
+                        t("i18n.unloadingWage.notProvided"),
                     })}
                   </p>
                 </td>
@@ -640,8 +642,8 @@ function SettlementDetail({
   ];
 
   return (
-    <section className="grid gap-4">
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="grid min-w-0 gap-4">
+      <section className="min-w-0 max-w-full border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-950">
@@ -675,7 +677,7 @@ function SettlementDetail({
         ) : null}
       </section>
 
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 max-w-full border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
           {t("Worker summary")}
         </h3>
@@ -726,7 +728,7 @@ function SettlementDetail({
         )}
       </section>
 
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 max-w-full border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
           {t("Monthly detail")}
         </h3>
@@ -799,7 +801,7 @@ function SettlementDetail({
         )}
       </section>
 
-      <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="min-w-0 max-w-full border border-zinc-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-zinc-950">
           {t("Generated settlement files")}
         </h3>

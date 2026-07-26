@@ -1105,7 +1105,6 @@ export const zhMessages = {
   "Read-only source records for": "只读来源记录，月份：",
   "Recent pay units from the unloading wage API.":
     "来自卸柜工资 API 的最近工资单位。",
-  "Required for transfer": "转运必填",
   "Review issues": "复核问题",
   "Review month filter": "复核月份筛选",
   "Review status": "复核状态",
@@ -1205,10 +1204,6 @@ export const zhMessages = {
   "Trailer number": "拖车号",
   "Trailer:": "拖车号：",
   "US-to-Canada transfer": "美加转运",
-  "US-to-Canada transfer pay units require a trailer number.":
-    "美加转运工资单位必须填写拖车号。",
-  "US-to-Canada transfer requires a trailer number.":
-    "美加转运必须填写拖车号。",
   "Unloading Wage": "卸柜工资",
   "Unloading wage information could not be saved.": "无法保存拆柜工资信息。",
   "Upload .xls": "上传 .xls",
@@ -1744,6 +1739,9 @@ export const zhMessages = {
   "i18n.unloadingWage.sourceRecordsForMonth":
     "{month} 的只读来源记录来自柜子详情中的工资数据。",
   "i18n.unloadingWage.trailer": "挂车：{trailerNumber}",
+  "i18n.unloadingWage.trailerNumberOptional": "拖车号（选填）",
+  "i18n.unloadingWage.optionalTrailerPlaceholder": "有拖车号时填写",
+  "i18n.unloadingWage.notProvided": "未填写",
   "i18n.unloadingWage.noSettlementForMonth": "{month} 尚未生成结算。",
   "i18n.unloadingWage.noSettlementSelected": "未选择 {month} 的结算",
   "i18n.unloadingWage.settlementMonth": "结算 {month}",

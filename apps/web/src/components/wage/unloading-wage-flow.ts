@@ -32,6 +32,15 @@ export interface CompletePayContainerDraft {
   unloaders: UnloaderDraft[];
 }
 
+export function changePayContainerClassification(
+  draft: CreatePayContainerDraft,
+  classification: ContainerPayClassification,
+): CreatePayContainerDraft {
+  return classification === "OCEAN_CONTAINER"
+    ? { ...draft, classification, trailerNumber: "" }
+    : { ...draft, classification };
+}
+
 export type BuildResult<TPayload> =
   | { ok: true; payload: TPayload }
   | { error: string; ok: false };
@@ -153,12 +162,6 @@ export function buildCreatePayContainerRequest(
   }
 
   const trailerNumber = nullableString(draft.trailerNumber);
-  if (draft.classification === "US_TO_CANADA_TRANSFER" && !trailerNumber) {
-    return {
-      error: t("US-to-Canada transfer pay units require a trailer number."),
-      ok: false,
-    };
-  }
 
   const rateAmount = nullableNumber(draft.rateAmount, locale);
   if (!rateAmount.ok) {

@@ -18,6 +18,7 @@ import { payClassificationLabel } from "@/lib/i18n/status-labels";
 import {
   buildCompletePayContainerRequest,
   buildCreatePayContainerRequest,
+  changePayContainerClassification,
   defaultCompletedAtInput,
   emptyUnloaderDraft,
   type CompletePayContainerDraft,
@@ -94,9 +95,11 @@ export function CreatePayContainerPanel({
           <select
             className="min-h-10 border border-zinc-300 bg-white px-3 text-sm"
             onChange={(event) =>
-              update(
-                "classification",
-                event.target.value as ContainerPayClassification,
+              setDraft((current) =>
+                changePayContainerClassification(
+                  current,
+                  event.target.value as ContainerPayClassification,
+                ),
               )
             }
             value={draft.classification}
@@ -110,11 +113,14 @@ export function CreatePayContainerPanel({
           </select>
         </label>
         <label className="grid gap-1 text-sm">
-          <span className="font-semibold text-zinc-700">{t("Trailer number")}</span>
+          <span className="font-semibold text-zinc-700">
+            {t("i18n.unloadingWage.trailerNumberOptional")}
+          </span>
           <input
             className="min-h-10 border border-zinc-300 px-3 text-sm"
+            maxLength={128}
             onChange={(event) => update("trailerNumber", event.target.value)}
-            placeholder={t("Required for transfer")}
+            placeholder={t("i18n.unloadingWage.optionalTrailerPlaceholder")}
             value={draft.trailerNumber}
           />
         </label>

@@ -1,5 +1,14 @@
 # 执行 UNLOAD-REPORT-01：Palletizing Standards Rich Text Print Clipping Regression
 
+## 2026-07-25 Supersession
+
+- 本文件保留历史 rich-text、白色行容量和 Docker visual 证据。
+- 现场再次确认长单元格未可靠自适应，且底部备注在工作表可见但打印仍裁切。
+- 下文“无已知裁切、只剩 Microsoft Excel 外部签字”的旧终态已失效；不得只补
+  外部签字关闭本任务。
+- 当前权威修复任务是
+  `UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md`。
+
 ## 优先级
 
 - P0 现场报表与打印回归，立即执行。

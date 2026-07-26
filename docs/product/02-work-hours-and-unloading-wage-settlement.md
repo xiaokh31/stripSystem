@@ -128,8 +128,9 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
    container or US-to-Canada transfer.
 8. As a warehouse manager, I want an ocean container to count as one paid
    container by its container number, so that the CAD 300 rate is applied once.
-9. As a warehouse manager, I want a US-to-Canada transfer container to require a
-   trailer number, so that combined transfer work can be grouped correctly.
+9. As a warehouse manager, I want to optionally record a trailer number for a
+   US-to-Canada transfer, so that the number is available when known without
+   blocking completion when the office does not have it.
 10. As a warehouse manager, I want to associate multiple US-to-Canada transfer
     container numbers from container detail, so that
     `ZCSU1234567B+TGBU1234567B` counts as one paid CAD 360 transfer unit.
@@ -469,7 +470,7 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   wage section.
 - The section must include:
   - container wage tag: `海柜` or `美转加`
-  - trailer number, required only for `美转加`
+  - optional trailer number for `美转加`
   - associated container numbers, used only for `美转加` combined work
   - unloading status, including `已拆完`
   - unloader rows, each selecting one active temporary worker from the
@@ -481,12 +482,18 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   - Associated container numbers are not required.
   - Default rate is CAD 300.
 - `美转加` rules:
-  - Trailer number is required.
+  - Trailer number is optional business metadata.
   - One or more imported or manually created container numbers may be associated
     together from container detail.
   - The associated set counts as one paid transfer unit for settlement.
   - Default rate is CAD 360 per associated transfer unit, not per individual
     container number inside the set.
+  - Group identity and settlement must use the persisted pay-container /
+    association identity, not the trailer number. A blank trailer number must
+    not create duplicate paid units or prevent completion, settlement, summary,
+    export, or historical display.
+  - A provided trailer number is normalized, audited and shared across the
+    related container details, but it is not assumed to be globally unique.
 - The UI label is a business tag for wage calculation. It is not the existing
   physical pallet label PDF.
 - Unloading completion is separate from pallet loaded status. Do not use
@@ -616,7 +623,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   as a durable artifact.
 - Container wage tag: the container detail field that classifies a container as
   `海柜` or `美转加`.
-- Trailer number: required container detail field for `美转加`.
+- Trailer number: optional business metadata for `美转加`; it is not the paid
+  unit identity.
 - Container wage association: the related container numbers that make one
   paid `美转加` transfer unit.
 - Unloading completion: the `已拆完` state shown from container detail.
@@ -802,7 +810,8 @@ Required controls:
   - `美转加`
 - Trailer number input:
   - hidden or disabled for `海柜`
-  - required for `美转加`
+  - visible and optional for `美转加`
+  - does not show a required marker or missing-value validation error
 - Associated container numbers:
   - hidden or disabled for `海柜`
   - visible for `美转加`
@@ -821,8 +830,8 @@ Required controls:
 - Save action:
   - persists the section through the API
   - refreshes from API after save
-  - shows validation errors for missing trailer number, missing unloaders, or
-    invalid associated containers
+  - shows validation errors for missing unloaders or invalid associated
+    containers; a missing trailer number is valid
 
 ### Unloading Wage Settlement Page
 
@@ -915,9 +924,10 @@ Required controls:
   sheets and adjustment rows remain unchanged, and verify reliable-id,
   short-token, numeric-note and deterministic long ASCII/CJK dimension cases.
 - Container-detail API tests should cover saving `海柜`, saving `美转加` with
-  trailer number, rejecting `美转加` without trailer number, adding associated
-  container numbers, marking `已拆完`, adding multiple unloaders, and rejecting
-  duplicate unloaders.
+  and without a trailer number, adding associated container numbers, marking
+  `已拆完`, adding multiple unloaders, and rejecting duplicate unloaders.
+  Settlement tests must prove that blank-trailer associated containers remain
+  one CAD 360 paid unit and do not collide with another blank-trailer group.
 - Container lifecycle tests should cover `LABELS_GENERATED -> UNLOADED` when
   marking unloading complete, no downgrade from `LOADING_IN_PROGRESS` or
   `LOADED`, and scan-only control of loaded pallet/container status.
@@ -1052,8 +1062,9 @@ light/dark, mobile/desktop and real 200% zoom.
 - `WAREHOUSE_MANAGER` can manage unloading wage settlement and does not receive
   work hours settlement permissions by default.
 - `海柜` uses one container number as one CAD 300 paid unit.
-- `美转加` requires trailer number and can associate multiple container numbers
-  as one CAD 360 paid unit.
+- `美转加` may optionally record a trailer number and can associate multiple
+  container numbers as one CAD 360 paid unit. A blank trailer number does not
+  block the workflow and is never used as the group identity.
 - `已拆完` does not conflict with pallet loaded status or scan transaction
   rules.
 - Clicking `标记已拆完` changes the visible container status from

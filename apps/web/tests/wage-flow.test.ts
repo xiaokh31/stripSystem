@@ -18,6 +18,7 @@ import { WorkHoursGeneratedFiles } from "../src/components/wage/work-hours-gener
 import {
   buildCompletePayContainerRequest,
   buildCreatePayContainerRequest,
+  changePayContainerClassification,
   parseContainerIds,
   selectSettlementForMonth,
   settlementLineContainerNumbers,
@@ -194,7 +195,7 @@ test("attendance API errors map to review workflow messages", () => {
   );
 });
 
-test("pay container draft validates classification-specific fields", () => {
+test("pay container draft accepts an empty optional transfer trailer", () => {
   assert.deepEqual(parseContainerIds("container-a, container-b\ncontainer-c"), [
     "container-a",
     "container-b",
@@ -210,8 +211,13 @@ test("pay container draft validates classification-specific fields", () => {
       trailerNumber: "",
     }),
     {
-      error: "US-to-Canada transfer pay units require a trailer number.",
-      ok: false,
+      ok: true,
+      payload: {
+        classification: "US_TO_CANADA_TRANSFER",
+        containerIds: ["container-a", "container-b"],
+        reason: "Reviewed",
+        trailerNumber: null,
+      },
     },
   );
 
@@ -233,6 +239,25 @@ test("pay container draft validates classification-specific fields", () => {
         trailerNumber: null,
       },
     },
+  );
+});
+
+test("pay container classification switch clears trailer without restoring it", () => {
+  const ocean = changePayContainerClassification(
+    {
+      classification: "US_TO_CANADA_TRANSFER",
+      containerIdsText: "container-a",
+      rateAmount: "",
+      reason: "",
+      trailerNumber: "TR-0604",
+    },
+    "OCEAN_CONTAINER",
+  );
+  assert.equal(ocean.trailerNumber, "");
+  assert.equal(
+    changePayContainerClassification(ocean, "US_TO_CANADA_TRANSFER")
+      .trailerNumber,
+    "",
   );
 });
 

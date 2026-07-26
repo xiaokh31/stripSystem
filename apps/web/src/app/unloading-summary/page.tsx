@@ -574,7 +574,12 @@ function SummaryRowsTable({
                     {payClassificationLabel(row.classification, locale)}
                   </p>
                 </td>
-                <td className="px-3 py-4">{displayText(row.trailerNumber)}</td>
+                <td className="px-3 py-4">
+                  {displayText(
+                    row.trailerNumber,
+                    t("i18n.unloadingWage.notProvided"),
+                  )}
+                </td>
                 <td className="px-3 py-4">
                   <p className="font-semibold text-zinc-950">
                     {displayText(row.destinationText)}

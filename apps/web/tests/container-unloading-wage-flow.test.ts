@@ -1,9 +1,12 @@
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildContainerUnloadersRequest,
   buildContainerUnloadingCompletionRequest,
   buildContainerUnloadingWageSaveRequest,
+  changeContainerUnloadingWageClassification,
   isUnloadingWageSectionInitiallyExpanded,
   parseAssociatedContainerNos,
   summarizeInventorySync,
@@ -11,6 +14,8 @@ import {
   wageDraftFromContainer,
 } from "../src/components/containers/container-unloading-wage-flow";
 import type { ContainerDetailResponse } from "../src/lib/api-client";
+import { enMessages } from "../src/lib/i18n/locales/en";
+import { zhMessages } from "../src/lib/i18n/locales/zh";
 
 test("ocean unloading wage payload ignores trailer and associated containers", () => {
   const request = buildContainerUnloadingWageSaveRequest("ZCSU9025988B", {
@@ -35,7 +40,7 @@ test("ocean unloading wage payload ignores trailer and associated containers", (
   });
 });
 
-test("US-to-Canada unloading wage requires trailer number", () => {
+test("US-to-Canada unloading wage accepts an empty optional trailer number", () => {
   const request = buildContainerUnloadingWageSaveRequest("ZCSU9025988B", {
     associatedContainerNosText: "TXGU5580229",
     classification: "US_TO_CANADA_TRANSFER",
@@ -45,9 +50,65 @@ test("US-to-Canada unloading wage requires trailer number", () => {
   });
 
   assert.deepEqual(request, {
-    error: "US-to-Canada transfer requires a trailer number.",
-    ok: false,
+    ok: true,
+    payload: {
+      kind: "transfer",
+      payload: {
+        associatedContainerNos: ["TXGU5580229"],
+        note: null,
+        reason: null,
+        trailerNumber: null,
+      },
+    },
   });
+});
+
+test("switching transfer to ocean clears trailer and association drafts permanently", () => {
+  const transferDraft = {
+    associatedContainerNosText: "TXGU5580229",
+    classification: "US_TO_CANADA_TRANSFER" as const,
+    note: "",
+    reason: "",
+    trailerNumber: "TR-0604",
+  };
+  const oceanDraft = changeContainerUnloadingWageClassification(
+    transferDraft,
+    "OCEAN_CONTAINER",
+  );
+
+  assert.equal(oceanDraft.trailerNumber, "");
+  assert.equal(oceanDraft.associatedContainerNosText, "");
+  assert.deepEqual(
+    changeContainerUnloadingWageClassification(
+      oceanDraft,
+      "US_TO_CANADA_TRANSFER",
+    ),
+    {
+      ...oceanDraft,
+      classification: "US_TO_CANADA_TRANSFER",
+    },
+  );
+});
+
+test("both unloading wage inputs are optional and localize missing values", () => {
+  const containerPanel = fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "src/components/containers/container-unloading-wage-panel.tsx",
+    ),
+    "utf8",
+  );
+  const payContainerPanel = fs.readFileSync(
+    path.join(process.cwd(), "src/components/wage/unloading-wage-actions.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(containerPanel, /aria-required|\\brequired=/);
+  assert.doesNotMatch(payContainerPanel, /aria-required|\\brequired=/);
+  assert.match(containerPanel, /i18n\.unloadingWage\.trailerNumberOptional/);
+  assert.match(payContainerPanel, /i18n\.unloadingWage\.trailerNumberOptional/);
+  assert.equal(enMessages["i18n.unloadingWage.notProvided"], "Not provided");
+  assert.equal(zhMessages["i18n.unloadingWage.notProvided"], "未填写");
 });
 
 test("associated container numbers are unique, uppercase, and exclude current container", () => {

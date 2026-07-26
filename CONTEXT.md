@@ -67,7 +67,8 @@ categories are ocean container and US-to-Canada transfer.
 _Avoid_: Destination type, source format
 
 **Trailer Number**:
-The trailer identifier required for US-to-Canada transfer containers.
+Optional trailer metadata for US-to-Canada transfer containers. Persisted
+pay-container association identity, not this value, defines the paid unit.
 _Avoid_: Container number, truck number
 
 **Container Wage Association**:

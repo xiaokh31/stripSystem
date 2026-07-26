@@ -1,5 +1,10 @@
 执行 UNLOAD-WAGE-02：Container Detail Unloading Wage UI。
 
+2026-07-25 supersession：
+- 本文件是已完成历史任务。下文 trailer number 必填标记、前端缺失校验和错误提示
+  已被 `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 取代；
+  美转加托车号现为选填。
+
 变更说明：
 - 本任务早期只要求柜子详情显示/保存拆柜工资信息。
 - 后续业务确认：点击 `标记已拆完` 后，柜子 visible status 不能继续停在

@@ -37,6 +37,20 @@ export interface ContainerUnloadingCompletionDraft {
   reason: string;
 }
 
+export function changeContainerUnloadingWageClassification(
+  draft: ContainerUnloadingWageDraft,
+  classification: ContainerPayClassification,
+): ContainerUnloadingWageDraft {
+  return classification === "OCEAN_CONTAINER"
+    ? {
+        ...draft,
+        associatedContainerNosText: "",
+        classification,
+        trailerNumber: "",
+      }
+    : { ...draft, classification };
+}
+
 export type ContainerUnloadingWageSaveRequest =
   | {
       kind: "ocean";
@@ -163,9 +177,7 @@ export function emptyContainerUnloaderDraft(): ContainerUnloaderDraft {
 export function buildContainerUnloadingWageSaveRequest(
   containerNo: string,
   draft: ContainerUnloadingWageDraft,
-  locale: Locale = DEFAULT_LOCALE,
 ): BuildResult<ContainerUnloadingWageSaveRequest> {
-  const { t } = createTranslator(locale);
   const note = nullableTrimmedString(draft.note);
   const reason = nullableTrimmedString(draft.reason);
 
@@ -185,12 +197,6 @@ export function buildContainerUnloadingWageSaveRequest(
   }
 
   const trailerNumber = nullableTrimmedString(draft.trailerNumber);
-  if (!trailerNumber) {
-    return {
-      error: t("US-to-Canada transfer requires a trailer number."),
-      ok: false,
-    };
-  }
 
   return {
     ok: true,

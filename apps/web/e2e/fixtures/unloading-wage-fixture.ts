@@ -14,8 +14,16 @@ WHERE unloading_wage_settlement_id IN (
   SELECT DISTINCT settlement_id
   FROM unloading_wage_settlement_lines
   WHERE pay_container_id IN (
-    SELECT id FROM pay_containers
-    WHERE trailer_number LIKE :'pattern'
+    SELECT pc.id
+    FROM pay_containers pc
+    WHERE pc.trailer_number ILIKE :'pattern'
+       OR EXISTS (
+         SELECT 1
+         FROM pay_container_containers pcc
+         JOIN containers c ON c.id = pcc.container_id
+         WHERE pcc.pay_container_id = pc.id
+           AND c.container_no ILIKE :'pattern'
+       )
   )
 )
 ORDER BY storage_path;
@@ -44,7 +52,16 @@ ORDER BY storage_path;
     String.raw`
 BEGIN;
 CREATE TEMP TABLE target_pay ON COMMIT DROP AS
-  SELECT id FROM pay_containers WHERE trailer_number LIKE :'pattern';
+  SELECT pc.id
+  FROM pay_containers pc
+  WHERE pc.trailer_number ILIKE :'pattern'
+     OR EXISTS (
+       SELECT 1
+       FROM pay_container_containers pcc
+       JOIN containers c ON c.id = pcc.container_id
+       WHERE pcc.pay_container_id = pc.id
+         AND c.container_no ILIKE :'pattern'
+     );
 CREATE TEMP TABLE target_containers ON COMMIT DROP AS
   SELECT container_id AS id FROM pay_container_containers
   WHERE pay_container_id IN (SELECT id FROM target_pay);
@@ -58,9 +75,9 @@ CREATE TEMP TABLE target_settlements ON COMMIT DROP AS
   SELECT DISTINCT settlement_id AS id FROM unloading_wage_settlement_lines
   WHERE pay_container_id IN (SELECT id FROM target_pay);
 CREATE TEMP TABLE target_workers ON COMMIT DROP AS
-  SELECT id FROM unloading_workers WHERE worker_code LIKE :'pattern';
+  SELECT id FROM unloading_workers WHERE worker_code ILIKE :'pattern';
 CREATE TEMP TABLE target_users ON COMMIT DROP AS
-  SELECT id FROM users WHERE email LIKE :'pattern';
+  SELECT id FROM users WHERE email ILIKE :'pattern';
 CREATE TEMP TABLE target_wage_files ON COMMIT DROP AS
   SELECT id FROM wage_generated_files
   WHERE unloading_wage_settlement_id IN (SELECT id FROM target_settlements);
@@ -117,14 +134,24 @@ export function unloadingWageFixtureCount(prefix: string): number {
     String.raw`
 COPY (
   SELECT
-    (SELECT COUNT(*) FROM pay_containers WHERE trailer_number LIKE :'pattern') +
-    (SELECT COUNT(*) FROM containers WHERE container_no LIKE :'pattern') +
-    (SELECT COUNT(*) FROM unloading_workers WHERE worker_code LIKE :'pattern') +
-    (SELECT COUNT(*) FROM users WHERE email LIKE :'pattern') +
+    (SELECT COUNT(*) FROM pay_containers WHERE trailer_number ILIKE :'pattern') +
+    (SELECT COUNT(*) FROM containers WHERE container_no ILIKE :'pattern') +
+    (SELECT COUNT(*) FROM unloading_workers WHERE worker_code ILIKE :'pattern') +
+    (SELECT COUNT(*) FROM users WHERE email ILIKE :'pattern') +
     (SELECT COUNT(*) FROM unloading_wage_settlements s WHERE EXISTS (
       SELECT 1 FROM unloading_wage_settlement_lines l
       JOIN pay_containers pc ON pc.id = l.pay_container_id
-      WHERE l.settlement_id = s.id AND pc.trailer_number LIKE :'pattern'
+      WHERE l.settlement_id = s.id
+        AND (
+          pc.trailer_number ILIKE :'pattern'
+          OR EXISTS (
+            SELECT 1
+            FROM pay_container_containers pcc
+            JOIN containers c ON c.id = pcc.container_id
+            WHERE pcc.pay_container_id = pc.id
+              AND c.container_no ILIKE :'pattern'
+          )
+        )
     ))
 ) TO STDOUT;
 `,

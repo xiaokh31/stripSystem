@@ -1,5 +1,10 @@
 执行 WAGE-QA-02：Full Wage Module End-to-End Regression。
 
+2026-07-25 supersession：
+- 本文件是历史 QA 记录。下文“美转加必须填写 trailer number”断言由
+  `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` supersede；
+  新回归必须覆盖空托车号组的保存、完成、CAD 360 / 组和组 identity 隔离。
+
 变更说明：
 - 本任务覆盖 `UNLOAD-WAGE-05` 旧版“系统用户/真实人员选项”后的全量回归。
 - 业务已确认拆柜工人多为临时工，不应要求员工账号。

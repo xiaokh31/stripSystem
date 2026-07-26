@@ -10,6 +10,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -42,6 +43,7 @@ export class UpdateContainerPayClassificationDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   trailerNumber?: string | null;
 
   @IsOptional()
@@ -59,6 +61,7 @@ export class SaveContainerUnloadingWageDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   trailerNumber?: string | null;
 
   @IsOptional()
@@ -83,6 +86,7 @@ export class UpdateContainerUnloadingWageAssociationsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   trailerNumber?: string | null;
 
   @IsOptional()
@@ -228,6 +232,7 @@ export class CreatePayContainerDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   trailerNumber?: string | null;
 
   @IsOptional()

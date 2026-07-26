@@ -1,5 +1,10 @@
 执行 UNLOAD-WAGE-01：Container Detail Unloading Wage API。
 
+2026-07-25 supersession：
+- 本文件是已完成历史任务。下文“美转加必须填写 trailer number”和缺失值拒绝
+  验收已被 `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md`
+  取代；不得按旧必填规则重跑或恢复代码。
+
 变更说明：
 - 本任务早期只要求拆柜工资 API 支持 `已拆完` 概念。
 - 后续业务确认：点击 `标记已拆完` 时，container visible status 也必须切换为

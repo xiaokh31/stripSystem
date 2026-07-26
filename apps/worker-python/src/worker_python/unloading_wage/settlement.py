@@ -11,7 +11,8 @@ from typing import Any
 
 UNLOADING_WAGE_ASSUMPTIONS = (
     "OCEAN_CONTAINER pays CAD 300 per physical container number.",
-    "US_TO_CANADA_TRANSFER pays CAD 360 per trailer pay container, not per physical container number.",
+    "US_TO_CANADA_TRANSFER pays CAD 360 per persisted pay container, not per trailer or physical container number.",
+    "Legacy prototype rows without pay_container_id use a provided trailer number, or the work item id when trailer metadata is blank.",
     "Multiple unloaders split the pay container amount equally unless manual amount allocations are supplied.",
     "UNLOAD-WAGE-P0 is a batch prototype and does not persist audit records.",
 )
@@ -56,6 +57,7 @@ class ManualAllocation:
 @dataclass(frozen=True)
 class WorkItem:
     workItemId: str
+    payContainerId: str | None
     containerNumber: str
     classification: ContainerPayClassification
     trailerNumber: str | None
@@ -264,6 +266,7 @@ def _parse_work_item(
     errors: list[UnloadingWageIssue],
 ) -> WorkItem | None:
     work_item_id = _required_text(raw_item.get("work_item_id")) or f"INDEX-{index}"
+    pay_container_id = _optional_text(raw_item.get("pay_container_id"))
     container_number = _required_text(raw_item.get("container_number"))
     classification_text = _required_text(raw_item.get("classification"))
     trailer_number = _optional_text(raw_item.get("trailer_number"))
@@ -290,16 +293,6 @@ def _parse_work_item(
             )
         )
         return None
-
-    if classification == ContainerPayClassification.US_TO_CANADA_TRANSFER and not trailer_number:
-        errors.append(
-            UnloadingWageIssue(
-                code="MISSING_TRAILER_NUMBER",
-                message="US_TO_CANADA_TRANSFER work requires trailer_number.",
-                workItemId=work_item_id,
-                field="trailer_number",
-            )
-        )
 
     if completed_at is None:
         errors.append(
@@ -342,6 +335,7 @@ def _parse_work_item(
 
     return WorkItem(
         workItemId=work_item_id,
+        payContainerId=pay_container_id,
         containerNumber=container_number,
         classification=classification,
         trailerNumber=trailer_number,
@@ -479,8 +473,6 @@ def _work_item_is_payable(item: WorkItem, settlement_month: str) -> bool:
         return False
     if settlement_month and item.completedAt.strftime("%Y-%m") != settlement_month:
         return False
-    if item.classification == ContainerPayClassification.US_TO_CANADA_TRANSFER:
-        return bool(item.trailerNumber)
     return True
 
 
@@ -500,7 +492,8 @@ def _build_pay_containers(
     settlements: list[PayContainerSettlement] = []
     for (classification, key), group_items in grouped.items():
         rate = rates.get(classification)
-        pay_container_id = _pay_container_id(classification, key)
+        first = group_items[0]
+        pay_container_id = first.payContainerId or _pay_container_id(classification, key)
         if rate is None:
             errors.append(
                 UnloadingWageIssue(
@@ -517,7 +510,6 @@ def _build_pay_containers(
         if group_errors:
             continue
 
-        first = group_items[0]
         allocation_result = _allocations_for_group(
             first,
             rate,
@@ -721,7 +713,10 @@ def _worker_settlements(
 
 def _group_key(item: WorkItem) -> tuple[ContainerPayClassification, str]:
     if item.classification == ContainerPayClassification.US_TO_CANADA_TRANSFER:
-        return item.classification, item.trailerNumber or ""
+        return (
+            item.classification,
+            item.payContainerId or item.trailerNumber or item.workItemId,
+        )
     return item.classification, item.containerNumber
 
 

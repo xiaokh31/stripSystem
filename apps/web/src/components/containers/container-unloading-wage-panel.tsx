@@ -24,6 +24,7 @@ import {
   buildContainerUnloadersRequest,
   buildContainerUnloadingCompletionRequest,
   buildContainerUnloadingWageSaveRequest,
+  changeContainerUnloadingWageClassification,
   classificationLabel,
   completionDraftFromContainer,
   completionStatusLabel,
@@ -196,7 +197,6 @@ export function ContainerUnloadingWagePanel({
     const request = buildContainerUnloadingWageSaveRequest(
       container.containerNo,
       wageDraft,
-      locale,
     );
     if (!request.ok) {
       setWageState({ code: null, message: request.error, status: "error" });
@@ -454,7 +454,10 @@ export function ContainerUnloadingWagePanel({
             locale,
           )}
         />
-        <SummaryItem label={t("Trailer number")} value={wage?.trailerNumber ?? "-"} />
+        <SummaryItem
+          label={t("Trailer number")}
+          value={wage?.trailerNumber ?? t("i18n.unloadingWage.notProvided")}
+        />
         <SummaryItem
           label={t("Unloaders")}
           value={wage ? String(wage.unloaders.length) : "-"}
@@ -546,9 +549,11 @@ export function ContainerUnloadingWagePanel({
                 <select
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-950 focus:border-teal-700 focus:outline-none"
                   onChange={(event) =>
-                    updateWageDraft(
-                      "classification",
-                      event.target.value as ContainerPayClassification,
+                    setWageDraft((current) =>
+                      changeContainerUnloadingWageClassification(
+                        current,
+                        event.target.value as ContainerPayClassification,
+                      ),
                     )
                   }
                   value={wageDraft.classification}
@@ -562,14 +567,19 @@ export function ContainerUnloadingWagePanel({
                 </select>
               </label>
               <label className="grid gap-1 text-sm font-medium text-zinc-700">
-                {t("Trailer number")}
+                {t("i18n.unloadingWage.trailerNumberOptional")}
                 <input
                   className="min-h-11 border border-zinc-300 bg-white px-3 text-sm text-zinc-950 disabled:bg-zinc-100 disabled:text-zinc-500"
                   disabled={!isTransfer}
+                  maxLength={128}
                   onChange={(event) =>
                     updateWageDraft("trailerNumber", event.target.value)
                   }
-                  placeholder={isTransfer ? t("Required") : t("Not required")}
+                  placeholder={
+                    isTransfer
+                      ? t("i18n.unloadingWage.optionalTrailerPlaceholder")
+                      : t("Not required")
+                  }
                   value={wageDraft.trailerNumber}
                 />
               </label>

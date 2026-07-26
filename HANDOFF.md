@@ -4,111 +4,112 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-25T04:58:38Z`
-- Source: `manual-documentation-session`
-- Work item: `Cloudflare Named Tunnel bilingual operator runbook`
-- Task file: none; this was a direct documentation request
-- Status: `COMPLETE`
-- Git HEAD: `b82156d`
-- Worktree: dirty with the documentation changes listed below; preserve them
-- Previous supervised Task: `WEB-DASHBOARD-09` remains `DONE`
+- Generated at: `2026-07-26T06:35:33Z`
+- Source: `business-task-supervisor`
+- Task: `UNLOAD-WAGE-14`
+- Task file: `prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md`
+- Status: `DONE`
+- Execution mode: `full`
+- Session: `019f9cf3-7da0-7420-bdf6-94f1dd3da172`
+- Git HEAD: `1701750`
+- Worktree: dirty; preserve and inspect existing changes
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260726T054349Z-UNLOAD-WAGE-14-99224`
 
 ## 现在在做什么
 
-Cloudflare Named Tunnel 独立中英双语操作手册已完成；没有剩余文档实现。真实
-Cloudflare 账户、域名、Tunnel、Access/MFA、外网验收和 token 轮换仍属于外部
-部署操作，不能因文档完成而视为已启用。
+UNLOAD-WAGE-14 is complete; no implementation or verification remains for this Task.
 
 ## 已完成
 
-- 核对现有公网部署总览、PUBLIC-DEPLOY-02 产物、Compose overlay 和
-  `scripts/cloudflare-tunnel-local.sh`。原指南内容完整但主体为英文，且埋在
-  平台比较长文中。
-- 新增独立中英双语 Named Tunnel 操作手册。两种语言均覆盖架构、安全边界、
-  Cloudflare Dashboard、公开 route、secret 文件、`.env`、Access/MFA、
-  cache bypass、启动/停止、外网验收、token 轮换/撤销、故障演练、回滚和
-  完成门槛。
-- 更新公网总览、新手生产部署指南和本地部署指南的醒目入口。
-- 将本地旧 Caddy + 公网 IP HTML 指南标记为历史备选，并指向 Named Tunnel
-  手册；通过 `.gitignore` 白名单让两份部署文档可被版本控制。
-- 依据 2026-07-24 Cloudflare 官方文档核对当前 Tunnel、token、Access/MFA、
-  cache 和 Quick Tunnel 边界。
+- 已完成美转加托车号选填的 API、Worker、Web、i18n、月结/汇总与审计兼容改造。付费单位使用持久化 pay-container id，不依赖托车号；空托车号组可独立结算且不会碰撞。Task、索引、完成度报告和验证报告已更新，无外部验收项。
 
 ### Changed files
 
-- `.gitignore`
-- `HANDOFF.md`
-- `docs/runbooks/cloudflare-named-tunnel-deployment.md`（新增）
-- `docs/runbooks/external-ip-domain-access.html`（纳入跟踪并标记历史备选）
-- `docs/runbooks/local-deployment.md`
-- `docs/runbooks/production-deployment-beginner-guide.md`
-- `docs/runbooks/public-access-and-free-cloud-deployment.md`
+- CONTEXT.md
+- apps/api/src/unloading-wage/dto/unloading-wage.dto.ts
+- apps/api/src/unloading-wage/unloading-wage.service.ts
+- apps/api/src/unloading-wage/unloading-wage.service.spec.ts
+- apps/api/test/unloading-wage.e2e-spec.ts
+- apps/worker-python/src/worker_python/unloading_wage/settlement.py
+- apps/worker-python/tests/unit/test_unloading_wage_settlement.py
+- apps/web/src/components/containers/container-unloading-wage-flow.ts
+- apps/web/src/components/containers/container-unloading-wage-panel.tsx
+- apps/web/src/components/wage/unloading-wage-flow.ts
+- apps/web/src/components/wage/unloading-wage-actions.tsx
+- apps/web/src/components/reports/unloading-summary-flow.ts
+- apps/web/src/app/unloading-wage/page.tsx
+- apps/web/src/app/unloading-summary/page.tsx
+- apps/web/src/lib/i18n/locales/en.ts
+- apps/web/src/lib/i18n/locales/zh.ts
+- apps/web/tests/container-unloading-wage-flow.test.ts
+- apps/web/tests/wage-flow.test.ts
+- apps/web/e2e/fixtures/unloading-wage-fixture.ts
+- apps/web/e2e/unloading-wage.spec.ts
+- apps/web/e2e/unloading-wage-fixture-cleanup.spec.ts
+- scripts/run-unload-wage-14-e2e.sh
+- docs/product/02-work-hours-and-unloading-wage-settlement.md
+- docs/reports/unload-wage-14-optional-trailer-verification.md
+- docs/reports/project-completion-status.html
+- prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md
+- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- prompts/tasks/UNLOAD-WAGE-01Container Detail Unloading Wage API.md
+- prompts/tasks/UNLOAD-WAGE-02Container Detail Unloading Wage UI.md
+- prompts/tasks/WAGE-QA-02Full Wage Module End-to-End Regression.md
 
 ### Tests and verification actually run
 
-- `git diff --check`：通过。
-- 对全部本次文档执行尾随空白扫描：无匹配。
-- 核对文档引用的 Named Tunnel/healthcheck/backup 脚本、三个 Compose 文件和
-  backup runbook：路径均存在。
-- 核对新增 Markdown 相对链接和中英文 17 个对应章节：结构完整。
-- `xmllint --html --noout docs/runbooks/external-ip-domain-access.html` 返回 0；
-  旧解析器仅报告 HTML5 `<main>` 标签提示。
-- 未运行 Docker、应用测试或真实 Cloudflare 连接；本次只有文档改动。
+- Docker API/Web production build 通过
+- API lint、typecheck 通过
+- API unit：49 suites / 382 tests 通过
+- API E2E：21 suites / 129 tests 通过
+- Web lint、typecheck 通过
+- Web unit：283/283 通过
+- Worker pytest：184/184 通过
+- Prisma migrate status：36 migrations，数据库最新
+- scripts/run-unload-wage-14-e2e.sh：故意失败探针、desktop Chromium、mobile Chrome、双重 cleanup、最终残留审计全部通过
+- 深色桌面与移动截图已人工检查
+- scripts/healthcheck.sh 通过
+- git diff --check 通过
+- 最终历史月份残留：pay units 0、settlements 0、临时用户 0
 
 ## 卡在哪里
 
 ### Remaining implementation
 
-- None for this documentation request.
+- No remaining implementation was reported.
 
 ### External verification
 
-- 需要部署负责人在真实 Cloudflare 账户中创建 Named Tunnel 和唯一公开
-  hostname，配置 Access 默认拒绝、批准组、MFA 和 cache bypass。
-- 需要在非公司网络完成允许/拒绝身份、Bestar 登录/RBAC、上传下载、i18n、
-  审计、断网、停止 connector、token 轮换和回滚验收。
-- 需要在目标 Linux/Windows Docker 主机验证 file-backed secret 的 UID/GID
-  可读性和主机防火墙 LAN 范围。
+- No external verification was reported.
 
 ### Blockers
 
-- No documentation blocker. External activation requires the company domain,
-  Cloudflare account, approved identities and a maintenance window.
+- No blocker was reported.
 
 ## 下一步
 
-- 部署负责人先阅读
-  `docs/runbooks/cloudflare-named-tunnel-deployment.md` 的中文部分，准备域名、
-  身份组、MFA、恢复点和维护窗口；不要先复制或运行带 token 的 Dashboard
-  `docker run` 命令。
+- 在新的监督器 Session 中执行下一任务 UNLOAD-REPORT-02；不要在本 Session 启动。
 
 ## 不要再踩的坑
 
-- 不使用 Quick Tunnel，不在路由器开放入站 80/443，不暴露数据库、Redis、
-  API、SSH 或 Docker。
-- Tunnel token 只写入 `.secrets/cloudflare-tunnel-token`，不得进入 `.env`、
-  命令参数、Git、截图、日志或交接。
-- Cloudflare Access 不能替代 Bestar 登录、RBAC 和审计。
-- Named Tunnel 不会迁移数据，也不能解决仓库停电、主机停机或断网。
-- `TRUSTED_PROXY_CIDRS` 必须按目标 Docker 网络核实，不得照抄测试 fallback。
-- 当前是单 connector pilot，token 轮换可能短暂中断，不承诺零停机。
+- 同一 API 容器内不要并发运行多个 pnpm 命令，否则可能竞争 pnpm hoisted 链接。
+- Compose 运行容器使用镜像内源码；修改源码后必须重建镜像再验证。
+- PC-TRANSFER 编号必须精确使用同一个持久化 pay-container id，不能只生成另一个随机前缀值。
+- 结算详情外层及内层 grid item 都必须保留 min-w-0，否则宽表会撑宽 document。
+- 工资 E2E 必须使用专用 runner、2001-01 空月份保护和失败安全 cleanup，不得直接运行旧 spec 污染共享数据库。
+- 工作树仍包含本 Task 之外既有的 POD、UNLOAD-REPORT 等未提交改动，后续 Session 必须继续保留，不得回退或覆盖。
 
 ## 新会话启动清单
 
 1. Read `AGENTS.md` and `.codex/skills/bestar-handoff/SKILL.md`.
-2. Run `git status --short`; preserve all documentation changes above.
-3. For public activation, read the bilingual Named Tunnel runbook, then
-   `prompts/tasks/PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`,
-   the Task index and completion report.
-4. Reconcile external Cloudflare state; do not infer activation from repository
-   files.
+2. Run `git status --short`; preserve all existing changes.
+3. Read the Task file above plus `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md` and `docs/reports/project-completion-status.html`.
+4. Verify this handoff against code, tests, runtime state, and artifacts before acting.
 5. Do not execute any Task marked `Task-Status: ARCHIVED`.
 
 ## 权威参考
 
-- `docs/runbooks/cloudflare-named-tunnel-deployment.md`
-- `docs/runbooks/public-access-and-free-cloud-deployment.md`
-- `prompts/tasks/PUBLIC-DEPLOY-02Cloudflare Tunnel Local Canonical Pilot.md`
+- `prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`
