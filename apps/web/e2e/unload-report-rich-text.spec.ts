@@ -31,6 +31,8 @@ interface GeneratedFile {
 
 interface PackageInspection {
   allLayoutsMatchTemplate: boolean;
+  allPageContractsMatch: boolean;
+  allRowsNeverShrink: boolean;
   allRunSequencesMatchTemplate: boolean;
   destinations: Array<Array<{ cell: string; value: string }>>;
   dimension: string;
@@ -39,6 +41,9 @@ interface PackageInspection {
   fontSizes: string[];
   newlineCount: number;
   runCount: number;
+  standardsHeightAtLeastTemplate: boolean;
+  standardsHeights: number[];
+  templateStandardsHeight: number;
   worksheetCount: number;
 }
 
@@ -57,6 +62,11 @@ test("real API download preserves Palletizing Standards rich text and report aud
   });
   const headers = authHeaders(accessToken);
   const me = await getJson<{ id: string }>(request, "/api/auth/me", headers);
+  await writeFile(
+    path.join(artifactDir, "actor-user-id.txt"),
+    `${me.id}\n`,
+    "utf8",
+  );
   const containerNo = uniquePolicyContainerNo();
   const workbookPath = await createDerivedRealWorkbook(testInfo, containerNo);
   const workbookBuffer = await readFile(workbookPath);
@@ -79,6 +89,21 @@ test("real API download preserves Palletizing Standards rich text and report aud
   };
   expect(uploaded.fileSha256).toBe(sha256Buffer(workbookBuffer));
   expect(uploaded.storedPath).toContain("/storage/original_files/");
+  await writeFile(
+    path.join(artifactDir, "import-file-id.txt"),
+    `${uploaded.id}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "uploaded-file-sha256.txt"),
+    `${uploaded.fileSha256}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "original-storage-path.txt"),
+    `${uploaded.storedPath}\n`,
+    "utf8",
+  );
 
   const parse = await request.post(`/api/imports/${uploaded.id}/parse`, { headers });
   await expectStatus(parse, 201);
@@ -87,6 +112,16 @@ test("real API download preserves Palletizing Standards rich text and report aud
   };
   const container = parsed.containers.find((item) => item.containerNo === containerNo);
   expect(container).toBeDefined();
+  await writeFile(
+    path.join(artifactDir, "container-id.txt"),
+    `${container!.id}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "container-no.txt"),
+    `${containerNo}\n`,
+    "utf8",
+  );
 
   const report = await request.post(
     `/api/containers/${container!.id}/generate-report`,
@@ -109,6 +144,16 @@ test("real API download preserves Palletizing Standards rich text and report aud
   expect(reportBody.generatedFile.storagePath).toContain("/storage/reports/");
   expect(reportBody.generatedFile.fileSha256).toMatch(/^[a-f0-9]{64}$/);
   expect(Number(reportBody.generatedFile.fileSizeBytes)).toBeGreaterThan(0);
+  await writeFile(
+    path.join(artifactDir, "generated-file-id.txt"),
+    `${reportBody.generatedFile.id}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "generated-storage-path.txt"),
+    `${reportBody.generatedFile.storagePath}\n`,
+    "utf8",
+  );
 
   const files = await getJson<{ items: GeneratedFile[] }>(
     request,
@@ -136,9 +181,12 @@ test("real API download preserves Palletizing Standards rich text and report aud
   const packageInspection = await inspectReportPackage(reportPath);
   expect(packageInspection).toMatchObject({
     allLayoutsMatchTemplate: true,
+    allPageContractsMatch: true,
+    allRowsNeverShrink: true,
     allRunSequencesMatchTemplate: true,
     dimension: "B1:P25",
     endsWithWhenStored: true,
+    standardsHeightAtLeastTemplate: true,
     worksheetCount: 1,
   });
   expect(packageInspection.runCount).toBeGreaterThan(1);
@@ -167,26 +215,14 @@ test("real API download preserves Palletizing Standards rich text and report aud
     `${JSON.stringify(verification, null, 2)}\n`,
     "utf8",
   );
-  await writeFile(
-    path.join(artifactDir, "generated-file-id.txt"),
-    `${reportBody.generatedFile.id}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(artifactDir, "actor-user-id.txt"),
-    `${me.id}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(artifactDir, "import-file-id.txt"),
-    `${uploaded.id}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(artifactDir, "uploaded-file-sha256.txt"),
-    `${uploaded.fileSha256}\n`,
-    "utf8",
-  );
+  if (process.env.E2E_FORCE_FAILURE === "1") {
+    await writeFile(
+      path.join(artifactDir, "intentional-failure-reached.txt"),
+      "yes\n",
+      "utf8",
+    );
+    throw new Error("Intentional UNLOAD-REPORT-02 cleanup probe failure");
+  }
 });
 
 async function getJson<T>(

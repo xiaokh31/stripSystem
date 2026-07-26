@@ -88,7 +88,7 @@ def cell_text(archive: ZipFile, sheet: ET.Element, coordinate: str) -> str:
 
 def column_widths(sheet: ET.Element) -> dict[str, float | None]:
     widths: dict[str, float | None] = {}
-    for column_index, column_name in enumerate("CDEFGHI", start=3):
+    for column_index, column_name in enumerate("BCDEFGHIJKLMNOP", start=2):
         width = None
         for column in sheet.findall("m:cols/m:col", NS):
             if int(column.attrib["min"]) <= column_index <= int(column.attrib["max"]):
@@ -107,8 +107,10 @@ def sheet_layout(sheet: ET.Element) -> dict[str, object]:
     row_heights = {
         row.attrib["r"]: row.attrib.get("ht")
         for row in sheet.findall("m:sheetData/m:row", NS)
-        if 21 <= int(row.attrib["r"]) <= 25
+        if 1 <= int(row.attrib["r"]) <= 25
     }
+    row_breaks = sheet.findall("m:rowBreaks/m:brk", NS)
+    column_breaks = sheet.findall("m:colBreaks/m:brk", NS)
     return {
         "columnWidths": column_widths(sheet),
         "dimension": dimension.attrib.get("ref") if dimension is not None else None,
@@ -131,7 +133,62 @@ def sheet_layout(sheet: ET.Element) -> dict[str, object]:
             row: round(float(height), 12) if height is not None else None
             for row, height in row_heights.items()
         },
+        "manualBreakCount": len(row_breaks) + len(column_breaks),
     }
+
+
+def attribute_dict(items: list[object]) -> dict[str, object]:
+    return {str(item[0]): item[1] for item in items}  # type: ignore[index]
+
+
+def rows_never_shrink(
+    expected: dict[str, object],
+    generated: dict[str, object],
+) -> bool:
+    expected_heights = expected["rowHeights"]
+    generated_heights = generated["rowHeights"]
+    if not isinstance(expected_heights, dict) or not isinstance(
+        generated_heights, dict
+    ):
+        return False
+    return all(
+        float(generated_heights.get(row) or 0) >= float(height or 0)
+        for row, height in expected_heights.items()
+    )
+
+
+def page_contract_matches(layout: dict[str, object]) -> bool:
+    setup_items = layout["pageSetup"]
+    properties_items = layout["pageSetupProperties"]
+    if not isinstance(setup_items, list) or not isinstance(properties_items, list):
+        return False
+    setup = attribute_dict(setup_items)
+    properties = attribute_dict(properties_items)
+    return (
+        setup.get("paperSize") == 9.0
+        and setup.get("orientation") == "landscape"
+        and setup.get("scale") == 78.0
+        and setup.get("fitToWidth") == 1.0
+        and setup.get("fitToHeight") == 1.0
+        and properties.get("fitToPage") == 1.0
+        and properties.get("autoPageBreaks") == 0.0
+        and layout.get("printArea") == "$B$1:$P$25"
+        and layout.get("manualBreakCount") == 0
+    )
+
+
+def immutable_layout_matches(
+    expected: dict[str, object],
+    generated: dict[str, object],
+) -> bool:
+    return (
+        generated.get("columnWidths") == expected.get("columnWidths")
+        and generated.get("dimension") == expected.get("dimension")
+        and generated.get("margins") == expected.get("margins")
+        and generated.get("merges") == expected.get("merges")
+        and rows_never_shrink(expected, generated)
+        and page_contract_matches(generated)
+    )
 
 
 def populated_sheets(archive: ZipFile) -> list[ET.Element]:
@@ -212,8 +269,29 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
         },
         key=float,
     )
+    rows_safe = [rows_never_shrink(expected_layout, layout) for layout in layouts]
+    page_contracts = [page_contract_matches(layout) for layout in layouts]
+    immutable_layouts = [
+        immutable_layout_matches(expected_layout, layout) for layout in layouts
+    ]
+    expected_row_heights = expected_layout["rowHeights"]
+    expected_standards_height = sum(
+        float(expected_row_heights.get(str(row)) or 0)  # type: ignore[union-attr]
+        for row in range(21, 26)
+    )
+    standards_heights = []
+    for layout in layouts:
+        row_heights = layout["rowHeights"]
+        standards_heights.append(
+            sum(
+                float(row_heights.get(str(row)) or 0)  # type: ignore[union-attr]
+                for row in range(21, 26)
+            )
+        )
     return {
-        "allLayoutsMatchTemplate": all(layout == expected_layout for layout in layouts),
+        "allLayoutsMatchTemplate": all(immutable_layouts),
+        "allPageContractsMatch": all(page_contracts),
+        "allRowsNeverShrink": all(rows_safe),
         "allRunSequencesMatchTemplate": all(run == expected_runs for run in runs),
         "dimension": expected_layout["dimension"],
         "destinations": destinations,
@@ -222,6 +300,11 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
         "fontSizes": font_sizes,
         "newlineCount": text.count("\n"),
         "runCount": len(expected_runs),
+        "standardsHeightAtLeastTemplate": all(
+            height >= expected_standards_height for height in standards_heights
+        ),
+        "standardsHeights": standards_heights,
+        "templateStandardsHeight": expected_standards_height,
         "worksheetCount": len(generated_sheets),
     }
 

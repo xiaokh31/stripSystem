@@ -48,7 +48,9 @@ def test_batch_runner_generates_phase0_outputs_and_reports_failed_files(
     assert result.taskReport.correctionsPath.is_file()
 
     import_manifest = json.loads(
-        (tmp_path / "storage" / "original_files" / "import_manifest.json").read_text(encoding="utf-8")
+        (tmp_path / "storage" / "original_files" / "import_manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert len(import_manifest["records"]) == 2
     assert all(record["sha256"] for record in import_manifest["records"])
@@ -94,7 +96,9 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
     assert result.successCount == 1
     assert result.warningFileCount == 1
 
-    payload = json.loads(next(result.parsedJsonDir.glob("*.json")).read_text(encoding="utf-8"))
+    payload = json.loads(
+        next(result.parsedJsonDir.glob("*.json")).read_text(encoding="utf-8")
+    )
     assert payload["task_status"] == "WARNING"
     assert payload["parsed_result"]["containerNo"] == "TSTU1234567"
 
@@ -209,10 +213,15 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
     assert label_result["labelCount"] == pallet_result["totalFinalPallets"]
     assert len(label_result["palletIds"]) == len(set(label_result["palletIds"]))
     assert len(label_result["qrPayloads"]) == len(set(label_result["qrPayloads"]))
-    assert all(qr.split("|")[-1] in label_result["palletIds"] for qr in label_result["qrPayloads"])
+    assert all(
+        qr.split("|")[-1] in label_result["palletIds"]
+        for qr in label_result["qrPayloads"]
+    )
     assert Path(label_result["outputPath"]).read_bytes().startswith(b"%PDF")
 
-    pdf_text = Path(label_result["outputPath"]).read_bytes().decode("latin1", errors="ignore")
+    pdf_text = (
+        Path(label_result["outputPath"]).read_bytes().decode("latin1", errors="ignore")
+    )
     width, height = _first_media_box_size(pdf_text)
     assert width == pytest.approx(_mm_points(150), abs=0.01)
     assert height == pytest.approx(_mm_points(100), abs=0.01)
@@ -224,6 +233,7 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
             for sheet in workbook.worksheets
             if sheet.calculate_dimension() not in {"A1", "A1:A1"}
             for row_cells in DESTINATION_ROWS
+            if sheet[f"N{row_cells.row}"].value is not None
         ]
         for (worksheet, row), plan in zip(
             report_rows, payload["pallet_result"]["plans"]
@@ -237,20 +247,23 @@ def test_batch_runner_preserves_detailed_pallet_rule_outputs(
             if worksheet[f"N{row}"].value
         }
         assert report_destinations["UPS"] == 3
-        assert sum(
-            int(worksheet[f"O{row}"].value or 0)
-            for worksheet, row in report_rows
-        ) == pallet_result["totalFinalPallets"]
+        assert (
+            sum(int(worksheet[f"O{row}"].value or 0) for worksheet, row in report_rows)
+            == pallet_result["totalFinalPallets"]
+        )
     finally:
         workbook.close()
 
-    task_report_html = next((tmp_path / "storage" / "task_reports").glob("task-report-*.html")).read_text(
-        encoding="utf-8"
-    )
+    task_report_html = next(
+        (tmp_path / "storage" / "task_reports").glob("task-report-*.html")
+    ).read_text(encoding="utf-8")
     assert "rule YEG1 footprint volume plus four pallets" in task_report_html
     assert "rule Wooden crate piece count" in task_report_html
     assert "rounding Piece count" in task_report_html
-    assert "Private or commercial address package type was not recognized" not in task_report_html
+    assert (
+        "Private or commercial address package type was not recognized"
+        not in task_report_html
+    )
     assert "package Carton" in task_report_html
 
 
@@ -486,7 +499,17 @@ def _write_detailed_rule_workbook(path: Path) -> None:
         ("WB-UPS-57", "", "", 57, 100, 5.40, "UPS", "快递派送", ""),
         ("ADDR-CARTON", "", "", 12, 100, 3.61, "Private Address", "LTL", "carton"),
         ("ADDR-UNKNOWN", "", "", 10, 100, 3.61, "Private Address", "LTL", ""),
-        ("ADDR-WOOD", "", "", 7, 100, 9.00, "Commercial Address", "LTL", "wooden crate"),
+        (
+            "ADDR-WOOD",
+            "",
+            "",
+            7,
+            100,
+            9.00,
+            "Commercial Address",
+            "LTL",
+            "wooden crate",
+        ),
         ("OVERSIZE-TWO", "", "", 2, 100, 5.60, "Other Oversize", "LTL", ""),
         ("MIXED-CARTON", "", "", 10, 100, 1.00, "Mixed Cargo", "LTL", "carton"),
         ("MIXED-WOOD", "", "", 3, 100, 9.00, "Mixed Cargo", "LTL", "wooden crate"),

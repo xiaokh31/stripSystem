@@ -15,6 +15,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/render-unload-report-visual.sh /usr/local/bin/render-unload-report-visual
+COPY scripts/render-unload-report-02-visual.sh /usr/local/bin/render-unload-report-02-visual
 COPY scripts/render-wage-workbook-visual.sh /usr/local/bin/render-wage-workbook-visual
 COPY scripts/audit-wage-workbooks.py /usr/local/bin/audit-wage-workbooks
 

@@ -65,6 +65,7 @@ docs/reports/*
 !docs/reports/parser-profile-06-review-trust-verification.md
 !docs/reports/parser-profile-08-golden-sample-full-stack-verification.md
 !docs/reports/web-dashboard-09-e2e-cleanup-2026-07-24.md
+!docs/reports/unload-report-02-adaptive-layout-verification.md
 
 # macOS
 .DS_Store

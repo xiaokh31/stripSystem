@@ -4,73 +4,63 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-26T06:35:33Z`
+- Generated at: `2026-07-26T07:44:19Z`
 - Source: `business-task-supervisor`
-- Task: `UNLOAD-WAGE-14`
-- Task file: `prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md`
-- Status: `DONE`
+- Task: `UNLOAD-REPORT-02`
+- Task file: `prompts/tasks/UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md`
+- Status: `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
 - Execution mode: `full`
-- Session: `019f9cf3-7da0-7420-bdf6-94f1dd3da172`
-- Git HEAD: `1701750`
+- Session: `019f9d27-844d-71e3-af8a-150898794d5a`
+- Git HEAD: `91a586c`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260726T054349Z-UNLOAD-WAGE-14-99224`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260726T064039Z-UNLOAD-REPORT-02-2548`
 
 ## 现在在做什么
 
-UNLOAD-WAGE-14 is complete; no implementation or verification remains for this Task.
+UNLOAD-REPORT-02 repository work is complete; only the named external verification remains.
 
 ## 已完成
 
-- 已完成美转加托车号选填的 API、Worker、Web、i18n、月结/汇总与审计兼容改造。付费单位使用持久化 pay-container id，不依赖托车号；空托车号组可独立结算且不会碰撞。Task、索引、完成度报告和验证报告已更新，无外部验收项。
+- 已完成自适应行高、打印高度分页、完整 Palletizing Standards、稳定错误结构及全链路验证。Worker、API、Web、迁移、健康检查、真实 nginx 上传/生成/下载、LibreOffice PDF/PNG 和精确清理门禁全部通过；唯一剩余项为办公室 Microsoft Excel 外部打印验收。
 
 ### Changed files
 
-- CONTEXT.md
-- apps/api/src/unloading-wage/dto/unloading-wage.dto.ts
-- apps/api/src/unloading-wage/unloading-wage.service.ts
-- apps/api/src/unloading-wage/unloading-wage.service.spec.ts
-- apps/api/test/unloading-wage.e2e-spec.ts
-- apps/worker-python/src/worker_python/unloading_wage/settlement.py
-- apps/worker-python/tests/unit/test_unloading_wage_settlement.py
-- apps/web/src/components/containers/container-unloading-wage-flow.ts
-- apps/web/src/components/containers/container-unloading-wage-panel.tsx
-- apps/web/src/components/wage/unloading-wage-flow.ts
-- apps/web/src/components/wage/unloading-wage-actions.tsx
-- apps/web/src/components/reports/unloading-summary-flow.ts
-- apps/web/src/app/unloading-wage/page.tsx
-- apps/web/src/app/unloading-summary/page.tsx
-- apps/web/src/lib/i18n/locales/en.ts
-- apps/web/src/lib/i18n/locales/zh.ts
-- apps/web/tests/container-unloading-wage-flow.test.ts
-- apps/web/tests/wage-flow.test.ts
-- apps/web/e2e/fixtures/unloading-wage-fixture.ts
-- apps/web/e2e/unloading-wage.spec.ts
-- apps/web/e2e/unloading-wage-fixture-cleanup.spec.ts
-- scripts/run-unload-wage-14-e2e.sh
-- docs/product/02-work-hours-and-unloading-wage-settlement.md
-- docs/reports/unload-wage-14-optional-trailer-verification.md
+- .gitignore
+- HANDOFF.md
+- apps/web/e2e/report-package-inspector.py
+- apps/web/e2e/unload-report-rich-text.spec.ts
+- apps/worker-python/src/worker_python/reports/excel_report_writer.py
+- apps/worker-python/src/worker_python/reports/row_layout.py
+- apps/worker-python/tests/fixtures/generate_report_02_visual_workbooks.py
+- apps/worker-python/tests/integration/test_batch_cli.py
+- apps/worker-python/tests/unit/test_excel_report_writer.py
+- apps/worker-python/tests/unit/test_report_row_layout.py
 - docs/reports/project-completion-status.html
-- prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md
+- docs/reports/unload-report-02-adaptive-layout-verification.md
+- docs/runbooks/local-deployment.md
+- infra/docker/compose.local.yml
+- infra/docker/report-visual-test.Dockerfile
 - prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
-- prompts/tasks/UNLOAD-WAGE-01Container Detail Unloading Wage API.md
-- prompts/tasks/UNLOAD-WAGE-02Container Detail Unloading Wage UI.md
-- prompts/tasks/WAGE-QA-02Full Wage Module End-to-End Regression.md
+- prompts/tasks/UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md
+- scripts/render-unload-report-02-visual.sh
+- scripts/verify-unload-report-02.sh
 
 ### Tests and verification actually run
 
-- Docker API/Web production build 通过
-- API lint、typecheck 通过
-- API unit：49 suites / 382 tests 通过
-- API E2E：21 suites / 129 tests 通过
-- Web lint、typecheck 通过
-- Web unit：283/283 通过
-- Worker pytest：184/184 通过
-- Prisma migrate status：36 migrations，数据库最新
-- scripts/run-unload-wage-14-e2e.sh：故意失败探针、desktop Chromium、mobile Chrome、双重 cleanup、最终残留审计全部通过
-- 深色桌面与移动截图已人工检查
-- scripts/healthcheck.sh 通过
-- git diff --check 通过
-- 最终历史月份残留：pay units 0、settlements 0、临时用户 0
+- Worker 全量：192 passed
+- Worker 最终聚焦：20 passed
+- API lint、typecheck、build：通过
+- API unit：49 suites / 382 tests passed
+- API E2E：21 suites / 129 tests passed
+- Prisma：36 migrations，database schema up to date
+- Web lint、typecheck、production build：通过
+- Web unit/i18n hard gate：283 tests passed
+- REPORT_VISUAL_RUN_ID=20260726T074500Z-final scripts/verify-unload-report-02.sh：通过
+- LibreOffice：11 个 A4 landscape 页面与 populated worksheets 一一对应
+- 33 张全页、业务表及 Standards PNG：逐张原分辨率目视通过
+- scripts/healthcheck.sh：通过
+- Ruff lint/format、bash -n、Compose config、git diff --check：通过
+- 模板 SHA-256 前后保持 31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027
 
 ## 卡在哪里
 
@@ -80,7 +70,7 @@ UNLOAD-WAGE-14 is complete; no implementation or verification remains for this T
 
 ### External verification
 
-- No external verification was reported.
+- 在办公室 Windows/Microsoft Excel 打开 test-results/unload-report-02/20260726T074500Z-final/source/api-downloaded-report.xlsx，不执行 AutoFit、不修改缩放或打印设置；逐 sheet 检查普通视图与 Print Preview，确认每个 populated worksheet 恰好一张 A4 landscape、最后目的仓和 Standards 最后一句完整；再用 Microsoft Print to PDF 逐页核对并取得业务签字。
 
 ### Blockers
 
@@ -88,16 +78,15 @@ UNLOAD-WAGE-14 is complete; no implementation or verification remains for this T
 
 ## 下一步
 
-- 在新的监督器 Session 中执行下一任务 UNLOAD-REPORT-02；不要在本 Session 启动。
+- 将最终 API 下载文件交给办公室 Windows/Microsoft Excel，完成普通视图、Print Preview、Microsoft Print to PDF 和业务签字后再关闭 Task。
 
 ## 不要再踩的坑
 
-- 同一 API 容器内不要并发运行多个 pnpm 命令，否则可能竞争 pnpm hoisted 链接。
-- Compose 运行容器使用镜像内源码；修改源码后必须重建镜像再验证。
-- PC-TRANSFER 编号必须精确使用同一个持久化 pay-container id，不能只生成另一个随机前缀值。
-- 结算详情外层及内层 grid item 都必须保留 min-w-0，否则宽表会撑宽 document。
-- 工资 E2E 必须使用专用 runner、2001-01 空月份保护和失败安全 cleanup，不得直接运行旧 spec 污染共享数据库。
-- 工作树仍包含本 Task 之外既有的 POD、UNLOAD-REPORT 等未提交改动，后续 Session 必须继续保留，不得回退或覆盖。
+- 不要把 Standards 区域恢复为垂直居中；fit-to-page 会使内容下移并重新发生打印裁切，必须保持顶部对齐。
+- 不要用历史 scripts/verify-unload-report-01.sh 代替当前 02 门禁。
+- 不要把 20260726T073000Z-final 当作最终证据；该次仅因验收脚本 psql 查询语法失败，最终通过证据是 20260726T074500Z-final。
+- 高度分页后的工作表允许合法空槽；测试应按非空目的地行校验，不能把全部固定槽位直接与计划 zip。
+- Microsoft Excel 外部验收前不得将 Task 状态改为 DONE，也不得通过 AutoFit 或修改打印设置掩盖问题。
 
 ## 新会话启动清单
 
@@ -109,7 +98,7 @@ UNLOAD-WAGE-14 is complete; no implementation or verification remains for this T
 
 ## 权威参考
 
-- `prompts/tasks/UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md`
+- `prompts/tasks/UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
 - `docs/runbooks/business-agent-execution.md`

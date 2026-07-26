@@ -137,9 +137,20 @@ def test_excel_report_writer_preserves_palletizing_standards_rich_text(
             str(item) for item in template_sheet.merged_cells.ranges
         }
         assert "C21:I25" in {str(item) for item in generated_sheet.merged_cells.ranges}
-        assert {
-            row: generated_sheet.row_dimensions[row].height for row in range(21, 26)
-        } == {row: template_sheet.row_dimensions[row].height for row in range(21, 26)}
+        assert generated_sheet["C21"].alignment.vertical == "top"
+        assert generated_sheet["C21"].alignment.wrap_text is True
+        generated_standards_height = sum(
+            generated_sheet.row_dimensions[row].height or 0 for row in range(21, 26)
+        )
+        template_standards_height = sum(
+            template_sheet.row_dimensions[row].height or 0 for row in range(21, 26)
+        )
+        assert generated_standards_height > template_standards_height
+        assert all(
+            (generated_sheet.row_dimensions[row].height or 0)
+            > (template_sheet.row_dimensions[row].height or 0)
+            for row in range(21, 26)
+        )
         assert {
             column: generated_sheet.column_dimensions[column].width
             for column in "CDEFGHI"
@@ -147,7 +158,17 @@ def test_excel_report_writer_preserves_palletizing_standards_rich_text(
             column: template_sheet.column_dimensions[column].width
             for column in "CDEFGHI"
         }
-        assert _page_layout(generated_sheet) == _page_layout(template_sheet)
+        page_layout = _page_layout(generated_sheet)
+        assert page_layout["paperSize"] == 9
+        assert page_layout["orientation"] == "landscape"
+        assert page_layout["scale"] == 78
+        assert page_layout["fitToWidth"] == 1
+        assert page_layout["fitToHeight"] == 1
+        assert page_layout["fitToPage"] is True
+        assert page_layout["autoPageBreaks"] is False
+        assert page_layout["printArea"] == "'Sheet1'!$B$1:$P$25"
+        assert generated_sheet.row_breaks.count == 0
+        assert generated_sheet.col_breaks.count == 0
 
         # Business cells are still written while the untouched rich-text cell survives.
         assert generated_sheet["D1"].value == "2026-06-25"
@@ -266,6 +287,109 @@ def test_excel_report_writer_adds_a_sheet_only_after_all_white_rows_are_used(
         workbook.close()
 
 
+def test_excel_report_writer_keeps_sixteen_short_destinations_on_one_sheet(
+    tmp_path: Path,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"SHORT-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, len(DESTINATION_ROWS) + 1)
+    )
+
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="SHORT16"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
+    try:
+        assert _populated_sheet_names(workbook) == ["Sheet1"]
+        assert workbook["Sheet1"]["N19"].value == "SHORT-16"
+    finally:
+        workbook.close()
+
+
+def test_excel_report_writer_paginates_before_printable_height_is_exceeded(
+    tmp_path: Path,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=(
+                f"LONG-{index:02d} "
+                "Industrial Receiving Boulevard Appointment Required Door A"
+            ),
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, len(DESTINATION_ROWS) + 1)
+    )
+
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="HEIGHTOVERFLOW"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    assert result.errors == ()
+    workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
+    try:
+        populated = [
+            worksheet
+            for worksheet in workbook.worksheets
+            if worksheet.calculate_dimension() not in {"A1", "A1:A1"}
+        ]
+        assert len(populated) > 1
+        written = [
+            str(worksheet[row_cells.destination_cell].value)
+            for worksheet in populated
+            for row_cells in DESTINATION_ROWS
+            if worksheet[row_cells.destination_cell].value is not None
+        ]
+        assert written == [plan.destinationCode for plan in plans]
+        assert len(written) == len(set(written))
+        assert all(
+            worksheet.print_area == f"'{worksheet.title}'!$B$1:$P$25"
+            for worksheet in populated
+        )
+        assert all(worksheet.row_breaks.count == 0 for worksheet in populated)
+        assert all(worksheet.col_breaks.count == 0 for worksheet in populated)
+    finally:
+        workbook.close()
+
+
+def test_excel_report_writer_fails_closed_when_one_destination_cannot_fit(
+    tmp_path: Path,
+) -> None:
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="TOOTALL"),
+        pallet_result=SimpleNamespace(
+            plans=(
+                SimpleNamespace(
+                    destinationCode="X" * 1000,
+                    finalPallets=1,
+                    totalCartons=10,
+                ),
+            )
+        ),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    assert result.errors
+    assert result.errors[0].code == "REPORT_CONTENT_TOO_TALL"
+    assert result.errors[0].message == "REPORT_CONTENT_TOO_TALL"
+    assert result.errors[0].row == 4
+    assert result.errors[0].requiredHeightPoints is not None
+    assert result.errors[0].availableHeightPoints is not None
+    assert not result.outputPath.exists()
+
+
 def test_excel_report_writer_marks_missing_bestar_destination_for_manual_entry(
     tmp_path: Path,
 ) -> None:
@@ -323,7 +447,7 @@ def test_excel_report_writer_auto_expands_destination_row_height(
     assert worksheet["C4"].value == long_destination
     assert worksheet["N4"].alignment.wrap_text is True
     assert worksheet["C4"].alignment.wrap_text is True
-    assert worksheet.row_dimensions[4].height > (template_height or 0)
+    assert worksheet.row_dimensions[4].height > (template_height or 0) + 40
     workbook.close()
 
 

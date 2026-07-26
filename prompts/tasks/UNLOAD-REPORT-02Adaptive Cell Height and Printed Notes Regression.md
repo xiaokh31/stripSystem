@@ -3,7 +3,7 @@
 ## 优先级与状态
 
 - 优先级：P0，拆柜报告屏幕和打印内容裁切会造成现场信息缺失。
-- Task-Status: OPEN
+- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
 - 前置任务：`UNLOAD-REPORT-01` 保持历史完成证据，但其“无已知裁切问题”结论
   已被 2026-07-25 现场反馈推翻。
 - 本 Task 是新的可见内容/打印回归，不得重跑或简单恢复 01 的旧结论。
@@ -198,3 +198,31 @@ git diff --check
 7. Agent 提供 API 下载 `.xlsx`、PDF、全页/裁切 PNG 路径和逐图结论。
 8. Microsoft Excel Print Preview/Print to PDF 通过后才可 `DONE`；否则只能是准确的
    external verification pending 状态。
+
+## 2026-07-26 执行结果
+
+仓库实现和当前环境全部自动化已完成。content-aware row-layout calculator、
+printable-height layout planner、稳定 `REPORT_CONTENT_TOO_TALL` 错误、完整 rich text、
+逐页 A4 landscape contract、真实 API 下载链路和失败安全精确清理均已交付。没有
+schema 变更或新 migration。
+
+验证结果：
+
+- Worker 聚焦 19 passed；全量 192 passed。
+- API lint/typecheck/build、382 unit、129 E2E、36 migrations up to date。
+- Web lint/typecheck/build、283 tests（含 strict i18n hard gate）。
+- `REPORT_VISUAL_RUN_ID=20260726T074500Z-final
+  scripts/verify-unload-report-02.sh` 通过。
+- 11 个 PDF 页面均为 A4 landscape 且与 populated worksheet 一一对应。
+- 全部 33 张全页/业务表/Standards PNG 已按原分辨率逐张检查，无裁切、重叠、
+  越界或数据丢失。
+- 模板 SHA-256 修复前后均为
+  `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。
+- 最终 API 下载工件：
+  `test-results/unload-report-02/20260726T074500Z-final/source/api-downloaded-report.xlsx`。
+- 完整证据见
+  `docs/reports/unload-report-02-adaptive-layout-verification.md`。
+
+唯一剩余项是在办公室 Windows/Microsoft Excel 打开上述 API 下载文件，不使用
+AutoFit 或修改 print settings，完成逐 sheet 普通视图、Print Preview 和 Microsoft
+Print to PDF 核对及业务签字。外部验收通过前不得改为 `DONE`。

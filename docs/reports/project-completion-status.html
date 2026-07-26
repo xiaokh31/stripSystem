@@ -1435,9 +1435,9 @@
             <tr>
               <td>UNLOAD-REPORT-01 Palletizing Standards Rich Text Print Clipping Regression</td>
               <td><span class="badge partial">Historical Code Complete / Superseded by 02</span></td>
-              <td>Prior Rich Text / White-Row Evidence Preserved; New Print Regression Open</td>
+              <td>Prior Rich Text / White-Row Evidence Preserved; 02 Code Complete</td>
               <td>业务决定 A 已落实：报告保留既有 8 个主目的仓槽位，随后使用业务表格白色行 5/7/9/11/13/15/17/19，超过 16 才创建后续 worksheet；长文字与显式换行自适应行高，不进入合计或 `C21:I25`。真实 CAAU 的 9 个目的仓全部写入，Worker 和 API 下载均为 1 个 populated worksheet/1 张 A4 landscape 页面，第 9 个目的仓位于 `N5`。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓则为 2 worksheets/2 pages。`rich_text=True` 保留完整 `&lt;r&gt;/&lt;rPr&gt;`、11pt/10pt Arial/宋体、bold、换行和末尾 `when stored.`；merge、Standards rows/columns、dimension、78% page setup、margins 与模板等价。generated-file status/SHA/size/storage/audit actor、上传原件和历史 artifact/DB 记录不变检查通过；模板 SHA 前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。Docker Worker 127、API E2E 92、Web 189、专用 Chromium 1 项、full-stack health 和 12 张原始分辨率全页/crop 逐图检查通过；证据位于 `test-results/unload-report-01/20260714T050519Z/`。</td>
-              <td>2026-07-25 现场再次发现长内容行高不足及底部备注打印裁切。不要只给 01 补外部签字；执行 UNLOAD-REPORT-02，重新完成 content-aware row height、print pagination、Docker visual 和 Microsoft Excel Print to PDF 门禁。</td>
+              <td>2026-07-25 新现场回归已由 UNLOAD-REPORT-02 完成 content-aware row height、print pagination 和 Docker visual；当前只等待 02 的 Microsoft Excel Print Preview / Print to PDF 外部签字，不得重跑 01。</td>
             </tr>
             <tr>
               <td>UNLOAD-WAGE-13 Auto Collapse Completed Container Wage Section</td>
@@ -1828,9 +1828,9 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-02 Adaptive Height and Microsoft Excel Print Verification</td>
-              <td><span class="badge partial">Development and External Verification Pending</span></td>
-              <td>UNLOAD-REPORT-01 的 rich text/16 槽历史证据保留，但 2026-07-25 现场确认长单元格和底部备注打印仍裁切。02 必须先完成 content-aware row height、printable-height pagination 和 Docker visual 修复。</td>
-              <td>执行 UNLOAD-REPORT-02；仓库自动化完成后，再用真实 API 下载文件和 workbook 自带 print settings 完成 Windows/Microsoft Excel Print Preview 与 Print to PDF 签字。</td>
+              <td><span class="badge partial">Code Complete / Excel Verification Pending</span></td>
+              <td>content-aware row height、printable-height 提前分页、完整 rich text/Standards、每 populated worksheet 一张 A4 landscape、真实 nginx API 下载、失败安全 cleanup 和 Docker PDF/PNG 门禁已通过；11 个页面和 33 张 PNG 已逐张检查。证据见 <code>docs/reports/unload-report-02-adaptive-layout-verification.md</code>。</td>
+              <td>在办公室 Windows/Microsoft Excel 打开最终 API 下载文件，不使用 AutoFit 或修改 print settings，完成逐 sheet 普通视图、Print Preview、Microsoft Print to PDF 与业务签字后改为 Done。</td>
             </tr>
             <tr>
               <td>P5-PILOT-01 Windows Target Deployment Verification</td>
@@ -2117,8 +2117,8 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-02 Adaptive Cell Height and Printed Notes Regression</td>
-              <td><span class="badge partial">Open / Next</span></td>
-              <td>现场反馈 supersede UNLOAD-REPORT-01 的旧“无已知裁切”结论。交付 merged/CJK/multiline content-aware 行高、printable-height 分页、完整底部备注、每 populated worksheet 一张 A4 landscape、Docker PDF/PNG 逐图与 Microsoft Excel 外部打印验收。</td>
+              <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
+              <td>merged/CJK/multiline content-aware 行高、printable-height 分页、完整底部备注、每 populated worksheet 一张 A4 landscape、真实 API 下载、Docker PDF/PNG 逐图和精确 cleanup 已完成；只等待 Microsoft Excel 外部打印验收。证据见 <code>docs/reports/unload-report-02-adaptive-layout-verification.md</code>。</td>
             </tr>
             <tr>
               <td>POD-00 Real Template Contract and Worker Proof</td>
@@ -2157,7 +2157,7 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>UNLOAD-WAGE-14 已 Done；当前下一开发任务是 UNLOAD-REPORT-02。POD 只有在真实/明确脱敏模板和 approved 成品齐全后从 POD-00 开始，严格执行到 POD-05，不得跳序或合并 Session。</li>
+          <li>UNLOAD-WAGE-14 已 Done；UNLOAD-REPORT-02 仓库实现和 Docker 自动化已完成，只等待办公室 Microsoft Excel 外部打印签字且不得重跑开发。POD 只有在真实/明确脱敏模板和 approved 成品齐全后从 POD-00 开始，严格执行到 POD-05，不得跳序或合并 Session。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
           <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>

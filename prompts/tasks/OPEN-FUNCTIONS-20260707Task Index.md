@@ -220,10 +220,12 @@
    - 美转加托车号改为选填；必须同时修改 API、两个 Web flow、月结/汇总 fallback、
      i18n 和隔离 E2E。空托车号不再阻止完成/结算，持久化 paid-unit identity 保证
      不同空托车号组不碰撞；Docker 全量门禁和 desktop/mobile 浏览器退出门禁已关闭。
-2. `UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md` — `OPEN / NEXT`
-   - 重新复现长单元格和底部备注打印裁切，交付 merged/CJK/multiline content-aware
-     row height、printable-height pagination、每 populated worksheet 一张 A4 landscape、
-     Docker PDF/PNG 逐图门禁和 Microsoft Excel 外部验收。
+2. `UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md` —
+   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+   - merged/CJK/multiline content-aware row height、printable-height pagination、
+     每 populated worksheet 一张 A4 landscape、真实 API 下载、Docker PDF/PNG
+     逐图门禁及精确 cleanup 均已完成。只等待办公室 Windows/Microsoft Excel
+     Print Preview 与 Print to PDF 外部签字；不得重复执行仓库开发。
 3. `POD-00Real Template Contract and Worker Proof.md` — `INPUT REQUIRED`
    - 只有业务提供真实/明确脱敏 blank template、matching approved completed/printed
      example、字段和打印规则后才执行。不得用 synthetic template 冒充真实 Phase 0。
@@ -437,8 +439,9 @@ Deferred，按现场反馈再执行：
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
 2. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。
-3. 下一项执行 `UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md`。
-   02 负责新现场裁切回归，不能只给 UNLOAD-REPORT-01 补旧外部签字。
+3. `UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md` 的仓库实现
+   和当前环境自动化已完成，不得重复执行；只按 Task 和验证报告关闭办公室
+   Windows/Microsoft Excel 外部验收。
 4. POD 开发开始前，业务先提供 blank template、matching approved completed/printed
    example、字段清单和打印规则；输入齐全后严格执行 POD-00 -> 01 -> 02 -> 03 -> 04 -> 05，
    每项一个 fresh Session。没有真实/明确脱敏输入时不要启动 POD-00，更不能跳到 POD-01。

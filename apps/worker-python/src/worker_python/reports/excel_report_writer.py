@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from copy import copy
 from dataclasses import dataclass
@@ -9,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.page import PageMargins
 
 from worker_python.reports.cell_map import (
     COMPANY_VALUE_CELL,
@@ -19,6 +23,14 @@ from worker_python.reports.cell_map import (
     TIME_VALUE_CELL,
     TOTAL_CARTONS_CELL,
 )
+from worker_python.reports.row_layout import (
+    MAX_ROW_HEIGHT_POINTS,
+    CellLayoutInput,
+    TextRun,
+    calculate_cell_layout,
+    calculate_row_layout,
+    excel_column_width_to_points,
+)
 from worker_python.time_utils import operational_now
 
 
@@ -27,7 +39,18 @@ DEFAULT_TEMPLATE_PATH = REPO_ROOT / "samples" / "templates" / "卸柜报告-En.x
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "storage" / "reports"
 REPORT_MANIFEST_FILENAME = "report_manifest.json"
 DEFAULT_REPORT_ROW_HEIGHT = 16.5
-MIN_REPORT_ROW_WIDTH = 8.0
+CELL_HORIZONTAL_PADDING_POINTS = 8.0
+REPORT_PRINT_AREA = "B1:P25"
+A4_LANDSCAPE_HEIGHT_POINTS = 595.2756
+MINIMUM_PRINT_SCALE_PERCENT = 78
+# Keep one half-line of unscaled vertical slack for Excel/LibreOffice rounding
+# while preserving the template's established 78% readable print scale.
+PRINTABLE_HEIGHT_GUARD_POINTS = 8.0
+STANDARDS_CELL = "C21"
+# Office renderers reserve additional non-cell page bands that are not fully
+# represented by pageMargins. The calibrated ceiling keeps the 78% template
+# scale readable and leaves the merged Standards band inside the physical page.
+MAX_REPORT_SHEET_HEIGHT_POINTS = 570.0
 
 
 @dataclass(frozen=True)
@@ -35,6 +58,10 @@ class ExcelReportIssue:
     code: str
     message: str
     destinationCode: str | None = None
+    sheet: str | None = None
+    row: int | None = None
+    requiredHeightPoints: float | None = None
+    availableHeightPoints: float | None = None
 
 
 @dataclass(frozen=True)
@@ -96,22 +123,29 @@ def write_excel_report(
     # Preserve every untouched rich-text template cell when saving the report.
     workbook = load_workbook(template_path, rich_text=True)
     try:
-        worksheets = _report_worksheets(workbook, len(plans))
-        for page_index, worksheet in enumerate(worksheets):
-            page_plans = plans[
-                page_index * len(DESTINATION_ROWS) :
-                (page_index + 1) * len(DESTINATION_ROWS)
-            ]
-            _write_header(
-                worksheet,
-                report_datetime=report_datetime,
-                container_no=container_no,
-                company=company,
-            )
-            _write_destination_rows(worksheet, page_plans, warnings)
+        first_sheet = workbook[SHEET_NAME]
+        _prepare_report_sheet(
+            first_sheet,
+            report_datetime=report_datetime,
+            container_no=container_no,
+            company=company,
+        )
+        page_plans, layout_error = _plan_report_pages(first_sheet, plans)
+        if layout_error is not None:
+            errors.append(layout_error)
+            return _error_result(output_dir, warnings, errors)
+
+        worksheets = _report_worksheets(workbook, len(page_plans))
+        for worksheet, plans_for_sheet in zip(worksheets, page_plans):
+            _configure_page_contract(worksheet)
+            _write_destination_rows(worksheet, plans_for_sheet, warnings)
             worksheet[TOTAL_CARTONS_CELL] = sum(
-                int(getattr(plan, "totalCartons", 0) or 0)
-                for plan in page_plans
+                int(getattr(plan, "totalCartons", 0) or 0) for plan in plans_for_sheet
+            )
+            _apply_written_row_layout(
+                worksheet,
+                row=worksheet[TOTAL_CARTONS_CELL].row,
+                coordinates=(TOTAL_CARTONS_CELL,),
             )
         total_cartons = sum(
             int(getattr(plan, "totalCartons", 0) or 0) for plan in plans
@@ -155,8 +189,35 @@ def _write_header(
     worksheet[COMPANY_VALUE_CELL] = company
 
 
-def _report_worksheets(workbook: Any, plan_count: int) -> list[Any]:
-    page_count = max(1, (plan_count + len(DESTINATION_ROWS) - 1) // len(DESTINATION_ROWS))
+def _prepare_report_sheet(
+    worksheet: Any,
+    *,
+    report_datetime: datetime,
+    container_no: str,
+    company: str,
+) -> None:
+    _configure_page_contract(worksheet)
+    _write_header(
+        worksheet,
+        report_datetime=report_datetime,
+        container_no=container_no,
+        company=company,
+    )
+    _apply_written_row_layout(
+        worksheet,
+        row=1,
+        coordinates=(DATE_VALUE_CELL, TIME_VALUE_CELL, CONTAINER_VALUE_CELL),
+    )
+    _apply_written_row_layout(
+        worksheet,
+        row=2,
+        coordinates=(COMPANY_VALUE_CELL,),
+    )
+    _ensure_merged_cell_height(worksheet, STANDARDS_CELL)
+
+
+def _report_worksheets(workbook: Any, page_count: int) -> list[Any]:
+    page_count = max(1, page_count)
     first_sheet = workbook[SHEET_NAME]
     if page_count == 1:
         return [first_sheet]
@@ -171,6 +232,72 @@ def _report_worksheets(workbook: Any, plan_count: int) -> list[Any]:
         copied.title = f"Sheet{page_number}"
         worksheets.append(copied)
     return worksheets
+
+
+def _plan_report_pages(
+    worksheet: Any,
+    plans: tuple[Any, ...],
+) -> tuple[tuple[tuple[Any, ...], ...], ExcelReportIssue | None]:
+    if not plans:
+        return ((),), None
+
+    pages: list[tuple[Any, ...]] = []
+    current_page: list[Any] = []
+    plan_index = 0
+    while plan_index < len(plans):
+        plan = plans[plan_index]
+        if len(current_page) >= len(DESTINATION_ROWS):
+            pages.append(tuple(current_page))
+            current_page = []
+            continue
+
+        candidate = (*current_page, plan)
+        required_height = _required_sheet_height(worksheet, candidate)
+        available_height = _printable_raw_height_points(worksheet)
+        if required_height <= available_height:
+            current_page.append(plan)
+            plan_index += 1
+            continue
+
+        if current_page:
+            pages.append(tuple(current_page))
+            current_page = []
+            continue
+
+        destination = str(getattr(plan, "destinationCode", "") or "")
+        row = DESTINATION_ROWS[0].row
+        return (), ExcelReportIssue(
+            code="REPORT_CONTENT_TOO_TALL",
+            message="REPORT_CONTENT_TOO_TALL",
+            destinationCode=destination or None,
+            sheet=worksheet.title,
+            row=row,
+            requiredHeightPoints=required_height,
+            availableHeightPoints=available_height,
+        )
+
+    if current_page:
+        pages.append(tuple(current_page))
+    return tuple(pages), None
+
+
+def _required_sheet_height(worksheet: Any, plans: tuple[Any, ...]) -> float:
+    heights = {
+        row: _row_height(worksheet, row) for row in range(1, worksheet.max_row + 1)
+    }
+    for row_cells, plan in zip(DESTINATION_ROWS, plans):
+        destination = str(
+            getattr(plan, "destinationCode", None) or "NEED_MANUAL_DESTINATION"
+        )
+        row_height = _destination_row_height(
+            worksheet,
+            row_cells,
+            destination=destination,
+            final_pallets=int(getattr(plan, "finalPallets", 0) or 0),
+            total_cartons=int(getattr(plan, "totalCartons", 0) or 0),
+        )
+        heights[row_cells.row] = max(heights[row_cells.row], row_height)
+    return math.ceil(sum(heights.values()) * 4.0) / 4.0
 
 
 def _write_destination_rows(
@@ -196,13 +323,22 @@ def _write_destination_rows(
         worksheet[row_cells.destination_cell] = destination
         worksheet[row_cells.pallet_count_cell] = final_pallets
         worksheet[row_cells.carton_count_cell] = total_cartons
-        _apply_destination_row_layout(worksheet, row_cells, destination)
+        _apply_destination_row_layout(
+            worksheet,
+            row_cells,
+            destination,
+            final_pallets=final_pallets,
+            total_cartons=total_cartons,
+        )
 
 
 def _apply_destination_row_layout(
     worksheet: Any,
     row_cells: Any,
     destination: str,
+    *,
+    final_pallets: int,
+    total_cartons: int,
 ) -> None:
     wrapped_cells = (
         worksheet[row_cells.pallet_label_cell],
@@ -214,62 +350,222 @@ def _apply_destination_row_layout(
         alignment.vertical = "center"
         cell.alignment = alignment
 
-    line_count = max(
-        _estimated_excel_line_count(
-            destination,
-            _column_width(worksheet, cell.column_letter),
+    worksheet.row_dimensions[row_cells.row].height = _destination_row_height(
+        worksheet,
+        row_cells,
+        destination=destination,
+        final_pallets=final_pallets,
+        total_cartons=total_cartons,
+    )
+
+
+def _destination_row_height(
+    worksheet: Any,
+    row_cells: Any,
+    *,
+    destination: str,
+    final_pallets: int,
+    total_cartons: int,
+) -> float:
+    coordinates_and_values = (
+        (row_cells.pallet_label_cell, destination),
+        (row_cells.destination_cell, destination),
+        (row_cells.pallet_count_cell, str(final_pallets)),
+        (row_cells.carton_count_cell, str(total_cartons)),
+    )
+    cells = tuple(
+        _cell_layout_input(
+            worksheet,
+            coordinate,
+            visible_value=value,
+            force_wrap=coordinate
+            in {row_cells.pallet_label_cell, row_cells.destination_cell},
         )
-        for cell in wrapped_cells
+        for coordinate, value in coordinates_and_values
     )
-    current_height = worksheet.row_dimensions[row_cells.row].height
-    base_height = current_height or DEFAULT_REPORT_ROW_HEIGHT
-    worksheet.row_dimensions[row_cells.row].height = max(
-        base_height,
-        DEFAULT_REPORT_ROW_HEIGHT * line_count,
+    result = calculate_row_layout(
+        cells,
+        template_height_points=_row_height(worksheet, row_cells.row),
+        maximum_height_points=MAX_ROW_HEIGHT_POINTS,
     )
-
-
-def _estimated_excel_line_count(value: str, column_width: float) -> int:
-    return sum(
-        _estimated_wrapped_line_count(line, column_width) for line in value.split("\n")
+    return max(
+        result.required_height_points,
+        *(cell.required_height_points for cell in result.cell_results),
     )
 
 
-def _estimated_wrapped_line_count(value: str, column_width: float) -> int:
-    max_width = max(column_width - 1, MIN_REPORT_ROW_WIDTH)
-    line_count = 1
-    current_width = 0.0
+def _apply_written_row_layout(
+    worksheet: Any,
+    *,
+    row: int,
+    coordinates: tuple[str, ...],
+) -> None:
+    cells = tuple(
+        _cell_layout_input(worksheet, coordinate) for coordinate in coordinates
+    )
+    worksheet.row_dimensions[row].height = calculate_row_layout(
+        cells,
+        template_height_points=_row_height(worksheet, row),
+        maximum_height_points=MAX_ROW_HEIGHT_POINTS,
+    ).required_height_points
 
-    for token in value.split(" "):
-        token_width = _estimated_excel_text_width(token)
-        separator_width = 0.35 if current_width else 0.0
-        if current_width and current_width + separator_width + token_width > max_width:
-            line_count += 1
-            current_width = token_width
+
+def _ensure_merged_cell_height(worksheet: Any, coordinate: str) -> None:
+    cell = worksheet[coordinate]
+    alignment = copy(cell.alignment)
+    alignment.vertical = "top"
+    cell.alignment = alignment
+
+    merged_range = _merged_range_for_coordinate(worksheet, coordinate)
+    if merged_range is None:
+        _apply_written_row_layout(
+            worksheet,
+            row=cell.row,
+            coordinates=(coordinate,),
+        )
+        return
+
+    rows = tuple(range(merged_range.min_row, merged_range.max_row + 1))
+    existing_height = sum(_row_height(worksheet, row) for row in rows)
+    required_height = calculate_cell_layout(
+        _cell_layout_input(worksheet, coordinate)
+    ).required_height_points
+    if required_height <= existing_height:
+        return
+
+    # Excel and LibreOffice both calculate the printable text box for a
+    # vertically merged cell from the participating rows. Concentrating the
+    # complete growth in the final row can leave the text box at its old
+    # height in Print Preview even though the worksheet reports a larger
+    # aggregate height. Grow every row in the merge so both renderers observe
+    # the same physical note region.
+    growth_per_row = (required_height - existing_height) / len(rows)
+    for row in rows:
+        worksheet.row_dimensions[row].height = (
+            math.ceil((_row_height(worksheet, row) + growth_per_row) * 4.0) / 4.0
+        )
+
+
+def _cell_layout_input(
+    worksheet: Any,
+    coordinate: str,
+    *,
+    visible_value: str | None = None,
+    force_wrap: bool = False,
+) -> CellLayoutInput:
+    cell = worksheet[coordinate]
+    if force_wrap:
+        alignment = copy(cell.alignment)
+        alignment.wrap_text = True
+        alignment.vertical = "center"
+        cell.alignment = alignment
+    value = cell.value if visible_value is None else visible_value
+    font_size = float(cell.font.sz or 11.0)
+    return CellLayoutInput(
+        visible_value="" if value is None else str(value),
+        printable_width_points=_cell_printable_width_points(worksheet, coordinate),
+        font_name=cell.font.name,
+        font_size=font_size,
+        bold=bool(cell.font.bold),
+        wrap_text=bool(cell.alignment.wrap_text or force_wrap),
+        indent=float(cell.alignment.indent or 0.0),
+        rotation=int(cell.alignment.textRotation or 0),
+        runs=_rich_text_runs(cell.value, cell),
+    )
+
+
+def _rich_text_runs(value: Any, cell: Any) -> tuple[TextRun, ...]:
+    if not isinstance(value, CellRichText):
+        return ()
+    runs: list[TextRun] = []
+    for item in value:
+        if isinstance(item, TextBlock):
+            font = item.font
+            runs.append(
+                TextRun(
+                    text=item.text,
+                    font_name=font.rFont or cell.font.name,
+                    font_size=float(font.sz or cell.font.sz or 11.0),
+                    bold=bool(font.b),
+                )
+            )
         else:
-            current_width += separator_width + token_width
-
-        while current_width > max_width:
-            line_count += 1
-            current_width -= max_width
-
-    return max(1, line_count)
-
-
-def _estimated_excel_text_width(value: str) -> float:
-    width = 0.0
-    for character in value:
-        if character.isspace():
-            width += 0.35
-        elif character.isascii():
-            width += 1.0
-        else:
-            width += 1.8
-    return width
+            runs.append(
+                TextRun(
+                    text=str(item),
+                    font_name=cell.font.name,
+                    font_size=float(cell.font.sz or 11.0),
+                    bold=bool(cell.font.bold),
+                )
+            )
+    return tuple(runs)
 
 
-def _column_width(worksheet: Any, column_letter: str) -> float:
-    return float(worksheet.column_dimensions[column_letter].width or MIN_REPORT_ROW_WIDTH)
+def _cell_printable_width_points(worksheet: Any, coordinate: str) -> float:
+    cell = worksheet[coordinate]
+    merged_range = _merged_range_for_coordinate(worksheet, coordinate)
+    if merged_range is None:
+        columns = (cell.column,)
+    else:
+        columns = range(merged_range.min_col, merged_range.max_col + 1)
+    width = sum(
+        excel_column_width_to_points(
+            float(
+                worksheet.column_dimensions[get_column_letter(column)].width
+                or worksheet.sheet_format.defaultColWidth
+                or 8.43
+            )
+        )
+        for column in columns
+    )
+    return max(width - CELL_HORIZONTAL_PADDING_POINTS, 1.0)
+
+
+def _merged_range_for_coordinate(worksheet: Any, coordinate: str) -> Any | None:
+    for merged_range in worksheet.merged_cells.ranges:
+        if coordinate in merged_range:
+            return merged_range
+    return None
+
+
+def _row_height(worksheet: Any, row: int) -> float:
+    return float(
+        worksheet.row_dimensions[row].height
+        or worksheet.sheet_format.defaultRowHeight
+        or DEFAULT_REPORT_ROW_HEIGHT
+    )
+
+
+def _configure_page_contract(worksheet: Any) -> None:
+    worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
+    worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
+    worksheet.page_setup.scale = MINIMUM_PRINT_SCALE_PERCENT
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 1
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+    worksheet.sheet_properties.pageSetUpPr.autoPageBreaks = False
+    worksheet.print_area = REPORT_PRINT_AREA
+    worksheet.row_breaks = worksheet.row_breaks.__class__()
+    worksheet.col_breaks = worksheet.col_breaks.__class__()
+
+
+def _printable_raw_height_points(worksheet: Any) -> float:
+    margins: PageMargins = worksheet.page_margins
+    printable_points = (
+        A4_LANDSCAPE_HEIGHT_POINTS
+        - (float(margins.top or 0.0) + float(margins.bottom or 0.0)) * 72.0
+    )
+    scale = max(
+        float(worksheet.page_setup.scale or MINIMUM_PRINT_SCALE_PERCENT),
+        MINIMUM_PRINT_SCALE_PERCENT,
+    )
+    calculated_height = (
+        math.floor(
+            (printable_points * 100.0 / scale - PRINTABLE_HEIGHT_GUARD_POINTS) * 4.0
+        )
+        / 4.0
+    )
+    return min(calculated_height, MAX_REPORT_SHEET_HEIGHT_POINTS)
 
 
 def _append_manifest_record(

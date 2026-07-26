@@ -482,32 +482,35 @@ arrays are empty, and confirm both `WEBOPS09%` containers and disposable adminis
 are zero after cleanup. Credentials must only be supplied through environment variables
 or a dedicated one-time local seed; never write them to screenshots or reports.
 
-## Unloading Report Print Regression
+## Unloading Report Adaptive Layout and Print Regression
 
-Run the complete `Palletizing Standards` rich-text and print regression from the
-repository root. The command builds the full stack plus profile-gated Playwright
-and LibreOffice images, uses the real CAAU unloading-plan fixture through both
-the Worker and API download paths, checks generated-file audit metadata and the
-template SHA-256, and exports reviewable PDF/PNG artifacts:
+Run the current unloading-report regression from the repository root. The command
+builds the full stack plus profile-gated Playwright and LibreOffice images, uses
+the real CAAU unloading-plan fixture through both the Worker and API download
+paths, checks generated-file audit metadata, exact cleanup, the template SHA-256,
+content-aware row heights, printable-height pagination, and exports reviewable
+PDF/PNG artifacts:
 
 ```bash
-REPORT_VISUAL_RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)" scripts/verify-unload-report-01.sh
+REPORT_VISUAL_RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)" scripts/verify-unload-report-02.sh
 ```
 
-Artifacts are written to `test-results/unload-report-01/<run-id>/`. The visual
+Artifacts are written to `test-results/unload-report-02/<run-id>/`. The visual
 gate requires every populated worksheet to produce exactly one A4 landscape PDF
-page, plus one full-page PNG and one `Palletizing Standards` crop per page. The
-report keeps the established eight primary destination rows, then uses the eight
-white writable rows in the same business table before creating another worksheet.
-The real CAAU fixture has nine destinations, so all nine must remain on one
-populated worksheet and the ninth must be present in white row `N5`; inputs above
-sixteen destinations may use subsequent worksheets without data loss. The same
-gate also generates clearly synthetic boundary workbooks: sixteen destinations
-with a multiline value in the last white row must stay on one page, while the
-seventeenth destination must appear on a second worksheet and second page. Every
-PDF page is checked independently for the complete Standards text. Review every
-PNG at original resolution, then use the API-downloaded workbook for the final
-Microsoft Excel Print Preview / Print to PDF check on Windows.
+page, plus a full-page PNG, business-table crop, and `Palletizing Standards` crop
+per page. The report keeps the established eight primary destination rows and
+eight white writable rows, but content may trigger an earlier worksheet boundary
+when the printable-height budget would otherwise be exceeded. All destinations
+must remain in their original order and appear exactly once.
+
+The gate generates clearly synthetic long-English, long-CJK, explicit-newline,
+16-slot long-last-row, and printable-height-overflow workbooks. Every PDF page is
+checked independently for its last destination and the complete Standards text.
+Review every retained PNG at original resolution. Then use the API-downloaded
+workbook without AutoFit or print-setting changes for the final Microsoft Excel
+normal-view, Print Preview, and Print to PDF check on Windows. Keep
+`scripts/verify-unload-report-01.sh` only as historical UNLOAD-REPORT-01 evidence;
+it is not the current regression gate.
 
 Then verify authentication through nginx:
 
