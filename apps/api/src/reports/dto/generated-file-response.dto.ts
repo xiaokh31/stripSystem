@@ -15,6 +15,11 @@ export interface GeneratedFileResponseDto {
 
 export interface GenerateReportResponseDto {
   generatedFile: GeneratedFileResponseDto;
+  reportEvidence: {
+    expectedDestinationCount: number;
+    writtenDestinationCount: number;
+    orderedDestinationDigest: string;
+  };
   warnings: unknown[];
   errors: unknown[];
 }

@@ -41,6 +41,11 @@ export function asyncJobFailureMessage(job: AsyncJobResponse): string {
   return message ?? `Async job ${job.id} ended with status ${job.status}.`;
 }
 
+export function asyncJobFailureCode(job: AsyncJobResponse): string | null {
+  const result = objectValue(job.result);
+  return result ? stringValue(result.code) : null;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

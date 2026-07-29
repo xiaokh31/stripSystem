@@ -13,7 +13,7 @@ import {
   type GeneratedFileResponse,
 } from "@/lib/api-client";
 import {
-  asyncJobFailureMessage,
+  asyncJobFailureCode,
   waitForAsyncJob,
 } from "@/lib/async-job-polling";
 import type { Locale } from "@/lib/i18n/catalog";
@@ -139,11 +139,19 @@ export function ContainerGeneratedFiles({
       });
       const job = await waitForAsyncJob(submitted.id);
       if (job.status !== "succeeded") {
+        const code =
+          asyncJobFailureCode(job) ??
+          `ASYNC_JOB_${job.status.toUpperCase()}`;
         setGeneration({
           action,
-          code: `ASYNC_JOB_${job.status.toUpperCase()}`,
+          code,
           file: null,
-          message: asyncJobFailureMessage(job),
+          message: generationFailureMessage(
+            action,
+            code,
+            "",
+            locale,
+          ),
           status: "error",
         });
         return;
@@ -439,14 +447,10 @@ function GenerationStatus({
           ? "border-red-200 bg-red-50 text-red-950"
           : "border-emerald-200 bg-emerald-50 text-emerald-950"
       }`}
+      data-error-code={generation.code ?? undefined}
       role={isError ? "alert" : "status"}
     >
       <p className="font-semibold">{generation.message}</p>
-      {generation.code ? (
-        <p className="mt-1 text-xs font-semibold uppercase" data-i18n-ignore>
-          {generation.code}
-        </p>
-      ) : null}
       {generation.file && isDownloadableGeneratedFile(generation.file) ? (
         <a
           className="mt-2 inline-flex min-h-10 items-center border border-emerald-300 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50"

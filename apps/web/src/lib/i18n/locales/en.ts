@@ -368,8 +368,8 @@ export const enMessages = {
     "Every row is loaded from persisted correction feedback records.",
   "Excel files": "Excel files",
   "Excel report generated.": "Excel report generated.",
-  "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.":
-    "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.",
+  "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.":
+    "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.",
   Exception: "Exception",
   "Existing import:": "Existing import:",
   "Expected pallets": "Expected pallets",
@@ -1634,6 +1634,10 @@ export const enMessages = {
     "The label PDF and pallet records cannot be rebuilt because existing pallets have already been assigned, loaded, marked unloaded, or entered loading.",
   "Container generation is locked. Use the scan correction workflow for loading changes, or work from a container that has not entered loading.":
     "Container generation is locked. Use the scan correction workflow for loading changes, or work from a container that has not entered loading.",
+  "The report was not saved because its destination rows did not match the expected pallet plan. The previous successful report is still available.":
+    "The report was not saved because its destination rows did not match the expected pallet plan. The previous successful report is still available.",
+  "The report needs office review because unusually long content cannot fit the approved single-page layout safely. The previous successful report is still available.":
+    "The report needs office review because unusually long content cannot fit the approved single-page layout safely. The previous successful report is still available.",
   "Generation failed.": "Generation failed.",
   "i18n.destinations.actualCbmFor": "Actual CBM for {destination}",
   "i18n.destinations.actualCartonsFor": "Actual cartons for {destination}",

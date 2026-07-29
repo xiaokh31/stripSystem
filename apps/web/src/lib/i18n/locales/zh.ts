@@ -356,8 +356,8 @@ export const zhMessages = {
     "每一行都来自已持久化的修正反馈记录。",
   "Excel files": "Excel 文件",
   "Excel report generated.": "Excel 报告已生成。",
-  "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.":
-    "Excel 报告会使用最新保存的数据库值，并覆盖此柜子的当前报告文件记录。",
+  "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.":
+    "Excel 报告会使用最新保存的数据库值，并在文件历史中保留每次生成记录。",
   Exception: "异常",
   "Existing import:": "已有导入：",
   "Expected pallets": "预计托数",
@@ -1519,6 +1519,10 @@ export const zhMessages = {
     "现有托盘已被分配、装车、标记为已拆完或进入装车中，因此无法重建托盘面单 PDF 和托盘记录。",
   "Container generation is locked. Use the scan correction workflow for loading changes, or work from a container that has not entered loading.":
     "柜子生成已锁定。装车变更请使用扫码修正流程，或处理尚未进入装车的柜子。",
+  "The report was not saved because its destination rows did not match the expected pallet plan. The previous successful report is still available.":
+    "报表目的仓行与预期托盘计划不一致，因此未保存；上一份成功报表仍可使用。",
+  "The report needs office review because unusually long content cannot fit the approved single-page layout safely. The previous successful report is still available.":
+    "异常长内容无法安全放入已批准的单页版式，报表需要办公室复核；上一份成功报表仍可使用。",
   "Generation failed.": "生成失败。",
   "i18n.destinations.actualCbmFor": "{destination} 的实际 CBM",
   "i18n.destinations.actualCartonsFor": "{destination} 的实际箱数",

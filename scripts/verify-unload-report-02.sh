@@ -4,23 +4,33 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 compose_file="$repo_root/infra/docker/compose.local.yml"
+task_id="${REPORT_TASK_ID:-UNLOAD-REPORT-02}"
+task_slug="${REPORT_TASK_SLUG:-unload-report-02}"
+visual_service="${REPORT_VISUAL_SERVICE:-unload-report-02-visual-test}"
+fixture_generator="${REPORT_FIXTURE_GENERATOR:-generate_report_02_visual_workbooks.py}"
+report_failure_probe="${E2E_REPORT_FAILURE_PROBE:-0}"
+report_conservation_probe="${E2E_REPORT_CONSERVATION_PROBE:-0}"
 run_id="${REPORT_VISUAL_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
-artifact_rel="unload-report-02/$run_id"
+artifact_rel="$task_slug/$run_id"
 artifact_dir="$repo_root/test-results/$artifact_rel"
-failure_dir="$repo_root/test-results/unload-report-02-failure/$run_id"
+failure_dir="$repo_root/test-results/$task_slug-failure/$run_id"
+conservation_dir="$repo_root/test-results/$task_slug-conservation/$run_id"
 source_dir="$artifact_dir/source"
 failure_source_dir="$failure_dir/source"
+conservation_source_dir="$conservation_dir/source"
 template="$repo_root/samples/templates/卸柜报告-En.xlsx"
-admin_email="unload-report-02-$run_id@local.invalid"
+admin_email="$task_slug-$run_id@local.invalid"
 admin_password="$(openssl rand -base64 30 | tr -d '\n')Aa1!"
-runtime_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/unload-report-02.XXXXXX")"
+runtime_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/$task_slug.XXXXXX")"
 manifest_path="$repo_root/storage/reports/report_manifest.json"
 manifest_backup="$runtime_backup_dir/report_manifest.json"
 manifest_existed=0
 cleanup_failed=0
+uv_fault_installed=0
 
 mkdir -p "$source_dir" "$artifact_dir/playwright" "$failure_source_dir" \
-  "$failure_dir/playwright"
+  "$failure_dir/playwright" "$conservation_source_dir" \
+  "$conservation_dir/playwright"
 if [ -f "$manifest_path" ]; then
   cp "$manifest_path" "$manifest_backup"
   manifest_existed=1
@@ -60,7 +70,7 @@ unlink_runtime_artifact() {
       return 0
       ;;
     *)
-      echo "Unsafe UNLOAD-REPORT-02 storage cleanup path: $container_path" >&2
+      echo "Unsafe $task_id storage cleanup path: $container_path" >&2
       return 1
       ;;
   esac
@@ -74,6 +84,18 @@ unlink_runtime_artifact() {
   if [ -f "$host_path" ]; then
     unlink "$host_path"
   fi
+  case "$host_path" in
+    "$repo_root/storage/reports/"*/*/*)
+      local attempt_dir container_dir
+      attempt_dir="$(dirname "$host_path")"
+      container_dir="$(dirname "$attempt_dir")"
+      if [ -d "$attempt_dir" ]; then
+        find "$attempt_dir" -mindepth 1 -maxdepth 1 -type f -delete
+        rmdir "$attempt_dir" 2>/dev/null || true
+      fi
+      rmdir "$container_dir" 2>/dev/null || true
+      ;;
+  esac
 }
 
 cleanup_fixture() {
@@ -156,10 +178,28 @@ restore_manifest() {
   fi
 }
 
+restore_api_uv() {
+  if [ "$uv_fault_installed" -ne 1 ]; then
+    return 0
+  fi
+  docker compose -f "$compose_file" exec -T api sh -lc '
+    test -x /usr/local/bin/uv-real
+    mv -f /usr/local/bin/uv-real /usr/local/bin/uv
+    if [ -f /tmp/unload-report-03-conservation-write-count ]; then
+      unlink /tmp/unload-report-03-conservation-write-count
+    fi
+  '
+  uv_fault_installed=0
+}
+
 cleanup_on_exit() {
   local original_status=$?
   trap - EXIT
   set +e
+  restore_api_uv
+  uv_restore_status=$?
+  cleanup_fixture "$conservation_dir"
+  conservation_cleanup_status=$?
   cleanup_fixture "$failure_dir"
   failure_cleanup_status=$?
   cleanup_fixture "$artifact_dir"
@@ -169,7 +209,9 @@ cleanup_on_exit() {
   restore_manifest
   manifest_cleanup_status=$?
   rm -rf "$runtime_backup_dir"
-  if [ "$failure_cleanup_status" -ne 0 ] ||
+  if [ "$uv_restore_status" -ne 0 ] ||
+    [ "$conservation_cleanup_status" -ne 0 ] ||
+    [ "$failure_cleanup_status" -ne 0 ] ||
     [ "$success_cleanup_status" -ne 0 ] ||
     [ "$admin_cleanup_status" -ne 0 ] ||
     [ "$manifest_cleanup_status" -ne 0 ]; then
@@ -217,7 +259,7 @@ SQL
 
 docker compose -f "$compose_file" up -d --build
 docker compose -f "$compose_file" --profile e2e --profile report-visual build \
-  e2e-web unload-report-02-visual-test
+  e2e-web "$visual_service"
 
 storage_before="$(storage_digest)"
 generated_before="$(generated_files_digest)"
@@ -225,7 +267,7 @@ generated_before="$(generated_files_digest)"
 docker compose -f "$compose_file" exec -T \
   -e "SEED_ADMIN_EMAIL=$admin_email" \
   -e "SEED_ADMIN_PASSWORD=$admin_password" \
-  -e "SEED_ADMIN_NAME=UNLOAD-REPORT-02 E2E" \
+  -e "SEED_ADMIN_NAME=$task_id E2E" \
   api pnpm --filter api prisma db seed
 
 set +e
@@ -240,7 +282,7 @@ docker compose -f "$compose_file" --profile e2e run --rm -T \
 failure_status=$?
 set -e
 if [ "$failure_status" -eq 0 ]; then
-  echo "Intentional UNLOAD-REPORT-02 cleanup failure probe unexpectedly passed." >&2
+  echo "Intentional $task_id cleanup failure probe unexpectedly passed." >&2
   exit 1
 fi
 if [ "$(artifact_value "$failure_source_dir/intentional-failure-reached.txt")" != "yes" ]; then
@@ -259,7 +301,36 @@ docker compose -f "$compose_file" --profile e2e run --rm -T \
   -e "E2E_ADMIN_EMAIL=$admin_email" \
   -e "E2E_ADMIN_PASSWORD=$admin_password" \
   -e "UNLOAD_REPORT_ARTIFACT_DIR=/artifacts/source" \
+  -e "E2E_REPORT_FAILURE_PROBE=$report_failure_probe" \
   e2e-web e2e/unload-report-rich-text.spec.ts --project=chromium
+
+if [ "$report_conservation_probe" = "1" ]; then
+  docker compose -f "$compose_file" exec -T api sh -lc '
+    test -x /usr/local/bin/uv
+    test ! -e /usr/local/bin/uv-real
+    mv /usr/local/bin/uv /usr/local/bin/uv-real
+    cp /workspace/apps/worker-python/tests/fixtures/report_conservation_fault_uv.sh \
+      /usr/local/bin/uv
+    chmod 0755 /usr/local/bin/uv
+  '
+  uv_fault_installed=1
+  docker compose -f "$compose_file" --profile e2e run --rm -T \
+    -v "$conservation_dir/playwright:/workspace/apps/web/test-results" \
+    -v "$conservation_dir:/artifacts" \
+    -e "E2E_ADMIN_EMAIL=$admin_email" \
+    -e "E2E_ADMIN_PASSWORD=$admin_password" \
+    -e "UNLOAD_REPORT_ARTIFACT_DIR=/artifacts/source" \
+    -e "E2E_REPORT_FAILURE_PROBE=1" \
+    -e "E2E_REPORT_EXPECTED_FAILURE_CODE=REPORT_DESTINATION_CONSERVATION_FAILED" \
+    -e "E2E_REPORT_EXPECTED_FAILURE_STAGE=reopen.row" \
+    e2e-web e2e/unload-report-rich-text.spec.ts --project=chromium
+  restore_api_uv
+  cleanup_fixture "$conservation_dir"
+  if [ "$(residual_count "$conservation_dir")" != "0" ]; then
+    echo "Conservation-probe database cleanup left residual rows." >&2
+    exit 1
+  fi
+fi
 
 generated_file_id="$(artifact_value "$source_dir/generated-file-id.txt")"
 actor_user_id="$(artifact_value "$source_dir/actor-user-id.txt")"
@@ -317,12 +388,12 @@ docker compose -f "$compose_file" run --rm -T --no-deps \
       --output-dir \"\$run_dir/worker-pipeline\"
     cp \"\$run_dir\"/worker-pipeline/reports/*.xlsx \
       \"\$run_dir/source/worker-generated-report.xlsx\"
-    uv run python tests/fixtures/generate_report_02_visual_workbooks.py \
+    uv run python tests/fixtures/$fixture_generator \
       --output-dir \"\$run_dir/source\"
   "
 
 docker compose -f "$compose_file" --profile report-visual run --rm -T --no-deps \
-  unload-report-02-visual-test "/workspace/test-results/$artifact_rel"
+  "$visual_service" "/workspace/test-results/$artifact_rel"
 
 template_sha_after="$(sha256sum "$template" | awk '{print $1}')"
 if [ "$template_sha_after" != "$template_sha_before" ]; then
@@ -346,22 +417,22 @@ SELECT COUNT(*) FROM users WHERE email = :'email';
 SQL
 )"
 if [ "$admin_residual" != "0" ]; then
-  echo "Temporary UNLOAD-REPORT-02 administrator was not removed." >&2
+  echo "Temporary $task_id administrator was not removed." >&2
   exit 1
 fi
 storage_after="$(storage_digest)"
 generated_after="$(generated_files_digest)"
 if [ "$storage_after" != "$storage_before" ]; then
-  echo "Storage digest changed after exact UNLOAD-REPORT-02 cleanup." >&2
+  echo "Storage digest changed after exact $task_id cleanup." >&2
   exit 1
 fi
 if [ "$generated_after" != "$generated_before" ]; then
-  echo "Generated-file digest changed after exact UNLOAD-REPORT-02 cleanup." >&2
+  echo "Generated-file digest changed after exact $task_id cleanup." >&2
   exit 1
 fi
-printf 'failure_probe_residual=0\nsuccess_residual=0\nadmin_residual=0\nstorage_restored=true\ngenerated_files_restored=true\n' \
+printf 'failure_probe_residual=0\nconservation_probe_residual=0\nsuccess_residual=0\nadmin_residual=0\nstorage_restored=true\ngenerated_files_restored=true\n' \
   > "$artifact_dir/cleanup-verification.txt"
 
 trap - EXIT
 rm -rf "$runtime_backup_dir"
-echo "UNLOAD-REPORT-02 artifacts: $artifact_dir"
+echo "$task_id artifacts: $artifact_dir"

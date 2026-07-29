@@ -5,8 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFile, rm, stat } from 'node:fs/promises';
 import { basename, join, resolve, sep } from 'node:path';
 import {
   GeneratedFileDownloadDto,
@@ -91,25 +91,28 @@ interface GeneratedFileUpsertInput {
   generatedById: string;
 }
 
-interface GeneratedFileUpsertData extends GeneratedFileUpsertInput {
+interface GeneratedFileCreateData extends GeneratedFileUpsertInput {
   importFileId: string | null;
   containerId: string;
 }
 
 interface GeneratedFileWriteClient {
   generatedFile: {
-    findFirst(args: {
-      where: { containerId: string; fileType: string };
-      orderBy: { updatedAt: 'desc' };
-    }): Promise<GeneratedFileRecord | null>;
-    update(args: {
-      where: { id: string };
-      data: GeneratedFileUpsertData;
-    }): Promise<GeneratedFileRecord>;
     create(args: {
-      data: GeneratedFileUpsertData;
+      data: GeneratedFileCreateData;
     }): Promise<GeneratedFileRecord>;
   };
+}
+
+interface ReportEvidence {
+  expectedDestinationCount: number;
+  writtenDestinationCount: number;
+  orderedDestinationDigest: string;
+}
+
+interface SafeReportFailure {
+  code: string;
+  details: Record<string, string | number>;
 }
 
 const EXCEL_REPORT_MIME_TYPE =
@@ -132,7 +135,12 @@ export class ReportsService {
     actor: AuthenticatedUser,
   ): Promise<GenerateReportResponseDto> {
     const container = await this.findContainerOrThrow(id);
-    const outputDir = join(this.storageRoot, 'reports');
+    const outputDir = join(
+      this.storageRoot,
+      'reports',
+      this.safeFilename(container.containerNo),
+      randomUUID(),
+    );
     const request = this.toWorkerReportRequest(container);
     const generatedById = auditUserId(actor);
 
@@ -140,9 +148,10 @@ export class ReportsService {
     try {
       payload = await this.workerReport.writeReport(request, outputDir);
     } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
       const failed = await this.recordFailedGeneratedFile(
         container,
-        this.failureStoragePath(container),
+        this.failureStoragePath(container, outputDir),
         error,
         generatedById,
       );
@@ -152,23 +161,74 @@ export class ReportsService {
     const outputPath = this.outputPathFromPayload(payload);
     const errors = this.issueArray(payload.errors);
     if (payload.task_status === 'ERROR' || errors.length > 0 || !outputPath) {
+      await this.cleanupAttemptDirectory(outputDir);
       const failed = await this.recordFailedGeneratedFile(
         container,
-        outputPath ?? this.failureStoragePath(container),
+        outputPath ?? this.failureStoragePath(container, outputDir),
         payload,
         generatedById,
       );
       throw this.reportFailure(payload, failed);
     }
 
-    const generatedFile = await this.recordGeneratedReport(
-      container,
-      outputPath,
-      generatedById,
-    );
+    const evidence = this.reportEvidence(payload);
+    if (!evidence) {
+      const failure = {
+        errors: [
+          {
+            code: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+            stage: 'api.worker-evidence',
+            expectedCount: request.pallet_result.plans instanceof Array
+              ? request.pallet_result.plans.length
+              : 0,
+            actualCount: 0,
+          },
+        ],
+      };
+      await this.cleanupAttemptDirectory(outputDir);
+      const failed = await this.recordFailedGeneratedFile(
+        container,
+        this.failureStoragePath(container, outputDir),
+        failure,
+        generatedById,
+      );
+      throw this.reportFailure(failure, failed);
+    }
+
+    let containedOutputPath: string;
+    try {
+      containedOutputPath = this.generatedOutputPath(outputPath, outputDir);
+    } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
+      const failed = await this.recordFailedGeneratedFile(
+        container,
+        this.failureStoragePath(container, outputDir),
+        error,
+        generatedById,
+      );
+      throw this.reportFailure(error, failed);
+    }
+    let generatedFile: GeneratedFileRecord;
+    try {
+      generatedFile = await this.recordGeneratedReport(
+        container,
+        containedOutputPath,
+        generatedById,
+      );
+    } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
+      const failed = await this.recordFailedGeneratedFile(
+        container,
+        this.failureStoragePath(container, outputDir),
+        error,
+        generatedById,
+      );
+      throw this.reportFailure(error, failed);
+    }
 
     return {
       generatedFile: this.toGeneratedFileResponse(generatedFile),
+      reportEvidence: evidence,
       warnings: this.issueArray(payload.warnings),
       errors: [],
     };
@@ -349,7 +409,7 @@ export class ReportsService {
     const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
 
     return await this.prisma.$transaction(async (tx) => {
-      const generatedFile = await this.upsertGeneratedFile(
+      const generatedFile = await this.createGeneratedFile(
         tx as unknown as GeneratedFileWriteClient,
         container,
         {
@@ -389,7 +449,7 @@ export class ReportsService {
     error: unknown,
     generatedById: string,
   ): Promise<GeneratedFileRecord> {
-    return await this.upsertGeneratedFile(
+    return await this.createGeneratedFile(
       this.prisma as unknown as GeneratedFileWriteClient,
       container,
       {
@@ -399,33 +459,22 @@ export class ReportsService {
         mimeType: EXCEL_REPORT_MIME_TYPE,
         fileSizeBytes: null,
         status: GeneratedFileStatus.FAILED,
-        errorMessage: this.errorMessage(error),
+        errorMessage: this.safeReportFailure(error).code,
         generatedById,
       },
     );
   }
 
-  private async upsertGeneratedFile(
+  private async createGeneratedFile(
     tx: GeneratedFileWriteClient,
     container: ContainerRecord,
     data: GeneratedFileUpsertInput,
   ): Promise<GeneratedFileRecord> {
-    const existing = await tx.generatedFile.findFirst({
-      where: { containerId: container.id, fileType: data.fileType },
-      orderBy: { updatedAt: 'desc' },
-    });
-    const recordData: GeneratedFileUpsertData = {
+    const recordData: GeneratedFileCreateData = {
       importFileId: container.importFileId,
       containerId: container.id,
       ...data,
     };
-
-    if (existing) {
-      return await tx.generatedFile.update({
-        where: { id: existing.id },
-        data: recordData,
-      });
-    }
 
     return await tx.generatedFile.create({
       data: recordData,
@@ -436,12 +485,14 @@ export class ReportsService {
     error: unknown,
     generatedFile: GeneratedFileRecord,
   ): InternalServerErrorException {
+    const failure = this.safeReportFailure(error);
     return new InternalServerErrorException({
-      code: 'REPORT_GENERATION_FAILED',
-      message: 'The unloading report could not be generated.',
+      code: failure.code,
+      message: failure.code,
+      labelKey: `reports.errors.${failure.code}`,
       details: {
-        generatedFile: this.toGeneratedFileResponse(generatedFile),
-        errorMessage: this.errorMessage(error),
+        generatedFileId: generatedFile.id,
+        ...failure.details,
       },
     });
   }
@@ -453,12 +504,107 @@ export class ReportsService {
       : null;
   }
 
-  private failureStoragePath(container: ContainerRecord): string {
+  private failureStoragePath(
+    container: ContainerRecord,
+    outputDir: string,
+  ): string {
     return join(
-      this.storageRoot,
-      'reports',
+      outputDir,
       `${this.safeFilename(container.containerNo)}卸柜报告-En.xlsx`,
     );
+  }
+
+  private generatedOutputPath(outputPath: string, outputDir: string): string {
+    const resolvedOutput = resolve(outputPath);
+    const resolvedAttempt = resolve(outputDir);
+    if (
+      !resolvedOutput.startsWith(`${resolvedAttempt}${sep}`) ||
+      !resolvedOutput.toLowerCase().endsWith('.xlsx')
+    ) {
+      throw new InternalServerErrorException({
+        code: 'WORKER_REPORT_OUTPUT_PATH_INVALID',
+        message: 'WORKER_REPORT_OUTPUT_PATH_INVALID',
+        details: { stage: 'validate-output-path' },
+      });
+    }
+    return resolvedOutput;
+  }
+
+  private reportEvidence(payload: WorkerReportPayload): ReportEvidence | null {
+    const reportResult = payload.report_result;
+    const expected = reportResult?.totalDestinationCount;
+    const written = reportResult?.writtenDestinationCount;
+    const digest = reportResult?.orderedDestinationDigest;
+    if (
+      !Number.isInteger(expected) ||
+      !Number.isInteger(written) ||
+      Number(expected) < 0 ||
+      expected !== written ||
+      typeof digest !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(digest)
+    ) {
+      return null;
+    }
+    return {
+      expectedDestinationCount: Number(expected),
+      writtenDestinationCount: Number(written),
+      orderedDestinationDigest: digest,
+    };
+  }
+
+  private async cleanupAttemptDirectory(outputDir: string): Promise<void> {
+    const reportsRoot = resolve(this.storageRoot, 'reports');
+    const attempt = resolve(outputDir);
+    if (!attempt.startsWith(`${reportsRoot}${sep}`)) {
+      return;
+    }
+    await rm(attempt, { force: true, recursive: true });
+  }
+
+  private safeReportFailure(error: unknown): SafeReportFailure {
+    const source = this.issueArray(
+      error !== null && typeof error === 'object' && 'errors' in error
+        ? (error as { errors?: unknown }).errors
+        : null,
+    )[0];
+    const issue =
+      source !== null && typeof source === 'object'
+        ? (source as Record<string, unknown>)
+        : null;
+    const exceptionResponse =
+      error !== null &&
+      typeof error === 'object' &&
+      'getResponse' in error &&
+      typeof (error as { getResponse?: unknown }).getResponse === 'function'
+        ? (
+            (error as { getResponse(): unknown }).getResponse() as Record<
+              string,
+              unknown
+            >
+          )
+        : null;
+    const codeCandidate =
+      (typeof issue?.code === 'string' && issue.code) ||
+      (typeof exceptionResponse?.code === 'string' && exceptionResponse.code) ||
+      'REPORT_GENERATION_FAILED';
+    const allowedDetails = issue ?? exceptionResponse?.details;
+    const details: Record<string, string | number> = {};
+    if (allowedDetails && typeof allowedDetails === 'object') {
+      for (const key of [
+        'stage',
+        'expectedCount',
+        'actualCount',
+        'sheet',
+        'row',
+        'ordinal',
+      ]) {
+        const value = (allowedDetails as Record<string, unknown>)[key];
+        if (typeof value === 'string' || typeof value === 'number') {
+          details[key] = value;
+        }
+      }
+    }
+    return { code: codeCandidate, details };
   }
 
   private resolveDownloadStoragePath(record: GeneratedFileRecord): string {

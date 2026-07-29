@@ -1,9 +1,24 @@
 # 执行 UNLOAD-REPORT-02：Adaptive Cell Height and Printed Notes Regression
 
+## 2026-07-28 外部验收失败与任务替代
+
+- 办公室实际生成/打印后确认两个新回归：打印页左侧白色留边消失，且生成报告存在
+  目的仓缺失。
+- 产品进一步明确：正常报告必须保留模板完整 16 槽可用容量，未用槽位保持空白；
+  `0–16` 条固定为一个 populated worksheet/一张 A4，不得按估算打印高度提前分页；
+  02 的 height-based early pagination 不再是有效业务规则。
+- 这说明下文 2026-07-26 的 Docker/LibreOffice 自动化没有覆盖 Microsoft Excel
+  实际打印几何，也没有从保存后的最终工作簿反算目的仓逐条守恒；原“只剩外部
+  签字”的终态已经失效。
+- 本文件保留 02 的自适应行高、分页和 Standards 历史实现证据，但不得继续执行或
+  直接改为 `DONE`。
+- 当前权威修复任务是
+  `UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md`。
+
 ## 优先级与状态
 
 - 优先级：P0，拆柜报告屏幕和打印内容裁切会造成现场信息缺失。
-- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
+- Task-Status: SUPERSEDED_BY_UNLOAD_REPORT_03
 - 前置任务：`UNLOAD-REPORT-01` 保持历史完成证据，但其“无已知裁切问题”结论
   已被 2026-07-25 现场反馈推翻。
 - 本 Task 是新的可见内容/打印回归，不得重跑或简单恢复 01 的旧结论。
@@ -200,6 +215,10 @@ git diff --check
    external verification pending 状态。
 
 ## 2026-07-26 执行结果
+
+> 历史结果说明：以下结论只代表当时 Docker/LibreOffice 门禁。2026-07-28 的
+> Microsoft Excel/实际打印反馈已经证明该门禁不足，不能再作为可交付终态或
+> `DONE` 依据。
 
 仓库实现和当前环境全部自动化已完成。content-aware row-layout calculator、
 printable-height layout planner、稳定 `REPORT_CONTENT_TOO_TALL` 错误、完整 rich text、

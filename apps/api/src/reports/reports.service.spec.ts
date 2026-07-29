@@ -141,25 +141,29 @@ describe('ReportsService', () => {
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'p1-06-reports-service-'));
-    outputPath = join(storageRoot, 'reports', 'CSNU8877228卸柜报告-En.xlsx');
-    await mkdir(join(storageRoot, 'reports'), { recursive: true });
-    await writeFile(outputPath, 'xlsx bytes');
     prisma = createPrismaMock();
-    const successPayload: WorkerReportPayload = {
-      task_status: 'SUCCESS',
-      report_result: {
-        outputPath,
-        warnings: [],
-        errors: [],
-      },
-      warnings: [],
-      errors: [],
-    };
     const writeReport = jest.fn<
       Promise<WorkerReportPayload>,
       [WorkerReportRequest, string]
     >();
-    writeReport.mockResolvedValue(successPayload);
+    writeReport.mockImplementation(async (_request, reportDir) => {
+      outputPath = join(reportDir, 'CSNU8877228卸柜报告-En.xlsx');
+      await mkdir(reportDir, { recursive: true });
+      await writeFile(outputPath, 'xlsx bytes');
+      return {
+        task_status: 'SUCCESS',
+        report_result: {
+          outputPath,
+          writtenDestinationCount: 1,
+          totalDestinationCount: 1,
+          orderedDestinationDigest: 'a'.repeat(64),
+          warnings: [],
+          errors: [],
+        },
+        warnings: [],
+        errors: [],
+      };
+    });
     workerReport = {
       writeReport,
     };
@@ -184,7 +188,9 @@ describe('ReportsService', () => {
     const [request, reportDir] = workerReport.writeReport.mock.calls[0];
     const palletResult =
       request.pallet_result as unknown as PalletReportPayload;
-    expect(reportDir).toBe(join(storageRoot, 'reports'));
+    expect(reportDir).toContain(
+      join(storageRoot, 'reports', 'CSNU8877228'),
+    );
     expect(request.parsed_result).toMatchObject({
       destinationSummaries: [
         expect.objectContaining({
@@ -210,6 +216,11 @@ describe('ReportsService', () => {
       storagePath: outputPath,
       status: 'GENERATED',
       errorMessage: null,
+    });
+    expect(result.reportEvidence).toEqual({
+      expectedDestinationCount: 1,
+      writtenDestinationCount: 1,
+      orderedDestinationDigest: 'a'.repeat(64),
     });
     const generatedFileCreate = prisma.generatedFile.create.mock.calls[0][0];
     expect(generatedFileCreate.data.fileType).toBe('EXCEL_REPORT');
@@ -290,6 +301,11 @@ describe('ReportsService', () => {
   it('downloads legacy generated file records stored with a host storage path', async () => {
     const legacyPath =
       '/Volumes/xfl/logistics/stripSystem/storage/reports/CSNU8877228卸柜报告-En.xlsx';
+    await mkdir(join(storageRoot, 'reports'), { recursive: true });
+    await writeFile(
+      join(storageRoot, 'reports', 'CSNU8877228卸柜报告-En.xlsx'),
+      'xlsx bytes',
+    );
     const generated = await service.generateReport('container-1', officeActor);
     prisma.generatedFile.findFirst.mockResolvedValueOnce({
       id: generated.generatedFile.id,
@@ -335,18 +351,19 @@ describe('ReportsService', () => {
 
     await expect(
       service.generateReport('container-1', officeActor),
-    ).rejects.toHaveProperty('response.code', 'REPORT_GENERATION_FAILED');
+    ).rejects.toHaveProperty('response.code', 'REPORT_TEMPLATE_ERROR');
 
     const failedFileCreate = prisma.generatedFile.create.mock.calls[0][0];
     expect(failedFileCreate.data.fileType).toBe('EXCEL_REPORT');
     expect(failedFileCreate.data.status).toBe('FAILED');
-    expect(failedFileCreate.data.storagePath).toBe(
-      join(storageRoot, 'reports', 'CSNU8877228卸柜报告-En.xlsx'),
+    expect(failedFileCreate.data.storagePath).toContain(
+      join(storageRoot, 'reports', 'CSNU8877228'),
+    );
+    expect(failedFileCreate.data.storagePath).toMatch(
+      /CSNU8877228卸柜报告-En\.xlsx$/,
     );
     expect(failedFileCreate.data.fileSha256).toBeNull();
-    expect(failedFileCreate.data.errorMessage).toBe(
-      'Report template could not be opened',
-    );
+    expect(failedFileCreate.data.errorMessage).toBe('REPORT_TEMPLATE_ERROR');
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
@@ -379,13 +396,82 @@ describe('ReportsService', () => {
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
-  it('updates the existing Excel report record when regenerating', async () => {
+  it('creates immutable generated-file history when regenerating', async () => {
     const first = await service.generateReport('container-1', officeActor);
     const second = await service.generateReport('container-1', officeActor);
 
-    expect(second.generatedFile.id).toBe(first.generatedFile.id);
-    expect(prisma.generatedFile.create).toHaveBeenCalledTimes(1);
-    expect(prisma.generatedFile.update).toHaveBeenCalledTimes(1);
+    expect(second.generatedFile.id).not.toBe(first.generatedFile.id);
+    expect(second.generatedFile.storagePath).not.toBe(
+      first.generatedFile.storagePath,
+    );
+    expect(prisma.generatedFile.create).toHaveBeenCalledTimes(2);
+    expect(prisma.generatedFile.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the prior successful report downloadable after conservation failure', async () => {
+    const successful = await service.generateReport('container-1', officeActor);
+    const oldSha = successful.generatedFile.fileSha256;
+    const oldPath = successful.generatedFile.storagePath;
+    workerReport.writeReport.mockResolvedValueOnce({
+      task_status: 'ERROR',
+      report_result: {
+        outputPath: join(
+          storageRoot,
+          'reports',
+          'CSNU8877228',
+          'failed-attempt',
+          'CSNU8877228卸柜报告-En.xlsx',
+        ),
+        writtenDestinationCount: 0,
+        totalDestinationCount: 1,
+        orderedDestinationDigest: 'b'.repeat(64),
+        errors: [
+          {
+            code: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+            message: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+            stage: 'reopen.row',
+            expectedCount: 1,
+            actualCount: 0,
+            ordinal: 1,
+          },
+        ],
+      },
+      warnings: [],
+      errors: [
+        {
+          code: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+          message: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+          stage: 'reopen.row',
+          expectedCount: 1,
+          actualCount: 0,
+          ordinal: 1,
+        },
+      ],
+    });
+
+    await expect(
+      service.generateReport('container-1', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+        details: {
+          stage: 'reopen.row',
+          expectedCount: 1,
+          actualCount: 0,
+          ordinal: 1,
+        },
+      },
+    });
+
+    const download = await service.downloadFile(
+      'container-1',
+      successful.generatedFile.id,
+    );
+    expect(download.buffer.toString()).toBe('xlsx bytes');
+    expect(successful.generatedFile.fileSha256).toBe(oldSha);
+    expect(successful.generatedFile.storagePath).toBe(oldPath);
+    expect(prisma.generatedFile.update).not.toHaveBeenCalled();
+    expect(prisma.generatedFile.create).toHaveBeenCalledTimes(2);
   });
 
   function defaultContainerRecord(): ContainerRecord {

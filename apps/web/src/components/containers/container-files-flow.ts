@@ -112,7 +112,7 @@ export function generationActionNotice(
 
   if (action === "report") {
     return t(
-      "Excel report generation uses the latest saved database values and overwrites the current report file record for this container.",
+      "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.",
     );
   }
 
@@ -137,6 +137,16 @@ export function generationFailureMessage(
   if (code === "CONTAINER_GENERATION_LOCKED") {
     return t(
       "Container generation is locked. Use the scan correction workflow for loading changes, or work from a container that has not entered loading.",
+    );
+  }
+  if (action === "report" && code === "REPORT_DESTINATION_CONSERVATION_FAILED") {
+    return t(
+      "The report was not saved because its destination rows did not match the expected pallet plan. The previous successful report is still available.",
+    );
+  }
+  if (action === "report" && code === "REPORT_LAYOUT_REVIEW_REQUIRED") {
+    return t(
+      "The report needs office review because unusually long content cannot fit the approved single-page layout safely. The previous successful report is still available.",
     );
   }
 

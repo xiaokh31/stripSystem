@@ -8,9 +8,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
 
+import pytest
 from openpyxl import load_workbook
+from openpyxl.cell.cell import MergedCell
 from openpyxl.cell.rich_text import CellRichText
 
+import worker_python.reports.excel_report_writer as report_writer
 from worker_python.imports import ImportRegistry
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
@@ -50,6 +53,8 @@ def test_excel_report_writer_generates_openable_report_from_real_parsed_result(
     assert parsed.containerNo in result.outputPath.name
     assert result.totalCartons == 896
     assert result.writtenDestinationCount == 9
+    assert result.totalDestinationCount == 9
+    assert len(result.orderedDestinationDigest) == 64
 
     workbook = load_workbook(result.outputPath, data_only=False)
     worksheet = workbook["Sheet1"]
@@ -57,16 +62,19 @@ def test_excel_report_writer_generates_openable_report_from_real_parsed_result(
     assert worksheet["H1"].value == "09:30"
     assert worksheet["K1"].value == "CAAU8011090"
     assert worksheet["D2"].value == "Bestar"
-    assert worksheet["N4"].value == "Private Address / QDCA2605058915"
-    assert worksheet["N6"].value == "Private Address / SZCA2604054725"
-    assert worksheet["N10"].value == "YEG2"
-    assert worksheet["O10"].value == 7
-    assert worksheet["P10"].value == 130
+    assert tuple(
+        (
+            worksheet[f"N{row}"].value,
+            worksheet[f"O{row}"].value,
+            worksheet[f"P{row}"].value,
+        )
+        for row in range(4, 4 + len(pallet_result.plans))
+    ) == tuple(
+        (plan.destinationCode, plan.finalPallets, plan.totalCartons)
+        for plan in pallet_result.plans
+    )
     assert worksheet["P20"].value == 896
     assert _populated_sheet_names(workbook) == ["Sheet1"]
-    assert worksheet["N5"].value == "贵司卡尔加里仓"
-    assert worksheet["O5"].value == 1
-    assert worksheet["P5"].value == 22
     assert (
         sum(
             int(sheet[row_cells.pallet_count_cell].value or 0)
@@ -161,12 +169,12 @@ def test_excel_report_writer_preserves_palletizing_standards_rich_text(
         page_layout = _page_layout(generated_sheet)
         assert page_layout["paperSize"] == 9
         assert page_layout["orientation"] == "landscape"
-        assert page_layout["scale"] == 78
+        assert page_layout["scale"] is None
         assert page_layout["fitToWidth"] == 1
         assert page_layout["fitToHeight"] == 1
         assert page_layout["fitToPage"] is True
         assert page_layout["autoPageBreaks"] is False
-        assert page_layout["printArea"] == "'Sheet1'!$B$1:$P$25"
+        assert page_layout["printArea"] == "'Sheet1'!$A$1:$P$25"
         assert generated_sheet.row_breaks.count == 0
         assert generated_sheet.col_breaks.count == 0
 
@@ -176,6 +184,83 @@ def test_excel_report_writer_preserves_palletizing_standards_rich_text(
         assert generated_sheet["K1"].value == "CAAU8011090"
         assert generated_sheet["N4"].value == "Private Address / QDCA2605058915"
         assert generated_sheet["P20"].value == 896
+    finally:
+        template.close()
+        generated.close()
+
+
+def test_excel_report_writer_preserves_editable_business_cell_contract(
+    tmp_path: Path,
+) -> None:
+    parsed, pallet_result = _parsed_and_pallets(STANDARD_FIXTURE, tmp_path)
+    result = write_excel_report(
+        parsed_result=parsed,
+        pallet_result=pallet_result,
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 6, 25, 9, 30),
+    )
+
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, rich_text=True)
+    generated = load_workbook(result.outputPath, rich_text=True)
+    try:
+        template_sheet = template["Sheet1"]
+        generated_sheet = generated["Sheet1"]
+        assert generated_sheet.protection.sheet == template_sheet.protection.sheet
+        assert generated_sheet.protection.sheet is False
+        assert {str(item) for item in generated_sheet.merged_cells.ranges} == {
+            str(item) for item in template_sheet.merged_cells.ranges
+        }
+        for column in "BCDEFGHIJKLMNOP":
+            assert (
+                generated_sheet.column_dimensions[column].hidden
+                == template_sheet.column_dimensions[column].hidden
+            )
+            assert (
+                generated_sheet.column_dimensions[column].width
+                == template_sheet.column_dimensions[column].width
+            )
+        for row in range(1, 26):
+            assert (
+                generated_sheet.row_dimensions[row].hidden
+                == template_sheet.row_dimensions[row].hidden
+            )
+        writer_owned_cells = {
+            "D1",
+            "H1",
+            "K1",
+            "D2",
+            "P20",
+            "C21",
+            *(
+                coordinate
+                for row_cells in DESTINATION_ROWS
+                for coordinate in (
+                    row_cells.pallet_label_cell,
+                    row_cells.destination_cell,
+                    row_cells.pallet_count_cell,
+                    row_cells.carton_count_cell,
+                )
+            ),
+        }
+        for row in range(1, 26):
+            for column in range(2, 17):
+                template_cell = template_sheet.cell(row=row, column=column)
+                generated_cell = generated_sheet.cell(row=row, column=column)
+                if (
+                    template_cell.coordinate in writer_owned_cells
+                    or isinstance(template_cell, MergedCell)
+                    or isinstance(generated_cell, MergedCell)
+                ):
+                    continue
+                assert generated_cell.style_id == template_cell.style_id
+                assert (
+                    generated_cell.protection.locked
+                    == template_cell.protection.locked
+                )
+                assert (
+                    generated_cell.protection.hidden
+                    == template_cell.protection.hidden
+                )
     finally:
         template.close()
         generated.close()
@@ -195,6 +280,13 @@ def test_excel_report_writer_records_generated_report(tmp_path: Path) -> None:
     manifest_text = result.manifestPath.read_text(encoding="utf-8")
     assert "CAAU8011090" in manifest_text
     assert str(result.outputPath) in manifest_text
+    manifest = json.loads(manifest_text)
+    assert manifest["records"][0]["expected_destination_count"] == 9
+    assert manifest["records"][0]["written_destination_count"] == 9
+    assert (
+        manifest["records"][0]["ordered_destination_digest"]
+        == result.orderedDestinationDigest
+    )
 
 
 def test_excel_report_writer_overwrites_same_container_report(
@@ -222,7 +314,7 @@ def test_excel_report_writer_overwrites_same_container_report(
     assert manifest["records"][0]["generated_at"] == "2026-06-25T09:31:00"
 
 
-def test_excel_report_writer_uses_existing_white_rows_before_overflow_sheets(
+def test_excel_report_writer_uses_all_rows_in_printed_order_before_overflow_sheets(
     tmp_path: Path,
 ) -> None:
     parsed, pallet_result = _parsed_and_pallets(OVERFLOW_FIXTURE, tmp_path)
@@ -243,8 +335,11 @@ def test_excel_report_writer_uses_existing_white_rows_before_overflow_sheets(
     workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
     try:
         assert _populated_sheet_names(workbook) == ["Sheet1"]
-        assert workbook["Sheet1"]["N5"].value == "YVR4"
-        assert workbook["Sheet1"]["N13"].value == "YYZ7"
+        assert tuple(
+            workbook["Sheet1"][f"N{row}"].value
+            for row in range(4, 4 + len(pallet_result.plans))
+        ) == tuple(plan.destinationCode for plan in pallet_result.plans)
+        assert workbook["Sheet1"]["N5"].value is not None
         written_pallets = sum(
             int(sheet[row_cells.pallet_count_cell].value or 0)
             for sheet in workbook.worksheets
@@ -314,7 +409,7 @@ def test_excel_report_writer_keeps_sixteen_short_destinations_on_one_sheet(
         workbook.close()
 
 
-def test_excel_report_writer_paginates_before_printable_height_is_exceeded(
+def test_excel_report_writer_does_not_paginate_normal_rows_before_capacity(
     tmp_path: Path,
 ) -> None:
     plans = tuple(
@@ -344,7 +439,7 @@ def test_excel_report_writer_paginates_before_printable_height_is_exceeded(
             for worksheet in workbook.worksheets
             if worksheet.calculate_dimension() not in {"A1", "A1:A1"}
         ]
-        assert len(populated) > 1
+        assert len(populated) == 1
         written = [
             str(worksheet[row_cells.destination_cell].value)
             for worksheet in populated
@@ -352,9 +447,8 @@ def test_excel_report_writer_paginates_before_printable_height_is_exceeded(
             if worksheet[row_cells.destination_cell].value is not None
         ]
         assert written == [plan.destinationCode for plan in plans]
-        assert len(written) == len(set(written))
         assert all(
-            worksheet.print_area == f"'{worksheet.title}'!$B$1:$P$25"
+            worksheet.print_area == f"'{worksheet.title}'!$A$1:$P$25"
             for worksheet in populated
         )
         assert all(worksheet.row_breaks.count == 0 for worksheet in populated)
@@ -363,7 +457,7 @@ def test_excel_report_writer_paginates_before_printable_height_is_exceeded(
         workbook.close()
 
 
-def test_excel_report_writer_fails_closed_when_one_destination_cannot_fit(
+def test_excel_report_writer_requires_review_for_extreme_destination_layout(
     tmp_path: Path,
 ) -> None:
     result = write_excel_report(
@@ -382,12 +476,233 @@ def test_excel_report_writer_fails_closed_when_one_destination_cannot_fit(
     )
 
     assert result.errors
-    assert result.errors[0].code == "REPORT_CONTENT_TOO_TALL"
-    assert result.errors[0].message == "REPORT_CONTENT_TOO_TALL"
+    assert result.errors[0].code == "REPORT_LAYOUT_REVIEW_REQUIRED"
+    assert result.errors[0].message == "REPORT_LAYOUT_REVIEW_REQUIRED"
+    assert result.errors[0].stage == "planning.layout-review"
     assert result.errors[0].row == 4
     assert result.errors[0].requiredHeightPoints is not None
     assert result.errors[0].availableHeightPoints is not None
     assert not result.outputPath.exists()
+
+
+@pytest.mark.parametrize(
+    ("count", "expected_page_lengths"),
+    (
+        (0, (0,)),
+        (1, (1,)),
+        (8, (8,)),
+        (9, (9,)),
+        (16, (16,)),
+        (17, (16, 1)),
+        (32, (16, 16)),
+        (33, (16, 16, 1)),
+    ),
+)
+def test_excel_report_writer_uses_all_sixteen_slots_before_capacity_pagination(
+    tmp_path: Path,
+    count: int,
+    expected_page_lengths: tuple[int, ...],
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"CAPACITY-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, count + 1)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo=f"CAPACITY{count}"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / f"reports-{count}",
+        report_datetime=datetime(2026, 7, 28, 9, 30),
+    )
+
+    assert result.errors == ()
+    assert result.writtenDestinationCount == count
+    assert result.totalDestinationCount == count
+    workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
+    try:
+        populated = workbook.worksheets[: len(expected_page_lengths)]
+        assert tuple(row.row for row in DESTINATION_ROWS) == tuple(range(4, 20))
+        actual_page_lengths = tuple(
+            sum(
+                worksheet[row.destination_cell].value is not None
+                for row in DESTINATION_ROWS
+            )
+            for worksheet in populated
+        )
+        assert actual_page_lengths == expected_page_lengths
+        expected_offset = 0
+        for worksheet, expected_length in zip(populated, expected_page_lengths):
+            assert tuple(
+                worksheet[f"N{row}"].value
+                for row in range(4, 4 + expected_length)
+            ) == tuple(
+                plan.destinationCode
+                for plan in plans[
+                    expected_offset : expected_offset + expected_length
+                ]
+            )
+            expected_offset += expected_length
+        for worksheet, expected_length in zip(
+            populated[:-1], expected_page_lengths[:-1]
+        ):
+            assert expected_length == len(DESTINATION_ROWS)
+            assert all(
+                worksheet[row.destination_cell].value is not None
+                for row in DESTINATION_ROWS
+            )
+        if count < len(DESTINATION_ROWS):
+            worksheet = populated[0]
+            assert worksheet.protection.sheet is False
+            for row in DESTINATION_ROWS[count:]:
+                assert worksheet[row.pallet_label_cell].value is None
+                assert worksheet[row.destination_cell].value is None
+                assert worksheet[row.pallet_count_cell].value is None
+                assert worksheet[row.carton_count_cell].value is None
+    finally:
+        workbook.close()
+
+
+def test_excel_report_writer_preserves_duplicate_destination_occurrences(
+    tmp_path: Path,
+) -> None:
+    plans = (
+        SimpleNamespace(
+            destinationCode="DUPLICATE-DEST",
+            finalPallets=1,
+            totalCartons=11,
+        ),
+        SimpleNamespace(
+            destinationCode="DUPLICATE-DEST",
+            finalPallets=2,
+            totalCartons=22,
+        ),
+        SimpleNamespace(
+            destinationCode="DUPLICATE-DEST",
+            finalPallets=3,
+            totalCartons=33,
+        ),
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="DUPLICATE03"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 7, 28, 9, 30),
+    )
+
+    assert result.errors == ()
+    workbook = load_workbook(result.outputPath, data_only=False)
+    try:
+        worksheet = workbook["Sheet1"]
+        actual = [
+            (
+                worksheet[row.destination_cell].value,
+                worksheet[row.pallet_count_cell].value,
+                worksheet[row.carton_count_cell].value,
+            )
+            for row in DESTINATION_ROWS[:3]
+        ]
+        assert actual == [
+            ("DUPLICATE-DEST", 1, 11),
+            ("DUPLICATE-DEST", 2, 22),
+            ("DUPLICATE-DEST", 3, 33),
+        ]
+    finally:
+        workbook.close()
+
+
+@pytest.mark.parametrize(
+    ("coordinate", "value", "expected_stage"),
+    (
+        ("N6", "WRONG-DESTINATION", "reopen.mirror"),
+        ("O6", 999, "reopen.row"),
+        ("P6", 999, "reopen.row"),
+        ("C6", "WRONG-MIRROR", "reopen.mirror"),
+    ),
+)
+def test_saved_report_validator_fails_closed_for_mutated_business_rows(
+    tmp_path: Path,
+    coordinate: str,
+    value: object,
+    expected_stage: str,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"VALIDATE-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, 4)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="VALIDATE03"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 7, 28, 9, 30),
+    )
+    workbook = load_workbook(result.outputPath)
+    try:
+        workbook["Sheet1"][coordinate] = value
+        workbook.save(result.outputPath)
+    finally:
+        workbook.close()
+
+    _, issue = report_writer._validate_saved_report(
+        result.outputPath,
+        expected_plans=report_writer._canonical_plan_identities(plans),
+        page_plans=(plans,),
+    )
+    assert issue is not None
+    assert issue.code == "REPORT_DESTINATION_CONSERVATION_FAILED"
+    assert issue.stage == expected_stage
+
+
+def test_conservation_failure_does_not_replace_previous_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = (
+        SimpleNamespace(
+            destinationCode="SAFE-OLD",
+            finalPallets=1,
+            totalCartons=10,
+        ),
+    )
+    kwargs = {
+        "parsed_result": SimpleNamespace(containerNo="ATOMIC03"),
+        "pallet_result": SimpleNamespace(plans=plans),
+        "output_dir": tmp_path / "reports",
+    }
+    first = write_excel_report(
+        **kwargs,
+        report_datetime=datetime(2026, 7, 28, 9, 30),
+    )
+    old_bytes = first.outputPath.read_bytes()
+    old_manifest = first.manifestPath.read_bytes()
+    monkeypatch.setattr(
+        report_writer,
+        "_validate_saved_report",
+        lambda *_args, **_kwargs: (
+            0,
+            report_writer._conservation_issue(
+                stage="reopen.test-mutation",
+                expected_count=1,
+                actual_count=0,
+            ),
+        ),
+    )
+
+    failed = write_excel_report(
+        **kwargs,
+        report_datetime=datetime(2026, 7, 28, 9, 31),
+    )
+
+    assert failed.errors[0].code == "REPORT_DESTINATION_CONSERVATION_FAILED"
+    assert first.outputPath.read_bytes() == old_bytes
+    assert first.manifestPath.read_bytes() == old_manifest
+    assert not list((tmp_path / "reports").glob(".*.xlsx"))
 
 
 def test_excel_report_writer_marks_missing_bestar_destination_for_manual_entry(
@@ -451,13 +766,13 @@ def test_excel_report_writer_auto_expands_destination_row_height(
     workbook.close()
 
 
-def test_excel_report_writer_wraps_long_destination_in_white_overflow_row(
+def test_excel_report_writer_wraps_long_destination_in_white_business_row(
     tmp_path: Path,
 ) -> None:
     long_destination = "Private Address / SZCA2604054725 / Surrey Receiving Door"
     plans = tuple(
         SimpleNamespace(
-            destinationCode=(long_destination if index == 9 else f"DEST-{index}"),
+            destinationCode=(long_destination if index == 2 else f"DEST-{index}"),
             finalPallets=1,
             totalCartons=12,
         )
@@ -485,13 +800,13 @@ def test_excel_report_writer_wraps_long_destination_in_white_overflow_row(
         workbook.close()
 
 
-def test_excel_report_writer_preserves_line_break_and_expands_white_row(
+def test_excel_report_writer_preserves_line_break_and_expands_white_business_row(
     tmp_path: Path,
 ) -> None:
     destination = "YYC4\nDoor A"
     plans = tuple(
         SimpleNamespace(
-            destinationCode=(destination if index == 9 else f"DEST-{index}"),
+            destinationCode=(destination if index == 2 else f"DEST-{index}"),
             finalPallets=1,
             totalCartons=12,
         )

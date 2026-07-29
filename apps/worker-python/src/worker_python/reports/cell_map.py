@@ -33,10 +33,17 @@ PRIMARY_DESTINATION_ROWS = tuple(
 )
 
 # The template's alternating white rows are part of the same business table.
-# Preserve the established primary mapping above, then consume these safe blank
-# rows before creating another worksheet for destination overflow.
+# Keep the named groups for template-contract checks, but write the combined
+# business slots in printed top-to-bottom order. Reading primary rows first and
+# white rows second would make the paper report display 1, 9, 2, 10, ... even
+# though a validator using that same artificial order could appear to pass.
 ADDITIONAL_DESTINATION_ROWS = tuple(
     _destination_row(row) for row in (5, 7, 9, 11, 13, 15, 17, 19)
 )
 
-DESTINATION_ROWS = PRIMARY_DESTINATION_ROWS + ADDITIONAL_DESTINATION_ROWS
+DESTINATION_ROWS = tuple(
+    sorted(
+        PRIMARY_DESTINATION_ROWS + ADDITIONAL_DESTINATION_ROWS,
+        key=lambda row: row.row,
+    )
+)

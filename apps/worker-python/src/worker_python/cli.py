@@ -779,10 +779,11 @@ def write_report(
                     "errors": [
                         {
                             "code": "REPORT_GENERATION_FAILED",
-                            "message": f"{type(exc).__name__}: {exc}",
+                            "message": "REPORT_GENERATION_FAILED",
+                            "stage": "write-report",
                         }
                     ],
-                    "exception": _exception_payload(exc),
+                    "exception": None,
                 },
                 ensure_ascii=False,
                 sort_keys=True,

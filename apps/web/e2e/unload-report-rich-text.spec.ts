@@ -30,16 +30,19 @@ interface GeneratedFile {
 }
 
 interface PackageInspection {
+  allDestinationCellsMirrored: boolean;
   allLayoutsMatchTemplate: boolean;
   allPageContractsMatch: boolean;
   allRowsNeverShrink: boolean;
   allRunSequencesMatchTemplate: boolean;
+  canonicalRows: CanonicalReportRow[];
   destinations: Array<Array<{ cell: string; value: string }>>;
   dimension: string;
   endsWithWhenStored: boolean;
   fontNames: string[];
   fontSizes: string[];
   newlineCount: number;
+  orderedDestinationDigest: string;
   runCount: number;
   standardsHeightAtLeastTemplate: boolean;
   standardsHeights: number[];
@@ -47,10 +50,25 @@ interface PackageInspection {
   worksheetCount: number;
 }
 
+interface CanonicalReportRow {
+  destination: string;
+  finalPallets: number;
+  ordinal: number;
+  totalCartons: number;
+}
+
+interface AsyncJob {
+  attempts: number;
+  generatedFileId: string | null;
+  id: string;
+  result: unknown;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+}
+
 test("real API download preserves Palletizing Standards rich text and report audit metadata", async ({
   request,
 }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const artifactDir = process.env.UNLOAD_REPORT_ARTIFACT_DIR
     ? path.resolve(process.env.UNLOAD_REPORT_ARTIFACT_DIR)
     : testInfo.outputPath("unload-report-01");
@@ -122,6 +140,24 @@ test("real API download preserves Palletizing Standards rich text and report aud
     `${containerNo}\n`,
     "utf8",
   );
+  const containerDetail = await getJson<{
+    destinations: Array<{
+      destinationCode: string;
+      finalPallets: number;
+      id: string;
+      totalCartons: number;
+    }>;
+  }>(request, `/api/containers/${container!.id}`, headers);
+  const expectedCanonicalRows = containerDetail.destinations.map(
+    (destination, index): CanonicalReportRow => ({
+      destination: destination.destinationCode,
+      finalPallets: destination.finalPallets,
+      ordinal: index + 1,
+      totalCartons: destination.totalCartons,
+    }),
+  );
+  const expectedOrderedDestinationDigest =
+    orderedDestinationDigest(expectedCanonicalRows);
 
   const report = await request.post(
     `/api/containers/${container!.id}/generate-report`,
@@ -131,6 +167,11 @@ test("real API download preserves Palletizing Standards rich text and report aud
   const reportBody = (await report.json()) as {
     errors: unknown[];
     generatedFile: GeneratedFile;
+    reportEvidence: {
+      expectedDestinationCount: number;
+      orderedDestinationDigest: string;
+      writtenDestinationCount: number;
+    };
     warnings: unknown[];
   };
   expect(reportBody.errors).toEqual([]);
@@ -144,6 +185,11 @@ test("real API download preserves Palletizing Standards rich text and report aud
   expect(reportBody.generatedFile.storagePath).toContain("/storage/reports/");
   expect(reportBody.generatedFile.fileSha256).toMatch(/^[a-f0-9]{64}$/);
   expect(Number(reportBody.generatedFile.fileSizeBytes)).toBeGreaterThan(0);
+  expect(reportBody.reportEvidence).toEqual({
+    expectedDestinationCount: expectedCanonicalRows.length,
+    orderedDestinationDigest: expectedOrderedDestinationDigest,
+    writtenDestinationCount: expectedCanonicalRows.length,
+  });
   await writeFile(
     path.join(artifactDir, "generated-file-id.txt"),
     `${reportBody.generatedFile.id}\n`,
@@ -180,6 +226,7 @@ test("real API download preserves Palletizing Standards rich text and report aud
   await writeFile(reportPath, downloadedBuffer);
   const packageInspection = await inspectReportPackage(reportPath);
   expect(packageInspection).toMatchObject({
+    allDestinationCellsMirrored: true,
     allLayoutsMatchTemplate: true,
     allPageContractsMatch: true,
     allRowsNeverShrink: true,
@@ -194,9 +241,13 @@ test("real API download preserves Palletizing Standards rich text and report aud
   expect(packageInspection.fontNames).toEqual(expect.arrayContaining(["Arial", "宋体"]));
   expect(packageInspection.fontSizes).toEqual(["10", "11"]);
   expect(packageInspection.newlineCount).toBeGreaterThan(1);
+  expect(packageInspection.canonicalRows).toEqual(expectedCanonicalRows);
+  expect(packageInspection.orderedDestinationDigest).toBe(
+    expectedOrderedDestinationDigest,
+  );
   expect(packageInspection.destinations[0]).toHaveLength(9);
   expect(packageInspection.destinations[0][8]).toEqual({
-    cell: "N5",
+    cell: "N12",
     value: "贵司卡尔加里仓",
   });
 
@@ -206,6 +257,7 @@ test("real API download preserves Palletizing Standards rich text and report aud
     containerNo,
     generatedFile: reportBody.generatedFile,
     importFileId: uploaded.id,
+    orderedDestinationEvidence: reportBody.reportEvidence,
     packageInspection,
     reportPath,
     sourceFixtureSha256: sha256Buffer(workbookBuffer),
@@ -215,15 +267,162 @@ test("real API download preserves Palletizing Standards rich text and report aud
     `${JSON.stringify(verification, null, 2)}\n`,
     "utf8",
   );
+  if (process.env.E2E_REPORT_FAILURE_PROBE === "1") {
+    await verifyFailedRegenerationPreservesSuccessfulHistory({
+      artifactDir,
+      containerId: container!.id,
+      destinationId: containerDetail.destinations[0].id,
+      headers,
+      oldDownloadedBuffer: downloadedBuffer,
+      oldGeneratedFile: reportBody.generatedFile,
+      request,
+    });
+  }
   if (process.env.E2E_FORCE_FAILURE === "1") {
     await writeFile(
       path.join(artifactDir, "intentional-failure-reached.txt"),
       "yes\n",
       "utf8",
     );
-    throw new Error("Intentional UNLOAD-REPORT-02 cleanup probe failure");
+    throw new Error("Intentional UNLOAD-REPORT-03 cleanup probe failure");
   }
 });
+
+async function verifyFailedRegenerationPreservesSuccessfulHistory({
+  artifactDir,
+  containerId,
+  destinationId,
+  headers,
+  oldDownloadedBuffer,
+  oldGeneratedFile,
+  request,
+}: {
+  artifactDir: string;
+  containerId: string;
+  destinationId: string;
+  headers: Record<string, string>;
+  oldDownloadedBuffer: Buffer;
+  oldGeneratedFile: GeneratedFile;
+  request: APIRequestContext;
+}): Promise<void> {
+  const expectedFailureCode =
+    process.env.E2E_REPORT_EXPECTED_FAILURE_CODE ??
+    "REPORT_LAYOUT_REVIEW_REQUIRED";
+  const expectedFailureStage =
+    process.env.E2E_REPORT_EXPECTED_FAILURE_STAGE ??
+    "planning.layout-review";
+  const correction = await request.patch(
+    `/api/container-destinations/${destinationId}`,
+    {
+      data: {
+        destinationCode: "X".repeat(1_000),
+        reason: "UNLOAD_REPORT_03_LAYOUT_REVIEW_PROBE",
+      },
+      headers,
+    },
+  );
+  await expectStatus(correction, 200);
+
+  const submission = await request.post(
+    `/api/containers/${containerId}/generate-report-job`,
+    { headers },
+  );
+  await expectStatus(submission, 201);
+  const submittedJob = (await submission.json()) as AsyncJob;
+  const failedJob = await pollJob(request, submittedJob.id, headers);
+  expect(failedJob.status).toBe("failed");
+  expect(failedJob.attempts).toBeGreaterThan(0);
+  const failure = failedJob.result as {
+    code?: string;
+    details?: { generatedFileId?: string; stage?: string };
+    message?: string;
+  };
+  expect(failure).toMatchObject({
+    code: expectedFailureCode,
+    message: expectedFailureCode,
+  });
+  expect(failure.details?.stage).toBe(expectedFailureStage);
+  expect(failedJob.generatedFileId).toBeTruthy();
+  expect(failedJob.generatedFileId).toBe(failure.details?.generatedFileId);
+
+  const filesAfterFailure = await getJson<{ items: GeneratedFile[] }>(
+    request,
+    `/api/containers/${containerId}/files`,
+    headers,
+  );
+  const preserved = filesAfterFailure.items.find(
+    (item) => item.id === oldGeneratedFile.id,
+  );
+  expect(preserved).toEqual(oldGeneratedFile);
+  const failedRecord = filesAfterFailure.items.find(
+    (item) => item.id === failedJob.generatedFileId,
+  );
+  expect(failedRecord).toMatchObject({
+    errorMessage: expectedFailureCode,
+    fileSha256: null,
+    fileSizeBytes: null,
+    fileType: "EXCEL_REPORT",
+    status: "FAILED",
+  });
+
+  const preservedDownload = await request.get(
+    `/api/containers/${containerId}/files/${oldGeneratedFile.id}/download`,
+    { headers },
+  );
+  await expectStatus(preservedDownload, 200);
+  expect(sha256Buffer(await preservedDownload.body())).toBe(
+    sha256Buffer(oldDownloadedBuffer),
+  );
+
+  await writeFile(
+    path.join(artifactDir, "failed-generated-file-id.txt"),
+    `${failedRecord!.id}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "failed-generated-storage-path.txt"),
+    `${failedRecord!.storagePath}\n`,
+    "utf8",
+  );
+  await writeFile(
+    path.join(artifactDir, "failed-regeneration-verification.json"),
+    `${JSON.stringify(
+      {
+        failedGeneratedFileId: failedRecord!.id,
+        failureCode: failure.code,
+        failureStage: failure.details?.stage,
+        jobAttempts: failedJob.attempts,
+        jobGeneratedFileId: failedJob.generatedFileId,
+        oldGeneratedFileId: oldGeneratedFile.id,
+        oldReportSha256: sha256Buffer(oldDownloadedBuffer),
+        oldSuccessPreserved: true,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+}
+
+async function pollJob(
+  request: APIRequestContext,
+  jobId: string,
+  headers: Record<string, string>,
+): Promise<AsyncJob> {
+  const deadline = Date.now() + 150_000;
+  while (Date.now() < deadline) {
+    const job = await getJson<AsyncJob>(
+      request,
+      `/api/queue/jobs/${jobId}`,
+      headers,
+    );
+    if (["succeeded", "failed", "cancelled"].includes(job.status)) {
+      return job;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`Timed out waiting for async report job ${jobId}`);
+}
 
 async function getJson<T>(
   request: APIRequestContext,
@@ -245,6 +444,16 @@ async function expectStatus(response: APIResponse, expected: number): Promise<vo
 
 function sha256Buffer(value: Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function orderedDestinationDigest(rows: CanonicalReportRow[]): string {
+  const sortedKeyRows = rows.map((row) => ({
+    destination: row.destination,
+    finalPallets: row.finalPallets,
+    ordinal: row.ordinal,
+    totalCartons: row.totalCartons,
+  }));
+  return sha256Buffer(Buffer.from(JSON.stringify(sortedKeyRows), "utf8"));
 }
 
 async function inspectReportPackage(filePath: string): Promise<PackageInspection> {

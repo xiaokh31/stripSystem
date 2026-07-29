@@ -50,6 +50,7 @@ docs/runbooks/*
 !docs/runbooks/external-ip-domain-access.html
 !docs/reports/
 docs/reports/*
+!docs/reports/unload-report-03-print-margin-destination-preservation-verification.md
 !docs/reports/project-completion-status.html
 !docs/reports/docker-cache-verification-2026-07-13.md
 !docs/reports/web-ops-04-operational-clock-performance.md

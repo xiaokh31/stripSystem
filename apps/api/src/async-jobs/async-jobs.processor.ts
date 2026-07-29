@@ -180,7 +180,9 @@ export class AsyncJobsProcessor implements OnModuleInit, OnModuleDestroy {
     const generatedFile = this.objectValue(candidate?.generatedFile);
     const details = this.objectValue(candidate?.details);
     const detailsGeneratedFile = this.objectValue(details?.generatedFile);
-    return this.stringValue(generatedFile?.id ?? detailsGeneratedFile?.id);
+    return this.stringValue(
+      generatedFile?.id ?? detailsGeneratedFile?.id ?? details?.generatedFileId,
+    );
   }
 
   private exceptionResponse(error: unknown): unknown {

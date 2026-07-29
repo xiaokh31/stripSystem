@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -9,7 +10,9 @@ from zipfile import ZipFile
 
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-DESTINATION_ROWS = (4, 6, 8, 10, 12, 14, 16, 18, 5, 7, 9, 11, 13, 15, 17, 19)
+# This inspector is deliberately independent of the Worker module and reads the
+# printed table in physical top-to-bottom order.
+DESTINATION_ROWS = tuple(range(4, 20))
 
 
 def local_name(tag: str) -> str:
@@ -167,12 +170,12 @@ def page_contract_matches(layout: dict[str, object]) -> bool:
     return (
         setup.get("paperSize") == 9.0
         and setup.get("orientation") == "landscape"
-        and setup.get("scale") == 78.0
+        and "scale" not in setup
         and setup.get("fitToWidth") == 1.0
         and setup.get("fitToHeight") == 1.0
         and properties.get("fitToPage") == 1.0
         and properties.get("autoPageBreaks") == 0.0
-        and layout.get("printArea") == "$B$1:$P$25"
+        and layout.get("printArea") == "$A$1:$P$25"
         and layout.get("manualBreakCount") == 0
     )
 
@@ -241,6 +244,29 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
             ]
             for sheet in generated_sheets
         ]
+        canonical_rows: list[dict[str, object]] = []
+        destination_cells_mirrored = True
+        for sheet in generated_sheets:
+            for row in DESTINATION_ROWS:
+                destination = cell_text(generated_archive, sheet, f"N{row}")
+                if not destination:
+                    continue
+                destination_cells_mirrored = (
+                    destination_cells_mirrored
+                    and cell_text(generated_archive, sheet, f"C{row}") == destination
+                )
+                canonical_rows.append(
+                    {
+                        "ordinal": len(canonical_rows) + 1,
+                        "destination": destination,
+                        "finalPallets": int(
+                            float(cell_text(generated_archive, sheet, f"O{row}") or 0)
+                        ),
+                        "totalCartons": int(
+                            float(cell_text(generated_archive, sheet, f"P{row}") or 0)
+                        ),
+                    }
+                )
         generated_print_areas = print_areas(
             generated_archive, len(generated_sheets)
         )
@@ -288,17 +314,28 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
                 for row in range(21, 26)
             )
         )
+    ordered_destination_digest = hashlib.sha256(
+        json.dumps(
+            canonical_rows,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
     return {
         "allLayoutsMatchTemplate": all(immutable_layouts),
         "allPageContractsMatch": all(page_contracts),
         "allRowsNeverShrink": all(rows_safe),
         "allRunSequencesMatchTemplate": all(run == expected_runs for run in runs),
+        "allDestinationCellsMirrored": destination_cells_mirrored,
+        "canonicalRows": canonical_rows,
         "dimension": expected_layout["dimension"],
         "destinations": destinations,
         "endsWithWhenStored": text.endswith("when stored."),
         "fontNames": font_names,
         "fontSizes": font_sizes,
         "newlineCount": text.count("\n"),
+        "orderedDestinationDigest": ordered_destination_digest,
         "runCount": len(expected_runs),
         "standardsHeightAtLeastTemplate": all(
             height >= expected_standards_height for height in standards_heights

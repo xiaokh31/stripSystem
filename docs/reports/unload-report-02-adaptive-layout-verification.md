@@ -1,5 +1,25 @@
 # UNLOAD-REPORT-02 Adaptive Layout Verification
 
+## 2026-07-28 外部验收失败通知
+
+办公室实际生成/打印确认：
+
+1. 打印页左侧原有白色留边消失；
+2. 生成报告存在目的仓缺失。
+3. 正常报告必须保留模板完整 16 槽可用容量，未用槽位保持空白；`0–16` 条应保持
+   一个 populated worksheet/一张 A4，不能按估算高度提前分页。
+
+因此，本报告下方 2026-07-26 的 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+结论只保留为历史 Docker/LibreOffice 证据，不能再用于关闭 02。现有证据虽然证明
+package 中保留 `pageMargins.left`、LibreOffice 工件可见且测试输入数量与结果对象
+数量相同，但没有程序化比较模板与生成页的实际左侧 whitespace，也没有从保存后
+工作簿逐项反算 `N/O/P` 目的仓、托数和箱数守恒；02 的 height-based early
+pagination 也不符合最新容量优先业务规则。
+
+权威修复任务：
+`prompts/tasks/UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md`。
+02 已被 03 替代，不得只补外部签字后标记 `DONE`。
+
 验证日期：2026-07-26 MDT
 
 ## 结论

@@ -73,9 +73,9 @@ test("generated file labels and sizes are stable", () => {
   assert.equal(formatFileSizeBytes(null), "-");
 });
 
-test("generation notices describe report overwrite and label rebuild behavior", () => {
+test("generation notices describe report history and label rebuild behavior", () => {
   assert.match(generationActionNotice("report"), /latest saved database values/);
-  assert.match(generationActionNotice("report"), /overwrites/);
+  assert.match(generationActionNotice("report"), /preserves each generation attempt/);
   assert.match(generationActionNotice("labels"), /rebuilds unused/);
   assert.match(
     generationActionNotice("labels"),
@@ -103,6 +103,32 @@ test("label in-use conflicts explain why regeneration cannot overwrite", () => {
       "Container is locked.",
     ),
     /scan correction workflow/,
+  );
+  assert.match(
+    generationFailureMessage(
+      "report",
+      "REPORT_DESTINATION_CONSERVATION_FAILED",
+      "raw worker message",
+    ),
+    /previous successful report is still available/,
+  );
+  assert.match(
+    generationFailureMessage(
+      "report",
+      "REPORT_LAYOUT_REVIEW_REQUIRED",
+      "raw worker message",
+      "zh-CN",
+    ),
+    /需要办公室复核/,
+  );
+  assert.equal(
+    generationFailureMessage(
+      "report",
+      "UNKNOWN_REPORT_CODE",
+      "raw internal message",
+      "zh-CN",
+    ),
+    "生成失败。",
   );
 });
 

@@ -21,6 +21,9 @@ export interface WorkerReportPayload {
   report_result?: {
     outputPath?: string;
     manifestPath?: string;
+    writtenDestinationCount?: number;
+    totalDestinationCount?: number;
+    orderedDestinationDigest?: string;
     warnings?: unknown[];
     errors?: unknown[];
     [key: string]: unknown;
@@ -85,12 +88,9 @@ export class WorkerReportService {
 
       throw new InternalServerErrorException({
         code: 'WORKER_REPORT_INVOCATION_FAILED',
-        message: 'The Python worker report writer could not be executed.',
-        details: {
-          workerPythonDir: this.workerPythonDir,
-          reportTemplatePath: this.reportTemplatePath,
-          errorMessage: this.errorMessage(error),
-        },
+        message: 'WORKER_REPORT_INVOCATION_FAILED',
+        labelKey: 'reports.errors.workerInvocationFailed',
+        details: { stage: 'invoke' },
       });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -114,22 +114,20 @@ export class WorkerReportService {
     if (!output) {
       throw new InternalServerErrorException({
         code: 'WORKER_REPORT_EMPTY_OUTPUT',
-        message: 'The Python worker report writer returned no JSON output.',
-        details: { workerPythonDir: this.workerPythonDir },
+        message: 'WORKER_REPORT_EMPTY_OUTPUT',
+        labelKey: 'reports.errors.workerEmptyOutput',
+        details: { stage: 'parse-output' },
       });
     }
 
     try {
       return JSON.parse(output) as WorkerReportPayload;
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException({
         code: 'WORKER_REPORT_INVALID_OUTPUT',
-        message: 'The Python worker report writer returned invalid JSON.',
-        details: {
-          workerPythonDir: this.workerPythonDir,
-          errorMessage: this.errorMessage(error),
-          stdout: output.slice(0, 4000),
-        },
+        message: 'WORKER_REPORT_INVALID_OUTPUT',
+        labelKey: 'reports.errors.workerInvalidOutput',
+        details: { stage: 'parse-output' },
       });
     }
   }

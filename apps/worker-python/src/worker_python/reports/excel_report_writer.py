@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
+import os
 import re
+import shutil
+import tempfile
 from copy import copy
 from dataclasses import dataclass
 from datetime import datetime
@@ -12,7 +16,6 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.cell.rich_text import CellRichText, TextBlock
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.page import PageMargins
 
 from worker_python.reports.cell_map import (
     COMPANY_VALUE_CELL,
@@ -40,17 +43,9 @@ DEFAULT_OUTPUT_DIR = REPO_ROOT / "storage" / "reports"
 REPORT_MANIFEST_FILENAME = "report_manifest.json"
 DEFAULT_REPORT_ROW_HEIGHT = 16.5
 CELL_HORIZONTAL_PADDING_POINTS = 8.0
-REPORT_PRINT_AREA = "B1:P25"
-A4_LANDSCAPE_HEIGHT_POINTS = 595.2756
-MINIMUM_PRINT_SCALE_PERCENT = 78
-# Keep one half-line of unscaled vertical slack for Excel/LibreOffice rounding
-# while preserving the template's established 78% readable print scale.
-PRINTABLE_HEIGHT_GUARD_POINTS = 8.0
+REPORT_PRINT_AREA = "A1:P25"
 STANDARDS_CELL = "C21"
-# Office renderers reserve additional non-cell page bands that are not fully
-# represented by pageMargins. The calibrated ceiling keeps the 78% template
-# scale readable and leaves the merged Standards band inside the physical page.
-MAX_REPORT_SHEET_HEIGHT_POINTS = 570.0
+MISSING_DESTINATION_PLACEHOLDER = "NEED_MANUAL_DESTINATION"
 
 
 @dataclass(frozen=True)
@@ -60,8 +55,20 @@ class ExcelReportIssue:
     destinationCode: str | None = None
     sheet: str | None = None
     row: int | None = None
+    stage: str | None = None
+    ordinal: int | None = None
+    expectedCount: int | None = None
+    actualCount: int | None = None
     requiredHeightPoints: float | None = None
     availableHeightPoints: float | None = None
+
+
+@dataclass(frozen=True)
+class CanonicalPlanIdentity:
+    ordinal: int
+    destination: str
+    finalPallets: int
+    totalCartons: int
 
 
 @dataclass(frozen=True)
@@ -73,6 +80,7 @@ class ExcelReportResult:
     writtenDestinationCount: int
     totalDestinationCount: int
     totalCartons: int
+    orderedDestinationDigest: str
 
 
 def write_excel_report(
@@ -108,6 +116,8 @@ def write_excel_report(
         container_no = "UNKNOWN-CONTAINER"
 
     plans = tuple(getattr(pallet_result, "plans", ()))
+    expected_plans = _canonical_plan_identities(plans)
+    expected_digest = _ordered_plan_digest(expected_plans)
     if not plans:
         warnings.append(
             ExcelReportIssue(
@@ -119,6 +129,7 @@ def write_excel_report(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{_safe_filename(container_no)}卸柜报告-En.xlsx"
     manifest_path = output_dir / REPORT_MANIFEST_FILENAME
+    temporary_output_path: Path | None = None
 
     # Preserve every untouched rich-text template cell when saving the report.
     workbook = load_workbook(template_path, rich_text=True)
@@ -133,7 +144,14 @@ def write_excel_report(
         page_plans, layout_error = _plan_report_pages(first_sheet, plans)
         if layout_error is not None:
             errors.append(layout_error)
-            return _error_result(output_dir, warnings, errors)
+            return _error_result(
+                output_dir,
+                warnings,
+                errors,
+                output_path=output_path,
+                total_destination_count=len(expected_plans),
+                ordered_destination_digest=expected_digest,
+            )
 
         worksheets = _report_worksheets(workbook, len(page_plans))
         for worksheet, plans_for_sheet in zip(worksheets, page_plans):
@@ -151,28 +169,62 @@ def write_excel_report(
             int(getattr(plan, "totalCartons", 0) or 0) for plan in plans
         )
         worksheets[0][TOTAL_CARTONS_CELL] = total_cartons
-        workbook.save(output_path)
+        temporary_output_path = _temporary_path(
+            output_dir,
+            prefix=f".{_safe_filename(container_no)}-",
+            suffix=".xlsx",
+        )
+        try:
+            workbook.save(temporary_output_path)
+        except Exception:
+            temporary_output_path.unlink(missing_ok=True)
+            raise
     finally:
         workbook.close()
 
-    _append_manifest_record(
-        manifest_path=manifest_path,
-        output_path=output_path,
-        template_path=template_path,
-        container_no=container_no,
-        report_datetime=report_datetime,
-        company=company,
-        warnings=warnings,
-    )
+    assert temporary_output_path is not None
+    try:
+        written_count, validation_error = _validate_saved_report(
+            temporary_output_path,
+            expected_plans=expected_plans,
+            page_plans=page_plans,
+        )
+        if validation_error is not None:
+            errors.append(validation_error)
+            return _error_result(
+                output_dir,
+                warnings,
+                errors,
+                output_path=output_path,
+                total_destination_count=len(expected_plans),
+                ordered_destination_digest=expected_digest,
+            )
+
+        _replace_report_and_manifest(
+            temporary_output_path=temporary_output_path,
+            output_path=output_path,
+            manifest_path=manifest_path,
+            template_path=template_path,
+            container_no=container_no,
+            report_datetime=report_datetime,
+            company=company,
+            warnings=warnings,
+            expected_count=len(expected_plans),
+            written_count=written_count,
+            ordered_digest=expected_digest,
+        )
+    finally:
+        temporary_output_path.unlink(missing_ok=True)
 
     return ExcelReportResult(
         outputPath=output_path,
         manifestPath=manifest_path,
         warnings=tuple(warnings),
         errors=tuple(errors),
-        writtenDestinationCount=len(plans),
-        totalDestinationCount=len(plans),
+        writtenDestinationCount=written_count,
+        totalDestinationCount=len(expected_plans),
         totalCartons=total_cartons,
+        orderedDestinationDigest=expected_digest,
     )
 
 
@@ -241,44 +293,53 @@ def _plan_report_pages(
     if not plans:
         return ((),), None
 
-    pages: list[tuple[Any, ...]] = []
-    current_page: list[Any] = []
-    plan_index = 0
-    while plan_index < len(plans):
-        plan = plans[plan_index]
-        if len(current_page) >= len(DESTINATION_ROWS):
-            pages.append(tuple(current_page))
-            current_page = []
-            continue
-
-        candidate = (*current_page, plan)
-        required_height = _required_sheet_height(worksheet, candidate)
-        available_height = _printable_raw_height_points(worksheet)
-        if required_height <= available_height:
-            current_page.append(plan)
-            plan_index += 1
-            continue
-
-        if current_page:
-            pages.append(tuple(current_page))
-            current_page = []
-            continue
-
-        destination = str(getattr(plan, "destinationCode", "") or "")
-        row = DESTINATION_ROWS[0].row
-        return (), ExcelReportIssue(
-            code="REPORT_CONTENT_TOO_TALL",
-            message="REPORT_CONTENT_TOO_TALL",
-            destinationCode=destination or None,
-            sheet=worksheet.title,
-            row=row,
-            requiredHeightPoints=required_height,
-            availableHeightPoints=available_height,
+    for ordinal, plan in enumerate(plans, start=1):
+        destination = str(
+            getattr(plan, "destinationCode", None)
+            or MISSING_DESTINATION_PLACEHOLDER
         )
+        row_cells = DESTINATION_ROWS[(ordinal - 1) % len(DESTINATION_ROWS)]
+        required_height = _destination_row_height(
+            worksheet,
+            row_cells,
+            destination=destination,
+            final_pallets=int(getattr(plan, "finalPallets", 0) or 0),
+            total_cartons=int(getattr(plan, "totalCartons", 0) or 0),
+        )
+        if required_height > MAX_ROW_HEIGHT_POINTS:
+            return (), ExcelReportIssue(
+                code="REPORT_LAYOUT_REVIEW_REQUIRED",
+                message="REPORT_LAYOUT_REVIEW_REQUIRED",
+                sheet=worksheet.title,
+                row=row_cells.row,
+                stage="planning.layout-review",
+                ordinal=ordinal,
+                requiredHeightPoints=required_height,
+                availableHeightPoints=MAX_ROW_HEIGHT_POINTS,
+            )
 
-    if current_page:
-        pages.append(tuple(current_page))
-    return tuple(pages), None
+    capacity = len(DESTINATION_ROWS)
+    pages = tuple(
+        tuple(plans[index : index + capacity])
+        for index in range(0, len(plans), capacity)
+    )
+    expected = _canonical_plan_identities(plans)
+    actual = _canonical_plan_identities(
+        tuple(plan for page in pages for plan in page)
+    )
+    if actual != expected:
+        return (), _conservation_issue(
+            stage="planning",
+            expected_count=len(expected),
+            actual_count=len(actual),
+        )
+    if any(len(page) != capacity for page in pages[:-1]):
+        return (), _conservation_issue(
+            stage="planning.capacity",
+            expected_count=capacity,
+            actual_count=min((len(page) for page in pages[:-1]), default=0),
+        )
+    return pages, None
 
 
 def _required_sheet_height(worksheet: Any, plans: tuple[Any, ...]) -> float:
@@ -308,7 +369,7 @@ def _write_destination_rows(
     for row_cells, plan in zip(DESTINATION_ROWS, plans):
         destination = getattr(plan, "destinationCode", None)
         if not destination:
-            destination = "NEED_MANUAL_DESTINATION"
+            destination = MISSING_DESTINATION_PLACEHOLDER
             warnings.append(
                 ExcelReportIssue(
                     code="MISSING_DESTINATION",
@@ -539,7 +600,9 @@ def _row_height(worksheet: Any, row: int) -> float:
 def _configure_page_contract(worksheet: Any) -> None:
     worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
     worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
-    worksheet.page_setup.scale = MINIMUM_PRINT_SCALE_PERCENT
+    # Use one sizing model. Leaving the template's fixed scale beside fit
+    # attributes makes Excel and LibreOffice select different effective widths.
+    worksheet.page_setup.scale = None
     worksheet.page_setup.fitToWidth = 1
     worksheet.page_setup.fitToHeight = 1
     worksheet.sheet_properties.pageSetUpPr.fitToPage = True
@@ -549,34 +612,19 @@ def _configure_page_contract(worksheet: Any) -> None:
     worksheet.col_breaks = worksheet.col_breaks.__class__()
 
 
-def _printable_raw_height_points(worksheet: Any) -> float:
-    margins: PageMargins = worksheet.page_margins
-    printable_points = (
-        A4_LANDSCAPE_HEIGHT_POINTS
-        - (float(margins.top or 0.0) + float(margins.bottom or 0.0)) * 72.0
-    )
-    scale = max(
-        float(worksheet.page_setup.scale or MINIMUM_PRINT_SCALE_PERCENT),
-        MINIMUM_PRINT_SCALE_PERCENT,
-    )
-    calculated_height = (
-        math.floor(
-            (printable_points * 100.0 / scale - PRINTABLE_HEIGHT_GUARD_POINTS) * 4.0
-        )
-        / 4.0
-    )
-    return min(calculated_height, MAX_REPORT_SHEET_HEIGHT_POINTS)
-
-
-def _append_manifest_record(
+def _replace_report_and_manifest(
     *,
-    manifest_path: Path,
+    temporary_output_path: Path,
     output_path: Path,
+    manifest_path: Path,
     template_path: Path,
     container_no: str,
     report_datetime: datetime,
     company: str,
     warnings: list[ExcelReportIssue],
+    expected_count: int,
+    written_count: int,
+    ordered_digest: str,
 ) -> None:
     manifest = _load_manifest(manifest_path)
     record = {
@@ -585,7 +633,10 @@ def _append_manifest_record(
         "company": company,
         "output_path": str(output_path),
         "template_path": str(template_path),
-        "warnings": [warning.message for warning in warnings],
+        "warnings": [warning.code for warning in warnings],
+        "expected_destination_count": expected_count,
+        "written_destination_count": written_count,
+        "ordered_destination_digest": ordered_digest,
     }
     manifest["records"] = [
         existing
@@ -593,10 +644,38 @@ def _append_manifest_record(
         if existing.get("output_path") != str(output_path)
     ]
     manifest["records"].append(record)
-    manifest_path.write_text(
+    temporary_manifest_path = _temporary_path(
+        manifest_path.parent,
+        prefix=".report-manifest-",
+        suffix=".json",
+    )
+    temporary_manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    backup_path: Path | None = None
+    try:
+        if output_path.exists():
+            backup_path = _temporary_path(
+                output_path.parent,
+                prefix=f".{output_path.stem}-backup-",
+                suffix=output_path.suffix,
+            )
+            shutil.copy2(output_path, backup_path)
+        os.replace(temporary_output_path, output_path)
+        try:
+            os.replace(temporary_manifest_path, manifest_path)
+        except Exception:
+            if backup_path is None:
+                output_path.unlink(missing_ok=True)
+            else:
+                os.replace(backup_path, output_path)
+                backup_path = None
+            raise
+    finally:
+        temporary_manifest_path.unlink(missing_ok=True)
+        if backup_path is not None:
+            backup_path.unlink(missing_ok=True)
 
 
 def _load_manifest(manifest_path: Path) -> dict[str, Any]:
@@ -615,17 +694,201 @@ def _safe_filename(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "-", value).strip("-") or "UNKNOWN-CONTAINER"
 
 
+def _canonical_plan_identities(
+    plans: tuple[Any, ...],
+) -> tuple[CanonicalPlanIdentity, ...]:
+    return tuple(
+        CanonicalPlanIdentity(
+            ordinal=ordinal,
+            destination=str(
+                getattr(plan, "destinationCode", None)
+                or MISSING_DESTINATION_PLACEHOLDER
+            ),
+            finalPallets=int(getattr(plan, "finalPallets", 0) or 0),
+            totalCartons=int(getattr(plan, "totalCartons", 0) or 0),
+        )
+        for ordinal, plan in enumerate(plans, start=1)
+    )
+
+
+def _ordered_plan_digest(plans: tuple[CanonicalPlanIdentity, ...]) -> str:
+    payload = [
+        {
+            "ordinal": plan.ordinal,
+            "destination": plan.destination,
+            "finalPallets": plan.finalPallets,
+            "totalCartons": plan.totalCartons,
+        }
+        for plan in plans
+    ]
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _validate_saved_report(
+    path: Path,
+    *,
+    expected_plans: tuple[CanonicalPlanIdentity, ...],
+    page_plans: tuple[tuple[Any, ...], ...],
+) -> tuple[int, ExcelReportIssue | None]:
+    workbook = load_workbook(path, rich_text=True, data_only=False)
+    try:
+        actual: list[CanonicalPlanIdentity] = []
+        expected_page_count = max(1, len(page_plans))
+        for sheet_index, worksheet in enumerate(workbook.worksheets):
+            sheet_rows: list[tuple[int, str, int, int]] = []
+            for row_cells in DESTINATION_ROWS:
+                destination = worksheet[row_cells.destination_cell].value
+                pallets = worksheet[row_cells.pallet_count_cell].value
+                cartons = worksheet[row_cells.carton_count_cell].value
+                mirror = worksheet[row_cells.pallet_label_cell].value
+                if (
+                    destination is None
+                    and pallets is None
+                    and cartons is None
+                    and mirror is None
+                ):
+                    continue
+                if str(mirror or "") != str(destination or ""):
+                    return len(actual), _conservation_issue(
+                        stage="reopen.mirror",
+                        expected_count=len(expected_plans),
+                        actual_count=len(actual),
+                        sheet=worksheet.title,
+                        row=row_cells.row,
+                        ordinal=len(actual) + 1,
+                    )
+                sheet_rows.append(
+                    (
+                        row_cells.row,
+                        str(destination or ""),
+                        int(pallets or 0),
+                        int(cartons or 0),
+                    )
+                )
+
+            if sheet_index >= expected_page_count and sheet_rows:
+                return len(actual), _conservation_issue(
+                    stage="reopen.extra-sheet",
+                    expected_count=len(expected_plans),
+                    actual_count=len(actual) + len(sheet_rows),
+                    sheet=worksheet.title,
+                    row=sheet_rows[0][0],
+                    ordinal=len(actual) + 1,
+                )
+
+            for row, destination, pallets, cartons in sheet_rows:
+                actual.append(
+                    CanonicalPlanIdentity(
+                        ordinal=len(actual) + 1,
+                        destination=destination,
+                        finalPallets=pallets,
+                        totalCartons=cartons,
+                    )
+                )
+                if (
+                    len(actual) > len(expected_plans)
+                    or actual[-1] != expected_plans[len(actual) - 1]
+                ):
+                    return len(actual), _conservation_issue(
+                        stage="reopen.row",
+                        expected_count=len(expected_plans),
+                        actual_count=len(actual),
+                        sheet=worksheet.title,
+                        row=row,
+                        ordinal=len(actual),
+                    )
+
+            if sheet_index < expected_page_count:
+                expected_total = (
+                    sum(plan.totalCartons for plan in expected_plans)
+                    if sheet_index == 0
+                    else sum(
+                        int(getattr(plan, "totalCartons", 0) or 0)
+                        for plan in page_plans[sheet_index]
+                    )
+                )
+                if int(worksheet[TOTAL_CARTONS_CELL].value or 0) != expected_total:
+                    return len(actual), _conservation_issue(
+                        stage="reopen.total",
+                        expected_count=expected_total,
+                        actual_count=int(worksheet[TOTAL_CARTONS_CELL].value or 0),
+                        sheet=worksheet.title,
+                        row=worksheet[TOTAL_CARTONS_CELL].row,
+                    )
+
+        actual_tuple = tuple(actual)
+        if actual_tuple != expected_plans:
+            return len(actual_tuple), _conservation_issue(
+                stage="reopen.count",
+                expected_count=len(expected_plans),
+                actual_count=len(actual_tuple),
+            )
+        if _ordered_plan_digest(actual_tuple) != _ordered_plan_digest(expected_plans):
+            return len(actual_tuple), _conservation_issue(
+                stage="reopen.digest",
+                expected_count=len(expected_plans),
+                actual_count=len(actual_tuple),
+            )
+        return len(actual_tuple), None
+    finally:
+        workbook.close()
+
+
+def _conservation_issue(
+    *,
+    stage: str,
+    expected_count: int,
+    actual_count: int,
+    sheet: str | None = None,
+    row: int | None = None,
+    ordinal: int | None = None,
+) -> ExcelReportIssue:
+    return ExcelReportIssue(
+        code="REPORT_DESTINATION_CONSERVATION_FAILED",
+        message="REPORT_DESTINATION_CONSERVATION_FAILED",
+        stage=stage,
+        expectedCount=expected_count,
+        actualCount=actual_count,
+        sheet=sheet,
+        row=row,
+        ordinal=ordinal,
+    )
+
+
+def _temporary_path(directory: Path, *, prefix: str, suffix: str) -> Path:
+    descriptor, raw_path = tempfile.mkstemp(
+        dir=directory,
+        prefix=prefix,
+        suffix=suffix,
+    )
+    os.close(descriptor)
+    return Path(raw_path)
+
+
 def _error_result(
     output_dir: Path,
     warnings: list[ExcelReportIssue],
     errors: list[ExcelReportIssue],
+    *,
+    output_path: Path | None = None,
+    total_destination_count: int = 0,
+    ordered_destination_digest: str = "",
 ) -> ExcelReportResult:
     return ExcelReportResult(
-        outputPath=output_dir / "UNKNOWN-CONTAINER卸柜报告-En.xlsx",
+        outputPath=output_path
+        or output_dir / "UNKNOWN-CONTAINER卸柜报告-En.xlsx",
         manifestPath=output_dir / REPORT_MANIFEST_FILENAME,
         warnings=tuple(warnings),
         errors=tuple(errors),
         writtenDestinationCount=0,
-        totalDestinationCount=0,
+        totalDestinationCount=total_destination_count,
         totalCartons=0,
+        orderedDestinationDigest=ordered_destination_digest,
     )
