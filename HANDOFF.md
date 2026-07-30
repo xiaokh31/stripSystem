@@ -21,6 +21,21 @@ UNLOAD-REPORT-05 repository work is complete; only the named external verificati
 The production duplicate-current cleanup procedure is documented but has not been run
 against any production environment in this Session.
 
+The post-deploy production API startup incident is under read-only diagnosis. The same
+commit `acd8e55` starts successfully in the local Docker full stack, while the new
+`20260730010000_current_generated_artifact` migration intentionally aborts with
+`CURRENT_GENERATED_FILE_REPAIR_REQUIRED` when historical duplicate current report/label
+rows exist. Production logs and read-only duplicate counts have not yet been supplied, so
+this is the leading diagnosis rather than a production-confirmed root cause.
+
+An isolated disposable PostgreSQL reproduction confirmed the exact startup path:
+the first deploy fails with `P3018` / SQLSTATE `23505` /
+`CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, and a retry fails with `P3009` because Prisma
+records the migration as failed. PostgreSQL rolled back the migration DDL. Recovery in the
+disposable database required duplicate convergence, then
+`prisma migrate resolve --rolled-back 20260730010000_current_generated_artifact`, then
+`prisma migrate deploy`. The temporary databases were removed after the checks.
+
 ## 已完成
 
 - 已完成每页 PRIMARY_ONLY/EXPANDED 自适应物理行规划、保存后独立守恒验证、API 安全 evidence、真实 current 8→9→8 与失败保留、专用 package/PDF/PNG runner、逐图检查及全部当前环境 Definition of Done；Task 03/04/05、索引、完成度与验证报告已同步。唯一剩余项是办公室 Windows/Microsoft Excel 和目标打印机验收。
@@ -77,12 +92,23 @@ against any production environment in this Session.
 - Read-only local validation of the runbook SQL returned 0 duplicate rows.
 - Docker one-off repair dry-run completed with `apply=false`,
   `duplicateGroupCount=0`, `findings=[]`; no write mode was used.
+- Read-only incident checks on commit `acd8e55` found the local API healthy, 0 duplicate
+  current artifact groups, 0 unsuccessful migration rows, 38 migrations up to date, and
+  `/api/health` returning OK. No source file, production database, migration record or
+  storage artifact was changed during the incident diagnosis.
+- An isolated migration reproduction went red deterministically with `P3018`, then `P3009`
+  on retry, and went green after simulated duplicate convergence plus `migrate resolve
+  --rolled-back` and `migrate deploy`. One final diagnostic inspection query had a quoting
+  error after the successful migration; it did not affect the result, and the disposable
+  database cleanup still ran.
 
 ## 卡在哪里
 
 ### Remaining implementation
 
 - No remaining implementation was reported.
+- No incident fix is authorized or justified until the production API log identifies the
+  failing startup stage.
 
 ### External verification
 
@@ -95,12 +121,21 @@ against any production environment in this Session.
 - No blocker was reported.
 - Production repair requires access to the production Docker host and an operator-approved
   winner for every duplicate group. These were not available or requested for execution.
+- Production API logs and read-only duplicate/migration status are not accessible from
+  this workspace, so the leading migration diagnosis cannot yet be confirmed against the
+  failing host.
 
 ## 下一步
 
-- On the production host, follow
-  `docs/runbooks/current-generated-artifact-production-repair.md` through backup and
-  dry-run only; review every proposed winner before deciding whether to run `--apply`.
+- On the production host, capture `docker compose -f infra/docker/compose.local.yml
+  logs --no-color --tail=200 api`. If it contains
+  `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, follow
+  `docs/runbooks/current-generated-artifact-production-repair.md` through matched
+  DB/storage backup and dry-run only; review every proposed winner before deciding whether
+  to run `--apply`. If Prisma has already recorded the failed migration, the reviewed
+  recovery must also resolve
+  `20260730010000_current_generated_artifact` as rolled back before retrying deploy; the
+  current runbook does not yet document that required step.
 
 ## 不要再踩的坑
 
@@ -115,6 +150,13 @@ against any production environment in this Session.
   current tool cannot explicitly select an older winner.
 - Cleanup means status convergence and removal from the office current view. Do not
   physically delete superseded bytes or generated-file rows; they remain audit evidence.
+- Do not repeatedly restart the failing API, manually edit `_prisma_migrations`, delete
+  duplicate rows, or run repair `--apply` before matched backups and per-group winner
+  review. A `P1000`, `P1001` or `P3009` production log would require a different recovery
+  path from the duplicate-current repair.
+- Do not run `prisma migrate resolve --rolled-back` speculatively. First confirm the exact
+  failed migration from production logs/status and confirm its DDL was rolled back; use the
+  Prisma command rather than editing `_prisma_migrations` manually.
 
 ## 新会话启动清单
 
