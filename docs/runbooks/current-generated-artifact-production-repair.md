@@ -170,6 +170,31 @@ docker compose -f infra/docker/compose.local.yml run --rm --no-deps api \
 
 ### 7. 执行 migration
 
+如果 API 启动日志或 `prisma migrate status` 已报告
+`20260730010000_current_generated_artifact` 为失败迁移，必须先只读确认：
+
+- `_prisma_migrations` 中该记录的 `finished_at` 和 `rolled_back_at` 为空；
+- `applied_steps_count = 0`；
+- `generated_file_replacements` 表和
+  `generated_files_one_current_business_artifact_key` 索引均不存在；
+- 失败日志包含 `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`。
+
+只有以上证据同时成立，并且步骤 6 的 repair 已成功收敛重复组后，才将该迁移标记为
+已回滚：
+
+```bash
+docker compose -f infra/docker/compose.local.yml run --rm --no-deps api \
+  pnpm --filter api prisma migrate resolve \
+  --rolled-back 20260730010000_current_generated_artifact
+```
+
+不要推测执行 `migrate resolve`，也不要直接编辑 `_prisma_migrations`。如果任何 DDL
+对象已经存在、`applied_steps_count` 非零，或失败原因不是
+`CURRENT_GENERATED_FILE_REPAIR_REQUIRED`，停止操作并按不同的 migration incident
+处理。
+
+随后执行：
+
 ```bash
 docker compose -f infra/docker/compose.local.yml run --rm --no-deps api \
   pnpm --filter api prisma migrate deploy
@@ -181,6 +206,9 @@ Migration 会建立 replacement audit 和“每柜每类型最多一个 current�
 
 如果 migration 返回 `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`，表示仍存在重复组。
 回到 dry-run 查明原因，不要删除 migration 记录或绕过唯一索引。
+
+如果 migration 返回 `P3009`，不要重复重启 API。返回本节核对失败迁移及 DDL 回滚
+证据；仅在全部条件满足时使用上述 `migrate resolve --rolled-back` 命令。
 
 ### 8. 验证重复组已经清零
 
@@ -245,7 +273,11 @@ dry-run、审计和恢复能力的 generated-artifact retention policy。不要�
 3. Run `repair:current-generated-files` without `--apply`.
 4. Approve every proposed `winnerId`. Stop on invalid/shared paths or
    `NO_VERIFIABLE_CURRENT_ARTIFACT`.
-5. Run the tool with `--apply`, then run Prisma migrations.
-6. Re-run dry-run and require `duplicateGroupCount: 0`.
-7. Start the stack and verify one current report plus one current label.
-8. Historical bytes remain audit evidence; never delete them manually.
+5. Run the tool with `--apply`.
+6. If Prisma recorded the guarded migration as failed and its DDL fully rolled
+   back, resolve that exact migration as rolled back; never edit migration rows
+   manually.
+7. Run Prisma migrations, then re-run dry-run and require
+   `duplicateGroupCount: 0`.
+8. Start the stack and verify one current report plus one current label.
+9. Historical bytes remain audit evidence; never delete them manually.

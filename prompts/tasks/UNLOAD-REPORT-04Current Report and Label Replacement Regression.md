@@ -356,10 +356,12 @@ API、storage、BullMQ、Web、strict i18n 和 full-stack/visual 自动化全部
 - 详细结论：
   `docs/reports/unload-report-04-current-artifact-replacement-verification.md`。
 - 04 的 `DONE` 终态不变。后续 `UNLOAD-REPORT-05` 已在独立 fresh Session 完成
-  自适应布局和当前环境全部自动化，并通过 04 current slot 的真实
-  `8 -> 9 -> 8` 替换及失败保留回归；其状态为
-  `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。验证报告：
+  自适应布局、当前环境全部自动化和办公室外部验收，并通过 04 current slot 的真实
+  `8 -> 9 -> 8` 替换及失败保留回归；其状态为 `DONE`。验证报告：
   `docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md`。
+- 2026-07-30 生产既有重复 current 数据已按 runbook 完成配对备份、winner 核对、
+  repair、失败迁移 resolve/deploy、零重复和全栈健康检查；业务方随后确认办公室
+  current 文件槽位检查通过。04 的生产关闭证据完整。
 
 ## 生产既有重复记录操作入口
 

@@ -52,6 +52,7 @@ docs/runbooks/*
 docs/reports/*
 !docs/reports/unload-report-03-print-margin-destination-preservation-verification.md
 !docs/reports/unload-report-04-current-artifact-replacement-verification.md
+!docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md
 !docs/reports/project-completion-status.html
 !docs/reports/docker-cache-verification-2026-07-13.md
 !docs/reports/web-ops-04-operational-clock-performance.md

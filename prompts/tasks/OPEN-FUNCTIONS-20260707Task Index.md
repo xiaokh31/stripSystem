@@ -68,9 +68,8 @@
   同日产品进一步澄清“所有单元格可用”是自适应规则，不是始终连续填 `4..19`：
   每页 `1–8` 个目的仓只用深色主行 `4/6/.../18`，`9–16` 才切换为深色+白色的
   `4..19` 纸面连续布局；17+ 按 16 分页并让每页独立选模式。P0
-  `UNLOAD-REPORT-05` 已完成仓库实现和当前环境全部自动化，保持
-  `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`；最终 Excel/实际打印门禁仍由
-  05 关闭。
+  `UNLOAD-REPORT-05` 已完成仓库实现、当前环境全部自动化和办公室
+  Microsoft Excel/实际打印验收，状态为 `DONE`。
 - Wage / Unloading Wage 既有线路已完成；2026-07-25 新增 `UNLOAD-WAGE-14`，把美转加
   `trailerNumber` 从必填改为选填，并要求空托车号仍以 persisted association/pay-container identity
   分组、CAD 360 / 组且不同空值组不碰撞。原 01/02/QA 的必填规则已被 14 supersede。
@@ -259,12 +258,12 @@
      `docs/runbooks/current-generated-artifact-production-repair.md`，不得手工删库或
      删除 storage 文件。
 5. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` —
-   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+   `DONE`
    - 每页 1–8 条只填深色主行，白色追加行保持空白；9–16 条才切换扩展布局并按
      `4..19` 纸面顺序填充。17+ 按 16 分页，每页独立选模式。Worker/API/Web、
      `8/9/16/17/24/25/32/33` physical-row/style/守恒/current download、
-     package/PDF/PNG、strict i18n 和 healthcheck 已通过；只剩办公室
-     Microsoft Excel/Print to PDF/实际打印外部门禁。验证报告见
+     package/PDF/PNG、strict i18n、healthcheck 和办公室 Microsoft Excel、
+     Print to PDF、实际打印外部门禁均已通过。验证报告见
      `docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md`。
 6. `POD-00Real Template Contract and Worker Proof.md` — `INPUT REQUIRED`
    - 只有业务提供真实/明确脱敏 blank template、matching approved completed/printed
@@ -398,12 +397,7 @@ recheck、material correction demotion、bounded selection observability、性�
 2. `UNLOAD-PALLET-10Pallet Policy Full Stack Artifact and I18n Regression.md` 外部关闭项
    - 仓库代码和自动化已经完成，不要重复执行全量开发。复用 04 的真实样本，并在目标打印机/PDA 上完成
      150mm x 100mm、25mm QR 实测和扫码签字后更新为 Done。
-3. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` 外部关闭项
-   - 04 唯一 current 文件和 05 自适应 row layout 的仓库自动化均已完成。下一步在
-     办公室 Windows/Microsoft Excel 使用 current 报告分别验证 8 条只用深色主行、
-     9 条启用白色追加行、16 条一页容量，以及 Print Preview、Print to PDF 和实际
-     纸张打印。通过前 03/05 不得 Done；04 的 current-file Task 保持 Done。
-4. `NATIVE-AUTH-01Revocable Persistent Native Session.md` Android/iOS 外部证据
+3. `NATIVE-AUTH-01Revocable Persistent Native Session.md` Android/iOS 外部证据
    - iOS 只剩人工双语视觉，以及会清除当前 session 的 online/offline logout、管理员 revoke、账号 inactive；
      Android Release 仍需 App/设备重启、到期 refresh、离线、logout、revoke、inactive 和双语矩阵。
    - 这些是设备验收，不是新的代码开发。按 `docs/reports/native-auth-01-revocable-session-verification.md` 记录证据；
@@ -487,10 +481,10 @@ Deferred，按现场反馈再执行：
 3. `UNLOAD-REPORT-04Current Report and Label Replacement Regression.md` 已完成；
    报告/面单统一 current contract、数据库唯一约束、staging/失败守恒、repair、
    并发/BullMQ、strict i18n 和 full-stack 浏览器门禁不得回归。
-4. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` 已完成仓库实现和
-   当前环境全部自动化，不得重启开发 Task。下一动作是在办公室 Windows/Microsoft
-   Excel 和目标打印机上对 05 新 current 工件完成 8/9/16、Print Preview、Print
-   to PDF 和实际纸张签字；不得使用旧 `report-8` 证据。
+4. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` 已完成仓库实现、
+   当前环境全部自动化和办公室 Windows/Microsoft Excel、Print Preview、Print to
+   PDF、目标打印机实际纸张验收，状态为 `DONE`；不得重启该 Task，也不得使用旧
+   `report-8` 证据替换 05 新 current 工件。
 5. POD 开发开始前，业务先提供 blank template、matching approved completed/printed
    example、字段清单和打印规则；输入齐全后严格执行 POD-00 -> 01 -> 02 -> 03 -> 04 -> 05，
    每项一个 fresh Session。没有真实/明确脱敏输入时不要启动 POD-00，更不能跳到 POD-01。

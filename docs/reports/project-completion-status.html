@@ -463,8 +463,8 @@
           失败/并发/BullMQ 守恒、strict i18n 和 full-stack/视觉门禁均通过。产品随后澄清 03 对“全部单元格可用”的解释：
           每页 1–8 个目的仓只用深色主行，9–16 个才切换为深色+白色扩展布局，17+ 按 16 分页且每页
           独立选模式；当前 03 的 report-8 提前占用了白色行。P0 UNLOAD-REPORT-05 已完成仓库实现、
-          当前环境全量自动化和逐图验证，现为 Code Complete / External Verification Pending，
-          并承接 Windows/Microsoft Excel 与实际打印门禁。POD-00 在取得真实/
+          当前环境全量自动化、逐图验证以及 Windows/Microsoft Excel 与实际打印门禁，状态为 Done。
+          POD-00 在取得真实/
           明确脱敏 blank template 和 matching approved completed/printed example 前不得执行。此前尚未关闭的
           外部 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、Android/iOS 人工设备矩阵或目标部署主机；
           另有 5 个 Windows 原生/MSIX
@@ -1858,9 +1858,9 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-05 Adaptive Primary and White Cell Layout</td>
-              <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
+              <td><span class="badge done">Done</span></td>
               <td>每页 1–8 条只写深色主行 4/6/.../18，9–16 条才按纸面顺序写 4..19，17+ 每页自适应；physical row/style、C/N/O/P 守恒、current 8→9→8、失败保留、package/PDF/PNG、strict i18n 均已通过。Worker 235、API 388 unit/129 E2E、Web 284、38 migrations、healthcheck 和 24 张原尺寸人工截图检查已关闭；36 张生成页左侧 whitespace delta 均为 0mm。</td>
-              <td>只剩使用 05 新 current 工件完成 Windows/Microsoft Excel 8/9/16、Print Preview、Print to PDF 和办公室实际纸张打印签字。证据见 <code>docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md</code>。</td>
+              <td>2026-07-30 业务方确认使用 05 新 current 工件完成 Windows/Microsoft Excel 8/9/16、Print Preview、Print to PDF、左侧白边、Standards 和办公室实际纸张打印检查；04 唯一 current 文件槽位同时通过。证据见 <code>docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md</code>。</td>
             </tr>
             <tr>
               <td>P5-PILOT-01 Windows Target Deployment Verification</td>
@@ -2162,8 +2162,8 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-05 Adaptive Primary and White Cell Layout</td>
-              <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
-              <td>1–8 条只用深色主行；9–16 条才启用白色追加行并按纸面顺序连续显示；17+ 每页自适应。当前环境 Worker/API/Web/full-stack/current/package/PDF/PNG/i18n/healthcheck 和逐图门禁已通过，只剩 Microsoft Excel/实际打印签字。</td>
+              <td><span class="badge done">Done</span></td>
+              <td>1–8 条只用深色主行；9–16 条才启用白色追加行并按纸面顺序连续显示；17+ 每页自适应。当前环境 Worker/API/Web/full-stack/current/package/PDF/PNG/i18n/healthcheck、逐图门禁和办公室 Microsoft Excel/实际打印验收均已通过。</td>
             </tr>
             <tr>
               <td>POD-00 Real Template Contract and Worker Proof</td>
@@ -2202,7 +2202,7 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>UNLOAD-WAGE-14 与 UNLOAD-REPORT-04 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 已完成 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n 和当前环境全部门禁，现只等待使用新 current 报告完成 Windows/Microsoft Excel 与实际打印。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
+          <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
           <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>

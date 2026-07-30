@@ -2,57 +2,80 @@
 
 > 新会话必须先读 `AGENTS.md` 和本文件，再核对当前 Task、任务索引、完成度报告与 `git status`。本文件用于交接，不替代验收证据。
 
+## 生产故障修复会话（2026-07-30）
+
+- Active work: `UNLOAD-REPORT-04` 部署后的生产 API 启动修复。
+- Status: `DONE`；生产 API 启动故障、04 文件槽位和 05 Excel/实际打印外部验收
+  均已关闭。
+- Actual Git state at session start: `HEAD c3d4a0b`, clean; the older metadata
+  below is stale and must not override current runtime evidence.
+- Root cause and recovery: one duplicate current `EXCEL_REPORT` group caused
+  `20260730010000_current_generated_artifact` to fail with
+  `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`; API retries then failed with Prisma
+  `P3009`. PostgreSQL had rolled back all DDL. After matched backups and private
+  winner review, repair superseded the older verified record, the failed
+  migration was resolved as rolled back, and both 04 migrations deployed.
+- Production outcome: duplicate current groups are 0; the partial unique index
+  and replacement audit table exist; one `VERIFIED_STORAGE_REPAIR` audit exists;
+  temporary repair markers are 0; all 38 migrations are up to date.
+- Runtime outcome: PostgreSQL, Redis, API, Web, worker and nginx are all healthy.
+  `scripts/healthcheck.sh` passed, API logs contain no new `P3009`, `P3018`,
+  `CURRENT_GENERATED_FILE_REPAIR_REQUIRED` or error-level startup entries, and
+  the browser login page reports API OK/database Up.
+- Recovery point retained outside the repository and Docker volumes under the
+  operator-approved `C:\bestar-backups`:
+  `postgres-bestar_unloading-20260729-235544.sql` and
+  `storage-20260729-235546.tar.gz`. Both are non-empty; the SQL dump header,
+  storage archive listing and SHA-256 checks passed. Dry-run, apply, candidate
+  review and after-state evidence are retained beside them.
+- Changed in this session:
+  `docs/runbooks/current-generated-artifact-production-repair.md` now documents
+  the evidence-gated `prisma migrate resolve --rolled-back` recovery required
+  before `migrate deploy`; `HANDOFF.md` records this incident.
+- Tests/actions actually run: backup integrity/SHA checks; repair dry-run/apply
+  and zero-duplicate after-run; private candidate time/order review; migration
+  rollback evidence, resolve/deploy/status; unique index/audit/marker queries;
+  Docker health checks, nginx/API/Web/static assets/storage checks; browser
+  login-page health inspection; `git diff --check`.
+- Remaining implementation: none.
+- External verification: completed. On 2026-07-30 the business confirmed the 04
+  office current-file check and the 05 Windows/Microsoft Excel, Print Preview,
+  Print to PDF and actual-paper checks passed.
+- Blockers: none.
+- Next action: retain the matched production backups according to policy and
+  select the next independently ready Task; do not restart 04 or 05.
+- Pitfalls: do not expose production cabinet/file IDs or SHA values, delete
+  historical bytes/rows, manually edit `_prisma_migrations`, or discard either
+  half of the matched recovery point before office verification.
+
 ## 交接元数据
 
-- Generated at: `2026-07-30T03:30:10Z`
-- Source: `product-planning-agent follow-up after business-task-supervisor`
+- Generated at: `2026-07-30`
+- Source: `production repair and business external-verification closure`
 - Task: `UNLOAD-REPORT-05`
 - Task file: `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`
-- Status: `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+- Status: `DONE`
 - Execution mode: `full`
 - Session: `019fb0a9-71ea-7403-833d-c57d3c880774`
-- Git HEAD: `33e12fd`
+- Git HEAD: `c3d4a0b`
 - Worktree: dirty; preserve and inspect existing changes
 - Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260730T013521Z-UNLOAD-REPORT-05-39113`
 
 ## 现在在做什么
 
-UNLOAD-REPORT-05 repository work is complete; only the named external verification remains.
-The production duplicate-current cleanup procedure is documented but has not been run
-against any production environment in this Session.
-
-The post-deploy production API startup incident is under read-only diagnosis. The same
-commit `acd8e55` starts successfully in the local Docker full stack, while the new
-`20260730010000_current_generated_artifact` migration intentionally aborts with
-`CURRENT_GENERATED_FILE_REPAIR_REQUIRED` when historical duplicate current report/label
-rows exist. Production logs and read-only duplicate counts have not yet been supplied, so
-this is the leading diagnosis rather than a production-confirmed root cause.
-
-The operator later reported running host `corepack use pnpm@11.18.0` and restoring the
-production `package.json`, followed by a package permission error. This creates an earlier
-possible failure boundary: if Docker build cannot read the host build context, migration
-has not run yet. The tracked baseline is clean and pins `pnpm@11.9.0`; locally
-`package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml` are mode 0644 and owned by the
-repository user. Production ownership/mode, parent-directory traversal permissions and the
-exact error have not yet been supplied.
-
-An isolated disposable PostgreSQL reproduction confirmed the exact startup path:
-the first deploy fails with `P3018` / SQLSTATE `23505` /
-`CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, and a retry fails with `P3009` because Prisma
-records the migration as failed. PostgreSQL rolled back the migration DDL. Recovery in the
-disposable database required duplicate convergence, then
-`prisma migrate resolve --rolled-back 20260730010000_current_generated_artifact`, then
-`prisma migrate deploy`. The temporary databases were removed after the checks.
+UNLOAD-REPORT-04 and UNLOAD-REPORT-05 are both `DONE`. The production duplicate-current
+repair, failed-migration recovery, full-stack health verification and business office
+verification are complete. Do not restart either Task.
 
 ## 已完成
 
-- 已完成每页 PRIMARY_ONLY/EXPANDED 自适应物理行规划、保存后独立守恒验证、API 安全 evidence、真实 current 8→9→8 与失败保留、专用 package/PDF/PNG runner、逐图检查及全部当前环境 Definition of Done；Task 03/04/05、索引、完成度与验证报告已同步。唯一剩余项是办公室 Windows/Microsoft Excel 和目标打印机验收。
+- 已完成每页 PRIMARY_ONLY/EXPANDED 自适应物理行规划、保存后独立守恒验证、API 安全 evidence、真实 current 8→9→8 与失败保留、专用 package/PDF/PNG runner、逐图检查、全部当前环境 Definition of Done 和办公室 Windows/Microsoft Excel/目标打印机外部验收；Task 04/05、索引、完成度与验证报告已同步为 DONE。
 - Reviewed the completed 04 repair implementation. `repair:current-generated-files`
   defaults to dry-run, validates storage containment/readability/SHA/shared paths,
   selects the newest verified candidate, and only writes with explicit `--apply`.
-- Added a production runbook covering maintenance mode, matched DB/storage backup,
-  dry-run, candidate review, apply, migration, zero-duplicate verification, startup and
-  rollback. No production database or storage was accessed or modified.
+- Executed the production runbook through matched DB/storage backup, dry-run, candidate
+  review, apply, migration recovery/deploy, zero-duplicate verification, startup and
+  healthcheck. Historical bytes and rows were preserved.
 
 ### Changed files
 
@@ -95,64 +118,37 @@ disposable database required duplicate convergence, then
 - 原尺寸人工视觉检查：模板、8、9、16、17、24、25、真实 API 8/9 共 24 张 full-page/destination-table PNG 通过
 - 模板 SHA-256 before/after 一致：31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027
 - scripts/healthcheck.sh：通过；git diff --check：通过；专用 runner storage/generated-files 精确恢复且 residual 为 0
-- This follow-up changed documentation only. No application test, migration, repair
-  `--apply`, production command or external print check was run.
-- Read-only local validation of the runbook SQL returned 0 duplicate rows.
-- Docker one-off repair dry-run completed with `apply=false`,
-  `duplicateGroupCount=0`, `findings=[]`; no write mode was used.
-- Read-only incident checks on commit `acd8e55` found the local API healthy, 0 duplicate
-  current artifact groups, 0 unsuccessful migration rows, 38 migrations up to date, and
-  `/api/health` returning OK. No source file, production database, migration record or
-  storage artifact was changed during the incident diagnosis.
-- An isolated migration reproduction went red deterministically with `P3018`, then `P3009`
-  on retry, and went green after simulated duplicate convergence plus `migrate resolve
-  --rolled-back` and `migrate deploy`. One final diagnostic inspection query had a quoting
-  error after the successful migration; it did not affect the result, and the disposable
-  database cleanup still ran.
-- Verified the tracked package-manager baseline without running host package tooling:
-  root `package.json` has no diff, pins `pnpm@11.9.0`, and all API/Web Dockerfiles prepare
-  pnpm 11.9.0 inside their images.
+- Production repair dry-run found one verified duplicate group; apply succeeded and the
+  post-repair dry-run returned `duplicateGroupCount=0`, `findings=[]`.
+- The guarded failed migration was proven fully rolled back, resolved with Prisma, and both
+  04 migrations deployed. All 38 migrations are up to date; the unique index, formal
+  replacement audit and zero temporary markers were verified.
+- Production `scripts/healthcheck.sh` passed; all six services are healthy and API startup
+  logs contain no new migration/startup errors.
+- 2026-07-30 business confirmation closed the 04 current-file and 05 Microsoft
+  Excel/Print to PDF/actual-paper external checks.
 
 ## 卡在哪里
 
 ### Remaining implementation
 
 - No remaining implementation was reported.
-- No incident fix is authorized or justified until the production API log identifies the
-  failing startup stage.
 
 ### External verification
 
-- 在办公室 Windows/Microsoft Excel 从唯一 current slot 打开 8 条报告，确认只使用深色主行且白色追加行空白可编辑；重新生成 9 条并确认同一 slot 被替换、顺序为 1–9。
-- 用 16 条 current 报告核对一 worksheet/一张 A4 landscape、逐目的仓/PLT/CTN/total、Standards、左侧白边、Print Preview 和 Microsoft Print to PDF。
-- 在办公室目标打印机实际纸张打印并签字；不得 AutoFit 或手动修改 margin、scale、print area、fill、row mapping。
+- 2026-07-30 业务方确认 04 current 文件槽位与 05 Windows/Microsoft Excel、
+  8/9/16、Print Preview、Print to PDF、左侧白边、Standards 和实际纸张打印检查
+  均通过。
 
 ### Blockers
 
 - No blocker was reported.
-- Production repair requires access to the production Docker host and an operator-approved
-  winner for every duplicate group. These were not available or requested for execution.
-- Production API logs and read-only duplicate/migration status are not accessible from
-  this workspace, so the leading migration diagnosis cannot yet be confirmed against the
-  failing host.
-- Production `stat`/`namei`, Git diff and Docker build output are required to determine
-  whether the current failure occurs before migration because `package.json` or a parent
-  directory is unreadable.
 
 ## 下一步
 
-- On the production host, capture `docker compose -f infra/docker/compose.local.yml
-  build --progress=plain api` output and
-  `docker compose -f infra/docker/compose.local.yml logs --no-color --tail=200 api`.
-  First verify exact ownership/mode and parent-directory traversal permissions for
-  `package.json`; do not use host pnpm/corepack as a probe. If the API log contains
-  `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, follow
-  `docs/runbooks/current-generated-artifact-production-repair.md` through matched
-  DB/storage backup and dry-run only; review every proposed winner before deciding whether
-  to run `--apply`. If Prisma has already recorded the failed migration, the reviewed
-  recovery must also resolve
-  `20260730010000_current_generated_artifact` as rolled back before retrying deploy; the
-  current runbook does not yet document that required step.
+- Retain the matched `C:\bestar-backups` recovery point according to warehouse policy,
+  preserve the current healthy production stack, and select the next independently ready
+  Task from the authoritative Task Index.
 
 ## 不要再踩的坑
 
@@ -160,7 +156,8 @@ disposable database required duplicate convergence, then
 - 不要直接运行使用默认 Playwright output 的 e2e-web Compose 命令；本 Session 曾因此误删 gitignored 的旧 03/04 本地二进制/截图目录。使用专用 runner 的唯一 artifact directory 或显式隔离输出挂载。
 - 旧 03 report-8 连续写入 4..11，不能用于外部签字；必须使用 05 新 current 工件。
 - 多页报告第一页 Total 维持既有全局总数、后续页为页小计；05 validator 按该既有合同检查，不要在外部验收时误判为本 Task 新回归。
-- 不要重启 UNLOAD-REPORT-05 开发或标记 DONE；Microsoft Excel、Print to PDF 和实际纸张签字通过前只能保持 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING。
+- UNLOAD-REPORT-04/05 已为 DONE，不要重启开发；后续回归必须继续使用 05 新
+  current 工件，不得回用旧 03 `report-8`。
 - `repair:current-generated-files --apply` processes every duplicate group in the dry-run,
   not just one container. Stop if any proposed winner is unapproved.
 - Stop on `NO_VERIFIABLE_CURRENT_ARTIFACT`, invalid/shared paths or SHA mismatch. The

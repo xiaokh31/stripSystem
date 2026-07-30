@@ -143,3 +143,14 @@ supervisor Session 完成仓库实现和当前环境自动化，状态为
 2. 只修改每页 1–8 深色主行、9–16 扩展到白色行、17+ 每页独立选择布局的规则。
 3. 使用 05 新生成的 current 报告完成 Windows Microsoft Excel、Print to PDF 和
    办公室实际打印；不得复用旧 `report-8` 作为最终证据。
+
+## 生产关闭（2026-07-30）
+
+生产既有重复 current 数据已按
+`docs/runbooks/current-generated-artifact-production-repair.md` 完成配对备份、
+dry-run、逐组 winner 核对、repair apply、失败 migration resolve/deploy、零重复
+复核和全栈健康检查。数据库 current 唯一索引及 replacement audit 均存在，API、
+Web、worker、nginx、PostgreSQL 和 Redis 全部健康。
+
+业务方随后确认办公室文件槽位检查通过：目标柜号只显示当前业务文件，历史报告不再
+作为 current 显示，当前报告可正常使用。04 保持 `DONE`。

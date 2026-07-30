@@ -4,7 +4,7 @@
 
 - 优先级：P0。当前报告在目的仓未超过主行容量时就占用白色追加行，不符合办公室
   对模板布局的使用方式，也会使少量目的仓报告看起来被错误压缩。
-- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
+- Task-Status: DONE
 - 前置任务：先完成
   `UNLOAD-REPORT-04Current Report and Label Replacement Regression.md`，确保重复生成
   只替换唯一 current 报告；本 Task 的新布局必须通过 current slot 下载和验证。
@@ -306,9 +306,12 @@ full-page / destination-table PNG；未见错序、重叠、裁切、残留、�
 Standards 缺失。36 张非模板生成页均为 A4 landscape，左侧 whitespace 与模板
 `22.225mm` 基线的 delta 均为 `0.0mm`。
 
-当前环境缺少 Microsoft Excel 和办公室目标打印机，因此唯一剩余项是本 Task
-“Microsoft Excel 与实际打印验收”一节列出的 8/9/16 current report、Print
-Preview、Print to PDF、左侧白边、Standards 和实际纸张打印签字。在该外部矩阵
-完成前，本 Task 必须保持
-`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`，不得标记 `DONE`，也不得用旧
-03 `report-8` 补签。
+## 外部验收完成（2026-07-30）
+
+业务方已确认办公室外部检查通过，使用 05 新 current 工件完成了本 Task
+“Microsoft Excel 与实际打印验收”一节要求的 8/9/16 报告、Print Preview、Print
+to PDF、左侧白边、Standards 和实际纸张打印检查；同时确认 04 的唯一 current
+文件槽位行为通过。没有使用旧 03 `report-8` 补签。
+
+仓库实现、当前环境自动化和外部验收均已关闭，本 Task 状态更新为 `DONE`。完整汇总
+见 `docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md`。
