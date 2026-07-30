@@ -19,6 +19,33 @@ expect_failure() {
   }
 }
 
+secure_token_file() {
+  local path="$1"
+  chmod 0600 "$path"
+
+  local platform
+  platform="$(uname -s 2>/dev/null || true)"
+  case "$platform" in
+    MINGW* | MSYS* | CYGWIN*)
+      local windows_path
+      windows_path="$(cygpath -w "$path")"
+      BESTAR_TOKEN_FILE_WINDOWS="$windows_path" \
+        powershell.exe -NoLogo -NoProfile -NonInteractive -Command '
+          $ErrorActionPreference = "Stop"
+          $tokenPath = $env:BESTAR_TOKEN_FILE_WINDOWS
+          $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          & icacls.exe $tokenPath "/inheritance:r" | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & icacls.exe $tokenPath "/grant:r" `
+            "*$currentSid`:(F)" `
+            "*S-1-5-18:(F)" `
+            "*S-1-5-32-544:(F)" | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+        '
+      ;;
+  esac
+}
+
 "$repo_root/scripts/verify-cloudflare-tunnel-contract.sh"
 
 expect_failure "PUBLIC_ORIGIN_NOT_HTTPS" \
@@ -72,7 +99,7 @@ expect_failure "TOKEN_FILE_MISSING" \
 
 placeholder_token="$tmp_dir/placeholder-token"
 printf '%s\n' 'replace-with-cloudflare-token' >"$placeholder_token"
-chmod 0600 "$placeholder_token"
+secure_token_file "$placeholder_token"
 expect_failure "TOKEN_FILE_PLACEHOLDER" \
   env BESTAR_ENV_FILE="$test_env" \
     CLOUDFLARE_TUNNEL_TOKEN_FILE="$placeholder_token" \
@@ -84,7 +111,7 @@ printf 'eyJ'
 printf 'A%.0s' {1..120}
 printf '\n'
 } >"$valid_shape_token"
-chmod 0600 "$valid_shape_token"
+secure_token_file "$valid_shape_token"
 preflight_output="$tmp_dir/preflight-output"
 BESTAR_ENV_FILE="$test_env" \
 CLOUDFLARE_TUNNEL_TOKEN_FILE="$valid_shape_token" \

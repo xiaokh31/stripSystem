@@ -58,9 +58,37 @@ preflight_token() {
   [[ -f "$token_file" && ! -L "$token_file" ]] || fail "TOKEN_FILE_MISSING"
   [[ -r "$token_file" ]] || fail "TOKEN_FILE_NOT_READABLE"
 
-  local mode
-  mode="$(stat -f '%Lp' "$token_file" 2>/dev/null || stat -c '%a' "$token_file" 2>/dev/null || true)"
-  [[ "$mode" == "400" || "$mode" == "600" ]] || fail "TOKEN_FILE_PERMISSIONS"
+  local platform
+  platform="$(uname -s 2>/dev/null || true)"
+  case "$platform" in
+    MINGW* | MSYS* | CYGWIN*)
+      command -v cygpath >/dev/null 2>&1 ||
+        fail "TOKEN_FILE_PERMISSIONS"
+      command -v powershell.exe >/dev/null 2>&1 ||
+        fail "TOKEN_FILE_PERMISSIONS"
+
+      local windows_token_file windows_acl_checker
+      windows_token_file="$(cygpath -w "$token_file")"
+      windows_acl_checker="$(
+        cygpath -w "$repo_root/scripts/verify-windows-secret-file-acl.ps1"
+      )"
+      powershell.exe -NoLogo -NoProfile -NonInteractive \
+        -ExecutionPolicy Bypass \
+        -File "$windows_acl_checker" \
+        -TokenPath "$windows_token_file" >/dev/null 2>&1 ||
+        fail "TOKEN_FILE_PERMISSIONS"
+      ;;
+    *)
+      local mode
+      mode="$(
+        stat -f '%Lp' "$token_file" 2>/dev/null ||
+          stat -c '%a' "$token_file" 2>/dev/null ||
+          true
+      )"
+      [[ "$mode" == "400" || "$mode" == "600" ]] ||
+        fail "TOKEN_FILE_PERMISSIONS"
+      ;;
+  esac
 
   local byte_count
   byte_count="$(wc -c <"$token_file" | tr -d '[:space:]')"

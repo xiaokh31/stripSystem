@@ -143,7 +143,11 @@ jq -e '
   | any(
       .target == "/etc/nginx/nginx.conf"
       and .read_only == true
-      and (.source | endswith("/infra/nginx/nginx.public.conf"))
+      and (
+        .source
+        | gsub("\\\\"; "/")
+        | endswith("/infra/nginx/nginx.public.conf")
+      )
     )
 ' "$rendered" >/dev/null || fail "PUBLIC_NGINX_CONFIG"
 

@@ -1,6 +1,193 @@
 # Bestar Agent Handoff
 
+## Authoritative current public deployment state (2026-07-30)
+
+- Active work: `PUBLIC-DEPLOY-02` Cloudflare Named Tunnel production pilot.
+- Status: `CONTINUE`. The Tunnel, published route, DNS, connector, cache rule, and
+  Bestar stack are healthy. At the operator's explicit request, the self-hosted
+  Cloudflare Access application for `warehouse.bestarcca.cc` was deleted. Anonymous
+  Internet traffic now reaches the Bestar login page directly.
+- Security consequence: the public hostname no longer has Cloudflare identity
+  enforcement, MFA challenge, default-deny policy evaluation, or Access request logs.
+  Protection now depends on the Bestar application login/RBAC/audit controls and
+  Cloudflare zone-level controls. This deliberate downgrade does not satisfy the
+  Access-plus-MFA Definition of Done in `PUBLIC-DEPLOY-02`, so the Task cannot be
+  marked `DONE` while Access remains absent.
+- Retained for recovery: the Named Tunnel, published hostname route, DNS record,
+  connector secret, reusable approved-administrator Allow policy, App Launcher policy,
+  Cloudflare identity provider/MFA enrollment, and active hostname cache-bypass rule.
+  Retaining these dormant settings does not protect or intercept the public hostname.
+- Recovery procedure: follow section 9.1, "Temporarily Remove and Restore Access for
+  the Warehouse Hostname", in
+  `docs/runbooks/cloudflare-named-tunnel-deployment.md`. Recreate a self-hosted
+  application named `Bestar Warehouse Production` for the whole
+  `warehouse.bestarcca.cc` hostname, set a 24-hour application session, attach the
+  retained `Allow approved warehouse administrator` policy, require the Authenticator
+  MFA method, and do not add Everyone or Bypass rules. The approved login email remains
+  deliberately omitted from tracked documentation.
+- Actions and verification actually completed after removal:
+  - Cloudflare confirmed that the self-hosted application was deleted.
+  - An anonymous request returned `307` to `/login?next=%2F`, with no
+    `Www-Authenticate` header and no redirect to a `cloudflareaccess.com` hostname.
+  - Following redirects ended with HTTP `200` on the Bestar login page.
+  - Response headers remained `Cache-Control: no-store` and
+    `cf-cache-status: DYNAMIC`; the Cloudflare cache-bypass rule remained active.
+  - Combined Compose status showed API, PostgreSQL, Redis, Web, worker, nginx, and
+    cloudflared healthy. API/PostgreSQL/Redis remain unbound from public host ports.
+  - `scripts/healthcheck.sh` passed database readiness, API, Web, static assets, and
+    storage-write checks.
+- Remaining external verification: use a private window or off-site device to confirm
+  direct Bestar login, authorized and unauthorized Bestar-account behavior, RBAC,
+  audit attribution, logout/session expiry, and monitoring/rate-limit behavior.
+- Next action: obtain explicit security acceptance for operating the Bestar login
+  directly on the public Internet, or restore Access using runbook section 9.1 and
+  repeat the anonymous challenge, denied-identity, MFA, cache, and outage drills.
+- Pitfalls: do not delete the retained reusable policy, App Launcher policy, MFA
+  enrollment, Tunnel, route, DNS record, token, or cache rule merely because the Access
+  application is absent. Never record credentials, approved email addresses, MFA
+  secrets/recovery codes, session cookies, or the Tunnel token in this file.
+- Supersession note: the older "public deployment preparation" section immediately
+  below records the earlier Access-enabled state and is retained as historical
+  chronology only. This section is authoritative for the current production state.
+
 > 新会话必须先读 `AGENTS.md` 和本文件，再核对当前 Task、任务索引、完成度报告与 `git status`。本文件用于交接，不替代验收证据。
+
+## 公网域名部署准备（2026-07-30）
+
+- Active work: `PUBLIC-DEPLOY-02` 真实 Cloudflare Named Tunnel 外部激活准备。
+- Status: `CONTINUE`；Named Tunnel、published route、默认拒绝 Access 应用、
+  应用级 MFA 和 hostname cache bypass 已创建，本地 secret、overlay、
+  connector-to-origin、MFA、已认证故障恢复和生产健康检查通过；Bestar
+  登录/RBAC/审计和最终外网业务验收尚未完成。
+- Current state: 根目录 `.env` 已配置非敏感 public deployment keys，目标为
+  `https://warehouse.bestarcca.cc`，可信代理 CIDR 为当前 Docker default network
+  的 `172.18.0.0/16`。Cloudflare 中存在 named tunnel
+  `bestar-warehouse-production` 和唯一 published application route
+  `warehouse.bestarcca.cc -> http://nginx:80`，DNS route 已创建。
+  `.secrets/cloudflare-tunnel-token` 已存在、被 Git 忽略且使用受保护 NTFS ACL；
+  不得读取或记录其内容。`cloudflared` 当前 healthy 并建立四条连接；PostgreSQL、
+  Redis、API、Web、worker 和 LAN nginx 均保持 healthy。
+- Access/cache state: Zero Trust Free 已由操作人亲自激活。Self-hosted application
+  `Bestar Warehouse Production` 覆盖完整 hostname，24 小时应用 session，当前无
+  Bypass/Everyone policy。唯一 Allow policy 只包含操作人明确批准的当前
+  Cloudflare 登录邮箱，其他身份仍由 default-deny 拒绝；邮箱值不得写入交接。
+  同一 policy 已复用于 App Launcher，App Launcher session 为 24 小时。Cloudflare
+  内置 MFA 已允许 Authenticator application，仓库应用被配置为强制该第二因素，
+  MFA duration 为 24 小时。Cache Rule
+  `Bypass Bestar warehouse application cache` 只匹配
+  `warehouse.bestarcca.cc`，状态 Active，动作为 Bypass cache。受控浏览器在
+  connector 停止时访问公开 URL 已被重定向到 Cloudflare Access 登录页，没有
+  暴露 Bestar 登录页。操作人已亲自完成 Authenticator 登记；受控浏览器中的
+  允许身份已通过 Access + MFA 并到达 `https://warehouse.bestarcca.cc/login`。
+  所有通过该公开 hostname 的页面、API 和下载均先受 Cloudflare Access 保护；
+  已认证浏览器在 24 小时 session 内不必每次重复登录，session 过期、撤销、隐私
+  窗口或新设备会重新挑战。随后仍必须使用独立的 Bestar 应用账号登录。LAN
+  `http://127.0.0.1` 路径不经过 Access；`bestarcca.cc` apex 和现有公司官网域名
+  不在该 Access application 的 hostname 范围内。
+- Domain context: 域名注册和当前权威 DNS 在 AWS Route 53，且同一域名承载公司
+  官网。Cloudflare Free/Pro 的 full setup 需要把整个 apex domain 的权威
+  nameserver 委派给 Cloudflare；域名注册商仍可保留 AWS。
+- Website safety: nameserver 切换前必须在 Cloudflare 完整复制 Route 53 的官网、
+  `www`、MX、SPF/DKIM/DMARC、CAA、SRV、验证记录和所有 Route 53 Alias/路由策略。
+  现有官网记录先保持 DNS-only，避免在未评审时引入 Cloudflare 与 AWS CDN/ALB 的
+  双层代理。DNSSEC 如已启用，必须按 AWS/Cloudflare 顺序先安全撤销旧 DS，再切换
+  nameserver，验证后重新启用。
+- Available approaches:
+  1. 推荐的低成本路线：完整 DNS 迁移到 Cloudflare，AWS 继续作为注册商和官网
+     hosting；只新增 `warehouse.<domain>` Tunnel hostname。
+  2. 最低官网变更风险：为仓库系统使用独立域名并加入 Cloudflare。
+  3. 保留 Route 53 为权威 DNS 的 partial CNAME setup 只适用于 Cloudflare
+     Business/Enterprise，不属于当前 Free pilot。
+- Operator preference: 希望不改变主域名权威 DNS，只提供一个子域名给
+  Cloudflare。该目标需要 Business/Enterprise partial CNAME，或 Enterprise
+  subdomain setup；Free/Pro 不能把该子域名单独作为普通 zone。Free pilot 的零主域
+  变更方案是使用独立可注册域名。
+- Selected approach: 2026-07-30 操作人已选择为仓库系统购买独立可注册域名。
+  已通过 Cloudflare Registrar 购买 `bestarcca.cc` 并使用 Free/full zone；公开
+  NS/SOA 查询确认权威 nameserver 为 Cloudflare。现有 AWS 注册域名、Route 53
+  hosted zone、官网记录、nameserver 和 DNSSEC 全部保持不变。
+- Candidate check: 2026-07-30 对 Verisign `.com` RDAP 的只读查询中，
+  `bestarwarehouse.com`、`bestar-warehouse.com`、`bestarwms.com` 未发现注册记录，
+  `bestarcca.com` 已注册。该结果不是购买保证；Cloudflare Registrar 必须在结账前
+  完成最终 availability/premium/reserved-name 和价格检查。优先推荐可读性最好的
+  `bestarwarehouse.com`，但仍需操作人批准。
+- Partial-CNAME procedure: 如选 Business/Enterprise，Cloudflare zone 内的
+  proxied CNAME 为 `warehouse.<domain> -> <UUID>.cfargotunnel.com`，Route 53
+  权威记录则必须为
+  `warehouse.<domain> -> warehouse.<domain>.cdn.cloudflare.net`；Route 53
+  不得直接指向 Tunnel UUID。Cloudflare verification TXT 必须一直保留。
+- Tests/actions actually run: read repository runbooks, PUBLIC-DEPLOY-02 Task, Compose
+  overlay, lifecycle script and sanitized `.env`/token readiness state; checked current
+  Cloudflare and AWS official DNS/nameserver/DNSSEC guidance, including the 2026-07-29
+  partial-CNAME setup procedure; performed read-only Verisign RDAP checks for four
+  candidate `.com` names. After purchase, verified `bestarcca.cc` Cloudflare NS/SOA,
+  confirmed `warehouse.bestarcca.cc` has no route yet, inspected the exact Docker proxy
+  CIDR, rendered the public Compose configuration structurally, and ran
+  `scripts/healthcheck.sh` successfully. During the confirmed mutation pause, created
+  `postgres-bestar_unloading-20260730-011513.sql` and
+  `storage-20260730-011515.tar.gz` under `C:\bestar-backups`; both were non-empty and
+  passed SQL-header/archive listing/SHA readability plus PostgreSQL and storage restore
+  dry-runs. Created the real named Tunnel and route in the controlled logged-in Cloudflare
+  session, stored the token without displaying it, protected the NTFS ACL, started the
+  overlay once, observed four healthy QUIC connector sessions, then stopped only
+  `cloudflared` because Access is not yet active. The Windows startup path required a
+  platform-specific protected-ACL check and Windows path normalization; added
+  `scripts/verify-windows-secret-file-acl.ps1` and updated the lifecycle/contract tests.
+  The exact contract regression, real preflight, connector-to-nginx probe, local
+  `scripts/healthcheck.sh`, Compose status, API recent-log error scan, and Prisma status
+  all passed; Prisma reports 38 migrations and an up-to-date schema.
+  After Zero Trust activation, created the default-deny self-hosted application, its
+  approved-email Allow policy, the matching App Launcher policy, application-specific
+  Authenticator MFA, and the hostname-wide cache bypass. The connector was started,
+  reported four healthy connections, passed another origin probe and full healthcheck,
+  then completed a real stop/recovery drill: only `cloudflared` stopped, LAN health
+  remained PASS, restart returned to four connections, and the post-recovery log scan
+  found no errors after the latest registered connection.
+  After the operator completed MFA enrollment, the allowed identity reached the real
+  Bestar login page. An anonymous host-side HEAD request returned Access HTTP 302 with
+  `Cache-Control: private, max-age=0, no-store, no-cache` and no application content.
+  A second authenticated outage drill proved that stopping only `cloudflared` returned
+  Cloudflare Tunnel Error 1033; restart restored `/login`, four connector connections,
+  healthy status, and a clean post-registration error scan.
+- Database-status diagnosis after MFA: the `/login` shell displayed database
+  `unknown`, but this is not a database outage. In public mode
+  `apps/api/src/health/health.service.ts` intentionally returns only top-level
+  `status/timestamp/serverTime` and omits `database`, while
+  `apps/web/src/app/layout.tsx` maps an omitted database field to `unknown`.
+  The exact `/api/health` response was `status: ok`; PostgreSQL `pg_isready`, a
+  non-business-data `SELECT 1`, API-container Prisma migration status (38 migrations,
+  up to date), and the recent API database-error log scan all passed. Aggregate-only
+  account readiness found 7 active users and all 7 have browser password hashes.
+  The login form is not disabled by `databaseStatus`; only hydration/submission disables
+  its button. No production data, credentials, emails or hashes were read or changed.
+- Production credential recovery: the first public-overlay start exposed that the
+  persistent PostgreSQL role password and `.env` differed. During diagnosis the obsolete
+  password was accidentally present in controlled tool output, so it was immediately
+  invalidated and rotated to a new random value in both PostgreSQL and the Git-ignored
+  `.env`. The API restarted healthy and the subsequent log scan found no P1000,
+  authentication, fatal, or error entries. Never record either value in this file.
+- Remaining implementation/operation: the visible controlled-browser tab is on the real
+  Bestar `/login` page. The operator must personally enter production Bestar credentials;
+  then verify Bestar login, role-visible navigation/actions, audit attribution, both
+  locales and authenticated response headers/download no-cache. A private/off-site
+  device must also confirm anonymous Access challenge and an unapproved identity denial.
+- Pending security decision: after successful Bestar login, the operator asked about
+  removing Cloudflare identity login and independent MFA. No policy was changed. Current
+  protection remains the approved-email Cloudflare IdP plus 24-hour independent MFA.
+  Options to evaluate are: keep the current two-factor Access gate; keep Access but
+  disable independent MFA; add approved-email OTP for users without Cloudflare accounts;
+  or fully bypass/remove Access and expose Bestar login/API to the public Internet. The
+  last option is not recommended because Bypass disables Access enforcement and Access
+  request logging, leaving only Bestar authentication and zone-level controls.
+- External prerequisite: operator-completed Bestar login and off-site/private-window
+  checks. Do not paste Bestar credentials, QR/seed, recovery codes, MFA codes, session
+  cookies or Tunnel token into chat.
+- Next action: operator signs in to Bestar in the visible tab and replies that it is done;
+  inspect the authenticated role surface and audit behavior, then collect the off-site
+  denied-identity result and close the deployment gate.
+- Pitfalls: changing only the NS record inside the existing Route 53 hosted zone does not
+  change registrar delegation; use Route 53 **Registered domains > Edit name servers**.
+  Do not delete the old hosted zone until Cloudflare DNS, website and email are verified.
 
 ## 生产故障修复会话（2026-07-30）
 
