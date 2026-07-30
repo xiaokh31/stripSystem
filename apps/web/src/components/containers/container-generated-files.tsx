@@ -70,12 +70,14 @@ export function ContainerGeneratedFiles({
   containerStatus,
   initialFiles,
   selectedFileId,
+  selectedFileWasReplaced,
 }: {
   canReprintLabels: boolean;
   containerId: string;
   containerStatus: string;
   initialFiles: GeneratedFileResponse[];
   selectedFileId?: string;
+  selectedFileWasReplaced: boolean;
 }) {
   const { format, locale, t } = useI18n();
   const router = useRouter();
@@ -162,8 +164,8 @@ export function ContainerGeneratedFiles({
         file: null,
         message:
           action === "report"
-            ? t("Excel report generated. File history refreshed.")
-            : t("Label PDF generated. File history refreshed."),
+            ? t("Excel report generated. Current report replaced.")
+            : t("Label PDF generated. Current label PDF replaced."),
         status: "success",
       });
       router.refresh();
@@ -204,10 +206,20 @@ export function ContainerGeneratedFiles({
 
   return (
     <section className="border border-zinc-200 bg-white p-5 shadow-sm">
+      {selectedFileWasReplaced ? (
+        <p
+          className="mb-4 border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+          data-selected-file-replaced
+        >
+          {t(
+            "The selected older file was replaced. The current file is selected instead.",
+          )}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-zinc-950">
-            {t("Reports and labels")}
+            {t("Current reports and labels")}
           </h2>
           <p className="mt-1 text-sm text-zinc-600">
             {t("Generate downloadable files from the current container data.")}
@@ -342,13 +354,10 @@ function GeneratedFilesTable({
 }) {
   const { t } = useI18n();
 
-  if (files.length === 0) {
-    return (
-      <p className="mt-5 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
-        {t("No generated files are recorded for this container yet.")}
-      </p>
-    );
-  }
+  const slots = ["EXCEL_REPORT", "PALLET_LABEL_PDF"].map((fileType) => ({
+    file: files.find((file) => file.fileType === fileType) ?? null,
+    fileType,
+  }));
 
   return (
     <div className="mt-5 overflow-x-auto">
@@ -364,7 +373,31 @@ function GeneratedFilesTable({
           </tr>
         </thead>
         <tbody>
-          {files.map((file) => {
+          {slots.map(({ file, fileType }) => {
+            if (!file) {
+              return (
+                <tr
+                  className="border-b border-zinc-100"
+                  data-current-file-slot={fileType}
+                  key={fileType}
+                >
+                  <td className="max-w-72 px-3 py-4 align-top font-medium text-zinc-500">
+                    {t("Not generated yet")}
+                  </td>
+                  <td className="px-3 py-4 align-top">
+                    {generatedFileTypeLabel(fileType, locale)}
+                  </td>
+                  <td className="px-3 py-4 align-top text-zinc-500">
+                    {t("Not generated")}
+                  </td>
+                  <td className="px-3 py-4 text-right align-top">-</td>
+                  <td className="px-3 py-4 align-top">-</td>
+                  <td className="px-3 py-4 align-top text-zinc-500">
+                    {t("Unavailable")}
+                  </td>
+                </tr>
+              );
+            }
             const selected = file.id === selectedFileId;
             return (
             <tr
@@ -375,6 +408,7 @@ function GeneratedFilesTable({
                   : "border-b border-zinc-100"
               }
               data-generated-file-id={file.id}
+              data-current-file-slot={file.fileType}
               data-record-id={file.id}
               data-selected-record={selected ? "true" : undefined}
               key={file.id}
@@ -387,13 +421,8 @@ function GeneratedFilesTable({
                   </span>
                 ) : null}
                 <p className="break-all font-medium text-zinc-950">
-                  {filenameFromStoragePath(file.storagePath)}
+                  {file.filename}
                 </p>
-                {file.errorMessage ? (
-                  <p className="mt-1 text-xs text-red-700">
-                    {t("Generation failed.")}
-                  </p>
-                ) : null}
               </td>
               <td className="px-3 py-4 align-top">
                 {generatedFileTypeLabel(file.fileType, locale)}
@@ -585,10 +614,6 @@ function toReprintError(
     response: null,
     status: "error",
   };
-}
-
-function filenameFromStoragePath(storagePath: string): string {
-  return storagePath.split(/[\\/]/).filter(Boolean).pop() ?? storagePath;
 }
 
 function formatDateTime(value: string): string {

@@ -73,9 +73,12 @@ test("generated file labels and sizes are stable", () => {
   assert.equal(formatFileSizeBytes(null), "-");
 });
 
-test("generation notices describe report history and label rebuild behavior", () => {
+test("generation notices describe safe replacement and label rebuild behavior", () => {
   assert.match(generationActionNotice("report"), /latest saved database values/);
-  assert.match(generationActionNotice("report"), /preserves each generation attempt/);
+  assert.match(
+    generationActionNotice("report"),
+    /replaces the current report only after validation succeeds/,
+  );
   assert.match(generationActionNotice("labels"), /rebuilds unused/);
   assert.match(
     generationActionNotice("labels"),
@@ -151,15 +154,31 @@ test("container lifecycle labels and operation locks are visible", () => {
   assert.match(containerOperationLockMessage("LOADED"), /archived/);
 });
 
-test("generated files sort newest first", () => {
+test("generated files expose one current office slot per business type", () => {
   const sorted = newestGeneratedFiles([
-    fileRecord({ id: "old", createdAt: "2026-06-27T00:00:00.000Z" }),
-    fileRecord({ id: "new", createdAt: "2026-06-28T00:00:00.000Z" }),
+    fileRecord({ id: "old-report", createdAt: "2026-06-27T00:00:00.000Z" }),
+    fileRecord({ id: "new-report", createdAt: "2026-06-28T00:00:00.000Z" }),
+    fileRecord({
+      id: "label",
+      fileType: "PALLET_LABEL_PDF",
+      createdAt: "2026-06-29T00:00:00.000Z",
+    }),
+    fileRecord({
+      id: "failed-label",
+      fileType: "PALLET_LABEL_PDF",
+      status: "FAILED",
+      createdAt: "2026-06-30T00:00:00.000Z",
+    }),
+    fileRecord({
+      id: "technical",
+      fileType: "TASK_REPORT_HTML",
+      createdAt: "2026-07-01T00:00:00.000Z",
+    }),
   ]);
 
   assert.deepEqual(
     sorted.map((file) => file.id),
-    ["new", "old"],
+    ["new-report", "label"],
   );
 });
 
@@ -169,7 +188,7 @@ function fileRecord(
   return {
     containerId: "container-1",
     createdAt: "2026-06-27T00:00:00.000Z",
-    errorMessage: null,
+    filename: "CSNU8877228.xlsx",
     fileSha256: "sha",
     fileSizeBytes: "100",
     fileType: "EXCEL_REPORT",
@@ -178,7 +197,6 @@ function fileRecord(
     mimeType:
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     status: "GENERATED",
-    storagePath: "/storage/reports/CSNU8877228.xlsx",
     updatedAt: "2026-06-27T00:00:00.000Z",
     ...overrides,
   };

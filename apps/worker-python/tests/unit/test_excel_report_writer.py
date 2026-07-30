@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import xml.etree.ElementTree as ET
+from copy import copy
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +19,15 @@ import worker_python.reports.excel_report_writer as report_writer
 from worker_python.imports import ImportRegistry
 from worker_python.pallets import calculate_pallets, inputs_from_destination_summaries
 from worker_python.parser import parse_bestar_receiving, parse_unloading_plan_cn
-from worker_python.reports.cell_map import DESTINATION_ROWS
+from worker_python.reports.cell_map import (
+    ADDITIONAL_DESTINATION_ROWS,
+    DESTINATION_ROWS,
+    DestinationLayoutMode,
+    EXPANDED_DESTINATION_ROWS,
+    PRIMARY_DESTINATION_ROWS,
+    layout_mode_for_page_count,
+    rows_for_page_count,
+)
 from worker_python.reports.excel_report_writer import (
     DEFAULT_TEMPLATE_PATH,
     write_excel_report,
@@ -287,6 +297,17 @@ def test_excel_report_writer_records_generated_report(tmp_path: Path) -> None:
         manifest["records"][0]["ordered_destination_digest"]
         == result.orderedDestinationDigest
     )
+    assert manifest["records"][0]["layout_modes"] == ["EXPANDED"]
+    assert manifest["records"][0]["page_evidence"] == [
+        {
+            "page": 1,
+            "layout_mode": "EXPANDED",
+            "expected_destination_count": 9,
+            "written_destination_count": 9,
+            "expected_physical_rows": list(range(4, 13)),
+            "written_physical_rows": list(range(4, 13)),
+        }
+    ]
 
 
 def test_excel_report_writer_overwrites_same_container_report(
@@ -486,22 +507,70 @@ def test_excel_report_writer_requires_review_for_extreme_destination_layout(
 
 
 @pytest.mark.parametrize(
-    ("count", "expected_page_lengths"),
+    ("count", "expected_mode", "expected_rows"),
     (
-        (0, (0,)),
-        (1, (1,)),
-        (8, (8,)),
-        (9, (9,)),
-        (16, (16,)),
-        (17, (16, 1)),
-        (32, (16, 16)),
-        (33, (16, 16, 1)),
+        (0, DestinationLayoutMode.PRIMARY_ONLY, ()),
+        (1, DestinationLayoutMode.PRIMARY_ONLY, (4,)),
+        (2, DestinationLayoutMode.PRIMARY_ONLY, (4, 6)),
+        (8, DestinationLayoutMode.PRIMARY_ONLY, (4, 6, 8, 10, 12, 14, 16, 18)),
+        (9, DestinationLayoutMode.EXPANDED, tuple(range(4, 13))),
+        (10, DestinationLayoutMode.EXPANDED, tuple(range(4, 14))),
+        (16, DestinationLayoutMode.EXPANDED, tuple(range(4, 20))),
     ),
 )
-def test_excel_report_writer_uses_all_sixteen_slots_before_capacity_pagination(
+def test_destination_cell_map_selects_layout_before_assigning_rows(
+    count: int,
+    expected_mode: DestinationLayoutMode,
+    expected_rows: tuple[int, ...],
+) -> None:
+    assert layout_mode_for_page_count(count) is expected_mode
+    assert tuple(row.row for row in rows_for_page_count(count)) == expected_rows
+
+
+@pytest.mark.parametrize("count", (-1, 17))
+def test_destination_cell_map_rejects_invalid_page_count(count: int) -> None:
+    with pytest.raises(ValueError):
+        rows_for_page_count(count)
+
+
+@pytest.mark.parametrize(
+    ("count", "expected_page_rows", "expected_layout_modes"),
+    (
+        (0, ((),), ("PRIMARY_ONLY",)),
+        (1, ((4,),), ("PRIMARY_ONLY",)),
+        (2, ((4, 6),), ("PRIMARY_ONLY",)),
+        (8, ((4, 6, 8, 10, 12, 14, 16, 18),), ("PRIMARY_ONLY",)),
+        (9, (tuple(range(4, 13)),), ("EXPANDED",)),
+        (10, (tuple(range(4, 14)),), ("EXPANDED",)),
+        (16, (tuple(range(4, 20)),), ("EXPANDED",)),
+        (17, (tuple(range(4, 20)), (4,)), ("EXPANDED", "PRIMARY_ONLY")),
+        (
+            24,
+            (tuple(range(4, 20)), (4, 6, 8, 10, 12, 14, 16, 18)),
+            ("EXPANDED", "PRIMARY_ONLY"),
+        ),
+        (
+            25,
+            (tuple(range(4, 20)), tuple(range(4, 13))),
+            ("EXPANDED", "EXPANDED"),
+        ),
+        (
+            32,
+            (tuple(range(4, 20)), tuple(range(4, 20))),
+            ("EXPANDED", "EXPANDED"),
+        ),
+        (
+            33,
+            (tuple(range(4, 20)), tuple(range(4, 20)), (4,)),
+            ("EXPANDED", "EXPANDED", "PRIMARY_ONLY"),
+        ),
+    ),
+)
+def test_excel_report_writer_uses_adaptive_rows_before_capacity_pagination(
     tmp_path: Path,
     count: int,
-    expected_page_lengths: tuple[int, ...],
+    expected_page_rows: tuple[tuple[int, ...], ...],
+    expected_layout_modes: tuple[str, ...],
 ) -> None:
     plans = tuple(
         SimpleNamespace(
@@ -521,48 +590,175 @@ def test_excel_report_writer_uses_all_sixteen_slots_before_capacity_pagination(
     assert result.errors == ()
     assert result.writtenDestinationCount == count
     assert result.totalDestinationCount == count
+    assert result.layoutModes == expected_layout_modes
+    assert tuple(
+        evidence.expectedPhysicalRows for evidence in result.pageEvidence
+    ) == expected_page_rows
+    assert tuple(
+        evidence.writtenPhysicalRows for evidence in result.pageEvidence
+    ) == expected_page_rows
     workbook = load_workbook(result.outputPath, data_only=False, rich_text=True)
     try:
-        populated = workbook.worksheets[: len(expected_page_lengths)]
+        populated = workbook.worksheets[: len(expected_page_rows)]
         assert tuple(row.row for row in DESTINATION_ROWS) == tuple(range(4, 20))
-        actual_page_lengths = tuple(
-            sum(
-                worksheet[row.destination_cell].value is not None
+        actual_page_rows = tuple(
+            tuple(
+                row.row
                 for row in DESTINATION_ROWS
+                if worksheet[row.destination_cell].value is not None
             )
             for worksheet in populated
         )
-        assert actual_page_lengths == expected_page_lengths
+        assert actual_page_rows == expected_page_rows
         expected_offset = 0
-        for worksheet, expected_length in zip(populated, expected_page_lengths):
+        for worksheet, page_rows in zip(populated, expected_page_rows):
             assert tuple(
-                worksheet[f"N{row}"].value
-                for row in range(4, 4 + expected_length)
+                worksheet[f"N{row}"].value for row in page_rows
             ) == tuple(
                 plan.destinationCode
                 for plan in plans[
-                    expected_offset : expected_offset + expected_length
+                    expected_offset : expected_offset + len(page_rows)
                 ]
             )
-            expected_offset += expected_length
-        for worksheet, expected_length in zip(
-            populated[:-1], expected_page_lengths[:-1]
+            expected_offset += len(page_rows)
+            unused_rows = sorted(set(range(4, 20)) - set(page_rows))
+            for row in unused_rows:
+                assert all(
+                    worksheet[f"{column}{row}"].value is None
+                    for column in "CNOP"
+                )
+        for worksheet, page_rows in zip(
+            populated[:-1], expected_page_rows[:-1]
         ):
-            assert expected_length == len(DESTINATION_ROWS)
+            assert len(page_rows) == len(DESTINATION_ROWS)
             assert all(
                 worksheet[row.destination_cell].value is not None
                 for row in DESTINATION_ROWS
             )
-        if count < len(DESTINATION_ROWS):
-            worksheet = populated[0]
-            assert worksheet.protection.sheet is False
-            for row in DESTINATION_ROWS[count:]:
-                assert worksheet[row.pallet_label_cell].value is None
-                assert worksheet[row.destination_cell].value is None
-                assert worksheet[row.pallet_count_cell].value is None
-                assert worksheet[row.carton_count_cell].value is None
+        assert all(worksheet.protection.sheet is False for worksheet in populated)
     finally:
         workbook.close()
+
+
+@pytest.mark.parametrize(
+    ("count", "expected_rows"),
+    (
+        (8, (4, 6, 8, 10, 12, 14, 16, 18)),
+        (9, tuple(range(4, 13))),
+    ),
+)
+def test_excel_report_writer_preserves_template_row_styles_for_each_layout_mode(
+    tmp_path: Path,
+    count: int,
+    expected_rows: tuple[int, ...],
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"STYLE-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, count + 1)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo=f"STYLE{count}"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / f"style-{count}",
+        report_datetime=datetime(2026, 7, 29, 9, 30),
+    )
+
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, rich_text=True)
+    generated = load_workbook(result.outputPath, rich_text=True)
+    try:
+        expected_sheet = template["Sheet1"]
+        actual_sheet = generated["Sheet1"]
+        assert actual_sheet.protection.sheet is False
+        assert {
+            str(item) for item in actual_sheet.merged_cells.ranges
+        } == {str(item) for item in expected_sheet.merged_cells.ranges}
+        for row in range(4, 20):
+            for column in "CNOP":
+                expected_cell = expected_sheet[f"{column}{row}"]
+                actual_cell = actual_sheet[f"{column}{row}"]
+                assert copy(actual_cell.fill) == copy(expected_cell.fill)
+                assert copy(actual_cell.font) == copy(expected_cell.font)
+                assert copy(actual_cell.border) == copy(expected_cell.border)
+                assert actual_cell.number_format == expected_cell.number_format
+                assert copy(actual_cell.protection) == copy(
+                    expected_cell.protection
+                )
+            assert (
+                actual_sheet.row_dimensions[row].hidden
+                == expected_sheet.row_dimensions[row].hidden
+            )
+            if row not in expected_rows:
+                assert (
+                    actual_sheet.row_dimensions[row].height
+                    == expected_sheet.row_dimensions[row].height
+                )
+                assert all(
+                    actual_sheet[f"{column}{row}"].value is None
+                    for column in "CNOP"
+                )
+        assert all(
+            actual_sheet[f"N{row}"].value is not None for row in expected_rows
+        )
+        assert all(
+            actual_sheet[row.destination_cell].value is None
+            for row in ADDITIONAL_DESTINATION_ROWS
+        ) is (count == 8)
+    finally:
+        template.close()
+        generated.close()
+
+
+@pytest.mark.parametrize("count", (8, 9))
+@pytest.mark.parametrize(
+    "destination",
+    (
+        "Private Address / Industrial Receiving Calgary Dock Door",
+        "卡尔加里仓超长中文收货地址工业园区第八大道",
+        "YYC4 Receiving\nDoor A Appointment",
+        "LONG-" + ("X" * 72) + "-TOKEN-END",
+        None,
+    ),
+)
+def test_adaptive_layout_preserves_text_boundaries_in_both_modes(
+    tmp_path: Path,
+    count: int,
+    destination: str | None,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=destination if index == count else f"BOUNDARY-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, count + 1)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo=f"BOUNDARY{count}"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / f"boundary-{count}-{destination is None}",
+        report_datetime=datetime(2026, 7, 29, 9, 30),
+    )
+
+    assert result.errors == ()
+    expected_value = destination or "NEED_MANUAL_DESTINATION"
+    target_row = rows_for_page_count(count)[-1].row
+    workbook = load_workbook(result.outputPath, rich_text=True)
+    try:
+        worksheet = workbook["Sheet1"]
+        assert worksheet[f"C{target_row}"].value == expected_value
+        assert worksheet[f"N{target_row}"].value == expected_value
+        assert worksheet[f"O{target_row}"].value == count
+        assert worksheet[f"P{target_row}"].value == count * 10
+        assert worksheet[f"N{target_row}"].alignment.wrap_text is True
+    finally:
+        workbook.close()
+    assert any(issue.code == "MISSING_DESTINATION" for issue in result.warnings) is (
+        destination is None
+    )
 
 
 def test_excel_report_writer_preserves_duplicate_destination_occurrences(
@@ -602,7 +798,7 @@ def test_excel_report_writer_preserves_duplicate_destination_occurrences(
                 worksheet[row.pallet_count_cell].value,
                 worksheet[row.carton_count_cell].value,
             )
-            for row in DESTINATION_ROWS[:3]
+            for row in PRIMARY_DESTINATION_ROWS[:3]
         ]
         assert actual == [
             ("DUPLICATE-DEST", 1, 11),
@@ -649,14 +845,104 @@ def test_saved_report_validator_fails_closed_for_mutated_business_rows(
     finally:
         workbook.close()
 
-    _, issue = report_writer._validate_saved_report(
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, rich_text=True)
+    try:
+        page_plans, planning_issue = report_writer._plan_report_pages(
+            template["Sheet1"], plans
+        )
+    finally:
+        template.close()
+    assert planning_issue is None
+    _, _, issue = report_writer._validate_saved_report(
         result.outputPath,
         expected_plans=report_writer._canonical_plan_identities(plans),
-        page_plans=(plans,),
+        page_plans=page_plans,
     )
     assert issue is not None
     assert issue.code == "REPORT_DESTINATION_CONSERVATION_FAILED"
     assert issue.stage == expected_stage
+
+
+def test_saved_report_validator_rejects_residual_white_row_in_primary_mode(
+    tmp_path: Path,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"PRIMARY-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, 9)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="RESIDUALWHITE"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / "reports",
+        report_datetime=datetime(2026, 7, 29, 9, 30),
+    )
+    workbook = load_workbook(result.outputPath)
+    try:
+        for column, value in zip("CNOP", ("RESIDUAL", "RESIDUAL", 1, 1)):
+            workbook["Sheet1"][f"{column}5"] = value
+        workbook.save(result.outputPath)
+    finally:
+        workbook.close()
+
+    page_plans = _page_plans(plans)
+    _, _, issue = report_writer._validate_saved_report(
+        result.outputPath,
+        expected_plans=report_writer._canonical_plan_identities(plans),
+        page_plans=page_plans,
+    )
+    assert issue is not None
+    assert issue.stage == "reopen.unused-row"
+    assert issue.row == 5
+
+
+@pytest.mark.parametrize("mutation", ("mode", "physical-row"))
+def test_saved_report_validator_rejects_corrupted_page_plan_contract(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    plans = tuple(
+        SimpleNamespace(
+            destinationCode=f"PLAN-{index:02d}",
+            finalPallets=index,
+            totalCartons=index * 10,
+        )
+        for index in range(1, 3)
+    )
+    result = write_excel_report(
+        parsed_result=SimpleNamespace(containerNo="PLANCONTRACT"),
+        pallet_result=SimpleNamespace(plans=plans),
+        output_dir=tmp_path / mutation,
+        report_datetime=datetime(2026, 7, 29, 9, 30),
+    )
+    page_plan = _page_plans(plans)[0]
+    if mutation == "mode":
+        corrupted = replace(
+            page_plan,
+            layoutMode=DestinationLayoutMode.EXPANDED,
+        )
+    else:
+        corrupted = replace(
+            page_plan,
+            assignments=(
+                page_plan.assignments[0],
+                replace(
+                    page_plan.assignments[1],
+                    rowCells=EXPANDED_DESTINATION_ROWS[1],
+                ),
+            ),
+        )
+
+    _, _, issue = report_writer._validate_saved_report(
+        result.outputPath,
+        expected_plans=report_writer._canonical_plan_identities(plans),
+        page_plans=(corrupted,),
+    )
+    assert issue is not None
+    assert issue.stage == "reopen.page-plan"
 
 
 def test_conservation_failure_does_not_replace_previous_success(
@@ -686,6 +972,7 @@ def test_conservation_failure_does_not_replace_previous_success(
         "_validate_saved_report",
         lambda *_args, **_kwargs: (
             0,
+            (),
             report_writer._conservation_issue(
                 stage="reopen.test-mutation",
                 expected_count=1,
@@ -839,6 +1126,18 @@ def _parsed_and_pallets(fixture_path: Path, tmp_path: Path):
         container_no=parsed.containerNo,
     )
     return parsed, pallet_result
+
+
+def _page_plans(plans: tuple[SimpleNamespace, ...]):
+    template = load_workbook(DEFAULT_TEMPLATE_PATH, rich_text=True)
+    try:
+        page_plans, issue = report_writer._plan_report_pages(
+            template["Sheet1"], plans
+        )
+    finally:
+        template.close()
+    assert issue is None
+    return page_plans
 
 
 def _populated_sheet_names(workbook) -> list[str]:

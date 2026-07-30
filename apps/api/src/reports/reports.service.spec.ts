@@ -98,7 +98,11 @@ interface ReportsPrismaMock {
       [GeneratedFileFindFirstArgs]
     >;
     update: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>;
-    findMany: jest.Mock<Promise<GeneratedFileRecord[]>, []>;
+    updateMany: jest.Mock<Promise<{ count: number }>, [any]>;
+    findMany: jest.Mock<Promise<GeneratedFileRecord[]>, [any?]>;
+  };
+  generatedFileReplacement: {
+    createMany: jest.Mock<Promise<{ count: number }>, [any]>;
   };
 }
 
@@ -157,6 +161,17 @@ describe('ReportsService', () => {
           writtenDestinationCount: 1,
           totalDestinationCount: 1,
           orderedDestinationDigest: 'a'.repeat(64),
+          layoutModes: ['PRIMARY_ONLY'],
+          pageEvidence: [
+            {
+              page: 1,
+              layoutMode: 'PRIMARY_ONLY',
+              expectedDestinationCount: 1,
+              writtenDestinationCount: 1,
+              expectedPhysicalRows: [4],
+              writtenPhysicalRows: [4],
+            },
+          ],
           warnings: [],
           errors: [],
         },
@@ -213,14 +228,24 @@ describe('ReportsService', () => {
     expect(result.generatedFile).toMatchObject({
       containerId: 'container-1',
       fileType: 'EXCEL_REPORT',
-      storagePath: outputPath,
+      filename: 'CSNU8877228卸柜报告-En.xlsx',
       status: 'GENERATED',
-      errorMessage: null,
     });
     expect(result.reportEvidence).toEqual({
       expectedDestinationCount: 1,
       writtenDestinationCount: 1,
       orderedDestinationDigest: 'a'.repeat(64),
+      layoutModes: ['PRIMARY_ONLY'],
+      pageEvidence: [
+        {
+          page: 1,
+          layoutMode: 'PRIMARY_ONLY',
+          expectedDestinationCount: 1,
+          writtenDestinationCount: 1,
+          expectedPhysicalRows: [4],
+          writtenPhysicalRows: [4],
+        },
+      ],
     });
     const generatedFileCreate = prisma.generatedFile.create.mock.calls[0][0];
     expect(generatedFileCreate.data.fileType).toBe('EXCEL_REPORT');
@@ -396,22 +421,67 @@ describe('ReportsService', () => {
     expect(prisma.container.update).not.toHaveBeenCalled();
   });
 
-  it('creates immutable generated-file history when regenerating', async () => {
+  it('supersedes the previous current report while retaining immutable history', async () => {
     const first = await service.generateReport('container-1', officeActor);
     const second = await service.generateReport('container-1', officeActor);
 
     expect(second.generatedFile.id).not.toBe(first.generatedFile.id);
-    expect(second.generatedFile.storagePath).not.toBe(
-      first.generatedFile.storagePath,
+    expect(
+      prisma.generatedFile.create.mock.calls[1][0].data.storagePath,
+    ).not.toBe(
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath,
     );
     expect(prisma.generatedFile.create).toHaveBeenCalledTimes(2);
-    expect(prisma.generatedFile.update).not.toHaveBeenCalled();
+    expect(prisma.generatedFile.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: [first.generatedFile.id] } },
+      data: { status: 'SUPERSEDED' },
+    });
+    expect(prisma.generatedFileReplacement.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          containerId: 'container-1',
+          fileType: 'EXCEL_REPORT',
+          oldGeneratedFileId: first.generatedFile.id,
+          newGeneratedFileId: second.generatedFile.id,
+          replacedById: 'auth-office',
+          reasonCode: 'SUCCESSFUL_REGENERATION',
+        }),
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  it('resolves a superseded selected report to the current slot', async () => {
+    const first = await service.generateReport('container-1', officeActor);
+    const second = await service.generateReport('container-1', officeActor);
+
+    const response = await service.listFiles(
+      'container-1',
+      first.generatedFile.id,
+    );
+
+    expect(response.items).toEqual([
+      expect.objectContaining({
+        id: second.generatedFile.id,
+        fileType: 'EXCEL_REPORT',
+        status: 'GENERATED',
+      }),
+    ]);
+    expect(response.items[0]).not.toHaveProperty('storagePath');
+    expect(response.items[0]).not.toHaveProperty('errorMessage');
+    expect(response.selection).toEqual({
+      fileType: 'EXCEL_REPORT',
+      requestedFileId: first.generatedFile.id,
+      resolvedFileId: second.generatedFile.id,
+      status: 'SUPERSEDED_REPLACED',
+    });
   });
 
   it('keeps the prior successful report downloadable after conservation failure', async () => {
     const successful = await service.generateReport('container-1', officeActor);
     const oldSha = successful.generatedFile.fileSha256;
-    const oldPath = successful.generatedFile.storagePath;
+    const oldPath =
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath;
     workerReport.writeReport.mockResolvedValueOnce({
       task_status: 'ERROR',
       report_result: {
@@ -469,9 +539,66 @@ describe('ReportsService', () => {
     );
     expect(download.buffer.toString()).toBe('xlsx bytes');
     expect(successful.generatedFile.fileSha256).toBe(oldSha);
-    expect(successful.generatedFile.storagePath).toBe(oldPath);
+    expect(
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath,
+    ).toBe(oldPath);
     expect(prisma.generatedFile.update).not.toHaveBeenCalled();
     expect(prisma.generatedFile.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails closed when adaptive layout evidence has the wrong physical rows', async () => {
+    workerReport.writeReport.mockImplementationOnce(
+      async (_request, reportDir) => {
+        const invalidOutput = join(
+          reportDir,
+          'CSNU8877228卸柜报告-En.xlsx',
+        );
+        await mkdir(reportDir, { recursive: true });
+        await writeFile(invalidOutput, 'invalid layout evidence');
+        return {
+          task_status: 'SUCCESS',
+          report_result: {
+            outputPath: invalidOutput,
+            writtenDestinationCount: 1,
+            totalDestinationCount: 1,
+            orderedDestinationDigest: 'c'.repeat(64),
+            layoutModes: ['PRIMARY_ONLY'],
+            pageEvidence: [
+              {
+                page: 1,
+                layoutMode: 'PRIMARY_ONLY',
+                expectedDestinationCount: 1,
+                writtenDestinationCount: 1,
+                expectedPhysicalRows: [5],
+                writtenPhysicalRows: [5],
+              },
+            ],
+            warnings: [],
+            errors: [],
+          },
+          warnings: [],
+          errors: [],
+        };
+      },
+    );
+
+    await expect(
+      service.generateReport('container-1', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'REPORT_DESTINATION_CONSERVATION_FAILED',
+        details: {
+          stage: 'api.worker-evidence',
+          expectedCount: 1,
+          actualCount: 0,
+        },
+      },
+    });
+    expect(prisma.container.update).not.toHaveBeenCalled();
+    expect(prisma.generatedFile.create).toHaveBeenCalledTimes(1);
+    expect(prisma.generatedFile.create.mock.calls[0][0].data.status).toBe(
+      'FAILED',
+    );
   });
 
   function defaultContainerRecord(): ContainerRecord {
@@ -562,9 +689,38 @@ describe('ReportsService', () => {
           return Promise.resolve(record);
         },
       ),
-      findMany: jest
-        .fn<Promise<GeneratedFileRecord[]>, []>()
-        .mockResolvedValue(generatedFiles),
+      updateMany: jest.fn<Promise<{ count: number }>, [any]>(
+        ({ where, data }) => {
+          const ids = new Set<string>(where.id.in);
+          generatedFiles.forEach((record) => {
+            if (ids.has(record.id)) {
+              Object.assign(record, data);
+            }
+          });
+          return Promise.resolve({ count: ids.size });
+        },
+      ),
+      findMany: jest.fn<Promise<GeneratedFileRecord[]>, [any?]>((args) => {
+        if (!args?.where) {
+          return Promise.resolve(generatedFiles);
+        }
+        const where = args.where;
+        return Promise.resolve(
+          generatedFiles.filter(
+            (record) =>
+              record.containerId === where.containerId &&
+              (where.status === undefined || record.status === where.status) &&
+              (where.fileType === undefined ||
+                where.fileType === record.fileType ||
+                where.fileType.in?.includes(record.fileType)),
+          ),
+        );
+      }),
+    };
+    mock.generatedFileReplacement = {
+      createMany: jest.fn<Promise<{ count: number }>, [any]>(({ data }) =>
+        Promise.resolve({ count: data.length }),
+      ),
     };
 
     return mock;

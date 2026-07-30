@@ -279,6 +279,7 @@ model User {
   importedFiles                 ImportFile[]              @relation("ImportFileImportedBy")
   deletedImportFiles            ImportFile[]              @relation("ImportFileDeletedBy")
   generatedFiles                GeneratedFile[]           @relation("GeneratedFileGeneratedBy")
+  generatedFileReplacements     GeneratedFileReplacement[] @relation("GeneratedFileReplacementActor")
   loadJobs                      LoadJob[]                 @relation("LoadJobCreatedBy")
   palletEvents                  PalletEvent[]             @relation("PalletEventOperator")
   inventoryAdjustments          InventoryAdjustment[]     @relation("InventoryAdjustmentCreatedBy")
@@ -847,6 +848,8 @@ model GeneratedFile {
   generatedBy        User?                @relation("GeneratedFileGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   asyncJobs          AsyncJob[]
   correctionFeedback CorrectionFeedback[]
+  replacementsFrom  GeneratedFileReplacement[] @relation("GeneratedFileReplacementOld")
+  replacementsTo    GeneratedFileReplacement[] @relation("GeneratedFileReplacementNew")
   createdAt          DateTime             @default(now()) @map("created_at")
   updatedAt          DateTime             @updatedAt @map("updated_at")
 
@@ -857,6 +860,25 @@ model GeneratedFile {
   @@index([status])
   @@index([createdAt])
   @@map("generated_files")
+}
+
+model GeneratedFileReplacement {
+  id                 String            @id @default(cuid())
+  containerId        String            @map("container_id")
+  fileType           GeneratedFileType @map("file_type")
+  oldGeneratedFileId String            @unique @map("old_generated_file_id")
+  oldGeneratedFile   GeneratedFile     @relation("GeneratedFileReplacementOld", fields: [oldGeneratedFileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  newGeneratedFileId String            @map("new_generated_file_id")
+  newGeneratedFile   GeneratedFile     @relation("GeneratedFileReplacementNew", fields: [newGeneratedFileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  replacedById       String?           @map("replaced_by_id")
+  replacedBy         User?             @relation("GeneratedFileReplacementActor", fields: [replacedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reasonCode         String            @map("reason_code")
+  createdAt          DateTime          @default(now()) @map("created_at")
+
+  @@index([containerId, fileType, createdAt])
+  @@index([newGeneratedFileId])
+  @@index([replacedById])
+  @@map("generated_file_replacements")
 }
 
 model LoadJob {

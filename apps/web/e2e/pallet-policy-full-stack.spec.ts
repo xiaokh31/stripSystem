@@ -368,8 +368,8 @@ test("pallet policy survives settings, real import, correction, artifacts, inven
     await expect(page.getByText("标签 PDF 已生成，文件历史已刷新。")).toBeVisible({
       timeout: 90_000,
     });
-    await expect(page.getByText("Excel report generated. File history refreshed.")).toHaveCount(0);
-    await expect(page.getByText("Label PDF generated. File history refreshed.")).toHaveCount(0);
+    await expect(page.getByText("Excel report generated. Current report replaced.")).toHaveCount(0);
+    await expect(page.getByText("Label PDF generated. Current label PDF replaced.")).toHaveCount(0);
 
     const finalContainer = await containerDetail(request, headers, containerId);
     const finalCount = totalFinalPallets(finalContainer);
@@ -494,11 +494,11 @@ async function importRealWorkbookThroughBrowser(
 
 async function generateArtifactsThroughBrowser(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Generate Excel Report" }).click();
-  await expect(page.getByText("Excel report generated. File history refreshed.")).toBeVisible({
+  await expect(page.getByText("Excel report generated. Current report replaced.")).toBeVisible({
     timeout: 90_000,
   });
   await page.getByRole("button", { name: "Generate Label PDF" }).click();
-  await expect(page.getByText("Label PDF generated. File history refreshed.")).toBeVisible({
+  await expect(page.getByText("Label PDF generated. Current label PDF replaced.")).toBeVisible({
     timeout: 90_000,
   });
 }

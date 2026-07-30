@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
@@ -197,6 +197,11 @@ interface LabelsPrismaMock {
       [GeneratedFileFindFirstArgs]
     >;
     update: jest.Mock<Promise<GeneratedFileRecord>, [GeneratedFileUpdateArgs]>;
+    updateMany: jest.Mock<Promise<{ count: number }>, [any]>;
+    findMany: jest.Mock<Promise<GeneratedFileRecord[]>, [any]>;
+  };
+  generatedFileReplacement: {
+    createMany: jest.Mock<Promise<{ count: number }>, [any]>;
   };
 }
 
@@ -242,16 +247,16 @@ describe('LabelsService', () => {
 
   beforeEach(async () => {
     storageRoot = await mkdtemp(join(tmpdir(), 'p1-07-labels-service-'));
-    outputPath = join(storageRoot, 'labels', 'CSNU8877228托盘面单.pdf');
-    await mkdir(join(storageRoot, 'labels'), { recursive: true });
-    await writeFile(outputPath, 'pdf bytes');
     prisma = createPrismaMock();
 
     const writeLabels = jest.fn<
       Promise<WorkerLabelPayload>,
       [WorkerLabelRequest, string, string]
-    >((request, _outputDir, labelDate) =>
-      Promise.resolve({
+    >(async (request, outputDir, labelDate) => {
+      outputPath = join(outputDir, 'CSNU8877228托盘面单.pdf');
+      await mkdir(outputDir, { recursive: true });
+      await writeFile(outputPath, 'pdf bytes');
+      return {
         task_status: 'SUCCESS',
         label_result: {
           outputPath,
@@ -263,8 +268,8 @@ describe('LabelsService', () => {
         },
         warnings: [],
         errors: [],
-      }),
-    );
+      };
+    });
     workerLabel = { writeLabels };
 
     service = new LabelsService(
@@ -287,7 +292,7 @@ describe('LabelsService', () => {
     expect(result.generatedFile).toMatchObject({
       containerId: 'container-1',
       fileType: 'PALLET_LABEL_PDF',
-      storagePath: outputPath,
+      filename: 'CSNU8877228托盘面单.pdf',
       status: 'GENERATED',
     });
     expect(result.pallets).toHaveLength(3);
@@ -305,7 +310,9 @@ describe('LabelsService', () => {
       workerLabel.writeLabels.mock.calls[0];
     const palletResult =
       request.pallet_result as unknown as PalletResultRequest;
-    expect(outputDir).toBe(join(storageRoot, 'labels'));
+    expect(outputDir).toContain(
+      join(storageRoot, 'labels', 'CSNU8877228'),
+    );
     expect(labelDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(palletResult.totalFinalPallets).toBe(3);
     expect(request.parsed_result).toMatchObject({
@@ -437,6 +444,105 @@ describe('LabelsService', () => {
       where: { containerDestinationId: { in: ['destination-1'] } },
     });
     expect(workerLabel.writeLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the prior current label bytes and record after worker failure', async () => {
+    const successful = await service.generateLabels('container-1', officeActor);
+    const currentPath =
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath;
+    const currentBytes = await readFile(currentPath);
+    workerLabel.writeLabels.mockRejectedValueOnce(
+      Object.assign(new Error('worker unavailable'), {
+        code: 'LABEL_WORKER_FAILED',
+      }),
+    );
+
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'LABEL_WORKER_FAILED',
+        details: { generatedFileId: 'generated-file-2' },
+      },
+    });
+
+    expect(await readFile(currentPath)).toEqual(currentBytes);
+    expect(successful.generatedFile.status).toBe('GENERATED');
+    expect(prisma.generatedFile.updateMany).not.toHaveBeenCalled();
+    expect(
+      prisma.generatedFile.create.mock.calls.map((call) => call[0].data.status),
+    ).toEqual(['GENERATED', 'FAILED']);
+  });
+
+  it('keeps the prior current label after QR validation failure', async () => {
+    await service.generateLabels('container-1', officeActor);
+    const currentPath =
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath;
+    const currentBytes = await readFile(currentPath);
+    workerLabel.writeLabels.mockImplementationOnce(
+      async (_request, outputDir) => {
+        const invalidPath = join(outputDir, 'CSNU8877228托盘面单.pdf');
+        await mkdir(outputDir, { recursive: true });
+        await writeFile(invalidPath, 'invalid qr attempt');
+        return {
+          task_status: 'SUCCESS',
+          label_result: {
+            outputPath: invalidPath,
+            labelCount: 3,
+            palletIds: ['one', 'two', 'three'],
+            qrPayloads: ['wrong'],
+            warnings: [],
+            errors: [],
+          },
+          warnings: [],
+          errors: [],
+        };
+      },
+    );
+
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'LABEL_QR_PAYLOAD_MISMATCH',
+        details: { generatedFileId: 'generated-file-2' },
+      },
+    });
+
+    expect(await readFile(currentPath)).toEqual(currentBytes);
+    expect(prisma.generatedFile.updateMany).not.toHaveBeenCalled();
+    expect(
+      prisma.generatedFile.create.mock.calls.map((call) => call[0].data.status),
+    ).toEqual(['GENERATED', 'FAILED']);
+  });
+
+  it('keeps the prior current label when database activation fails', async () => {
+    await service.generateLabels('container-1', officeActor);
+    const currentPath =
+      prisma.generatedFile.create.mock.calls[0][0].data.storagePath;
+    const currentBytes = await readFile(currentPath);
+    prisma.$transaction.mockRejectedValueOnce(
+      Object.assign(new Error('database activation failed'), {
+        code: 'CURRENT_ARTIFACT_ACTIVATION_FAILED',
+      }),
+    );
+
+    await expect(
+      service.generateLabels('container-1', officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'CURRENT_ARTIFACT_ACTIVATION_FAILED',
+        details: { generatedFileId: 'generated-file-2' },
+      },
+    });
+
+    expect(await readFile(currentPath)).toEqual(currentBytes);
+    expect(prisma.generatedFile.updateMany).not.toHaveBeenCalled();
+    expect(
+      prisma.generatedFile.create.mock.calls
+        .filter((call) => call[0].data.status !== 'GENERATED')
+        .map((call) => call[0].data.status),
+    ).toEqual(['FAILED']);
   });
 
   it('blocks label regeneration when existing pallets are already loaded', async () => {
@@ -764,6 +870,32 @@ describe('LabelsService', () => {
           });
           return Promise.resolve(record);
         },
+      ),
+      updateMany: jest.fn<Promise<{ count: number }>, [any]>(
+        ({ where, data }) => {
+          const ids = new Set<string>(where.id.in);
+          generatedFiles.forEach((record) => {
+            if (ids.has(record.id)) {
+              Object.assign(record, data);
+            }
+          });
+          return Promise.resolve({ count: ids.size });
+        },
+      ),
+      findMany: jest.fn<Promise<GeneratedFileRecord[]>, [any]>(({ where }) =>
+        Promise.resolve(
+          generatedFiles.filter(
+            (record) =>
+              record.containerId === where.containerId &&
+              record.fileType === where.fileType &&
+              record.status === where.status,
+          ),
+        ),
+      ),
+    };
+    mock.generatedFileReplacement = {
+      createMany: jest.fn<Promise<{ count: number }>, [any]>(({ data }) =>
+        Promise.resolve({ count: data.length }),
       ),
     };
 

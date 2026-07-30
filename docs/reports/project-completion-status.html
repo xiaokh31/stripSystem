@@ -455,8 +455,16 @@
           POD-00 至 05 交付 versioned template、办公室制单、saved revision 打印与 archive。2026-07-28
           办公室外部验收又发现报告左侧打印白边消失和目的仓缺失，02 的 pending 终态失效，
           并明确正常报告必须保留完整 16 槽可用容量：0–16 条保持一 sheet/一张 A4，
-          第 17 条才容量分页。UNLOAD-REPORT-03 已完成仓库实现、Docker full-stack/package/PDF/PNG
-          和当前环境自动化，现只等待 Windows/Microsoft Excel 与实际打印外部门禁。POD-00 在取得真实/
+          第 17 条才容量分页。UNLOAD-REPORT-03 已完成报告内容、目的仓守恒、打印几何和当前环境自动化。
+          2026-07-29 又确认同一柜号成功重新生成报告会在普通文件区域追加历史文件，报告与面单也没有统一的
+          “每柜每类型唯一当前文件、失败不覆盖”约束，因此 03 原“只等待外部打印”的终态失效。
+          P0 UNLOAD-REPORT-04 已完成：成功重生成替换对应 current slot，普通文件区域最多
+          一份当前报告和一份当前面单，历史只保留审计；数据库唯一约束、受控 repair、staging、
+          失败/并发/BullMQ 守恒、strict i18n 和 full-stack/视觉门禁均通过。产品随后澄清 03 对“全部单元格可用”的解释：
+          每页 1–8 个目的仓只用深色主行，9–16 个才切换为深色+白色扩展布局，17+ 按 16 分页且每页
+          独立选模式；当前 03 的 report-8 提前占用了白色行。P0 UNLOAD-REPORT-05 已完成仓库实现、
+          当前环境全量自动化和逐图验证，现为 Code Complete / External Verification Pending，
+          并承接 Windows/Microsoft Excel 与实际打印门禁。POD-00 在取得真实/
           明确脱敏 blank template 和 matching approved completed/printed example 前不得执行。此前尚未关闭的
           外部 Task 仍依赖真实业务 workbook、目标打印机/Microsoft Excel、Android/iOS 人工设备矩阵或目标部署主机；
           另有 5 个 Windows 原生/MSIX
@@ -1441,7 +1449,7 @@
               <td><span class="badge partial">Historical Code Complete / Superseded by 02</span></td>
               <td>Prior Rich Text / White-Row Evidence Preserved; 02 Code Complete</td>
               <td>业务决定 A 已落实：报告保留既有 8 个主目的仓槽位，随后使用业务表格白色行 5/7/9/11/13/15/17/19，超过 16 才创建后续 worksheet；长文字与显式换行自适应行高，不进入合计或 `C21:I25`。真实 CAAU 的 9 个目的仓全部写入，Worker 和 API 下载均为 1 个 populated worksheet/1 张 A4 landscape 页面，第 9 个目的仓位于 `N5`。合成边界工件证实 16 个目的仓含末行三行文本仍为 1 worksheet/1 page，第 17 个目的仓则为 2 worksheets/2 pages。`rich_text=True` 保留完整 `&lt;r&gt;/&lt;rPr&gt;`、11pt/10pt Arial/宋体、bold、换行和末尾 `when stored.`；merge、Standards rows/columns、dimension、78% page setup、margins 与模板等价。generated-file status/SHA/size/storage/audit actor、上传原件和历史 artifact/DB 记录不变检查通过；模板 SHA 前后均为 `31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027`。Docker Worker 127、API E2E 92、Web 189、专用 Chromium 1 项、full-stack health 和 12 张原始分辨率全页/crop 逐图检查通过；证据位于 `test-results/unload-report-01/20260714T050519Z/`。</td>
-              <td>02 的 content-aware row height 和 Docker visual 证据继续保留；但 2026-07-28 外部验收发现左侧打印白边、目的仓完整性及按估算高度提前分页的容量规则回归。不得重跑 01/02，当前只执行 UNLOAD-REPORT-03。</td>
+              <td>02 的 content-aware row height 和 Docker visual 证据继续保留；03 已关闭目的仓守恒、打印边距和容量分页自动化，但 2026-07-29 的当前文件追加回归由 04 承接，主行/白色行自适应布局由 05 承接。不得重跑 01/02/03。</td>
             </tr>
             <tr>
               <td>UNLOAD-WAGE-13 Auto Collapse Completed Container Wage Section</td>
@@ -1525,7 +1533,7 @@
               <td><span class="badge done">Done</span></td>
               <td>WEB-OPS 06-09 / I18n / Accessibility / RBAC / Inventory Transaction / Visual Exit Gate Complete</td>
               <td>06-08 的 database-backed suggestion、稳定柜子索引、六种排序、库存服务端分页、global totals、跨页 selection 和 adaptive workspace 已在同一 Docker full stack 兼容关闭。修复库存 suggestion 导航时 stable containerId selection race；语言切换改为 cookie + client translator + React transition Server Component refresh，切换期间有 <code>aria-busy</code> 且不 reload/不丢 adjustment draft；移除会让 no-JS 柜子页永久停在 loading 的 route boundary。柜子/库存/目的仓/adjustment history 横向区域均由 heading 命名并可键盘聚焦。人工消库存 remaining 5→4→3、adjusted 0→1→2、loaded 恒 0；同 pallet 并发 201/409，真实 actor/reason/note/eventId audit 完整。</td>
-              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、223 unit；Worker 127；22 migrations up to date；最终 Chromium locale + exit gate 2/2、healthcheck、diff 和精确 cleanup 通过。27 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom、四类角色 PNG 已逐张原尺寸检查；20 条 geometry 无 overflow，browser/server diagnostics 为空。证据位于 <code>test-results/web-ops-09/</code>，报告见 <code>docs/reports/web-ops-09-container-inventory-exit-gate.md</code>。该 WEB-OPS 范围无 schema/migration 或外部验收项；后续 UNLOAD-REPORT-03 和 POD 线路是独立任务。</td>
+              <td>API lint/typecheck/build、31 suites / 249 unit、18 suites / 110 E2E；Web lint/typecheck/build、223 unit；Worker 127；22 migrations up to date；最终 Chromium locale + exit gate 2/2、healthcheck、diff 和精确 cleanup 通过。27 张 en/zh-CN、light/dark、390/768/1366/1920/2560、125%/200% zoom、四类角色 PNG 已逐张原尺寸检查；20 条 geometry 无 overflow，browser/server diagnostics 为空。证据位于 <code>test-results/web-ops-09/</code>，报告见 <code>docs/reports/web-ops-09-container-inventory-exit-gate.md</code>。该 WEB-OPS 范围无 schema/migration 或外部验收项；后续 UNLOAD-REPORT-04/05 和 POD 线路是独立任务。</td>
             </tr>
             <tr>
               <td>NATIVE-AUTH-01 Revocable Persistent Native Session</td>
@@ -1834,13 +1842,25 @@
               <td>UNLOAD-REPORT-02 Adaptive Height and Microsoft Excel Print Verification</td>
               <td><span class="badge partial">External Verification Failed / Superseded by 03</span></td>
               <td>02 的 content-aware row height、完整 rich text/Standards 和 Docker PDF/PNG 证据保留；但现有自动化没有从保存后的 workbook 反算目的仓守恒，也没有程序化比较模板与生成页的实际左侧 whitespace。其 printable-height 提前分页不再符合“0–16 条容量优先单页”的业务规则。</td>
-              <td>2026-07-28 办公室实际生成/打印确认左侧白边消失且目的仓缺失。02 不得标记 Done；执行 UNLOAD-REPORT-03。</td>
+              <td>2026-07-28 办公室实际生成/打印确认左侧白边消失且目的仓缺失；03 已完成对应仓库修复。2026-07-29 的当前文件追加回归由 04 承接，02/03 均不得重跑。</td>
             </tr>
             <tr>
               <td>UNLOAD-REPORT-03 Print Margin and Destination Preservation Regression</td>
-              <td><span class="badge partial">Code Complete / Excel &amp; Print Pending</span></td>
-              <td>保存后 <code>N/O/P</code> 逐条守恒、真实 written count、16 槽纸面顺序、0–16 单页、17+ 容量分页、失败不覆盖旧成功文件及 strict i18n 已完成。固定 200 DPI 的 20 张 generated pages 左侧 whitespace 均为 22.225mm，与模板 delta 0mm；Worker 207、API 383 unit / 129 E2E、Web 284 及 nginx full-stack/package/PDF/PNG 门禁通过。</td>
-              <td>只剩 Windows/Microsoft Excel 逐目的仓、Print Preview、Print to PDF 与办公室实际纸张打印签字；通过前不得 Done。证据见 <code>docs/reports/unload-report-03-print-margin-destination-preservation-verification.md</code>。</td>
+              <td><span class="badge partial">Superseded by UNLOAD-REPORT-04/05</span></td>
+              <td>保存后 <code>N/O/P</code> 逐条守恒、真实 written count、16 槽容量分页、失败不覆盖旧成功文件及 strict i18n 自动化已完成。固定 200 DPI 的 20 张 generated pages 左侧 whitespace 均为 22.225mm，与模板 delta 0mm；Worker 207、API 383 unit / 129 E2E、Web 284 及 nginx full-stack/package/PDF/PNG 门禁通过。但 report-8 把 8 条写入 4..11，提前占用了白色追加行，不能作为最终布局通过证据。</td>
+              <td>04 已修复唯一 current 文件；05 已修复每页 1–8 深色主行、9–16 深色+白色扩展布局并通过当前环境自动化。须使用 05 新 current 报告继续 Excel/打印门禁；不得先把 03 标记 Done。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-REPORT-04 Current Report and Label Replacement Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>报告/面单统一 current-artifact contract、数据库每柜每类型 partial unique current 约束、UUID staging + 事务原子激活、失败/并发/BullMQ retry 守恒、既有重复记录 dry-run/apply repair、old -&gt; new replacement audit、普通文件区域固定两个槽位和 strict en/zh-CN/no-flash 已完成。生产重复数据必须按 <code>docs/runbooks/current-generated-artifact-production-repair.md</code> 备份、停写、dry-run、逐组确认后处理；不得手工删库/删文件。04 未修改 Excel row layout。</td>
+              <td>专用真实 API/BullMQ/nginx/Chromium runner、12 张视觉截图、现有库/空库 migration、API 387 unit/129 E2E、Web 284、Worker 207、UNLOAD-REPORT-03 回归、healthcheck 和精确 cleanup 均通过。证据见 <code>docs/reports/unload-report-04-current-artifact-replacement-verification.md</code>；后续 05 的真实 8→9→8 current 回归继续通过。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-REPORT-05 Adaptive Primary and White Cell Layout</td>
+              <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
+              <td>每页 1–8 条只写深色主行 4/6/.../18，9–16 条才按纸面顺序写 4..19，17+ 每页自适应；physical row/style、C/N/O/P 守恒、current 8→9→8、失败保留、package/PDF/PNG、strict i18n 均已通过。Worker 235、API 388 unit/129 E2E、Web 284、38 migrations、healthcheck 和 24 张原尺寸人工截图检查已关闭；36 张生成页左侧 whitespace delta 均为 0mm。</td>
+              <td>只剩使用 05 新 current 工件完成 Windows/Microsoft Excel 8/9/16、Print Preview、Print to PDF 和办公室实际纸张打印签字。证据见 <code>docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md</code>。</td>
             </tr>
             <tr>
               <td>P5-PILOT-01 Windows Target Deployment Verification</td>
@@ -2132,8 +2152,18 @@
             </tr>
             <tr>
               <td>UNLOAD-REPORT-03 Print Margin and Destination Preservation Regression</td>
+              <td><span class="badge partial">Superseded by UNLOAD-REPORT-04/05</span></td>
+              <td>destination/pallet/carton 守恒、容量分页、旧成功文件保护、模板左侧 whitespace、package/PDF/PNG 和 strict en/zh-CN 证据继续有效；current-file 追加回归由 04 修复，report-8 过早使用白色行由 05 修复。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-REPORT-04 Current Report and Label Replacement Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>成功重生成只替换对应当前拆柜报告或托盘面单；普通文件区域固定最多两个 current slot，失败/并发/重试不覆盖旧成功文件。数据库唯一约束、历史替换审计、既有重复数据 repair、storage/BullMQ、strict i18n/no-flash 和 full-stack/visual 已通过；生产清理 runbook 已补齐，未修改 Excel row layout。</td>
+            </tr>
+            <tr>
+              <td>UNLOAD-REPORT-05 Adaptive Primary and White Cell Layout</td>
               <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
-              <td>保存后 destination/pallet/carton、重复目的仓 ordinal、16 槽纸面顺序、容量分页、旧成功文件保护、模板左侧 whitespace、每页 package/PDF/PNG 和 strict en/zh-CN 已关闭；nginx 故意 layout/conservation failure、进程中断与精确 cleanup 通过。只剩 Microsoft Excel/实际打印外部门禁。</td>
+              <td>1–8 条只用深色主行；9–16 条才启用白色追加行并按纸面顺序连续显示；17+ 每页自适应。当前环境 Worker/API/Web/full-stack/current/package/PDF/PNG/i18n/healthcheck 和逐图门禁已通过，只剩 Microsoft Excel/实际打印签字。</td>
             </tr>
             <tr>
               <td>POD-00 Real Template Contract and Worker Proof</td>
@@ -2172,7 +2202,7 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>UNLOAD-WAGE-14 已 Done；UNLOAD-REPORT-02 的外部验收失败且已被 03 supersede，不得重跑。UNLOAD-REPORT-03 的仓库实现和 Docker 门禁已完成，只需在 Windows/Microsoft Excel 完成逐目的仓、单页、Print Preview、Print to PDF 和实际打印签字后更新为 Done。POD 只有在真实/明确脱敏模板和 approved 成品齐全后从 POD-00 开始，严格执行到 POD-05，不得跳序或合并 Session。</li>
+          <li>UNLOAD-WAGE-14 与 UNLOAD-REPORT-04 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 已完成 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n 和当前环境全部门禁，现只等待使用新 current 报告完成 Windows/Microsoft Excel 与实际打印。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
           <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>

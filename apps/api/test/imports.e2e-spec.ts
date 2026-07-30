@@ -184,11 +184,10 @@ interface GenerateReportBody {
     importFileId: string | null;
     containerId: string;
     fileType: string;
-    storagePath: string;
+    filename: string;
     fileSha256: string;
     fileSizeBytes: string;
     status: string;
-    errorMessage: string | null;
   };
   warnings: unknown[];
   errors: unknown[];
@@ -654,18 +653,13 @@ describe('ImportsController (e2e)', () => {
       containerId,
       fileType: 'EXCEL_REPORT',
       status: 'GENERATED',
-      errorMessage: null,
+      filename: expect.stringMatching(/\.xlsx$/),
     });
-    expect(reportBody.generatedFile.storagePath).toContain('reports');
-    expect(reportBody.generatedFile.storagePath).toMatch(/\.xlsx$/);
+    expect(reportBody.generatedFile).not.toHaveProperty('storagePath');
+    expect(reportBody.generatedFile).not.toHaveProperty('errorMessage');
     expect(reportBody.generatedFile.fileSha256).toEqual(expect.any(String));
-    await expect(
-      stat(reportBody.generatedFile.storagePath),
-    ).resolves.toBeDefined();
     expect(generatedFiles).toHaveLength(1);
-    expect(generatedFiles[0].storagePath).toBe(
-      reportBody.generatedFile.storagePath,
-    );
+    await expect(stat(generatedFiles[0].storagePath)).resolves.toBeDefined();
     expect(generatedFiles[0].generatedById).toBe('auth-office');
 
     const files = await authorizedRequest(app)
@@ -744,13 +738,10 @@ describe('ImportsController (e2e)', () => {
       containerId,
       fileType: 'EXCEL_REPORT',
       status: 'GENERATED',
-      errorMessage: null,
+      filename: expect.stringMatching(/MANU1234567.*\.xlsx$/),
     });
-    expect(reportBody.generatedFile.storagePath).toContain('reports');
-    expect(reportBody.generatedFile.storagePath).toContain('MANU1234567');
-    await expect(
-      stat(reportBody.generatedFile.storagePath),
-    ).resolves.toBeDefined();
+    expect(reportBody.generatedFile).not.toHaveProperty('storagePath');
+    await expect(stat(generatedFiles[0].storagePath)).resolves.toBeDefined();
 
     const files = await authorizedRequest(app)
       .get(`/api/containers/${containerId}/files`)
@@ -808,16 +799,13 @@ describe('ImportsController (e2e)', () => {
       containerId,
       fileType: 'PALLET_LABEL_PDF',
       status: 'GENERATED',
-      errorMessage: null,
+      filename: expect.stringMatching(/MANU1234567.*\.pdf$/),
     });
-    expect(labelsBody.generatedFile.storagePath).toContain('labels');
-    expect(labelsBody.generatedFile.storagePath).toContain('MANU1234567');
-    await expect(
-      stat(labelsBody.generatedFile.storagePath),
-    ).resolves.toBeDefined();
+    expect(labelsBody.generatedFile).not.toHaveProperty('storagePath');
     expect(labelsBody.pallets).toHaveLength(6);
     expect(pallets).toHaveLength(6);
     expect(generatedFiles).toHaveLength(1);
+    await expect(stat(generatedFiles[0].storagePath)).resolves.toBeDefined();
     expect(generatedFiles[0].generatedById).toBe('auth-office');
     expect(
       palletEvents.every((event) => event.operatorId === 'auth-office'),
@@ -835,7 +823,7 @@ describe('ImportsController (e2e)', () => {
     ).toBe(6);
 
     const firstGeneratedFileId = labelsBody.generatedFile.id;
-    const firstStoragePath = labelsBody.generatedFile.storagePath;
+    const firstStoragePath = generatedFiles[0].storagePath;
     const firstPalletRecordIds = new Set(
       labelsBody.pallets.map((pallet) => pallet.id),
     );
@@ -863,16 +851,31 @@ describe('ImportsController (e2e)', () => {
     const regeneratedBody = regenerated.body as GenerateLabelsBody;
 
     expect(regeneratedBody.generatedFile).toMatchObject({
-      id: firstGeneratedFileId,
       importFileId: null,
       containerId,
       fileType: 'PALLET_LABEL_PDF',
       status: 'GENERATED',
-      storagePath: firstStoragePath,
+      filename: expect.stringMatching(/MANU1234567.*\.pdf$/),
     });
+    expect(regeneratedBody.generatedFile.id).not.toBe(firstGeneratedFileId);
+    expect(regeneratedBody.generatedFile).not.toHaveProperty('storagePath');
     expect(regeneratedBody.pallets).toHaveLength(5);
     expect(pallets).toHaveLength(5);
-    expect(generatedFiles).toHaveLength(1);
+    expect(generatedFiles).toHaveLength(2);
+    expect(
+      generatedFiles.find((file) => file.id === firstGeneratedFileId),
+    ).toMatchObject({
+      storagePath: firstStoragePath,
+      status: 'SUPERSEDED',
+    });
+    expect(
+      generatedFiles.find(
+        (file) => file.id === regeneratedBody.generatedFile.id,
+      ),
+    ).toMatchObject({
+      status: 'GENERATED',
+    });
+    await expect(stat(firstStoragePath)).resolves.toBeDefined();
     expect(
       regeneratedBody.pallets.some((pallet) =>
         firstPalletRecordIds.has(pallet.id),
@@ -915,12 +918,15 @@ describe('ImportsController (e2e)', () => {
       containerId,
       fileType: 'PALLET_LABEL_PDF',
       status: 'GENERATED',
-      errorMessage: null,
+      filename: expect.stringMatching(/\.pdf$/),
     });
-    expect(labelsBody.generatedFile.storagePath).toContain('labels');
-    expect(labelsBody.generatedFile.storagePath).toMatch(/\.pdf$/);
+    expect(labelsBody.generatedFile).not.toHaveProperty('storagePath');
     await expect(
-      stat(labelsBody.generatedFile.storagePath),
+      stat(
+        generatedFiles.find(
+          (file) => file.id === labelsBody.generatedFile.id,
+        )!.storagePath,
+      ),
     ).resolves.toBeDefined();
     expect(labelsBody.pallets).toHaveLength(expectedPalletCount);
     expect(pallets).toHaveLength(expectedPalletCount);
@@ -1033,8 +1039,12 @@ describe('ImportsController (e2e)', () => {
 
     const storagePaths = [
       uploadedBody.storedPath,
-      reportBody.generatedFile.storagePath,
-      labelsBody.generatedFile.storagePath,
+      generatedFiles.find(
+        (file) => file.id === reportBody.generatedFile.id,
+      )!.storagePath,
+      generatedFiles.find(
+        (file) => file.id === labelsBody.generatedFile.id,
+      )!.storagePath,
     ];
     await Promise.all(storagePaths.map((storagePath) => stat(storagePath)));
 
@@ -2106,8 +2116,15 @@ describe('ImportsController (e2e)', () => {
               }
 
               return (
-                where?.containerId === undefined ||
-                record.containerId === where.containerId
+                (where?.containerId === undefined ||
+                  record.containerId === where.containerId) &&
+                (where?.fileType === undefined ||
+                  (typeof where.fileType === 'string'
+                    ? record.fileType === where.fileType
+                    : where.fileType?.in?.includes(record.fileType))) &&
+                (where?.status === undefined ||
+                  record.status === where.status) &&
+                (where?.id === undefined || record.id === where.id)
               );
             })
             .sort(
@@ -2145,6 +2162,19 @@ describe('ImportsController (e2e)', () => {
             updatedAt: new Date('2026-06-26T00:03:00.000Z'),
           });
           return Promise.resolve(record);
+        }),
+        updateMany: jest.fn(({ where, data }) => {
+          const ids = new Set<string>(where.id?.in ?? []);
+          let count = 0;
+          generatedFileRecords.forEach((record) => {
+            if (ids.has(record.id)) {
+              Object.assign(record, data, {
+                updatedAt: new Date('2026-06-26T00:03:00.000Z'),
+              });
+              count += 1;
+            }
+          });
+          return Promise.resolve({ count });
         }),
       },
       pallet: {

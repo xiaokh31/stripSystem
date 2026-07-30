@@ -8,6 +8,7 @@ task_id="${REPORT_TASK_ID:-UNLOAD-REPORT-02}"
 task_slug="${REPORT_TASK_SLUG:-unload-report-02}"
 visual_service="${REPORT_VISUAL_SERVICE:-unload-report-02-visual-test}"
 fixture_generator="${REPORT_FIXTURE_GENERATOR:-generate_report_02_visual_workbooks.py}"
+e2e_report_spec="${E2E_REPORT_SPEC:-e2e/unload-report-rich-text.spec.ts}"
 report_failure_probe="${E2E_REPORT_FAILURE_PROBE:-0}"
 report_conservation_probe="${E2E_REPORT_CONSERVATION_PROBE:-0}"
 run_id="${REPORT_VISUAL_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -101,12 +102,11 @@ unlink_runtime_artifact() {
 cleanup_fixture() {
   local root="$1"
   local fixture_source="$root/source"
-  local import_id container_id generated_file_id original_path generated_path
+  local import_id container_id generated_file_id original_path generated_paths
   import_id="$(artifact_value "$fixture_source/import-file-id.txt")"
   container_id="$(artifact_value "$fixture_source/container-id.txt")"
   generated_file_id="$(artifact_value "$fixture_source/generated-file-id.txt")"
   original_path="$(artifact_value "$fixture_source/original-storage-path.txt")"
-  generated_path="$(artifact_value "$fixture_source/generated-storage-path.txt")"
 
   for value in "$import_id" "$container_id" "$generated_file_id"; do
     if [ -n "$value" ] && ! validate_identifier "$value"; then
@@ -114,6 +114,20 @@ cleanup_fixture() {
       return 1
     fi
   done
+
+  generated_paths="$(
+    psql_task -At \
+      -v import_id="$import_id" \
+      -v container_id="$container_id" \
+      -v generated_file_id="$generated_file_id" <<'SQL'
+SELECT DISTINCT storage_path
+FROM generated_files
+WHERE id = NULLIF(:'generated_file_id', '')
+   OR import_file_id = NULLIF(:'import_id', '')
+   OR container_id = NULLIF(:'container_id', '')
+ORDER BY storage_path;
+SQL
+  )"
 
   psql_task \
     -v import_id="$import_id" \
@@ -145,7 +159,11 @@ COMMIT;
 SQL
 
   unlink_runtime_artifact "$original_path"
-  unlink_runtime_artifact "$generated_path"
+  while IFS= read -r generated_path; do
+    if [ -n "$generated_path" ]; then
+      unlink_runtime_artifact "$generated_path"
+    fi
+  done <<< "$generated_paths"
 }
 
 cleanup_admin() {
@@ -278,7 +296,7 @@ docker compose -f "$compose_file" --profile e2e run --rm -T \
   -e "E2E_ADMIN_PASSWORD=$admin_password" \
   -e "UNLOAD_REPORT_ARTIFACT_DIR=/artifacts/source" \
   -e "E2E_FORCE_FAILURE=1" \
-  e2e-web e2e/unload-report-rich-text.spec.ts --project=chromium
+  e2e-web "$e2e_report_spec" --project=chromium
 failure_status=$?
 set -e
 if [ "$failure_status" -eq 0 ]; then
@@ -302,7 +320,7 @@ docker compose -f "$compose_file" --profile e2e run --rm -T \
   -e "E2E_ADMIN_PASSWORD=$admin_password" \
   -e "UNLOAD_REPORT_ARTIFACT_DIR=/artifacts/source" \
   -e "E2E_REPORT_FAILURE_PROBE=$report_failure_probe" \
-  e2e-web e2e/unload-report-rich-text.spec.ts --project=chromium
+  e2e-web "$e2e_report_spec" --project=chromium
 
 if [ "$report_conservation_probe" = "1" ]; then
   docker compose -f "$compose_file" exec -T api sh -lc '
@@ -323,7 +341,7 @@ if [ "$report_conservation_probe" = "1" ]; then
     -e "E2E_REPORT_FAILURE_PROBE=1" \
     -e "E2E_REPORT_EXPECTED_FAILURE_CODE=REPORT_DESTINATION_CONSERVATION_FAILED" \
     -e "E2E_REPORT_EXPECTED_FAILURE_STAGE=reopen.row" \
-    e2e-web e2e/unload-report-rich-text.spec.ts --project=chromium
+    e2e-web "$e2e_report_spec" --project=chromium
   restore_api_uv
   cleanup_fixture "$conservation_dir"
   if [ "$(residual_count "$conservation_dir")" != "0" ]; then

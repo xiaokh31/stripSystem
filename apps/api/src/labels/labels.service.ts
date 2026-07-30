@@ -3,12 +3,13 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFile, rm, stat } from 'node:fs/promises';
+import { basename, join, resolve, sep } from 'node:path';
 import {
   ContainerLabelReprintResponseDto,
   GenerateLabelsResponseDto,
@@ -25,7 +26,6 @@ import {
 import { ReprintLabelDto } from './dto/reprint-label.dto';
 import {
   ContainerStatus,
-  GeneratedFileStatus,
   GeneratedFileType,
   PalletEventType,
   PalletStatus,
@@ -50,6 +50,7 @@ import {
   type PalletIdentityDraft,
 } from '../common/pallet-identity';
 import { operationalLocalDate } from '../common/operational-time';
+import { CurrentArtifactService } from '../generated-files/current-artifact.service';
 
 interface ContainerRecord {
   id: string;
@@ -165,29 +166,12 @@ interface PalletEventWriteClient {
   };
 }
 
-interface GeneratedFileWriteClient {
-  generatedFile: {
-    findFirst(args: unknown): Promise<unknown>;
-    update(args: unknown): Promise<unknown>;
-    create(args: unknown): Promise<unknown>;
-  };
-}
-
-interface GeneratedFileUpsertInput {
-  fileType: string;
-  storagePath: string;
-  fileSha256: string | null;
-  mimeType: string;
-  fileSizeBytes: bigint | null;
-  status: string;
-  errorMessage: string | null;
-  generatedById: string;
-}
-
 const PDF_MIME_TYPE = 'application/pdf';
 @Injectable()
 export class LabelsService {
+  private readonly logger = new Logger(LabelsService.name);
   private readonly storageRoot: string;
+  private readonly currentArtifacts = new CurrentArtifactService();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -215,7 +199,12 @@ export class LabelsService {
       });
     }
 
-    const outputDir = join(this.storageRoot, 'labels');
+    const outputDir = join(
+      this.storageRoot,
+      'labels',
+      this.safeFilename(container.containerNo),
+      randomUUID(),
+    );
     const request = this.toWorkerLabelRequest(container, drafts);
 
     let payload: WorkerLabelPayload;
@@ -226,9 +215,10 @@ export class LabelsService {
         labelDate,
       );
     } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
       const failed = await this.recordFailedGeneratedFile(
         container,
-        this.failureStoragePath(container),
+        this.failureStoragePath(container, outputDir),
         error,
         generatedById,
       );
@@ -238,34 +228,65 @@ export class LabelsService {
     const outputPath = this.outputPathFromPayload(payload);
     const errors = this.issueArray(payload.errors);
     if (payload.task_status === 'ERROR' || errors.length > 0 || !outputPath) {
+      await this.cleanupAttemptDirectory(outputDir);
       const failed = await this.recordFailedGeneratedFile(
         container,
-        outputPath ?? this.failureStoragePath(container),
+        outputPath ?? this.failureStoragePath(container, outputDir),
         payload,
         generatedById,
       );
       throw this.labelFailure(payload, failed);
     }
 
-    if (!this.workerQrPayloadsMatch(payload, drafts)) {
+    let containedOutputPath: string;
+    try {
+      containedOutputPath = this.generatedOutputPath(outputPath, outputDir);
+    } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
       const failed = await this.recordFailedGeneratedFile(
         container,
-        outputPath,
-        new Error('Worker QR payloads did not match persisted pallet records.'),
+        this.failureStoragePath(container, outputDir),
+        error,
         generatedById,
       );
-      throw this.labelFailure(payload, failed);
+      throw this.labelFailure(error, failed);
+    }
+
+    if (!this.workerQrPayloadsMatch(payload, drafts)) {
+      await this.cleanupAttemptDirectory(outputDir);
+      const failed = await this.recordFailedGeneratedFile(
+        container,
+        this.failureStoragePath(container, outputDir),
+        { code: 'LABEL_QR_PAYLOAD_MISMATCH' },
+        generatedById,
+      );
+      throw this.labelFailure(
+        { code: 'LABEL_QR_PAYLOAD_MISMATCH' },
+        failed,
+      );
     }
 
     const printedAt = new Date();
-    const persisted = await this.replacePalletsAndRecordGeneratedLabels(
-      container,
-      drafts,
-      outputPath,
-      printedAt,
-      generatedById,
-      labelDate,
-    );
+    let persisted: PersistedLabels;
+    try {
+      persisted = await this.replacePalletsAndRecordGeneratedLabels(
+        container,
+        drafts,
+        containedOutputPath,
+        printedAt,
+        generatedById,
+        labelDate,
+      );
+    } catch (error) {
+      await this.cleanupAttemptDirectory(outputDir);
+      const failed = await this.recordFailedGeneratedFile(
+        container,
+        this.failureStoragePath(container, outputDir),
+        error,
+        generatedById,
+      );
+      throw this.labelFailure(error, failed);
+    }
 
     return {
       generatedFile: this.toGeneratedFileResponse(persisted.generatedFile),
@@ -688,17 +709,16 @@ export class LabelsService {
       const fileBuffer = await readFile(outputPath);
       const fileStat = await stat(outputPath);
       const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
-      const generatedFile = await this.upsertGeneratedFile(
-        tx,
-        lockedContainer,
+      const generatedFile = await this.currentArtifacts.activate(
+        tx as never,
         {
+          importFileId: lockedContainer.importFileId,
+          containerId: lockedContainer.id,
           fileType: GeneratedFileType.PALLET_LABEL_PDF,
           storagePath: outputPath,
           fileSha256,
           mimeType: PDF_MIME_TYPE,
           fileSizeBytes: BigInt(fileStat.size),
-          status: GeneratedFileStatus.GENERATED,
-          errorMessage: null,
           generatedById,
         },
       );
@@ -884,42 +904,14 @@ export class LabelsService {
     error: unknown,
     generatedById: string,
   ): Promise<GeneratedFileRecord> {
-    return await this.upsertGeneratedFile(this.prisma, container, {
-      fileType: GeneratedFileType.PALLET_LABEL_PDF,
-      storagePath,
-      fileSha256: null,
-      mimeType: PDF_MIME_TYPE,
-      fileSizeBytes: null,
-      status: GeneratedFileStatus.FAILED,
-      errorMessage: this.errorMessage(error),
-      generatedById,
-    });
-  }
-
-  private async upsertGeneratedFile(
-    tx: GeneratedFileWriteClient,
-    container: ContainerRecord,
-    data: GeneratedFileUpsertInput,
-  ): Promise<GeneratedFileRecord> {
-    const existing = (await tx.generatedFile.findFirst({
-      where: { containerId: container.id, fileType: data.fileType },
-      orderBy: { updatedAt: 'desc' },
-    })) as GeneratedFileRecord | null;
-    const recordData = {
+    return (await this.currentArtifacts.recordFailure(this.prisma as never, {
       importFileId: container.importFileId,
       containerId: container.id,
-      ...data,
-    };
-
-    if (existing) {
-      return (await tx.generatedFile.update({
-        where: { id: existing.id },
-        data: recordData,
-      })) as GeneratedFileRecord;
-    }
-
-    return (await tx.generatedFile.create({
-      data: recordData,
+      fileType: GeneratedFileType.PALLET_LABEL_PDF,
+      storagePath,
+      mimeType: PDF_MIME_TYPE,
+      generatedById,
+      errorCode: this.safeLabelFailureCode(error),
     })) as GeneratedFileRecord;
   }
 
@@ -927,12 +919,13 @@ export class LabelsService {
     error: unknown,
     generatedFile: GeneratedFileRecord,
   ): InternalServerErrorException {
+    const code = this.safeLabelFailureCode(error);
     return new InternalServerErrorException({
-      code: 'LABEL_GENERATION_FAILED',
-      message: 'The pallet label PDF could not be generated.',
+      code,
+      message: code,
+      labelKey: `labels.errors.${code}`,
       details: {
-        generatedFile: this.toGeneratedFileResponse(generatedFile),
-        errorMessage: this.errorMessage(error),
+        generatedFileId: generatedFile.id,
       },
     });
   }
@@ -942,6 +935,22 @@ export class LabelsService {
     return typeof outputPath === 'string' && outputPath.trim()
       ? outputPath
       : null;
+  }
+
+  private generatedOutputPath(outputPath: string, outputDir: string): string {
+    const resolvedOutput = resolve(outputPath);
+    const resolvedAttempt = resolve(outputDir);
+    if (
+      !resolvedOutput.startsWith(`${resolvedAttempt}${sep}`) ||
+      !resolvedOutput.toLowerCase().endsWith('.pdf')
+    ) {
+      throw new InternalServerErrorException({
+        code: 'WORKER_LABEL_OUTPUT_PATH_INVALID',
+        message: 'WORKER_LABEL_OUTPUT_PATH_INVALID',
+        details: { stage: 'validate-output-path' },
+      });
+    }
+    return resolvedOutput;
   }
 
   private workerQrPayloadsMatch(
@@ -960,12 +969,68 @@ export class LabelsService {
     );
   }
 
-  private failureStoragePath(container: ContainerRecord): string {
+  private failureStoragePath(
+    container: ContainerRecord,
+    outputDir: string,
+  ): string {
     return join(
-      this.storageRoot,
-      'labels',
+      outputDir,
       `${this.safeFilename(container.containerNo)}托盘面单.pdf`,
     );
+  }
+
+  private async cleanupAttemptDirectory(outputDir: string): Promise<void> {
+    const labelsRoot = resolve(this.storageRoot, 'labels');
+    const attempt = resolve(outputDir);
+    if (!attempt.startsWith(`${labelsRoot}${sep}`)) {
+      return;
+    }
+    for (let attemptNo = 1; attemptNo <= 3; attemptNo += 1) {
+      try {
+        await rm(attempt, { force: true, recursive: true });
+        return;
+      } catch {
+        if (attemptNo === 3) {
+          this.logger.warn(
+            'CURRENT_ARTIFACT_CLEANUP_PENDING type=PALLET_LABEL_PDF',
+          );
+        }
+      }
+    }
+  }
+
+  private safeLabelFailureCode(error: unknown): string {
+    if (error !== null && typeof error === 'object') {
+      const record = error as Record<string, unknown>;
+      if (typeof record.code === 'string' && record.code) {
+        return record.code;
+      }
+      const errors: unknown[] = Array.isArray(record.errors)
+        ? (record.errors as unknown[])
+        : [];
+      const first: unknown = errors[0];
+      if (
+        first !== null &&
+        typeof first === 'object' &&
+        typeof (first as Record<string, unknown>).code === 'string'
+      ) {
+        return String((first as Record<string, unknown>).code);
+      }
+      const responseGetter = record.getResponse;
+      if (typeof responseGetter === 'function') {
+        const response: unknown = (
+          responseGetter as (this: object) => unknown
+        ).call(error);
+        if (
+          response !== null &&
+          typeof response === 'object' &&
+          typeof (response as Record<string, unknown>).code === 'string'
+        ) {
+          return String((response as Record<string, unknown>).code);
+        }
+      }
+    }
+    return 'LABEL_GENERATION_FAILED';
   }
 
   private toGeneratedFileResponse(
@@ -976,13 +1041,12 @@ export class LabelsService {
       importFileId: record.importFileId,
       containerId: record.containerId,
       fileType: record.fileType,
-      storagePath: record.storagePath,
+      filename: basename(record.storagePath),
       fileSha256: record.fileSha256,
       mimeType: record.mimeType,
       fileSizeBytes:
         record.fileSizeBytes === null ? null : record.fileSizeBytes.toString(),
       status: record.status,
-      errorMessage: record.errorMessage,
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
     };

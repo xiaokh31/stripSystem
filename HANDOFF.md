@@ -4,78 +4,79 @@
 
 ## 交接元数据
 
-- Generated at: `2026-07-29T05:15:21Z`
-- Source: `business-task-supervisor`
-- Task: `UNLOAD-REPORT-03`
-- Task file: `prompts/tasks/UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md`
+- Generated at: `2026-07-30T03:30:10Z`
+- Source: `product-planning-agent follow-up after business-task-supervisor`
+- Task: `UNLOAD-REPORT-05`
+- Task file: `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`
 - Status: `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
 - Execution mode: `full`
-- Session: `019fabf1-8be7-77f3-a9ad-cc012dd4c218`
-- Git HEAD: `72926bc`
+- Session: `019fb0a9-71ea-7403-833d-c57d3c880774`
+- Git HEAD: `33e12fd`
 - Worktree: dirty; preserve and inspect existing changes
-- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260729T033600Z-UNLOAD-REPORT-03-17860`
+- Local supervisor artifacts: `/Volumes/xfl/logistics/stripSystem/.codex/business-agent-runs/20260730T013521Z-UNLOAD-REPORT-05-39113`
 
 ## 现在在做什么
 
-UNLOAD-REPORT-03 repository work is complete; only the named external verification remains.
+UNLOAD-REPORT-05 repository work is complete; only the named external verification remains.
+The production duplicate-current cleanup procedure is documented but has not been run
+against any production environment in this Session.
 
 ## 已完成
 
-- 仓库实现和全部当前环境自动化已完成。继续会话的只读终态审计确认：API/Web/Worker/nginx 容器健康，测试故障包装器已恢复，最终成功与守恒故障 fixture 的数据库残留均为 0，070000 最终工件契约、清理证据和 git diff 检查均通过。现在只剩 Windows/Microsoft Excel 和办公室实际打印外部验收。
+- 已完成每页 PRIMARY_ONLY/EXPANDED 自适应物理行规划、保存后独立守恒验证、API 安全 evidence、真实 current 8→9→8 与失败保留、专用 package/PDF/PNG runner、逐图检查及全部当前环境 Definition of Done；Task 03/04/05、索引、完成度与验证报告已同步。唯一剩余项是办公室 Windows/Microsoft Excel 和目标打印机验收。
+- Reviewed the completed 04 repair implementation. `repair:current-generated-files`
+  defaults to dry-run, validates storage containment/readability/SHA/shared paths,
+  selects the newest verified candidate, and only writes with explicit `--apply`.
+- Added a production runbook covering maintenance mode, matched DB/storage backup,
+  dry-run, candidate review, apply, migration, zero-duplicate verification, startup and
+  rollback. No production database or storage was accessed or modified.
 
 ### Changed files
 
-- .gitignore
-- HANDOFF.md
-- apps/api/src/async-jobs/async-jobs.processor.ts
+- apps/worker-python/src/worker_python/reports/cell_map.py
+- apps/worker-python/src/worker_python/reports/excel_report_writer.py
+- apps/worker-python/tests/unit/test_excel_report_writer.py
+- apps/worker-python/tests/fixtures/generate_report_05_visual_workbooks.py
 - apps/api/src/reports/dto/generated-file-response.dto.ts
-- apps/api/src/reports/reports.service.spec.ts
 - apps/api/src/reports/reports.service.ts
+- apps/api/src/reports/reports.service.spec.ts
 - apps/api/src/reports/worker-report.service.ts
 - apps/web/e2e/report-package-inspector.py
 - apps/web/e2e/unload-report-rich-text.spec.ts
-- apps/web/src/components/containers/container-files-flow.ts
-- apps/web/src/components/containers/container-generated-files.tsx
-- apps/web/src/lib/async-job-polling.ts
-- apps/web/src/lib/i18n/locales/en.ts
-- apps/web/src/lib/i18n/locales/zh.ts
-- apps/web/tests/async-job-polling.test.ts
-- apps/web/tests/container-files-flow.test.ts
-- apps/worker-python/src/worker_python/cli.py
-- apps/worker-python/src/worker_python/reports/cell_map.py
-- apps/worker-python/src/worker_python/reports/excel_report_writer.py
-- apps/worker-python/tests/fixtures/generate_report_03_visual_workbooks.py
-- apps/worker-python/tests/fixtures/report_conservation_fault_uv.sh
-- apps/worker-python/tests/unit/test_excel_report_writer.py
-- docs/reports/project-completion-status.html
-- docs/reports/unload-report-02-adaptive-layout-verification.md
-- docs/reports/unload-report-03-print-margin-destination-preservation-verification.md
-- infra/docker/compose.local.yml
-- infra/docker/report-visual-test.Dockerfile
-- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
-- prompts/tasks/UNLOAD-REPORT-02Adaptive Cell Height and Printed Notes Regression.md
-- prompts/tasks/UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md
+- apps/web/e2e/adaptive-report-layout.spec.ts
 - scripts/render-unload-report-03-visual.sh
 - scripts/verify-unload-report-02.sh
-- scripts/verify-unload-report-03.sh
+- scripts/verify-unload-report-05.sh
+- infra/docker/compose.local.yml
+- docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md
+- docs/reports/unload-report-03-print-margin-destination-preservation-verification.md
+- docs/reports/unload-report-04-current-artifact-replacement-verification.md
+- docs/reports/project-completion-status.html
+- docs/runbooks/backup-restore.md
+- docs/runbooks/current-generated-artifact-production-repair.md
+- prompts/tasks/UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md
+- prompts/tasks/UNLOAD-REPORT-04Current Report and Label Replacement Regression.md
+- prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md
+- prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md
+- HANDOFF.md
 
 ### Tests and verification actually run
 
-- Worker focused：29 passed
-- Worker full：207 passed
-- API lint、typecheck、build：通过
-- API unit：383 passed / 49 suites
-- API E2E：129 passed / 21 suites
-- Web lint、typecheck、production build：通过
-- Web unit：284 passed
-- scripts/verify-unload-report-03.sh：通过，包括故意退出、正常 nginx full-stack、layout failure、conservation failure、package/PDF/PNG 和精确清理
-- 容量矩阵：0/1/8/9/16 为 1 页，17 为 16+1，32 为 16+16，33 为 16+16+1
-- 固定 200 DPI 几何：20/20 generated pages 通过，左侧留白均为 22.225mm，与模板差值 0mm
-- 原分辨率全页及 left-edge、DEST/PLT/CTN、Standards crops：目视通过
-- 模板 SHA-256 前后不变
-- Prisma migrate status：36 migrations，数据库已是最新状态
-- scripts/healthcheck.sh：通过
-- 继续会话只读审计：真实 uv 已恢复；成功和 conservation fixture residual 均为 0；artifact contracts 通过；运行日志未发现 Unhandled、FATAL、panic 或 Traceback；git diff --check 通过
+- scripts/verify-unload-report-05.sh：通过；最终制品 test-results/unload-report-05/20260730T022108Z-42114
+- Worker 报告专项：57 passed；Worker 全量：235 passed
+- API lint/typecheck/build：通过；49 suites / 388 unit tests passed；21 suites / 129 E2E tests passed
+- Web lint/typecheck/build：通过；284 tests passed（含 catalog parity、stable-code mapping 与 unmanaged-string i18n 门禁）
+- Prisma migrate status：38 migrations found，Database schema is up to date；05 无 schema migration
+- 真实 nginx/API/BullMQ/Chromium current 8→9→8、layout review 失败保留、守恒失败保留和故意失败 cleanup：通过
+- LibreOffice/PDF/PNG/OCR/几何：36 张非模板生成页均为 A4 landscape，左侧 whitespace 相对模板 22.225mm 的 delta 全为 0.0mm
+- 原尺寸人工视觉检查：模板、8、9、16、17、24、25、真实 API 8/9 共 24 张 full-page/destination-table PNG 通过
+- 模板 SHA-256 before/after 一致：31a613e86a76447bfcbb308f1a23f6072dd1a5381f1992fbc0757a2735c92027
+- scripts/healthcheck.sh：通过；git diff --check：通过；专用 runner storage/generated-files 精确恢复且 residual 为 0
+- This follow-up changed documentation only. No application test, migration, repair
+  `--apply`, production command or external print check was run.
+- Read-only local validation of the runbook SQL returned 0 duplicate rows.
+- Docker one-off repair dry-run completed with `apply=false`,
+  `duplicateGroupCount=0`, `findings=[]`; no write mode was used.
 
 ## 卡在哪里
 
@@ -85,29 +86,35 @@ UNLOAD-REPORT-03 repository work is complete; only the named external verificati
 
 ### External verification
 
-- 在办公室 Windows/Microsoft Excel 打开最终 API 下载文件，记录 Excel 版本、A4 纸张和默认打印机配置，并确认无修复警告。
-- 逐 sheet 对照脱敏 expected list，核对每条 DEST、PLT、CTN 和 total。
-- 使用不超过 16 条的正常业务数据确认只有一个 populated worksheet，Print Preview 只有一张 A4 landscape。
-- 逐页确认左侧白边、边框、目的仓和完整 Palletizing Standards 均可见。
-- Microsoft Print to PDF 后复跑目的仓逐项及左侧 whitespace 检查。
-- 使用办公室实际打印配置并排打印模板和生成报告，由办公室人员确认左侧留白和业务内容。
+- 在办公室 Windows/Microsoft Excel 从唯一 current slot 打开 8 条报告，确认只使用深色主行且白色追加行空白可编辑；重新生成 9 条并确认同一 slot 被替换、顺序为 1–9。
+- 用 16 条 current 报告核对一 worksheet/一张 A4 landscape、逐目的仓/PLT/CTN/total、Standards、左侧白边、Print Preview 和 Microsoft Print to PDF。
+- 在办公室目标打印机实际纸张打印并签字；不得 AutoFit 或手动修改 margin、scale、print area、fill、row mapping。
 
 ### Blockers
 
 - No blocker was reported.
+- Production repair requires access to the production Docker host and an operator-approved
+  winner for every duplicate group. These were not available or requested for execution.
 
 ## 下一步
 
-- 在办公室 Windows/Microsoft Excel 按验证报告完成 Print Preview、Print to PDF 和实际纸张打印签字；全部通过后将 UNLOAD-REPORT-03 更新为 DONE。
+- On the production host, follow
+  `docs/runbooks/current-generated-artifact-production-repair.md` through backup and
+  dry-run only; review every proposed winner before deciding whether to run `--apply`.
 
 ## 不要再踩的坑
 
-- 最终权威工件是 test-results/unload-report-03/20260729T070000Z-final；不得使用存在纸面错序的 050000 工件或缺少 nginx conservation 门禁的 060000 工件。
-- 目的仓槽位必须按物理第 4–19 行自上而下读取，不能恢复为灰行后白行的自洽错序。
-- report_conservation_fault_uv.sh 仅用于临时测试容器；生产代码不得加入故障开关，runner 必须恢复真实 /usr/local/bin/uv。
-- 最新现场失败原件未提供，不能声称已复现用户那一份具体文件。
-- Microsoft Excel、Print to PDF 和办公室实际打印通过前不得将 Task 标记为 DONE。
-- 原始模板必须保持只读及 SHA-256 不变。
+- 只把 test-results/unload-report-05/20260730T022108Z-42114 作为 05 最终成功证据；此前几个 05 run 是视觉门禁调试失败目录。
+- 不要直接运行使用默认 Playwright output 的 e2e-web Compose 命令；本 Session 曾因此误删 gitignored 的旧 03/04 本地二进制/截图目录。使用专用 runner 的唯一 artifact directory 或显式隔离输出挂载。
+- 旧 03 report-8 连续写入 4..11，不能用于外部签字；必须使用 05 新 current 工件。
+- 多页报告第一页 Total 维持既有全局总数、后续页为页小计；05 validator 按该既有合同检查，不要在外部验收时误判为本 Task 新回归。
+- 不要重启 UNLOAD-REPORT-05 开发或标记 DONE；Microsoft Excel、Print to PDF 和实际纸张签字通过前只能保持 CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING。
+- `repair:current-generated-files --apply` processes every duplicate group in the dry-run,
+  not just one container. Stop if any proposed winner is unapproved.
+- Stop on `NO_VERIFIABLE_CURRENT_ARTIFACT`, invalid/shared paths or SHA mismatch. The
+  current tool cannot explicitly select an older winner.
+- Cleanup means status convergence and removal from the office current view. Do not
+  physically delete superseded bytes or generated-file rows; they remain audit evidence.
 
 ## 新会话启动清单
 
@@ -119,7 +126,9 @@ UNLOAD-REPORT-03 repository work is complete; only the named external verificati
 
 ## 权威参考
 
-- `prompts/tasks/UNLOAD-REPORT-03Print Margin and Destination Preservation Regression.md`
+- `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`
 - `prompts/tasks/OPEN-FUNCTIONS-20260707Task Index.md`
 - `docs/reports/project-completion-status.html`
+- `docs/runbooks/current-generated-artifact-production-repair.md`
+- `docs/runbooks/backup-restore.md`
 - `docs/runbooks/business-agent-execution.md`

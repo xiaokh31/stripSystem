@@ -911,6 +911,7 @@ export class UnloadingSummaryService {
       importFileId: record.importFileId,
       containerId: record.containerId,
       fileType: record.fileType,
+      filename: basename(record.storagePath),
       storagePath: record.storagePath,
       fileSha256: record.fileSha256,
       mimeType: record.mimeType,

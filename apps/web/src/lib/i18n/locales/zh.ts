@@ -77,6 +77,8 @@ export const zhMessages = {
   "View all": "查看全部",
   "Unknown dashboard filter": "未知中控台筛选",
   "Selected record": "已选记录",
+  "The selected older file was replaced. The current file is selected instead.":
+    "所选旧文件已被替换，现已改为选中当前文件。",
   "Operations review": "运营复核",
   "Review records": "复核记录",
   "Background job": "后台任务",
@@ -356,8 +358,6 @@ export const zhMessages = {
     "每一行都来自已持久化的修正反馈记录。",
   "Excel files": "Excel 文件",
   "Excel report generated.": "Excel 报告已生成。",
-  "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.":
-    "Excel 报告会使用最新保存的数据库值，并在文件历史中保留每次生成记录。",
   Exception: "异常",
   "Existing import:": "已有导入：",
   "Expected pallets": "预计托数",
@@ -1217,10 +1217,6 @@ export const zhMessages = {
     "使用每月打卡机导出的 .xls 文件。API 会保存原始文件，并拒绝 SHA-256 重复内容。",
   "Job TEST submitted. Waiting for worker result.":
     "任务 TEST 已提交，正在等待 worker 结果。",
-  "Excel report generated. File history refreshed.":
-    "Excel 报告已生成，文件历史已刷新。",
-  "Label PDF generated. File history refreshed.":
-    "标签 PDF 已生成，文件历史已刷新。",
   "Wage record generated. File history refreshed.":
     "工资记录已生成，文件历史已刷新。",
   "Wage record generation failed. Review generated file history for the failed record.":
@@ -2395,4 +2391,19 @@ export const zhMessages = {
   "Wait a moment, then try signing in again.": "请稍候再尝试登录。",
   "Sign-in protection is temporarily unavailable. Try again later.":
     "登录保护服务暂时不可用，请稍后再试。",
+  "Current reports and labels": "当前报告和面单",
+  "Not generated yet": "尚未生成",
+  "Not generated": "未生成",
+  "Excel report generated. Current report replaced.":
+    "Excel 报告已生成，当前报告已替换。",
+  "Label PDF generated. Current label PDF replaced.":
+    "标签 PDF 已生成，当前面单已替换。",
+  "Excel report generation uses the latest saved database values and replaces the current report only after validation succeeds.":
+    "Excel 报告使用最新保存的数据库值，只有校验成功后才替换当前报告。",
+  "The label PDF was not replaced because the container changed during generation. The previous successful label PDF is still available.":
+    "生成期间柜子数据发生变化，当前面单未被替换；上一份成功面单仍可使用。",
+  "Another generation completed at the same time. Refresh to use the current file.":
+    "另一项生成任务已同时完成，请刷新后使用当前文件。",
+  "The current file is ready, but temporary-file cleanup must be retried by the system.":
+    "当前文件已可用，但系统仍需重试临时文件清理。",
 } satisfies Record<MessageKey, string>;

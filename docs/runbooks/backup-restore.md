@@ -5,6 +5,11 @@
 Back up and restore PostgreSQL data and `storage/` artifacts. Both are required
 for a usable system.
 
+For production cleanup of duplicate current unloading reports or pallet-label
+PDFs, use `docs/runbooks/current-generated-artifact-production-repair.md`.
+That procedure requires a matched PostgreSQL and `storage/` backup before its
+explicit apply step; do not substitute manual SQL or file deletion.
+
 ## What To Back Up
 
 - PostgreSQL database.

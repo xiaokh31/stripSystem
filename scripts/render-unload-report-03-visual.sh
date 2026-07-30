@@ -2,10 +2,11 @@
 set -eu
 
 artifact_dir=${1:-}
+task_slug=${REPORT_VISUAL_TASK_SLUG:-unload-report-03}
 case "$artifact_dir" in
-  /workspace/test-results/unload-report-03/*) ;;
+  /workspace/test-results/"$task_slug"/*) ;;
   *)
-    echo "UNLOAD-REPORT-03 artifact path must be a unique run directory." >&2
+    echo "$task_slug artifact path must be a unique run directory." >&2
     exit 1
     ;;
 esac
@@ -27,10 +28,8 @@ mkdir -p "$pdf_dir" "$png_dir" "$text_dir"
 : > "$geometry_tsv"
 : > "$summary"
 
-for required in \
-  template worker-generated-report api-downloaded-report \
-  report-0 report-1 report-8 report-9 report-16 report-17 report-32 report-33 \
-  duplicate-destinations long-english long-cjk multiline long-token last-row-long; do
+required_workbooks=${REPORT_VISUAL_REQUIRED_WORKBOOKS:-"template worker-generated-report api-downloaded-report report-0 report-1 report-8 report-9 report-16 report-17 report-32 report-33 duplicate-destinations long-english long-cjk multiline long-token last-row-long"}
+for required in $required_workbooks; do
   test -s "$source_dir/$required.xlsx" || {
     echo "Missing required visual source: $source_dir/$required.xlsx" >&2
     exit 1
@@ -41,7 +40,7 @@ test -s "$source_dir/visual-fixtures.json"
 render_workbook() {
   workbook=$1
   name=$(basename "$workbook" .xlsx)
-  profile_dir="/tmp/unload-report-03-libreoffice-$name"
+  profile_dir="/tmp/$task_slug-libreoffice-$name"
   mkdir -p "$profile_dir"
   libreoffice "-env:UserInstallation=file://$profile_dir" --headless \
     --convert-to pdf --outdir "$pdf_dir" "$workbook" \
@@ -94,6 +93,8 @@ PY
     pdftotext -f "$page" -l "$page" -layout "$pdf" "$page_text"
     pdftotext -f "$page" -l "$page" -x 620 -y 20 -W 222 -H 410 \
       -layout "$pdf" "$text_dir/$name-page-$page-destination.txt"
+    pdftotext -f "$page" -l "$page" -x 620 -y 20 -W 140 -H 410 \
+      -layout "$pdf" "$text_dir/$name-page-$page-destination-n.txt"
     for required_text in "Palletizing Standards" "1.8M" "2.0M" "when stored."; do
       grep -Fq "$required_text" "$page_text" || {
         echo "$name page $page: missing $required_text" >&2
@@ -203,45 +204,95 @@ for name, case in manifest["cases"].items():
         raise SystemExit(f"{name}: manifest/PDF page mismatch")
     if case["expectedDestinationCount"] != case["writtenDestinationCount"]:
         raise SystemExit(f"{name}: destination conservation mismatch")
+    page_evidence = case.get("pageEvidence")
+    if page_evidence is not None:
+        layout_modes = case.get("layoutModes")
+        if layout_modes != [page["layoutMode"] for page in page_evidence]:
+            raise SystemExit(f"{name}: layout mode evidence mismatch")
+        if sum(page["expectedDestinationCount"] for page in page_evidence) != case[
+            "expectedDestinationCount"
+        ]:
+            raise SystemExit(f"{name}: page expected count mismatch")
+        for page in page_evidence:
+            count = page["expectedDestinationCount"]
+            expected_mode = "PRIMARY_ONLY" if count <= 8 else "EXPANDED"
+            expected_rows = (
+                list(range(4, 4 + count * 2, 2))
+                if count <= 8
+                else list(range(4, 4 + count))
+            )
+            if (
+                page["layoutMode"] != expected_mode
+                or page["expectedPhysicalRows"] != expected_rows
+                or page["writtenPhysicalRows"] != expected_rows
+                or page["writtenDestinationCount"] != count
+            ):
+                raise SystemExit(f"{name}: adaptive physical row evidence mismatch")
     rows_by_page = {}
     for row in case["canonicalRows"]:
         rows_by_page.setdefault(row["page"], []).append(row)
     if [len(rows_by_page.get(page, [])) for page in range(1, pages + 1)] != case["pageRows"]:
         raise SystemExit(f"{name}: destination page distribution mismatch")
+    if page_evidence is not None:
+        for page in page_evidence:
+            actual_rows = [
+                row["excelRow"]
+                for row in rows_by_page.get(page["page"], [])
+            ]
+            if actual_rows != page["writtenPhysicalRows"]:
+                raise SystemExit(f"{name}: canonical physical rows mismatch")
     for page, expected_rows in rows_by_page.items():
         expected_rows = sorted(expected_rows, key=lambda row: row["excelRow"])
         rendered = (
             text / f"{name}-page-{page}-destination.txt"
         ).read_text(encoding="utf-8")
+        n_rendered = (
+            text / f"{name}-page-{page}-destination-n.txt"
+        ).read_text(encoding="utf-8")
         header_end = rendered.find("CTN")
         cursor = header_end + len("CTN") if header_end >= 0 else 0
+        n_header_end = n_rendered.find("DEST")
+        n_cursor = n_header_end + len("DEST") if n_header_end >= 0 else 0
         first_chunks = [_destination_chunks(row["destination"])[0] for row in expected_rows]
         for index, row in enumerate(expected_rows):
             chunks = _destination_chunks(row["destination"])
             start = rendered.find(chunks[0], cursor)
+            n_start = n_rendered.find(chunks[0], n_cursor)
             if start < 0:
                 raise SystemExit(f"{name} page {page}: destination missing from N region")
+            if n_start < 0:
+                raise SystemExit(f"{name} page {page}: destination missing from N-only region")
             if index + 1 < len(expected_rows):
                 end = rendered.find(first_chunks[index + 1], start + len(chunks[0]))
+                n_end = n_rendered.find(
+                    first_chunks[index + 1],
+                    n_start + len(chunks[0]),
+                )
                 if end < 0:
                     raise SystemExit(f"{name} page {page}: destination order mismatch")
+                if n_end < 0:
+                    raise SystemExit(f"{name} page {page}: N-only destination order mismatch")
             else:
                 end = len(rendered)
-            row_text = rendered[start:end]
+                n_end = len(n_rendered)
+            row_text = n_rendered[n_start:n_end]
             chunk_cursor = 0
             for chunk in chunks:
-                chunk_cursor = row_text.find(chunk, chunk_cursor)
-                if chunk_cursor < 0:
+                flexible_chunk = r"\s*".join(re.escape(character) for character in chunk)
+                match = re.search(flexible_chunk, row_text[chunk_cursor:])
+                if match is None:
                     raise SystemExit(
                         f"{name} page {page}: destination text clipped in N region"
                     )
-                chunk_cursor += len(chunk)
+                chunk_cursor += match.end()
+            full_row_text = rendered[start:end]
             for value in (row["finalPallets"], row["totalCartons"]):
-                if not re.search(rf"(?<!\d){value}(?!\d)", row_text):
+                if not re.search(rf"(?<!\d){value}(?!\d)", full_row_text):
                     raise SystemExit(
                         f"{name} page {page}: PLT/CTN missing beside destination"
                     )
             cursor = end
+            n_cursor = n_end
 
 output.write_text(
     json.dumps(

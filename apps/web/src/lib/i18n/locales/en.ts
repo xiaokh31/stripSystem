@@ -78,6 +78,8 @@ export const enMessages = {
   "View all": "View all",
   "Unknown dashboard filter": "Unknown dashboard filter",
   "Selected record": "Selected record",
+  "The selected older file was replaced. The current file is selected instead.":
+    "The selected older file was replaced. The current file is selected instead.",
   "Operations review": "Operations review",
   "Review records": "Review records",
   "Background job": "Background job",
@@ -368,8 +370,6 @@ export const enMessages = {
     "Every row is loaded from persisted correction feedback records.",
   "Excel files": "Excel files",
   "Excel report generated.": "Excel report generated.",
-  "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.":
-    "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.",
   Exception: "Exception",
   "Existing import:": "Existing import:",
   "Expected pallets": "Expected pallets",
@@ -1296,10 +1296,6 @@ export const enMessages = {
     "Use the monthly time-clock .xls export. The API stores the original file and rejects duplicate SHA-256 content.",
   "Job TEST submitted. Waiting for worker result.":
     "Job TEST submitted. Waiting for worker result.",
-  "Excel report generated. File history refreshed.":
-    "Excel report generated. File history refreshed.",
-  "Label PDF generated. File history refreshed.":
-    "Label PDF generated. File history refreshed.",
   "Wage record generated. File history refreshed.":
     "Wage record generated. File history refreshed.",
   "Wage record generation failed. Review generated file history for the failed record.":
@@ -2589,6 +2585,21 @@ export const enMessages = {
     "Wait a moment, then try signing in again.",
   "Sign-in protection is temporarily unavailable. Try again later.":
     "Sign-in protection is temporarily unavailable. Try again later.",
+  "Current reports and labels": "Current reports and labels",
+  "Not generated yet": "Not generated yet",
+  "Not generated": "Not generated",
+  "Excel report generated. Current report replaced.":
+    "Excel report generated. Current report replaced.",
+  "Label PDF generated. Current label PDF replaced.":
+    "Label PDF generated. Current label PDF replaced.",
+  "Excel report generation uses the latest saved database values and replaces the current report only after validation succeeds.":
+    "Excel report generation uses the latest saved database values and replaces the current report only after validation succeeds.",
+  "The label PDF was not replaced because the container changed during generation. The previous successful label PDF is still available.":
+    "The label PDF was not replaced because the container changed during generation. The previous successful label PDF is still available.",
+  "Another generation completed at the same time. Refresh to use the current file.":
+    "Another generation completed at the same time. Refresh to use the current file.",
+  "The current file is ready, but temporary-file cleanup must be retried by the system.":
+    "The current file is ready, but temporary-file cleanup must be retried by the system.",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

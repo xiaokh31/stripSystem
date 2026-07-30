@@ -215,6 +215,7 @@ function fileFixture(): UnloadingSummaryGeneratedFileResponse {
     createdAt: "2026-06-30T20:00:00.000Z",
     downloadUrl: "/api/unloading-summary/exports/file-1/download",
     errorMessage: null,
+    filename: "unloading-summary.xlsx",
     fileSha256: "abc123",
     fileSizeBytes: "1536",
     fileType: "MONTHLY_UNLOADING_SUMMARY_XLSX",

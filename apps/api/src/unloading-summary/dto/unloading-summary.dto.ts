@@ -13,6 +13,8 @@ export class ExportUnloadingSummaryDto {
 
 export interface UnloadingSummaryGeneratedFileDto extends GeneratedFileResponseDto {
   downloadUrl: string;
+  errorMessage: string | null;
+  storagePath: string;
 }
 
 export interface UnloadingSummaryAvailableMonthDto {

@@ -238,6 +238,31 @@ services:
       - ../../test-results:/workspace/test-results
     profiles: ["report-visual"]
 
+  unload-report-05-visual-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/report-visual-test.Dockerfile
+    image: bestar_report_visual_test_local:latest
+    working_dir: /workspace
+    entrypoint: ["/usr/local/bin/render-unload-report-03-visual"]
+    environment:
+      REPORT_VISUAL_TASK_SLUG: unload-report-05
+      REPORT_VISUAL_REQUIRED_WORKBOOKS: >-
+        template worker-generated-report api-downloaded-report
+        api-downloaded-report-8 api-downloaded-report-9
+        report-0 report-1 report-2 report-8 report-9 report-10 report-16
+        report-17 report-24 report-25 report-32 report-33
+        duplicate-primary duplicate-expanded
+        long-english-primary long-english-expanded
+        long-cjk-primary long-cjk-expanded
+        multiline-primary multiline-expanded
+        long-token-primary long-token-expanded
+        missing-destination-primary missing-destination-expanded
+        last-row-primary last-row-expanded
+    volumes:
+      - ../../test-results:/workspace/test-results
+    profiles: ["report-visual"]
+
   wage-visual-test:
     build:
       context: ../..

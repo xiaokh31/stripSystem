@@ -3,12 +3,11 @@ export interface GeneratedFileResponseDto {
   importFileId: string | null;
   containerId: string | null;
   fileType: string;
-  storagePath: string;
+  filename: string;
   fileSha256: string | null;
   mimeType: string | null;
   fileSizeBytes: string | null;
   status: string;
-  errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +18,15 @@ export interface GenerateReportResponseDto {
     expectedDestinationCount: number;
     writtenDestinationCount: number;
     orderedDestinationDigest: string;
+    layoutModes: Array<'PRIMARY_ONLY' | 'EXPANDED'>;
+    pageEvidence: Array<{
+      page: number;
+      layoutMode: 'PRIMARY_ONLY' | 'EXPANDED';
+      expectedDestinationCount: number;
+      writtenDestinationCount: number;
+      expectedPhysicalRows: number[];
+      writtenPhysicalRows: number[];
+    }>;
   };
   warnings: unknown[];
   errors: unknown[];
@@ -26,6 +34,12 @@ export interface GenerateReportResponseDto {
 
 export interface GeneratedFileListResponseDto {
   items: GeneratedFileResponseDto[];
+  selection: {
+    fileType: string;
+    requestedFileId: string;
+    resolvedFileId: string;
+    status: 'SUPERSEDED_REPLACED';
+  } | null;
 }
 
 export interface GeneratedFileDownloadDto {

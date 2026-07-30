@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   StreamableFile,
 } from '@nestjs/common';
@@ -57,8 +58,11 @@ export class ReportsController {
 
   @Get(':id/files')
   @RequirePermissions(...ROUTE_PERMISSIONS.reports.listFiles)
-  listFiles(@Param('id') id: string): Promise<GeneratedFileListResponseDto> {
-    return this.reportsService.listFiles(id);
+  listFiles(
+    @Param('id') id: string,
+    @Query('selectedFileId') selectedFileId?: string,
+  ): Promise<GeneratedFileListResponseDto> {
+    return this.reportsService.listFiles(id, selectedFileId);
   }
 
   @Get(':id/files/:fileId/download')

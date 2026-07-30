@@ -19,22 +19,27 @@ const execFileAsync = promisify(execFile);
 
 interface GeneratedFile {
   containerId: string;
-  errorMessage: string | null;
+  filename: string;
   fileSha256: string | null;
   fileSizeBytes: string | null;
   fileType: string;
   id: string;
   mimeType: string | null;
   status: string;
-  storagePath: string;
 }
 
 interface PackageInspection {
   allDestinationCellsMirrored: boolean;
+  allDestinationRowsKeepVisibility: boolean;
+  allDestinationRowStylesMatchTemplate: boolean;
+  allLayoutAssignmentsMatch: boolean;
   allLayoutsMatchTemplate: boolean;
   allPageContractsMatch: boolean;
   allRowsNeverShrink: boolean;
   allRunSequencesMatchTemplate: boolean;
+  allSheetEditabilityMatchesTemplate: boolean;
+  allUnusedDestinationRowsEmpty: boolean;
+  allUnusedRowHeightsMatchTemplate: boolean;
   canonicalRows: CanonicalReportRow[];
   destinations: Array<Array<{ cell: string; value: string }>>;
   dimension: string;
@@ -43,11 +48,23 @@ interface PackageInspection {
   fontSizes: string[];
   newlineCount: number;
   orderedDestinationDigest: string;
+  layoutModes: Array<"PRIMARY_ONLY" | "EXPANDED">;
+  pageEvidence: ReportPageEvidence[];
   runCount: number;
   standardsHeightAtLeastTemplate: boolean;
   standardsHeights: number[];
   templateStandardsHeight: number;
   worksheetCount: number;
+}
+
+interface ReportPageEvidence {
+  page: number;
+  layoutMode: "PRIMARY_ONLY" | "EXPANDED";
+  expectedDestinationCount: number;
+  writtenDestinationCount: number;
+  expectedPhysicalRows: number[];
+  writtenPhysicalRows: number[];
+  unusedRowsEmpty?: boolean;
 }
 
 interface CanonicalReportRow {
@@ -171,33 +188,42 @@ test("real API download preserves Palletizing Standards rich text and report aud
       expectedDestinationCount: number;
       orderedDestinationDigest: string;
       writtenDestinationCount: number;
+      layoutModes: Array<"PRIMARY_ONLY" | "EXPANDED">;
+      pageEvidence: ReportPageEvidence[];
     };
     warnings: unknown[];
   };
   expect(reportBody.errors).toEqual([]);
   expect(reportBody.generatedFile).toMatchObject({
     containerId: container!.id,
-    errorMessage: null,
+    filename: expect.stringMatching(/\.xlsx$/),
     fileType: "EXCEL_REPORT",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     status: "GENERATED",
   });
-  expect(reportBody.generatedFile.storagePath).toContain("/storage/reports/");
+  expect(reportBody.generatedFile).not.toHaveProperty("storagePath");
+  expect(reportBody.generatedFile).not.toHaveProperty("errorMessage");
   expect(reportBody.generatedFile.fileSha256).toMatch(/^[a-f0-9]{64}$/);
   expect(Number(reportBody.generatedFile.fileSizeBytes)).toBeGreaterThan(0);
   expect(reportBody.reportEvidence).toEqual({
     expectedDestinationCount: expectedCanonicalRows.length,
     orderedDestinationDigest: expectedOrderedDestinationDigest,
     writtenDestinationCount: expectedCanonicalRows.length,
+    layoutModes: ["EXPANDED"],
+    pageEvidence: [
+      {
+        page: 1,
+        layoutMode: "EXPANDED",
+        expectedDestinationCount: 9,
+        writtenDestinationCount: 9,
+        expectedPhysicalRows: [4, 5, 6, 7, 8, 9, 10, 11, 12],
+        writtenPhysicalRows: [4, 5, 6, 7, 8, 9, 10, 11, 12],
+      },
+    ],
   });
   await writeFile(
     path.join(artifactDir, "generated-file-id.txt"),
     `${reportBody.generatedFile.id}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(artifactDir, "generated-storage-path.txt"),
-    `${reportBody.generatedFile.storagePath}\n`,
     "utf8",
   );
 
@@ -227,15 +253,33 @@ test("real API download preserves Palletizing Standards rich text and report aud
   const packageInspection = await inspectReportPackage(reportPath);
   expect(packageInspection).toMatchObject({
     allDestinationCellsMirrored: true,
+    allDestinationRowsKeepVisibility: true,
+    allDestinationRowStylesMatchTemplate: true,
+    allLayoutAssignmentsMatch: true,
     allLayoutsMatchTemplate: true,
     allPageContractsMatch: true,
     allRowsNeverShrink: true,
     allRunSequencesMatchTemplate: true,
+    allSheetEditabilityMatchesTemplate: true,
+    allUnusedDestinationRowsEmpty: true,
+    allUnusedRowHeightsMatchTemplate: true,
     dimension: "B1:P25",
     endsWithWhenStored: true,
     standardsHeightAtLeastTemplate: true,
     worksheetCount: 1,
   });
+  expect(packageInspection.layoutModes).toEqual(["EXPANDED"]);
+  expect(packageInspection.pageEvidence).toEqual([
+    {
+      page: 1,
+      layoutMode: "EXPANDED",
+      expectedDestinationCount: 9,
+      writtenDestinationCount: 9,
+      expectedPhysicalRows: [4, 5, 6, 7, 8, 9, 10, 11, 12],
+      writtenPhysicalRows: [4, 5, 6, 7, 8, 9, 10, 11, 12],
+      unusedRowsEmpty: true,
+    },
+  ]);
   expect(packageInspection.runCount).toBeGreaterThan(1);
   expect(packageInspection.worksheetCount).toBeGreaterThan(0);
   expect(packageInspection.fontNames).toEqual(expect.arrayContaining(["Arial", "宋体"]));
@@ -354,16 +398,11 @@ async function verifyFailedRegenerationPreservesSuccessfulHistory({
     (item) => item.id === oldGeneratedFile.id,
   );
   expect(preserved).toEqual(oldGeneratedFile);
-  const failedRecord = filesAfterFailure.items.find(
-    (item) => item.id === failedJob.generatedFileId,
-  );
-  expect(failedRecord).toMatchObject({
-    errorMessage: expectedFailureCode,
-    fileSha256: null,
-    fileSizeBytes: null,
-    fileType: "EXCEL_REPORT",
-    status: "FAILED",
-  });
+  expect(
+    filesAfterFailure.items.some(
+      (item) => item.id === failedJob.generatedFileId,
+    ),
+  ).toBe(false);
 
   const preservedDownload = await request.get(
     `/api/containers/${containerId}/files/${oldGeneratedFile.id}/download`,
@@ -376,19 +415,14 @@ async function verifyFailedRegenerationPreservesSuccessfulHistory({
 
   await writeFile(
     path.join(artifactDir, "failed-generated-file-id.txt"),
-    `${failedRecord!.id}\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(artifactDir, "failed-generated-storage-path.txt"),
-    `${failedRecord!.storagePath}\n`,
+    `${failedJob.generatedFileId}\n`,
     "utf8",
   );
   await writeFile(
     path.join(artifactDir, "failed-regeneration-verification.json"),
     `${JSON.stringify(
       {
-        failedGeneratedFileId: failedRecord!.id,
+        failedGeneratedFileId: failedJob.generatedFileId,
         failureCode: failure.code,
         failureStage: failure.details?.stage,
         jobAttempts: failedJob.attempts,

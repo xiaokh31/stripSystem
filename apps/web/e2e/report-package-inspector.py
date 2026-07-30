@@ -13,6 +13,8 @@ NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 # This inspector is deliberately independent of the Worker module and reads the
 # printed table in physical top-to-bottom order.
 DESTINATION_ROWS = tuple(range(4, 20))
+BUSINESS_COLUMNS = ("C", "N", "O", "P")
+PRIMARY_ROWS = tuple(range(4, 20, 2))
 
 
 def local_name(tag: str) -> str:
@@ -87,6 +89,65 @@ def cell_text(archive: ZipFile, sheet: ET.Element, coordinate: str) -> str:
     shared_strings = ET.fromstring(archive.read("xl/sharedStrings.xml"))
     shared = shared_strings.findall("m:si", NS)[int(value.text)]
     return "".join(node.text or "" for node in shared.findall(".//m:t", NS))
+
+
+def cell_style_id(sheet: ET.Element, coordinate: str) -> int:
+    cell = sheet.find(f".//m:c[@r='{coordinate}']", NS)
+    return int(cell.attrib.get("s", "0")) if cell is not None else 0
+
+
+def style_signatures(archive: ZipFile) -> list[object]:
+    styles = ET.fromstring(archive.read("xl/styles.xml"))
+    cell_formats = styles.find("m:cellXfs", NS)
+    if cell_formats is None:
+        raise AssertionError("Workbook has no cellXfs style table")
+    signatures: list[object] = []
+    for cell_format in cell_formats:
+        signatures.append(
+            {
+                "borderId": cell_format.attrib.get("borderId", "0"),
+                "fillId": cell_format.attrib.get("fillId", "0"),
+                "fontId": cell_format.attrib.get("fontId", "0"),
+                "numFmtId": cell_format.attrib.get("numFmtId", "0"),
+                "alignment": (
+                    normalized_attribute_items(alignment.attrib)
+                    if (alignment := cell_format.find("m:alignment", NS))
+                    is not None
+                    else []
+                ),
+                "protection": (
+                    normalized_attribute_items(protection.attrib)
+                    if (protection := cell_format.find("m:protection", NS))
+                    is not None
+                    else []
+                ),
+            }
+        )
+    return signatures
+
+
+def row_contract(
+    sheet: ET.Element,
+    row: int,
+    styles: list[object],
+) -> dict[str, object]:
+    row_node = sheet.find(f"m:sheetData/m:row[@r='{row}']", NS)
+    return {
+        "height": (
+            round(float(row_node.attrib["ht"]), 12)
+            if row_node is not None and "ht" in row_node.attrib
+            else None
+        ),
+        "hidden": (
+            row_node.attrib.get("hidden", "0") in {"1", "true"}
+            if row_node is not None
+            else False
+        ),
+        "styles": {
+            column: styles[cell_style_id(sheet, f"{column}{row}")]
+            for column in BUSINESS_COLUMNS
+        },
+    }
 
 
 def column_widths(sheet: ET.Element) -> dict[str, float | None]:
@@ -225,12 +286,25 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
         template_sheet = template_sheets[0]
         expected_runs = standards_runs(template_archive, template_sheet)
         expected_layout = sheet_layout(template_sheet)
+        template_style_signatures = style_signatures(template_archive)
+        expected_destination_row_contracts = {
+            row: row_contract(
+                template_sheet,
+                row,
+                template_style_signatures,
+            )
+            for row in DESTINATION_ROWS
+        }
+        expected_sheet_protection = (
+            template_sheet.find("m:sheetProtection", NS) is not None
+        )
         expected_layout["printArea"] = print_areas(
             template_archive, len(template_sheets)
         )[0]
 
     with ZipFile(generated_path) as generated_archive:
         generated_sheets = populated_sheets(generated_archive)
+        generated_style_signatures = style_signatures(generated_archive)
         runs = [standards_runs(generated_archive, sheet) for sheet in generated_sheets]
         layouts = [sheet_layout(sheet) for sheet in generated_sheets]
         destinations = [
@@ -246,7 +320,113 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
         ]
         canonical_rows: list[dict[str, object]] = []
         destination_cells_mirrored = True
-        for sheet in generated_sheets:
+        layout_modes: list[str] = []
+        page_evidence: list[dict[str, object]] = []
+        all_layout_assignments_match = True
+        all_unused_destination_rows_empty = True
+        all_destination_row_styles_match_template = True
+        all_unused_row_heights_match_template = True
+        all_destination_rows_keep_visibility = True
+        all_sheet_editability_matches_template = True
+        for page, sheet in enumerate(generated_sheets, start=1):
+            all_sheet_editability_matches_template = (
+                all_sheet_editability_matches_template
+                and (sheet.find("m:sheetProtection", NS) is not None)
+                == expected_sheet_protection
+            )
+            row_values = {
+                row: {
+                    column: cell_text(
+                        generated_archive,
+                        sheet,
+                        f"{column}{row}",
+                    )
+                    for column in BUSINESS_COLUMNS
+                }
+                for row in DESTINATION_ROWS
+            }
+            written_rows = tuple(
+                row
+                for row in DESTINATION_ROWS
+                if any(row_values[row].values())
+            )
+            destination_rows = tuple(
+                row for row in DESTINATION_ROWS if row_values[row]["N"]
+            )
+            count = len(destination_rows)
+            mode = "PRIMARY_ONLY" if count <= 8 else "EXPANDED"
+            expected_rows = (
+                PRIMARY_ROWS[:count]
+                if mode == "PRIMARY_ONLY"
+                else DESTINATION_ROWS[:count]
+            )
+            layout_modes.append(mode)
+            page_layout_matches = (
+                written_rows == expected_rows
+                and destination_rows == expected_rows
+            )
+            all_layout_assignments_match = (
+                all_layout_assignments_match and page_layout_matches
+            )
+            unused_rows = tuple(
+                row for row in DESTINATION_ROWS if row not in expected_rows
+            )
+            unused_rows_empty = all(
+                not any(row_values[row].values()) for row in unused_rows
+            )
+            all_unused_destination_rows_empty = (
+                all_unused_destination_rows_empty and unused_rows_empty
+            )
+            page_styles_match = all(
+                row_contract(
+                    sheet,
+                    row,
+                    generated_style_signatures,
+                )["styles"]
+                == expected_destination_row_contracts[row]["styles"]
+                for row in DESTINATION_ROWS
+            )
+            all_destination_row_styles_match_template = (
+                all_destination_row_styles_match_template
+                and page_styles_match
+            )
+            unused_heights_match = all(
+                row_contract(
+                    sheet,
+                    row,
+                    generated_style_signatures,
+                )["height"]
+                == expected_destination_row_contracts[row]["height"]
+                for row in unused_rows
+            )
+            all_unused_row_heights_match_template = (
+                all_unused_row_heights_match_template
+                and unused_heights_match
+            )
+            rows_keep_visibility = all(
+                row_contract(
+                    sheet,
+                    row,
+                    generated_style_signatures,
+                )["hidden"]
+                == expected_destination_row_contracts[row]["hidden"]
+                for row in DESTINATION_ROWS
+            )
+            all_destination_rows_keep_visibility = (
+                all_destination_rows_keep_visibility
+                and rows_keep_visibility
+            )
+            page_evidence.append(
+                {
+                    "page": page,
+                    "layoutMode": mode,
+                    "expectedDestinationCount": len(expected_rows),
+                    "writtenDestinationCount": len(destination_rows),
+                    "expectedPhysicalRows": list(expected_rows),
+                    "writtenPhysicalRows": list(destination_rows),
+                    "unusedRowsEmpty": unused_rows_empty,
+                }
+            )
             for row in DESTINATION_ROWS:
                 destination = cell_text(generated_archive, sheet, f"N{row}")
                 if not destination:
@@ -324,10 +504,22 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
     ).hexdigest()
     return {
         "allLayoutsMatchTemplate": all(immutable_layouts),
+        "allLayoutAssignmentsMatch": all_layout_assignments_match,
         "allPageContractsMatch": all(page_contracts),
         "allRowsNeverShrink": all(rows_safe),
         "allRunSequencesMatchTemplate": all(run == expected_runs for run in runs),
         "allDestinationCellsMirrored": destination_cells_mirrored,
+        "allDestinationRowsKeepVisibility": all_destination_rows_keep_visibility,
+        "allDestinationRowStylesMatchTemplate": (
+            all_destination_row_styles_match_template
+        ),
+        "allSheetEditabilityMatchesTemplate": (
+            all_sheet_editability_matches_template
+        ),
+        "allUnusedDestinationRowsEmpty": all_unused_destination_rows_empty,
+        "allUnusedRowHeightsMatchTemplate": (
+            all_unused_row_heights_match_template
+        ),
         "canonicalRows": canonical_rows,
         "dimension": expected_layout["dimension"],
         "destinations": destinations,
@@ -336,6 +528,8 @@ def inspect(generated_path: Path, template_path: Path) -> dict[str, object]:
         "fontSizes": font_sizes,
         "newlineCount": text.count("\n"),
         "orderedDestinationDigest": ordered_destination_digest,
+        "layoutModes": layout_modes,
+        "pageEvidence": page_evidence,
         "runCount": len(expected_runs),
         "standardsHeightAtLeastTemplate": all(
             height >= expected_standards_height for height in standards_heights

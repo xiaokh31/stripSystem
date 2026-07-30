@@ -112,7 +112,7 @@ export function generationActionNotice(
 
   if (action === "report") {
     return t(
-      "Excel report generation uses the latest saved database values and preserves each generation attempt in file history.",
+      "Excel report generation uses the latest saved database values and replaces the current report only after validation succeeds.",
     );
   }
 
@@ -149,6 +149,21 @@ export function generationFailureMessage(
       "The report needs office review because unusually long content cannot fit the approved single-page layout safely. The previous successful report is still available.",
     );
   }
+  if (action === "labels" && code === "LABEL_GENERATION_CONCURRENT_CHANGE") {
+    return t(
+      "The label PDF was not replaced because the container changed during generation. The previous successful label PDF is still available.",
+    );
+  }
+  if (code === "CURRENT_ARTIFACT_CONFLICT") {
+    return t(
+      "Another generation completed at the same time. Refresh to use the current file.",
+    );
+  }
+  if (code === "CURRENT_ARTIFACT_CLEANUP_PENDING") {
+    return t(
+      "The current file is ready, but temporary-file cleanup must be retried by the system.",
+    );
+  }
 
   return t("Generation failed.");
 }
@@ -181,8 +196,18 @@ export function formatFileSizeBytes(value: string | null): string {
 export function newestGeneratedFiles(
   files: readonly GeneratedFileResponse[],
 ): GeneratedFileResponse[] {
-  return [...files].sort(
+  const newest = [...files]
+    .filter(
+      (file) =>
+        file.status === "GENERATED" &&
+        (file.fileType === "EXCEL_REPORT" ||
+          file.fileType === "PALLET_LABEL_PDF"),
+    )
+    .sort(
     (left, right) =>
       new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
+  return ["EXCEL_REPORT", "PALLET_LABEL_PDF"]
+    .map((fileType) => newest.find((file) => file.fileType === fileType))
+    .filter((file): file is GeneratedFileResponse => Boolean(file));
 }

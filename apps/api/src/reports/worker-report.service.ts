@@ -24,6 +24,8 @@ export interface WorkerReportPayload {
     writtenDestinationCount?: number;
     totalDestinationCount?: number;
     orderedDestinationDigest?: string;
+    layoutModes?: unknown;
+    pageEvidence?: unknown;
     warnings?: unknown[];
     errors?: unknown[];
     [key: string]: unknown;

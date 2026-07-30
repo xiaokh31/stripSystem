@@ -44,6 +44,8 @@ type ContainerDetailState =
       container: ContainerDetailResponse;
       files: GeneratedFileResponse[];
       filesError: ApiClientError | null;
+      resolvedSelectedFileId?: string;
+      selectedFileWasReplaced: boolean;
       ok: true;
     }
   | {
@@ -70,7 +72,7 @@ export default async function ContainerDetailPage({
   const selectedFileId = firstValue(requestedSearchParams.fileId)?.trim();
   const locale = await getServerLocale();
   const { t } = createTranslator(locale);
-  const state = await loadContainerDetail(id);
+  const state = await loadContainerDetail(id, selectedFileId);
 
   if (!state.ok) {
     return <ContainerDetailError error={state.error} id={id} locale={locale} />;
@@ -273,7 +275,8 @@ export default async function ContainerDetailPage({
             containerId={state.container.id}
             containerStatus={state.container.status}
             initialFiles={state.files}
-            selectedFileId={selectedFileId}
+            selectedFileId={state.resolvedSelectedFileId ?? selectedFileId}
+            selectedFileWasReplaced={state.selectedFileWasReplaced}
           />
         </div>
       )}
@@ -281,20 +284,40 @@ export default async function ContainerDetailPage({
   );
 }
 
-async function loadContainerDetail(id: string): Promise<ContainerDetailState> {
+async function loadContainerDetail(
+  id: string,
+  selectedFileId?: string,
+): Promise<ContainerDetailState> {
   try {
     const apiOptions = await getServerApiOptions();
     const container = await getContainerDetail(id, apiOptions);
     let files: GeneratedFileResponse[] = [];
     let filesError: ApiClientError | null = null;
+    let resolvedSelectedFileId: string | undefined;
+    let selectedFileWasReplaced = false;
 
     try {
-      files = (await getContainerGeneratedFiles(id, apiOptions)).items;
+      const response = await getContainerGeneratedFiles(
+        id,
+        selectedFileId,
+        apiOptions,
+      );
+      files = response.items;
+      resolvedSelectedFileId = response.selection?.resolvedFileId;
+      selectedFileWasReplaced =
+        response.selection?.status === "SUPERSEDED_REPLACED";
     } catch (error) {
       filesError = toApiClientError(error);
     }
 
-    return { container, files, filesError, ok: true };
+    return {
+      container,
+      files,
+      filesError,
+      ok: true,
+      resolvedSelectedFileId,
+      selectedFileWasReplaced,
+    };
   } catch (error) {
     return { error: toApiClientError(error), ok: false };
   }

@@ -884,6 +884,8 @@ export interface UnloadingWageSettlementListResponse {
 
 export interface UnloadingSummaryGeneratedFileResponse extends GeneratedFileResponse {
   downloadUrl: string;
+  errorMessage: string | null;
+  storagePath: string;
 }
 
 export interface UnloadingSummaryAvailableMonthResponse {
@@ -1614,18 +1616,23 @@ export interface GeneratedFileResponse {
   importFileId: string | null;
   containerId: string | null;
   fileType: string;
-  storagePath: string;
+  filename: string;
   fileSha256: string | null;
   mimeType: string | null;
   fileSizeBytes: string | null;
   status: string;
-  errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface GeneratedFileListResponse {
   items: GeneratedFileResponse[];
+  selection: {
+    fileType: string;
+    requestedFileId: string;
+    resolvedFileId: string;
+    status: "SUPERSEDED_REPLACED";
+  } | null;
 }
 
 export interface GenerateReportResponse {
@@ -2944,10 +2951,14 @@ export function listCorrections(
 
 export function getContainerGeneratedFiles(
   id: string,
+  selectedFileId?: string,
   options: ApiClientOptions = {},
 ): Promise<GeneratedFileListResponse> {
+  const query = selectedFileId
+    ? `?selectedFileId=${encodeURIComponent(selectedFileId)}`
+    : "";
   return createApiClient(options).get<GeneratedFileListResponse>(
-    `/containers/${encodeURIComponent(id)}/files`,
+    `/containers/${encodeURIComponent(id)}/files${query}`,
   );
 }
 

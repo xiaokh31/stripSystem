@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,6 +32,10 @@ import {
   isContainerGenerationLocked,
 } from '../common/container-lifecycle';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  CurrentArtifactRecord,
+  CurrentArtifactService,
+} from '../generated-files/current-artifact.service';
 
 interface ContainerRecord {
   id: string;
@@ -64,50 +69,23 @@ interface ContainerDestinationRecord {
   }>;
 }
 
-interface GeneratedFileRecord {
-  id: string;
-  importFileId: string | null;
-  containerId: string | null;
-  fileType: string;
-  storagePath: string;
-  fileSha256: string | null;
-  mimeType: string | null;
-  fileSizeBytes: bigint | number | string | null;
-  status: string;
-  errorMessage: string | null;
-  generatedById?: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
-
-interface GeneratedFileUpsertInput {
-  fileType: string;
-  storagePath: string;
-  fileSha256: string | null;
-  mimeType: string;
-  fileSizeBytes: bigint | null;
-  status: string;
-  errorMessage: string | null;
-  generatedById: string;
-}
-
-interface GeneratedFileCreateData extends GeneratedFileUpsertInput {
-  importFileId: string | null;
-  containerId: string;
-}
-
-interface GeneratedFileWriteClient {
-  generatedFile: {
-    create(args: {
-      data: GeneratedFileCreateData;
-    }): Promise<GeneratedFileRecord>;
-  };
-}
+type GeneratedFileRecord = CurrentArtifactRecord;
 
 interface ReportEvidence {
   expectedDestinationCount: number;
   writtenDestinationCount: number;
   orderedDestinationDigest: string;
+  layoutModes: Array<'PRIMARY_ONLY' | 'EXPANDED'>;
+  pageEvidence: ReportPageEvidence[];
+}
+
+interface ReportPageEvidence {
+  page: number;
+  layoutMode: 'PRIMARY_ONLY' | 'EXPANDED';
+  expectedDestinationCount: number;
+  writtenDestinationCount: number;
+  expectedPhysicalRows: number[];
+  writtenPhysicalRows: number[];
 }
 
 interface SafeReportFailure {
@@ -120,7 +98,9 @@ const EXCEL_REPORT_MIME_TYPE =
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
   private readonly storageRoot: string;
+  private readonly currentArtifacts = new CurrentArtifactService();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -234,15 +214,57 @@ export class ReportsService {
     };
   }
 
-  async listFiles(id: string): Promise<GeneratedFileListResponseDto> {
+  async listFiles(
+    id: string,
+    selectedFileId?: string,
+  ): Promise<GeneratedFileListResponseDto> {
     await this.findContainerOrThrow(id);
     const records = (await this.prisma.generatedFile.findMany({
-      where: { containerId: id },
-      orderBy: { updatedAt: 'desc' },
+      where: {
+        containerId: id,
+        status: GeneratedFileStatus.GENERATED,
+        fileType: {
+          in: [
+            GeneratedFileType.EXCEL_REPORT,
+            GeneratedFileType.PALLET_LABEL_PDF,
+          ],
+        },
+      },
+      orderBy: [{ fileType: 'asc' }, { createdAt: 'desc' }],
     })) as GeneratedFileRecord[];
 
+    const byType = new Map(records.map((record) => [record.fileType, record]));
+    const items = [
+        byType.get(GeneratedFileType.EXCEL_REPORT),
+        byType.get(GeneratedFileType.PALLET_LABEL_PDF),
+      ]
+        .filter((record): record is GeneratedFileRecord => Boolean(record))
+        .map((record) => this.toGeneratedFileResponse(record));
+    let selection: GeneratedFileListResponseDto['selection'] = null;
+    if (selectedFileId && !items.some((item) => item.id === selectedFileId)) {
+      const selected = (await this.prisma.generatedFile.findFirst({
+        where: { id: selectedFileId, containerId: id },
+      })) as GeneratedFileRecord | null;
+      if (
+        selected?.status === GeneratedFileStatus.SUPERSEDED &&
+        this.currentArtifacts.isCurrentType(selected.fileType)
+      ) {
+        const current = items.find(
+          (item) => item.fileType === selected.fileType,
+        );
+        if (current) {
+          selection = {
+            fileType: selected.fileType,
+            requestedFileId: selectedFileId,
+            resolvedFileId: current.id,
+            status: 'SUPERSEDED_REPLACED',
+          };
+        }
+      }
+    }
     return {
-      items: records.map((record) => this.toGeneratedFileResponse(record)),
+      items,
+      selection,
     };
   }
 
@@ -263,15 +285,32 @@ export class ReportsService {
       });
     }
 
-    if (record.status !== GeneratedFileStatus.GENERATED) {
+    if (record.status === GeneratedFileStatus.SUPERSEDED) {
+      throw new BadRequestException({
+        code: 'GENERATED_FILE_SUPERSEDED',
+        message: 'GENERATED_FILE_SUPERSEDED',
+        labelKey: 'generatedFiles.errors.GENERATED_FILE_SUPERSEDED',
+        details: {
+          containerId,
+          fileId,
+          fileType: record.fileType,
+        },
+      });
+    }
+
+    if (
+      record.status !== GeneratedFileStatus.GENERATED ||
+      !this.currentArtifacts.isCurrentType(record.fileType)
+    ) {
       throw new BadRequestException({
         code: 'GENERATED_FILE_NOT_DOWNLOADABLE',
-        message: `Generated file ${fileId} is not downloadable because its status is ${record.status}.`,
+        message: 'GENERATED_FILE_NOT_DOWNLOADABLE',
+        labelKey: 'generatedFiles.errors.GENERATED_FILE_NOT_DOWNLOADABLE',
         details: {
           containerId,
           fileId,
           status: record.status,
-          errorMessage: record.errorMessage,
+          fileType: record.fileType,
         },
       });
     }
@@ -290,16 +329,13 @@ export class ReportsService {
         fileSizeBytes: fileStat.size,
         mimeType: record.mimeType ?? 'application/octet-stream',
       };
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException({
         code: 'GENERATED_FILE_STORAGE_MISSING',
-        message:
-          'The generated file record exists, but the file cannot be read.',
+        message: 'GENERATED_FILE_STORAGE_MISSING',
         details: {
           containerId,
           fileId,
-          storagePath: record.storagePath,
-          errorMessage: this.errorMessage(error),
         },
       });
     }
@@ -409,17 +445,16 @@ export class ReportsService {
     const fileSha256 = createHash('sha256').update(fileBuffer).digest('hex');
 
     return await this.prisma.$transaction(async (tx) => {
-      const generatedFile = await this.createGeneratedFile(
-        tx as unknown as GeneratedFileWriteClient,
-        container,
+      const generatedFile = await this.currentArtifacts.activate(
+        tx as never,
         {
+          importFileId: container.importFileId,
+          containerId: container.id,
           fileType: GeneratedFileType.EXCEL_REPORT,
           storagePath: outputPath,
           fileSha256,
           mimeType: EXCEL_REPORT_MIME_TYPE,
           fileSizeBytes: BigInt(fileStat.size),
-          status: GeneratedFileStatus.GENERATED,
-          errorMessage: null,
           generatedById,
         },
       );
@@ -449,36 +484,19 @@ export class ReportsService {
     error: unknown,
     generatedById: string,
   ): Promise<GeneratedFileRecord> {
-    return await this.createGeneratedFile(
-      this.prisma as unknown as GeneratedFileWriteClient,
-      container,
+    const failure = this.safeReportFailure(error);
+    return await this.currentArtifacts.recordFailure(
+      this.prisma as never,
       {
+        importFileId: container.importFileId,
+        containerId: container.id,
         fileType: GeneratedFileType.EXCEL_REPORT,
         storagePath,
-        fileSha256: null,
         mimeType: EXCEL_REPORT_MIME_TYPE,
-        fileSizeBytes: null,
-        status: GeneratedFileStatus.FAILED,
-        errorMessage: this.safeReportFailure(error).code,
         generatedById,
+        errorCode: failure.code,
       },
     );
-  }
-
-  private async createGeneratedFile(
-    tx: GeneratedFileWriteClient,
-    container: ContainerRecord,
-    data: GeneratedFileUpsertInput,
-  ): Promise<GeneratedFileRecord> {
-    const recordData: GeneratedFileCreateData = {
-      importFileId: container.importFileId,
-      containerId: container.id,
-      ...data,
-    };
-
-    return await tx.generatedFile.create({
-      data: recordData,
-    });
   }
 
   private reportFailure(
@@ -535,13 +553,33 @@ export class ReportsService {
     const expected = reportResult?.totalDestinationCount;
     const written = reportResult?.writtenDestinationCount;
     const digest = reportResult?.orderedDestinationDigest;
+    const layoutModes = reportResult?.layoutModes;
+    const rawPageEvidence = reportResult?.pageEvidence;
     if (
       !Number.isInteger(expected) ||
       !Number.isInteger(written) ||
       Number(expected) < 0 ||
       expected !== written ||
       typeof digest !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(digest)
+      !/^[a-f0-9]{64}$/.test(digest) ||
+      !this.isLayoutModeArray(layoutModes) ||
+      !Array.isArray(rawPageEvidence)
+    ) {
+      return null;
+    }
+    const pageEvidence = this.safePageEvidence(rawPageEvidence);
+    if (
+      pageEvidence === null ||
+      pageEvidence.length !== layoutModes.length ||
+      pageEvidence.reduce(
+        (total, page) => total + page.expectedDestinationCount,
+        0,
+      ) !== Number(expected) ||
+      pageEvidence.some(
+        (page, index) =>
+          page.page !== index + 1 ||
+          page.layoutMode !== layoutModes[index],
+      )
     ) {
       return null;
     }
@@ -549,7 +587,94 @@ export class ReportsService {
       expectedDestinationCount: Number(expected),
       writtenDestinationCount: Number(written),
       orderedDestinationDigest: digest,
+      layoutModes: [...layoutModes],
+      pageEvidence,
     };
+  }
+
+  private safePageEvidence(value: unknown[]): ReportPageEvidence[] | null {
+    const result: ReportPageEvidence[] = [];
+    for (const item of value) {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+      const record = item as Record<string, unknown>;
+      const page = record.page;
+      const layoutMode = record.layoutMode;
+      const expectedCount = record.expectedDestinationCount;
+      const writtenCount = record.writtenDestinationCount;
+      const expectedRows = record.expectedPhysicalRows;
+      const writtenRows = record.writtenPhysicalRows;
+      if (
+        typeof page !== 'number' ||
+        !Number.isInteger(page) ||
+        page <= 0 ||
+        (layoutMode !== 'PRIMARY_ONLY' && layoutMode !== 'EXPANDED') ||
+        typeof expectedCount !== 'number' ||
+        !Number.isInteger(expectedCount) ||
+        expectedCount < 0 ||
+        expectedCount > 16 ||
+        typeof writtenCount !== 'number' ||
+        !Number.isInteger(writtenCount) ||
+        expectedCount !== writtenCount ||
+        !Array.isArray(expectedRows) ||
+        !Array.isArray(writtenRows)
+      ) {
+        return null;
+      }
+      const expectedMode =
+        expectedCount <= 8 ? 'PRIMARY_ONLY' : 'EXPANDED';
+      const independentlyExpectedRows =
+        expectedCount <= 8
+          ? Array.from(
+              { length: expectedCount },
+              (_, index) => 4 + index * 2,
+            )
+          : Array.from(
+              { length: expectedCount },
+              (_, index) => 4 + index,
+            );
+      if (
+        layoutMode !== expectedMode ||
+        !this.integerArraysEqual(expectedRows, independentlyExpectedRows) ||
+        !this.integerArraysEqual(writtenRows, independentlyExpectedRows)
+      ) {
+        return null;
+      }
+      result.push({
+        page,
+        layoutMode,
+        expectedDestinationCount: expectedCount,
+        writtenDestinationCount: writtenCount,
+        expectedPhysicalRows: [...expectedRows] as number[],
+        writtenPhysicalRows: [...writtenRows] as number[],
+      });
+    }
+    return result;
+  }
+
+  private integerArraysEqual(
+    value: unknown[],
+    expected: number[],
+  ): value is number[] {
+    return (
+      value.length === expected.length &&
+      value.every(
+        (item, index) =>
+          Number.isInteger(item) && Number(item) === expected[index],
+      )
+    );
+  }
+
+  private isLayoutModeArray(
+    value: unknown,
+  ): value is Array<'PRIMARY_ONLY' | 'EXPANDED'> {
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (item) => item === 'PRIMARY_ONLY' || item === 'EXPANDED',
+      )
+    );
   }
 
   private async cleanupAttemptDirectory(outputDir: string): Promise<void> {
@@ -558,7 +683,18 @@ export class ReportsService {
     if (!attempt.startsWith(`${reportsRoot}${sep}`)) {
       return;
     }
-    await rm(attempt, { force: true, recursive: true });
+    for (let attemptNo = 1; attemptNo <= 3; attemptNo += 1) {
+      try {
+        await rm(attempt, { force: true, recursive: true });
+        return;
+      } catch {
+        if (attemptNo === 3) {
+          this.logger.warn(
+            'CURRENT_ARTIFACT_CLEANUP_PENDING type=EXCEL_REPORT',
+          );
+        }
+      }
+    }
   }
 
   private safeReportFailure(error: unknown): SafeReportFailure {
@@ -618,7 +754,7 @@ export class ReportsService {
       return remappedPath;
     }
 
-    throw this.storagePathInvalidError(record.storagePath, record);
+    throw this.storagePathInvalidError(record);
   }
 
   private isPathWithinStorageRoot(resolvedPath: string): boolean {
@@ -649,16 +785,13 @@ export class ReportsService {
   }
 
   private storagePathInvalidError(
-    storagePath: string,
     record: GeneratedFileRecord,
   ): InternalServerErrorException {
     return new InternalServerErrorException({
       code: 'GENERATED_FILE_STORAGE_PATH_INVALID',
-      message:
-        'The generated file path is outside the configured storage root.',
+      message: 'GENERATED_FILE_STORAGE_PATH_INVALID',
       details: {
         generatedFileId: record.id,
-        storagePath,
       },
     });
   }
@@ -671,13 +804,12 @@ export class ReportsService {
       importFileId: record.importFileId,
       containerId: record.containerId,
       fileType: record.fileType,
-      storagePath: record.storagePath,
+      filename: basename(record.storagePath),
       fileSha256: record.fileSha256,
       mimeType: record.mimeType,
       fileSizeBytes:
         record.fileSizeBytes === null ? null : record.fileSizeBytes.toString(),
       status: record.status,
-      errorMessage: record.errorMessage,
       createdAt: this.toIsoString(record.createdAt),
       updatedAt: this.toIsoString(record.updatedAt),
     };

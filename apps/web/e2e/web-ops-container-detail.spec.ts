@@ -34,7 +34,7 @@ type Theme = "dark" | "light";
 const sectionHeadings = {
   en: {
     destination: "Destinations",
-    files: "Reports and labels",
+    files: "Current reports and labels",
     inventory: "Destination inventory",
     status: "Container status update",
     wage: "Unloading wage information",

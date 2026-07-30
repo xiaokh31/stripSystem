@@ -3,13 +3,25 @@
 ## 优先级与执行状态
 
 - 优先级：P0，生成报告的业务数据缺失和打印版式回归会直接影响现场拆柜。
-- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
+- Task-Status: SUPERSEDED_BY_UNLOAD_REPORT_04_AND_05
 - 前置任务：`UNLOAD-REPORT-02` 的代码和自动化证据可复用，但其外部验收结论已被
   2026-07-28 现场打印结果推翻。
 - 本 Task supersede `UNLOAD-REPORT-02` 的未关闭终态。不得重新执行 02，也不得仅补
   一次外部签字后把 02 改成 `DONE`。
 - 只执行本 Task。达到终态后更新本文件、Task Index、完成度报告、验证报告和
   `HANDOFF.md`，不得在同一 Session 自动选择 POD 或其他 Task。
+
+## 2026-07-29 产品澄清（优先于本 Task 下方旧布局文字）
+
+- “所有单元格都可用”不表示从第一个目的仓开始就连续填入第 `4..19` 行。
+- 每页 `1–8` 个目的仓必须只使用深色/灰色主行
+  `4/6/8/10/12/14/16/18`，白色追加行保持空白。
+- 每页达到 `9–16` 个目的仓时，才切换扩展布局并按纸面顺序使用
+  `4/5/6/.../19`，不能出现 `1,9,2,10`。
+- 17+ 仍按每页最多 16 条分页，每页按自身条目数选择主行或扩展布局。
+- 本 Task 下方把 16 行视为所有数量下唯一连续 row map 的段落已经失效。权威修复
+  任务是
+  `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`。
 
 ## 对应用户现场反馈
 
@@ -393,3 +405,21 @@ Docker 门禁，再准确结束为 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
 - 当前只剩 Windows/Microsoft Excel Print Preview、Microsoft Print to PDF 和
   办公室实际打印并排签字，故状态为
   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`；这些外部门禁通过后才可 `DONE`。
+
+## 2026-07-29 后续回归与终态变更
+
+- 用户确认：同一柜号重新生成拆柜报告后，文件区域会追加一份新报告，而不是替换
+  当前报告；文件区域因此可能同时出现多个报告版本。
+- 当前实现和测试确实把 report regeneration 定义为每次新建 UUID storage path 和
+  immutable `GeneratedFile`，而普通文件列表又返回全部记录。该行为不符合最新业务
+  口径。
+- 本 Task 的报告内容、目的仓守恒、分页和打印几何证据继续有效，但
+  `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 不再是可直接关闭的终态。
+- 后续实现统一由
+  `prompts/tasks/UNLOAD-REPORT-04Current Report and Label Replacement Regression.md`
+  和 `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`
+  承接。04 已完成唯一 current 文件；05 已于 2026-07-30 完成主行/白色行自适应
+  布局及当前环境全部自动化，状态为
+  `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。Windows/Microsoft Excel、
+  Print to PDF 与办公室实际打印仍须使用 05 新 current 工件完成；在此外部门禁
+  通过前，不得把 03 标记为 `DONE`。

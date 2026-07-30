@@ -2,11 +2,44 @@
 
 ## 状态
 
-`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+`SUPERSEDED_BY_UNLOAD_REPORT_04_AND_05`
 
-仓库实现和当前环境可自动化的 Definition of Done 已完成。当前环境没有 Windows
-Microsoft Excel 和办公室目标打印机，因此只有本文末尾列出的 Excel/实际打印外部
-门禁尚未执行；完成这些门禁前不得把 Task 标记为 `DONE`。
+本文记录的报告内容、目的仓守恒、分页和打印几何自动化仍有效。2026-07-29
+用户发现同一柜号成功重新生成报告后，普通文件区域会追加历史报告，而不是替换当前
+报告；随后又澄清白色追加行只应在每页目的仓超过 8 个时启用。两项问题使原“只剩
+Excel/打印外部门禁”的终态失效，现分别由 `UNLOAD-REPORT-04` 和
+`UNLOAD-REPORT-05` 承接。04 已于 2026-07-30 完成唯一 current 文件、失败守恒和
+历史审计；05 已完成自适应主行/白行布局及当前环境全部自动化，状态为
+`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。03 的 Excel/实际打印门禁必须
+使用 05 生成的新当前报告文件完成；不得先把 03 标记为 `DONE`。
+
+## 2026-07-29 后续回归通知
+
+- 修复前 `ReportsService` 每次成功生成都会创建新的 UUID attempt directory 和新的
+  `GeneratedFile`；普通 `listFiles` 返回全部历史记录，Web 只排序不选择每类型
+  current，因此文件区域出现多份报告。
+- 修复前 label 路径和 generated-file upsert 也没有与报告共享同一套“每柜每类型唯一
+  当前文件、失败不覆盖”的数据库约束。
+- 新产品口径要求普通文件区域最多一份当前拆柜报告和一份当前托盘面单；成功重生成
+  替换对应 current slot，失败保留旧 current，历史仍可审计但不显示为当前。
+- 权威修复任务：
+  `prompts/tasks/UNLOAD-REPORT-04Current Report and Label Replacement Regression.md`。
+  该 Task 已 `DONE`，验证报告为
+  `docs/reports/unload-report-04-current-artifact-replacement-verification.md`。
+
+## 2026-07-29 主行/白色行布局澄清
+
+- 模板深色/灰色主行为 `4/6/8/10/12/14/16/18`，白色追加行为
+  `5/7/9/11/13/15/17/19`。
+- 本报告的 `report-8` 自动化工件把 8 条目的仓写入 `4..11`，因此提前使用了白色
+  行。该工件仍可证明旧实现的守恒和打印几何，但不能作为最终业务布局通过证据。
+- 正确规则为：每页 `1–8` 条只写深色主行；`9–16` 条才切换为 `4..19` 的纸面
+  连续扩展布局；17+ 以 16 为容量分页，随后每页独立选择模式。
+- 权威修复任务
+  `prompts/tasks/UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md`
+  已完成当前环境实现与自动化。最终 Microsoft Excel/实际打印必须按
+  `docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md`
+  使用 05 新工件，不得使用本报告的 `report-8` 作为签字依据。
 
 ## 诊断结论
 
@@ -19,14 +52,16 @@ Microsoft Excel 和办公室目标打印机，因此只有本文末尾列出的 
   3.810mm，超过 `-2mm` 容差。
 - 单一 fit-to-page contract（清除 stale scale，`fitToWidth=1`、
   `fitToHeight=1`、`fitToPage=true`、print area `A1:P25`）恢复模板留白。
-- 原分辨率检查还发现旧 cell-map 读取顺序会使纸面显示 1、9、2、10……；最终实现
-  改为第 4–19 行自上而下使用，并让独立 package inspector 按物理打印顺序核对，
-  避免 writer 与 validator 使用同一错误顺序而伪通过。
+- 原分辨率检查还发现旧 cell-map 读取顺序会使纸面显示 1、9、2、10……；03 实现
+  改为第 4–19 行自上而下使用，解决了扩展布局错序，但把该映射错误应用到了
+  `1–8` 条主行模式。05 必须保留扩展模式纸面顺序，同时恢复少量目的仓只用深色
+  主行。
 
 ## 实现与安全契约
 
-- `DESTINATION_ROWS` 的 16 个灰/白业务槽位全部可用，`0–16` 条只生成一个
-  worksheet；17、32、33 条严格为 `16+1`、`16+16`、`16+16+1`。
+- 03 已证明 16 个灰/白业务槽位可容纳在一个 worksheet，17、32、33 条可按
+  `16+1`、`16+16`、`16+16+1` 分页；但 05 必须增加 mode-aware row map：
+  每页 `1–8` 只用深色主行，`9–16` 才使用全部 16 行。
 - canonical identity 包含 ordinal、destination（缺失时使用既有明确 placeholder）、
   `finalPallets` 和 `totalCartons`；保存后重新打开最终 workbook，从 `N/O/P` 和
   `C == N` 反算 written rows、ordered digest、每页 total 与 global total。
