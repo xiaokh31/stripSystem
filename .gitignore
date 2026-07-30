@@ -68,6 +68,7 @@ docs/reports/*
 !docs/reports/parser-profile-08-golden-sample-full-stack-verification.md
 !docs/reports/web-dashboard-09-e2e-cleanup-2026-07-24.md
 !docs/reports/unload-report-02-adaptive-layout-verification.md
+!docs/runbooks/current-generated-artifact-production-repair.md
 
 # macOS
 .DS_Store

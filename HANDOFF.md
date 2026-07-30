@@ -28,6 +28,14 @@ commit `acd8e55` starts successfully in the local Docker full stack, while the n
 rows exist. Production logs and read-only duplicate counts have not yet been supplied, so
 this is the leading diagnosis rather than a production-confirmed root cause.
 
+The operator later reported running host `corepack use pnpm@11.18.0` and restoring the
+production `package.json`, followed by a package permission error. This creates an earlier
+possible failure boundary: if Docker build cannot read the host build context, migration
+has not run yet. The tracked baseline is clean and pins `pnpm@11.9.0`; locally
+`package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml` are mode 0644 and owned by the
+repository user. Production ownership/mode, parent-directory traversal permissions and the
+exact error have not yet been supplied.
+
 An isolated disposable PostgreSQL reproduction confirmed the exact startup path:
 the first deploy fails with `P3018` / SQLSTATE `23505` /
 `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, and a retry fails with `P3009` because Prisma
@@ -101,6 +109,9 @@ disposable database required duplicate convergence, then
   --rolled-back` and `migrate deploy`. One final diagnostic inspection query had a quoting
   error after the successful migration; it did not affect the result, and the disposable
   database cleanup still ran.
+- Verified the tracked package-manager baseline without running host package tooling:
+  root `package.json` has no diff, pins `pnpm@11.9.0`, and all API/Web Dockerfiles prepare
+  pnpm 11.9.0 inside their images.
 
 ## 卡在哪里
 
@@ -124,11 +135,17 @@ disposable database required duplicate convergence, then
 - Production API logs and read-only duplicate/migration status are not accessible from
   this workspace, so the leading migration diagnosis cannot yet be confirmed against the
   failing host.
+- Production `stat`/`namei`, Git diff and Docker build output are required to determine
+  whether the current failure occurs before migration because `package.json` or a parent
+  directory is unreadable.
 
 ## 下一步
 
 - On the production host, capture `docker compose -f infra/docker/compose.local.yml
-  logs --no-color --tail=200 api`. If it contains
+  build --progress=plain api` output and
+  `docker compose -f infra/docker/compose.local.yml logs --no-color --tail=200 api`.
+  First verify exact ownership/mode and parent-directory traversal permissions for
+  `package.json`; do not use host pnpm/corepack as a probe. If the API log contains
   `CURRENT_GENERATED_FILE_REPAIR_REQUIRED`, follow
   `docs/runbooks/current-generated-artifact-production-repair.md` through matched
   DB/storage backup and dry-run only; review every proposed winner before deciding whether
@@ -157,6 +174,9 @@ disposable database required duplicate convergence, then
 - Do not run `prisma migrate resolve --rolled-back` speculatively. First confirm the exact
   failed migration from production logs/status and confirm its DDL was rolled back; use the
   Prisma command rather than editing `_prisma_migrations` manually.
+- Do not fix one unreadable file with `chmod -R 777`, recursive `chown`, `sudo pnpm`, or
+  another host `corepack use`. Inspect the exact file and parent path first, then repair
+  only the proven ownership/mode boundary and return to Docker-only builds.
 
 ## 新会话启动清单
 
