@@ -5,6 +5,7 @@ samples/*
 !samples/contracts/
 samples/contracts/*
 !samples/contracts/pallet-calculation-v2.json
+!samples/attendance_test/
 docs/
 !docs/
 docs/*
