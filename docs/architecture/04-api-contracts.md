@@ -46,19 +46,36 @@ Upload rules:
 - Preserve original file bytes in storage.
 - Compute `file_sha256`.
 - Reject duplicate SHA-256 or return the existing import state clearly.
+- Decode multipart parameter names as UTF-8 and pass the transport filename
+  through the shared `upload-filename-v1` codec. The attendance `.xls` upload
+  uses the same boundary.
+- Normalize the canonical display name to NFC. A Latin-1 transport recovery is
+  allowed only when mojibake evidence, fatal UTF-8 decoding, extension checking,
+  and exact byte round-trip all agree; ambiguous input is preserved and gets a
+  stable review code.
+- Persist `transport_filename`, canonical `original_filename`,
+  `filename_codec_version`, `filename_review_code`, and a separate
+  `storage_basename`. The storage basename is not display data.
 - Write `import_files`.
 - Do not call the parser in this endpoint.
 - Do not report success if file storage or database write failed.
 
 Expected response fields:
 - import id
-- original filename
-- stored path or download-safe reference
+- canonical original filename
+- stable filename review code when manual review is required
 - file SHA-256
 - import status
 - parse status
 - format when known
 - warning/error counts when known
+
+Local absolute storage paths are internal and are not returned by upload,
+list, detail, deletion-impact, or deletion-history responses. Existing
+reversible legacy mojibake is projected to the same canonical display name on
+read until the controlled repair is applied. Generated-file downloads use one
+shared Content-Disposition encoder with an ASCII fallback, RFC 5987 UTF-8
+`filename*`, and control/bidi character removal.
 
 ### Worker Parse Integration
 

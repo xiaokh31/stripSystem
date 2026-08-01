@@ -49,6 +49,11 @@ import {
 } from '../generated/prisma/enums';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertStorageContainment,
+  canonicalizeUploadFilename,
+  projectCanonicalFilename,
+} from '../common/upload-filename';
 
 type NullableJsonInput =
   | Prisma.InputJsonValue
@@ -66,6 +71,10 @@ const LEGACY_XLS_SIGNATURE = Buffer.from([
 interface AttendanceImportRecord {
   id: string;
   originalFilename: string;
+  transportFilename?: string | null;
+  filenameCodecVersion?: string;
+  filenameReviewCode?: string | null;
+  storageBasename?: string;
   storedPath: string;
   fileSha256: string;
   mimeType: string | null;
@@ -196,9 +205,13 @@ export class AttendanceService {
     file: Express.Multer.File,
     actor: AuthenticatedUser,
   ): Promise<AttendanceImportResponseDto> {
-    this.validateXls(file);
-
     const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
+    const filename = canonicalizeUploadFilename(
+      file.originalname,
+      '.xls',
+      fileSha256,
+    );
+    this.validateXls(file, filename.originalFilename);
     const duplicate = await this.prisma.attendanceImport.findFirst({
       where: { fileSha256, deletedAt: null },
     });
@@ -207,12 +220,20 @@ export class AttendanceService {
       this.throwDuplicate(duplicate);
     }
 
-    const storedPath = await this.preserveOriginalFile(file, fileSha256);
+    const storedPath = await this.preserveOriginalFile(
+      file,
+      fileSha256,
+      filename.storageBasename,
+    );
 
     try {
       const record = (await this.prisma.attendanceImport.create({
         data: {
-          originalFilename: file.originalname,
+          originalFilename: filename.originalFilename,
+          transportFilename: filename.transportFilename,
+          filenameCodecVersion: filename.codecVersion,
+          filenameReviewCode: filename.reviewCode,
+          storageBasename: filename.storageBasename,
           storedPath,
           fileSha256,
           mimeType: file.mimetype || null,
@@ -311,7 +332,10 @@ export class AttendanceService {
     }
     return {
       attendanceImportId: record.id,
-      originalFilename: record.originalFilename,
+      originalFilename: projectCanonicalFilename(
+        record.originalFilename,
+        '.xls',
+      ).originalFilename,
       settlementMonth: record.settlementMonth,
       periodStart: this.dateResponse(record.periodStart),
       periodEnd: this.dateResponse(record.periodEnd),
@@ -1540,7 +1564,10 @@ export class AttendanceService {
       source: 'PERSISTED_ACTIVE_ATTENDANCE_ROWS',
       attendanceImportId: record.id,
       dataRevision: record.dataRevision,
-      originalFilename: record.originalFilename,
+      originalFilename: projectCanonicalFilename(
+        record.originalFilename,
+        '.xls',
+      ).originalFilename,
       sourceSha256: record.fileSha256,
       parsedResult: {
         formatType: 'WAGE_ATTENDANCE',
@@ -1685,7 +1712,10 @@ export class AttendanceService {
       id: event.id,
       eventCode: 'DELETED',
       attendanceImportId: event.attendanceImportId,
-      originalFilename: event.originalFilename,
+      originalFilename: projectCanonicalFilename(
+        event.originalFilename,
+        '.xls',
+      ).originalFilename,
       fileSha256: event.fileSha256,
       importStatus: event.importStatusSnapshot,
       parseStatus: event.parseStatusSnapshot,
@@ -1730,19 +1760,22 @@ export class AttendanceService {
     });
   }
 
-  private validateXls(file: Express.Multer.File): void {
-    if (!file.originalname.toLowerCase().endsWith('.xls')) {
+  private validateXls(
+    file: Express.Multer.File,
+    canonicalFilename: string,
+  ): void {
+    if (!canonicalFilename.toLocaleLowerCase('en-US').endsWith('.xls')) {
       throw new BadRequestException({
         code: 'ATTENDANCE_FILE_TYPE_UNSUPPORTED',
         message: 'Attendance imports must be legacy .xls workbooks.',
-        details: { originalFilename: file.originalname },
+        details: { originalFilename: canonicalFilename },
       });
     }
     if (!file.buffer || file.buffer.length === 0) {
       throw new BadRequestException({
         code: 'ATTENDANCE_FILE_EMPTY',
         message: 'The uploaded attendance file is empty.',
-        details: { originalFilename: file.originalname },
+        details: { originalFilename: canonicalFilename },
       });
     }
     if (
@@ -1754,7 +1787,7 @@ export class AttendanceService {
       throw new BadRequestException({
         code: 'ATTENDANCE_FILE_TYPE_UNSUPPORTED',
         message: 'Attendance imports must be legacy Excel .xls workbook bytes.',
-        details: { originalFilename: file.originalname },
+        details: { originalFilename: canonicalFilename },
       });
     }
   }
@@ -1768,16 +1801,20 @@ export class AttendanceService {
     warningCount?: number | null;
     errorCount?: number | null;
   }): never {
+    const originalFilename = projectCanonicalFilename(
+      record.originalFilename,
+      '.xls',
+    ).originalFilename;
     throw new ConflictException({
       code: 'DUPLICATE_ATTENDANCE_IMPORT',
       message: 'Attendance file content already exists by SHA-256.',
       details: {
         existingImportId: record.id,
         fileSha256: record.fileSha256,
-        originalFilename: record.originalFilename,
+        originalFilename,
         existingImport: {
           id: record.id,
-          originalFilename: record.originalFilename,
+          originalFilename,
           fileSha256: record.fileSha256,
           importStatus: record.importStatus ?? null,
           parseStatus: record.parseStatus ?? null,
@@ -1791,6 +1828,7 @@ export class AttendanceService {
   private async preserveOriginalFile(
     file: Express.Multer.File,
     fileSha256: string,
+    storageBasename: string,
   ): Promise<string> {
     const targetDir = join(
       this.storageRoot,
@@ -1798,8 +1836,26 @@ export class AttendanceService {
       fileSha256,
     );
     await mkdir(targetDir, { recursive: true });
-    const targetPath = join(targetDir, this.safeFilename(file.originalname));
-    await writeFile(targetPath, file.buffer);
+    const targetPath = assertStorageContainment(targetDir, storageBasename);
+    try {
+      await writeFile(targetPath, file.buffer, { flag: 'wx' });
+    } catch (error) {
+      if (!this.isFileAlreadyExists(error)) {
+        throw new InternalServerErrorException({
+          code: 'ATTENDANCE_FILE_STORAGE_FAILED',
+          message: 'The uploaded attendance file could not be preserved.',
+          details: { fileSha256 },
+        });
+      }
+      const existing = await readFile(targetPath);
+      if (!existing.equals(file.buffer)) {
+        throw new InternalServerErrorException({
+          code: 'ATTENDANCE_FILE_STORAGE_CONFLICT',
+          message: 'Stored upload bytes do not match the duplicate SHA path.',
+          details: { fileSha256 },
+        });
+      }
+    }
     return targetPath;
   }
 
@@ -1926,11 +1982,6 @@ export class AttendanceService {
     return JSON.parse(serialized) as Prisma.InputJsonValue;
   }
 
-  private safeFilename(originalFilename: string): string {
-    const filename = basename(originalFilename).replace(/[\\/:*?"<>|]/g, '_');
-    return filename.length > 0 ? filename : 'attendance.xls';
-  }
-
   private failureStoragePath(record: AttendanceImportRecord): string {
     return join(
       this.storageRoot,
@@ -1944,10 +1995,15 @@ export class AttendanceService {
   private toImportResponse(
     record: AttendanceImportRecord,
   ): AttendanceImportResponseDto {
+    const projectedFilename = projectCanonicalFilename(
+      record.originalFilename,
+      '.xls',
+    );
     return {
       id: record.id,
-      originalFilename: record.originalFilename,
-      storedPath: record.storedPath,
+      originalFilename: projectedFilename.originalFilename,
+      filenameReviewCode:
+        record.filenameReviewCode ?? projectedFilename.reviewCode,
       fileSha256: record.fileSha256,
       mimeType: record.mimeType,
       fileSizeBytes:
@@ -2053,6 +2109,15 @@ export class AttendanceService {
       typeof error === 'object' &&
       'code' in error &&
       (error as { code?: unknown }).code === 'P2002'
+    );
+  }
+
+  private isFileAlreadyExists(error: unknown): boolean {
+    return (
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'EEXIST'
     );
   }
 }

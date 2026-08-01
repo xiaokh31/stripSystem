@@ -41,6 +41,7 @@ import {
   DashboardOperationsQueryDto,
   DashboardRange,
 } from './dto/dashboard-query.dto';
+import { projectCanonicalFilename } from '../common/upload-filename';
 
 const COMPLETED_UNLOADING_STATUS_VALUES = [
   ContainerStatus.UNLOADED,
@@ -755,7 +756,8 @@ export class DashboardService {
         ...records.map((record) => ({
           id: record.id,
           kind: 'IMPORT' as const,
-          label: record.originalFilename,
+          label: projectCanonicalFilename(record.originalFilename, '.xlsx')
+            .originalFilename,
           status: record.parseStatus,
           occurredAt: this.isoDate(record.createdAt),
           href: `/imports/${record.id}`,

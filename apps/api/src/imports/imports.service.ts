@@ -11,12 +11,13 @@ import type { Stats } from 'node:fs';
 import {
   lstat,
   mkdir,
+  readFile,
   realpath,
   stat,
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import {
   ImportFileListResponseDto,
   ImportFileResponseDto,
@@ -54,6 +55,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PalletPolicyResolver } from '../settings/pallet-policy.resolver';
 import { ParserLearningCasesService } from '../parser-learning-cases/parser-learning-cases.service';
 import { ParserProfileReviewsService } from '../parser-profiles/parser-profile-reviews.service';
+import {
+  assertStorageContainment,
+  canonicalizeUploadFilename,
+  projectCanonicalFilename,
+} from '../common/upload-filename';
 
 type FileFormatValue = (typeof FileFormat)[keyof typeof FileFormat];
 type NullableJsonInput =
@@ -63,6 +69,10 @@ type NullableJsonInput =
 interface ImportFileRecord {
   id: string;
   originalFilename: string;
+  transportFilename?: string | null;
+  filenameCodecVersion?: string;
+  filenameReviewCode?: string | null;
+  storageBasename?: string;
   storedPath: string;
   fileSha256: string;
   mimeType: string | null;
@@ -212,9 +222,13 @@ export class ImportsService {
     file: Express.Multer.File,
     actor: AuthenticatedUser,
   ): Promise<ImportFileResponseDto> {
-    this.validateXlsx(file);
-
     const fileSha256 = createHash('sha256').update(file.buffer).digest('hex');
+    const filename = canonicalizeUploadFilename(
+      file.originalname,
+      '.xlsx',
+      fileSha256,
+    );
+    this.validateXlsx(file, filename.originalFilename);
     const duplicate = await this.prisma.importFile.findUnique({
       where: { fileSha256 },
     });
@@ -227,9 +241,17 @@ export class ImportsService {
       }
     }
 
-    const storedPath = await this.preserveOriginalFile(file, fileSha256);
+    const storedPath = await this.preserveOriginalFile(
+      file,
+      fileSha256,
+      filename.storageBasename,
+    );
     const createData = {
-      originalFilename: file.originalname,
+      originalFilename: filename.originalFilename,
+      transportFilename: filename.transportFilename,
+      filenameCodecVersion: filename.codecVersion,
+      filenameReviewCode: filename.reviewCode,
+      storageBasename: filename.storageBasename,
       storedPath,
       fileSha256,
       mimeType: file.mimetype || null,
@@ -1347,13 +1369,16 @@ export class ImportsService {
     return ParseStatus.ERROR;
   }
 
-  private validateXlsx(file: Express.Multer.File): void {
-    if (!file.originalname.toLowerCase().endsWith('.xlsx')) {
+  private validateXlsx(
+    file: Express.Multer.File,
+    canonicalFilename: string,
+  ): void {
+    if (!canonicalFilename.toLocaleLowerCase('en-US').endsWith('.xlsx')) {
       throw new BadRequestException({
         code: 'INVALID_IMPORT_FILE_TYPE',
         message: 'Only .xlsx import files are accepted.',
         details: {
-          originalFilename: file.originalname,
+          originalFilename: canonicalFilename,
           mimeType: file.mimetype,
         },
       });
@@ -1364,7 +1389,7 @@ export class ImportsService {
         code: 'EMPTY_IMPORT_FILE',
         message: 'The uploaded .xlsx file is empty.',
         details: {
-          originalFilename: file.originalname,
+          originalFilename: canonicalFilename,
         },
       });
     }
@@ -1373,16 +1398,24 @@ export class ImportsService {
   private async preserveOriginalFile(
     file: Express.Multer.File,
     fileSha256: string,
+    storageBasename: string,
   ): Promise<string> {
     const directory = join(this.storageRoot, 'original_files', fileSha256);
-    const storedPath = join(directory, this.safeFilename(file.originalname));
+    const storedPath = assertStorageContainment(directory, storageBasename);
 
     try {
       await mkdir(directory, { recursive: true });
       await writeFile(storedPath, file.buffer, { flag: 'wx' });
     } catch (error) {
       if (this.isFileAlreadyExists(error)) {
-        await stat(storedPath);
+        const existing = await readFile(storedPath);
+        if (!existing.equals(file.buffer)) {
+          throw new InternalServerErrorException({
+            code: 'IMPORT_FILE_STORAGE_CONFLICT',
+            message: 'Stored upload bytes do not match the duplicate SHA path.',
+            details: { fileSha256 },
+          });
+        }
         return storedPath;
       }
 
@@ -1442,10 +1475,15 @@ export class ImportsService {
   }
 
   private toResponse(record: ImportFileRecord): ImportFileResponseDto {
+    const projectedFilename = projectCanonicalFilename(
+      record.originalFilename,
+      '.xlsx',
+    );
     return {
       id: record.id,
-      originalFilename: record.originalFilename,
-      storedPath: record.storedPath,
+      originalFilename: projectedFilename.originalFilename,
+      filenameReviewCode:
+        record.filenameReviewCode ?? projectedFilename.reviewCode,
       fileSha256: record.fileSha256,
       mimeType: record.mimeType,
       fileSizeBytes:
@@ -1920,11 +1958,6 @@ export class ImportsService {
     }
 
     return JSON.parse(serialized) as Prisma.InputJsonValue;
-  }
-
-  private safeFilename(originalFilename: string): string {
-    const filename = basename(originalFilename).replace(/[\\/:*?"<>|]/g, '_');
-    return filename.length > 0 ? filename : 'upload.xlsx';
   }
 
   private toIsoString(value: Date | string): string {

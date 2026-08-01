@@ -213,7 +213,7 @@
   <body>
     <main>
       <header>
-        <p class="small">Generated: 2026-07-25</p>
+        <p class="small">Generated: 2026-08-01</p>
         <h1>Bestar Warehouse Unloading System 项目完成度报告</h1>
         <p>
           依据 AGENTS.md、docs/product/00-business-context.md、系统架构文档、
@@ -235,6 +235,11 @@
           Access 尚未激活。PUBLIC-DEPLOY-03 OCI 路线已归档且中断修改已还原。
           不得公开 PostgreSQL/Redis，当前公网交付状态为 Code Complete / External
           Activation Pending，而不是已上线。
+          2026-08-01 现场新增三项 P0 回归：中文上传文件名发生 mojibake；7 月考勤
+          Parse 成功但工资表 Generate 失败；Named Tunnel 公网域名可登录而 LAN IP
+          无法登录。已分别建立 FILE-UPLOAD-01、WAGE-HOURS-08 和 PUBLIC-DEPLOY-04；
+          FILE-UPLOAD-01 已完成；旧 Wage/Public 完成证据保留为历史基线，WAGE-HOURS-08
+          与 PUBLIC-DEPLOY-04 仍未完成。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -947,6 +952,20 @@
               <td>100%</td>
               <td>整次考勤导入从 active Work Hours 退出，但原始 `.xls`、SHA、parsed rows、row audit、generated records/bytes 和 async jobs 全部留存；删除使用 authenticated actor、必填 reason、不可变 import event 和独立 <code>attendance.imports.delete</code> 权限。active-only SHA 唯一约束允许删除后以新 id 重传同一文件，同时阻止并发产生两个 active import；旧 URL、job 和同步 Worker 均有 active/revision 防线。</td>
               <td>36 个 migration、API 359 unit / 126 E2E、Web 271 unit、Worker 183、lint/typecheck/build、真实 Chromium Work Hours 6/6、双语/主题/mobile/desktop/200% zoom、SHA/字节留存和精确清理均通过。四张原分辨率截图已检查；本 Task 不得重跑。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.7: FILE-UPLOAD-01 Unicode Original Filename Integrity Regression</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
+              <td>卸柜 `.xlsx` 与考勤 `.xls` 共用严格 UTF-8 multipart filename codec；raw transport evidence、canonical display name 与 storage-safe basename 已分离。Prisma evidence migration、统一下载 header、strict en/zh-CN review notice，以及有匹配备份、dry-run、事务锁和幂等的历史记录修复 CLI 已完成。</td>
+              <td>API 403 unit / 131 E2E、Web 284 unit + production build、Worker 235 pytest、39 migrations、full-stack health、真实 Chromium/FormData/nginx/API/DB/DOM、dark、390/1366、真实 200% zoom、故意失败 cleanup 探针、修复 CLI 备份/SHA/幂等和最终零残留均通过。脱敏证据见 <code>docs/reports/file-upload-01-unicode-filename-verification.md</code>；无外部 gate，本 Task 不得重跑。</td>
+            </tr>
+            <tr>
+              <td>Stage 7.8: WAGE-HOURS-08 Parsed Attendance Wage Workbook Generation Regression</td>
+              <td><span class="badge partial">Ready / Not Started</span></td>
+              <td>0%</td>
+              <td>关闭 7 月现场考勤 Parse 成功但异步 Generate 失败的 Worker/API/BullMQ/generated-file/Web 下载闭环；保留奇偶打卡、active-row 删除、多 Sheet BIFF 格式和办公室只显示工资表的既有规则。</td>
+              <td>FILE-UPLOAD-01 已 Done；下一 fresh supervisor Session 执行本 Task。必须以 <code>samples/attendance_test/</code> 中用户提供的7月现场真实打卡记录样本定位准确 failure stage；真实样本只记录脱敏 count/code/hash，BIFF/LibreOffice/Chromium 视觉证据使用脱敏 fixture，Windows Microsoft Excel 外部检查单独记录。</td>
             </tr>
           </tbody>
         </table>
@@ -1676,13 +1695,19 @@
               <td>PUBLIC-DEPLOY-02 Cloudflare Tunnel Local Canonical Pilot</td>
               <td><span class="badge partial">Code Complete / External Activation Pending</span></td>
               <td>已交付 digest-pinned remotely-managed named tunnel、secret-file/fail-closed/network isolation contract、nginx no-store 与稳定 413、50 MB 应用上传门禁、严格双语错误、运维/备份/监控/故障演练 runbook。API 351 unit/125 E2E、Web 267 unit/build、Worker 183 tests、18 项相关 Chromium、35 migrations、healthcheck、备份/恢复 dry-run、正负向契约与本地故障演练均通过；本地 PostgreSQL + storage 仍是唯一 writer，LAN 不依赖 Tunnel。</td>
-              <td>仓库实现不得重跑。按 runbook 在真实 domain/account 上补 named tunnel、Access deny-by-default + MFA/session、非公司网络、public cache/upload/download、重连及 token rotate/revoke 脱敏证据；未关闭前不宣称公网已上线。</td>
+              <td>旧 Task 不得重跑；但“public mode 下 LAN login healthy”已被 2026-08-01 现场回归推翻，须先完成 PUBLIC-DEPLOY-04。Access 当前现场状态继续按独立安全决定处理，不得以改 Access 代替应用双入口修复。</td>
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-03 OCI Always Free ARM64 Cloud Canonical Profile</td>
               <td><span class="badge archived">Archived / Do Not Execute</span></td>
               <td>产品已撤回 OCI Always Free A1 cloud-canonical 路线；中断 Session 的 cloud Compose、ARM64、备份、迁移和运维修改已还原。</td>
               <td>不得执行；恢复必须先取得产品批准、移除 Task 归档标记并同步索引/完成报告。</td>
+            </tr>
+            <tr>
+              <td>PUBLIC-DEPLOY-04 Public Domain and LAN IP Login Coexistence Regression</td>
+              <td><span class="badge partial">Ready / Not Started</span></td>
+              <td>同一 single-writer public-mode stack 必须同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。公网 Cookie 始终 Secure；LAN HTTP 仅在 private allowlist、trusted ingress 和防火墙边界下使用 host-only cookie。</td>
+              <td>禁止全局关闭 Secure cookie、wildcard CORS、信任客户端 forwarded header、暴露 API/DB/Redis 或修改 Cloudflare Access/DNS/Tunnel token。仓库自动化后仍需真实公网域名 + 真实 LAN IP 外部矩阵。</td>
             </tr>
           </tbody>
         </table>
@@ -2202,10 +2227,11 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
+          <li>FILE-UPLOAD-01 已 Done 且不得重跑；下一开发任务依次为 WAGE-HOURS-08、PUBLIC-DEPLOY-04，每项一个 fresh supervisor Session。后续两项继续严格执行 en/zh-CN、stable code、no-flash、隐私和 Docker-only 门禁。</li>
           <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
-          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
-          <li>PUBLIC-DEPLOY-01 已 Done；PUBLIC-DEPLOY-02 已完成仓库实现和当前环境自动化，下一步只按公网 runbook 关闭真实 Cloudflare domain/Access/MFA/非公司网络/token rotation external gate。当前 LAN Compose/nginx 仍不得直接端口转发到 Internet。</li>
+          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；新现场生成故障只执行 WAGE-HOURS-08。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
+          <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 必须先关闭公网域名/LAN IP 登录并存回归。当前 LAN listener 仍不得端口转发到 Internet，公网 Secure cookie 不得降级。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>

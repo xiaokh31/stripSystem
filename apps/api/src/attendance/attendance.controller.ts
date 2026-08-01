@@ -39,6 +39,10 @@ import { DeleteAttendanceImportDto } from './dto/delete-attendance-import.dto';
 import { ListAttendanceRowHistoryQueryDto } from './dto/list-attendance-row-history-query.dto';
 import { ListAttendanceImportHistoryQueryDto } from './dto/list-attendance-import-history-query.dto';
 import { ListAttendanceImportsQueryDto } from './dto/list-attendance-imports-query.dto';
+import {
+  contentDispositionAttachment,
+  UTF8_MULTIPART_FILE_OPTIONS,
+} from '../common/upload-filename';
 
 @Controller('attendance-imports')
 export class AttendanceController {
@@ -50,11 +54,7 @@ export class AttendanceController {
   @Post()
   @RequirePermissions(...ROUTE_PERMISSIONS.attendance.upload)
   @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize: 50 * 1024 * 1024,
-      },
-    }),
+    FileInterceptor('file', UTF8_MULTIPART_FILE_OPTIONS),
   )
   upload(
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -219,9 +219,6 @@ export class AttendanceController {
   }
 
   private contentDisposition(filename: string): string {
-    const fallback = filename.replace(/[^A-Za-z0-9._-]+/g, '_');
-    return `attachment; filename="${fallback || 'download'}"; filename*=UTF-8''${encodeURIComponent(
-      filename,
-    )}`;
+    return contentDispositionAttachment(filename);
   }
 }

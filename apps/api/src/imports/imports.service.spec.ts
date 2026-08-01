@@ -186,15 +186,20 @@ describe('ImportsService', () => {
       parserVersion: null,
       errorMessage: null,
     });
-    expect(response.storedPath).toContain(
+    expect(createdImportData?.storedPath).toContain(
       join('original_files', expectedSha256),
     );
-    await expect(stat(response.storedPath)).resolves.toBeDefined();
-    await expect(readFile(response.storedPath)).resolves.toEqual(file.buffer);
+    await expect(stat(createdImportData!.storedPath)).resolves.toBeDefined();
+    await expect(readFile(createdImportData!.storedPath)).resolves.toEqual(
+      file.buffer,
+    );
     expect(createdImportData).toMatchObject({
-      storedPath: response.storedPath,
       fileSha256: expectedSha256,
       originalFilename: 'Unloading Plan CSNU8877228.xlsx',
+      transportFilename: 'Unloading Plan CSNU8877228.xlsx',
+      filenameCodecVersion: 'upload-filename-v1',
+      filenameReviewCode: null,
+      storageBasename: 'Unloading Plan CSNU8877228.xlsx',
       importedById: 'auth-office',
     });
   });
@@ -577,7 +582,6 @@ describe('ImportsService', () => {
     );
     expect(result.importFile).toMatchObject({
       id: record.id,
-      storedPath,
       parseStatus: 'WARNING',
       parserVersion: 'unloading-plan-cn-v1',
       warningCount: 1,

@@ -359,12 +359,20 @@ describe('AttendanceService', () => {
       importStatus: 'UPLOADED',
       parseStatus: 'NOT_PARSED',
     });
-    expect(response.storedPath).toContain(
+    expect(importRecord.storedPath).toContain(
       join('attendance_original_files', expectedSha256),
     );
-    await expect(stat(response.storedPath)).resolves.toBeDefined();
-    await expect(readFile(response.storedPath)).resolves.toEqual(file.buffer);
+    await expect(stat(importRecord.storedPath)).resolves.toBeDefined();
+    await expect(readFile(importRecord.storedPath)).resolves.toEqual(
+      file.buffer,
+    );
     expect(importRecord.importedById).toBe('auth-office');
+    expect(importRecord).toMatchObject({
+      transportFilename: 'workAttendanceRecordForm_June.xls',
+      filenameCodecVersion: 'upload-filename-v1',
+      filenameReviewCode: null,
+      storageBasename: 'workAttendanceRecordForm_June.xls',
+    });
     expect(workerAttendance.parseAttendance).not.toHaveBeenCalled();
     expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
   });

@@ -26,6 +26,7 @@ import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 import { AsyncJobType } from '../generated/prisma/enums';
+import { UTF8_MULTIPART_FILE_OPTIONS } from '../common/upload-filename';
 
 @Controller('imports')
 export class ImportsController {
@@ -37,11 +38,7 @@ export class ImportsController {
   @Post()
   @RequirePermissions(...ROUTE_PERMISSIONS.imports.upload)
   @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize: 50 * 1024 * 1024,
-      },
-    }),
+    FileInterceptor('file', UTF8_MULTIPART_FILE_OPTIONS),
   )
   upload(
     @UploadedFile() file: Express.Multer.File | undefined,

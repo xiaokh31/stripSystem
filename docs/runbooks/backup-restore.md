@@ -10,6 +10,10 @@ PDFs, use `docs/runbooks/current-generated-artifact-production-repair.md`.
 That procedure requires a matched PostgreSQL and `storage/` backup before its
 explicit apply step; do not substitute manual SQL or file deletion.
 
+For reversible legacy upload-filename metadata repair, use
+`docs/runbooks/upload-filename-repair.md`. Its apply mode also requires a
+matched PostgreSQL and `storage/` manifest and does not move original files.
+
 ## What To Back Up
 
 - PostgreSQL database.

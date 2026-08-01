@@ -22,6 +22,7 @@ import {
   statusTone,
   toParseResultSummary,
 } from "@/components/imports/import-detail-flow";
+import { FilenameReviewNotice } from "@/components/imports/filename-review-notice";
 import type { Locale, MessageKey } from "@/lib/i18n/catalog";
 import { getServerLocale } from "@/lib/i18n/server";
 import { generatedOrImportStatusLabel } from "@/lib/i18n/status-labels";
@@ -95,6 +96,10 @@ export default async function ImportDetailPage({
             <h1 className="mt-2 break-all text-2xl font-semibold text-zinc-950">
               {state.importFile.originalFilename}
             </h1>
+            <FilenameReviewNotice
+              code={state.importFile.filenameReviewCode}
+              locale={locale}
+            />
           </div>
           <div className="flex flex-wrap gap-2">
             <Link

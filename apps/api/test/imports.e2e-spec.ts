@@ -21,6 +21,10 @@ import {
 interface ImportRecord {
   id: string;
   originalFilename: string;
+  transportFilename?: string | null;
+  filenameCodecVersion?: string;
+  filenameReviewCode?: string | null;
+  storageBasename?: string;
   storedPath: string;
   fileSha256: string;
   mimeType: string | null;
@@ -141,7 +145,7 @@ interface PalletEventRecord {
 interface ImportFileBody {
   id: string;
   originalFilename: string;
-  storedPath: string;
+  filenameReviewCode: string | null;
   fileSha256: string;
   format: string;
   importStatus: string;
@@ -304,6 +308,10 @@ interface FindUniqueArgs {
 interface CreateImportArgs {
   data: {
     originalFilename: string;
+    transportFilename: string;
+    filenameCodecVersion: string;
+    filenameReviewCode: string | null;
+    storageBasename: string;
     storedPath: string;
     fileSha256: string;
     mimeType: string | null;
@@ -422,11 +430,30 @@ describe('ImportsController (e2e)', () => {
       errorMessage: null,
     });
     expect(body.fileSha256).toEqual(expect.any(String));
-    expect(body.storedPath).toContain('original_files');
-    await expect(stat(body.storedPath)).resolves.toBeDefined();
+    expect(body).not.toHaveProperty('storedPath');
     expect(records).toHaveLength(1);
-    expect(records[0].storedPath).toBe(body.storedPath);
+    expect(records[0].storedPath).toContain('original_files');
+    await expect(stat(records[0].storedPath)).resolves.toBeDefined();
     expect(records[0].importedById).toBe('auth-office');
+  });
+
+  it('preserves a UTF-8 multipart filename and keeps raw/canonical/storage metadata separate', async () => {
+    const response = await authorizedRequest(app, officeAuthHeader())
+      .post('/api/imports')
+      .attach('file', fixturePath, { filename: '卸柜清单_(中文).xlsx' })
+      .expect(201);
+    expect(response.body).toMatchObject({
+      originalFilename: '卸柜清单_(中文).xlsx',
+      filenameReviewCode: null,
+    });
+    expect(response.body).not.toHaveProperty('storedPath');
+    expect(records[0]).toMatchObject({
+      originalFilename: '卸柜清单_(中文).xlsx',
+      transportFilename: '卸柜清单_(中文).xlsx',
+      filenameCodecVersion: 'upload-filename-v1',
+      filenameReviewCode: null,
+      storageBasename: '卸柜清单_(中文).xlsx',
+    });
   });
 
   it('rejects duplicate uploads by SHA-256', async () => {
@@ -494,7 +521,9 @@ describe('ImportsController (e2e)', () => {
       .attach('file', fixturePath)
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
-    const originalStoredPath = uploadedBody.storedPath;
+    const originalStoredPath = records.find(
+      (record) => record.id === uploadedBody.id,
+    )!.storedPath;
 
     const parsed = await authorizedRequest(app)
       .post(`/api/imports/${uploadedBody.id}/parse`)
@@ -503,7 +532,6 @@ describe('ImportsController (e2e)', () => {
 
     expect(parsedBody.importFile).toMatchObject({
       id: uploadedBody.id,
-      storedPath: originalStoredPath,
       format: 'UNLOADING_PLAN_CN',
       parserVersion: 'unloading-plan-cn-v1',
       errorCount: 0,
@@ -545,7 +573,8 @@ describe('ImportsController (e2e)', () => {
       .spyOn(WorkerParserService.prototype, 'parseFile')
       .mockResolvedValue({
         task_status: 'SUCCESS',
-        source_file: uploadedBody.storedPath,
+        source_file: records.find((record) => record.id === uploadedBody.id)!
+          .storedPath,
         sha256: uploadedBody.fileSha256,
         detection: { format_type: 'UNLOADING_PLAN_CN' },
         parsed_result: {
@@ -1038,7 +1067,7 @@ describe('ImportsController (e2e)', () => {
     const labelsBody = labels.body as GenerateLabelsBody;
 
     const storagePaths = [
-      uploadedBody.storedPath,
+      records.find((record) => record.id === uploadedBody.id)!.storedPath,
       generatedFiles.find(
         (file) => file.id === reportBody.generatedFile.id,
       )!.storagePath,
@@ -1106,7 +1135,10 @@ describe('ImportsController (e2e)', () => {
       .expect(201);
     const uploadedBody = uploaded.body as ImportFileBody;
 
-    await unlink(uploadedBody.storedPath);
+    const uploadedStoredPath = records.find(
+      (record) => record.id === uploadedBody.id,
+    )!.storedPath;
+    await unlink(uploadedStoredPath);
 
     await authorizedRequest(app)
       .delete(`/api/imports/${uploadedBody.id}`)
@@ -1121,7 +1153,7 @@ describe('ImportsController (e2e)', () => {
     expect(deleteAudit?.[0].data.newValue).toMatchObject({
       deletedStorageFileCount: 0,
       deletedStoragePaths: [],
-      missingStoragePaths: [uploadedBody.storedPath],
+      missingStoragePaths: [uploadedStoredPath],
     });
   });
 
@@ -1459,7 +1491,9 @@ describe('ImportsController (e2e)', () => {
       .expect((response) => {
         expect(response.body.code).toBe('IMPORT_USED_BY_PARSER_LEARNING');
       });
-    await expect(stat(importFile.storedPath)).resolves.toBeDefined();
+    await expect(
+      stat(records.find((record) => record.id === importFile.id)!.storedPath),
+    ).resolves.toBeDefined();
 
     await authorizedRequest(app, officeAuthHeader())
       .post(`/api/parser-learning-cases/${learningCaseId}/unlink-container`)
@@ -1628,6 +1662,10 @@ describe('ImportsController (e2e)', () => {
           const record: ImportRecord = {
             id: `import-${importRecords.length + 1}`,
             originalFilename: data.originalFilename,
+            transportFilename: data.transportFilename,
+            filenameCodecVersion: data.filenameCodecVersion,
+            filenameReviewCode: data.filenameReviewCode,
+            storageBasename: data.storageBasename,
             storedPath: data.storedPath,
             fileSha256: data.fileSha256,
             mimeType: data.mimeType,

@@ -15,6 +15,7 @@ import type { Response } from 'express';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
+import { contentDispositionAttachment } from '../common/upload-filename';
 import {
   CompleteContainerUnloadingDto,
   CompleteUnloadingDto,
@@ -197,18 +198,11 @@ export class UnloadingWageController {
       fileId,
     );
     response.set({
-      'Content-Disposition': this.contentDisposition(download.filename),
+      'Content-Disposition': contentDispositionAttachment(download.filename),
       'Content-Length': download.fileSizeBytes.toString(),
       'Content-Type': download.mimeType,
     });
 
     return new StreamableFile(download.buffer);
-  }
-
-  private contentDisposition(filename: string): string {
-    const fallback = filename.replace(/[^A-Za-z0-9._-]+/g, '_');
-    return `attachment; filename="${fallback || 'download'}"; filename*=UTF-8''${encodeURIComponent(
-      filename,
-    )}`;
   }
 }

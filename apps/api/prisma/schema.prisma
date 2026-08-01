@@ -452,6 +452,10 @@ model RolePermission {
 model ImportFile {
   id                       String                    @id @default(cuid())
   originalFilename         String                    @map("original_filename")
+  transportFilename        String?                   @map("transport_filename")
+  filenameCodecVersion     String                    @default("upload-filename-v1") @map("filename_codec_version")
+  filenameReviewCode       String?                   @map("filename_review_code")
+  storageBasename          String                    @map("storage_basename")
   storedPath               String                    @map("stored_path")
   fileSha256               String                    @unique @map("file_sha256")
   mimeType                 String?                   @map("mime_type")
@@ -1053,6 +1057,10 @@ model OperationalSetting {
 model AttendanceImport {
   id                 String               @id @default(cuid())
   originalFilename   String               @map("original_filename")
+  transportFilename  String?              @map("transport_filename")
+  filenameCodecVersion String              @default("upload-filename-v1") @map("filename_codec_version")
+  filenameReviewCode String?               @map("filename_review_code")
+  storageBasename    String                @map("storage_basename")
   storedPath         String               @map("stored_path")
   fileSha256         String               @map("file_sha256")
   mimeType           String?              @map("mime_type")

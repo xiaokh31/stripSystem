@@ -12,7 +12,7 @@ import type { Response } from 'express';
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
-import type { GeneratedFileDownloadDto } from '../reports/dto/generated-file-response.dto';
+import { contentDispositionAttachment } from '../common/upload-filename';
 import {
   ExportUnloadingSummaryDto,
   ExportUnloadingSummaryResponseDto,
@@ -59,18 +59,11 @@ export class UnloadingSummaryController {
   ): Promise<StreamableFile> {
     const download = await this.unloadingSummaryService.downloadExport(fileId);
     response.set({
-      'Content-Disposition': this.contentDisposition(download),
+      'Content-Disposition': contentDispositionAttachment(download.filename),
       'Content-Length': download.fileSizeBytes.toString(),
       'Content-Type': download.mimeType,
     });
 
     return new StreamableFile(download.buffer);
-  }
-
-  private contentDisposition(download: GeneratedFileDownloadDto): string {
-    const fallback = download.filename.replace(/[^A-Za-z0-9._-]+/g, '_');
-    return `attachment; filename="${fallback || 'download'}"; filename*=UTF-8''${encodeURIComponent(
-      download.filename,
-    )}`;
   }
 }

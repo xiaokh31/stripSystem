@@ -22,6 +22,10 @@ jest.setTimeout(30_000);
 interface AttendanceImportRecord {
   id: string;
   originalFilename: string;
+  transportFilename?: string | null;
+  filenameCodecVersion?: string;
+  filenameReviewCode?: string | null;
+  storageBasename?: string;
   storedPath: string;
   fileSha256: string;
   mimeType: string | null;
@@ -93,7 +97,7 @@ interface WageGeneratedFileRecord {
 interface AttendanceImportBody {
   id: string;
   originalFilename: string;
-  storedPath: string;
+  filenameReviewCode: string | null;
   fileSha256: string;
   importStatus: string;
   parseStatus: string;
@@ -182,6 +186,10 @@ interface FindUniqueArgs {
 interface CreateAttendanceImportArgs {
   data: {
     originalFilename: string;
+    transportFilename: string;
+    filenameCodecVersion: string;
+    filenameReviewCode: string | null;
+    storageBasename: string;
     storedPath: string;
     fileSha256: string;
     mimeType: string | null;
@@ -273,7 +281,11 @@ describe('AttendanceImportsController (e2e)', () => {
       parseStatus: 'NOT_PARSED',
       errorMessage: null,
     });
-    await expect(stat(uploadedBody.storedPath)).resolves.toBeDefined();
+    expect(uploadedBody).not.toHaveProperty('storedPath');
+    const uploadedStoredPath = attendanceImports.find(
+      (record) => record.id === uploadedBody.id,
+    )!.storedPath;
+    await expect(stat(uploadedStoredPath)).resolves.toBeDefined();
 
     const parsed = await authorizedRequest(app, hrManagerAuthHeader())
       .post(`/api/attendance-imports/${uploadedBody.id}/parse`)
@@ -282,7 +294,6 @@ describe('AttendanceImportsController (e2e)', () => {
 
     expect(parsedBody.attendanceImport).toMatchObject({
       id: uploadedBody.id,
-      storedPath: uploadedBody.storedPath,
       parseStatus: 'WARNING',
       parserVersion: 'wage-attendance-v2',
       settlementMonth: '2026-06',
@@ -336,7 +347,7 @@ describe('AttendanceImportsController (e2e)', () => {
     ]);
     expect(attendanceRows).toHaveLength(390);
     expect(new Set(attendanceRows.map((row) => row.rowKey)).size).toBe(390);
-    expect(attendanceImports[0].storedPath).toBe(uploadedBody.storedPath);
+    expect(attendanceImports[0].storedPath).toBe(uploadedStoredPath);
 
     const files = await authorizedRequest(app, hrManagerAuthHeader())
       .get(`/api/attendance-imports/${uploadedBody.id}/files`)
@@ -405,6 +416,27 @@ describe('AttendanceImportsController (e2e)', () => {
           .map((file) => file.storagePath),
       ).size,
     ).toBe(2);
+  });
+
+  it('preserves a UTF-8 attendance multipart filename and raw/storage evidence', async () => {
+    const response = await authorizedRequest(app, hrManagerAuthHeader())
+      .post('/api/attendance-imports')
+      .attach('file', fixturePath, {
+        filename: '1_(7月)员工刷卡记录表.xls',
+      })
+      .expect(201);
+    expect(response.body).toMatchObject({
+      originalFilename: '1_(7月)员工刷卡记录表.xls',
+      filenameReviewCode: null,
+    });
+    expect(response.body).not.toHaveProperty('storedPath');
+    expect(attendanceImports[0]).toMatchObject({
+      originalFilename: '1_(7月)员工刷卡记录表.xls',
+      transportFilename: '1_(7月)员工刷卡记录表.xls',
+      filenameCodecVersion: 'upload-filename-v1',
+      filenameReviewCode: null,
+      storageBasename: '1_(7月)员工刷卡记录表.xls',
+    });
   });
 
   it('blocks wage record generation until attendance parse has completed', async () => {
@@ -642,7 +674,10 @@ describe('AttendanceImportsController (e2e)', () => {
       .post(`/api/attendance-imports/${uploadedBody.id}/generate-wage-record`)
       .expect(201);
     const generatedBody = generated.body as GenerateWageRecordBody;
-    const originalBefore = await readFile(uploadedBody.storedPath);
+    const uploadedStoredPath = attendanceImports.find(
+      (record) => record.id === uploadedBody.id,
+    )!.storedPath;
+    const originalBefore = await readFile(uploadedStoredPath);
     const originalShaBefore = createHash('sha256')
       .update(originalBefore)
       .digest('hex');
@@ -702,8 +737,8 @@ describe('AttendanceImportsController (e2e)', () => {
         .every((file) => file.status !== 'GENERATED'),
     ).toBe(true);
     expect(attendanceRows).toHaveLength(390);
-    expect(await readFile(uploadedBody.storedPath)).toEqual(originalBefore);
-    expect(await fileSha256(uploadedBody.storedPath)).toBe(originalShaBefore);
+    expect(await readFile(uploadedStoredPath)).toEqual(originalBefore);
+    expect(await fileSha256(uploadedStoredPath)).toBe(originalShaBefore);
     for (const path of generatedPaths) {
       await expect(stat(path)).resolves.toBeDefined();
     }
@@ -825,6 +860,10 @@ describe('AttendanceImportsController (e2e)', () => {
           const record: AttendanceImportRecord = {
             id: `attendance-import-${importRecords.length + 1}`,
             originalFilename: data.originalFilename,
+            transportFilename: data.transportFilename,
+            filenameCodecVersion: data.filenameCodecVersion,
+            filenameReviewCode: data.filenameReviewCode,
+            storageBasename: data.storageBasename,
             storedPath: data.storedPath,
             fileSha256: data.fileSha256,
             mimeType: data.mimeType,

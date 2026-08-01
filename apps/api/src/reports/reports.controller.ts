@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
-  GeneratedFileDownloadDto,
   GeneratedFileListResponseDto,
   GenerateReportResponseDto,
 } from './dto/generated-file-response.dto';
@@ -21,6 +20,7 @@ import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
 import { AsyncJobType } from '../generated/prisma/enums';
+import { contentDispositionAttachment } from '../common/upload-filename';
 
 @Controller('containers')
 export class ReportsController {
@@ -74,18 +74,11 @@ export class ReportsController {
   ): Promise<StreamableFile> {
     const download = await this.reportsService.downloadFile(id, fileId);
     response.set({
-      'Content-Disposition': this.contentDisposition(download),
+      'Content-Disposition': contentDispositionAttachment(download.filename),
       'Content-Length': download.fileSizeBytes.toString(),
       'Content-Type': download.mimeType,
     });
 
     return new StreamableFile(download.buffer);
-  }
-
-  private contentDisposition(download: GeneratedFileDownloadDto): string {
-    const fallback = download.filename.replace(/[^A-Za-z0-9._-]+/g, '_');
-    return `attachment; filename="${fallback || 'download'}"; filename*=UTF-8''${encodeURIComponent(
-      download.filename,
-    )}`;
   }
 }

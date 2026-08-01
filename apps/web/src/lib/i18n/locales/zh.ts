@@ -2406,4 +2406,15 @@ export const zhMessages = {
     "另一项生成任务已同时完成，请刷新后使用当前文件。",
   "The current file is ready, but temporary-file cleanup must be retried by the system.":
     "当前文件已可用，但系统仍需重试临时文件清理。",
+  "Filename needs review": "文件名需要复核",
+  "i18n.filenameReview.ambiguousEncoding":
+    "传输编码无法确定；系统已保留当前显示名称供复核。",
+  "i18n.filenameReview.empty": "来源没有提供可用的显示文件名。",
+  "i18n.filenameReview.invalidUtf8":
+    "传输文件名包含无效 UTF-8；系统已保留名称供复核。",
+  "i18n.filenameReview.tooLong":
+    "显示文件名异常长；存储仍使用受长度限制的内部名称。",
+  "i18n.filenameReview.unsafeCharacters":
+    "文件名包含控制字符或文字方向字符，需要复核。",
+  "i18n.filenameReview.unknown": "该文件名需要管理员复核。",
 } satisfies Record<MessageKey, string>;

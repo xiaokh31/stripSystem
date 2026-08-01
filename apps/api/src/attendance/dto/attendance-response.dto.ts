@@ -1,7 +1,7 @@
 export interface AttendanceImportResponseDto {
   id: string;
   originalFilename: string;
-  storedPath: string;
+  filenameReviewCode: string | null;
   fileSha256: string;
   mimeType: string | null;
   fileSizeBytes: string | null;

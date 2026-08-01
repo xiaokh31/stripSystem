@@ -24,6 +24,7 @@ import {
   firstValue,
   normalizeDashboardDrilldownContext,
 } from "@/components/dashboard/drilldown-flow";
+import { FilenameReviewNotice } from "@/components/imports/filename-review-notice";
 
 export const dynamic = "force-dynamic";
 
@@ -224,6 +225,10 @@ function ImportRow({
         <p className="break-all font-medium text-zinc-950">
           {importFile.originalFilename}
         </p>
+        <FilenameReviewNotice
+          code={importFile.filenameReviewCode}
+          locale={locale}
+        />
         {/* <p className="mt-1 break-all text-xs text-zinc-500">
           {importFile.id}
         </p> */}

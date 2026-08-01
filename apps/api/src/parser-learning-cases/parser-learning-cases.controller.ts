@@ -11,6 +11,7 @@ import {
 import { CurrentUser, RequirePermissions } from '../auth/auth.decorators';
 import type { AuthenticatedUser } from '../auth/auth-user';
 import { ROUTE_PERMISSIONS } from '../auth/route-permissions';
+import { contentDispositionAttachment } from '../common/upload-filename';
 import {
   CloseParserLearningCaseDto,
   LinkParserLearningCaseContainerDto,
@@ -130,7 +131,7 @@ export class ParserLearningCasesController {
     const download = await this.service.downloadReplayArtifact(id, artifactId);
     return new StreamableFile(download.buffer, {
       type: download.mimeType,
-      disposition: `attachment; filename="${download.filename.replace(/[^A-Za-z0-9._-]+/g, '_')}"`,
+      disposition: contentDispositionAttachment(download.filename),
       length: download.fileSizeBytes,
     });
   }

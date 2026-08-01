@@ -19,6 +19,7 @@ docs/adr/*
 docs/architecture/*
 !docs/architecture/02-data-model.md
 !docs/architecture/04-api-contracts.md
+!docs/architecture/06-storage-deployment.md
 !docs/architecture/09-account-role-permission-management.md
 !docs/architecture/10-native-scan-app-architecture.md
 !docs/product/
@@ -48,6 +49,7 @@ docs/runbooks/*
 !docs/runbooks/parser-profile-operations.md
 !docs/runbooks/public-access-and-free-cloud-deployment.md
 !docs/runbooks/cloudflare-named-tunnel-deployment.md
+!docs/runbooks/upload-filename-repair.md
 !docs/runbooks/external-ip-domain-access.html
 !docs/reports/
 docs/reports/*
@@ -55,6 +57,7 @@ docs/reports/*
 !docs/reports/unload-report-04-current-artifact-replacement-verification.md
 !docs/reports/unload-report-05-adaptive-primary-white-layout-verification.md
 !docs/reports/project-completion-status.html
+!docs/reports/file-upload-01-unicode-filename-verification.md
 !docs/reports/docker-cache-verification-2026-07-13.md
 !docs/reports/web-ops-04-operational-clock-performance.md
 !docs/reports/business-agent-execution-time-analysis-2026-07-15.html
@@ -174,6 +177,7 @@ prompts/tasks/*
 !prompts/tasks/WEB-BRAND*.md
 !prompts/tasks/WAGE-HOURS*.md
 !prompts/tasks/PUBLIC-DEPLOY*.md
+!prompts/tasks/FILE-UPLOAD*.md
 !prompts/tasks/POD-*.md
 
 apps/mobile-scan-app/BestarNativeScanTemp/

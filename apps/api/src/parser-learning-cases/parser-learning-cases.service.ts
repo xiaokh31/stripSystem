@@ -57,6 +57,7 @@ import {
   ParserProfileParseResult,
   ParserProfileWorkerService,
 } from './parser-profile-worker.service';
+import { projectCanonicalFilename } from '../common/upload-filename';
 
 const learningCaseInclude = {
   sourceImport: {
@@ -566,7 +567,12 @@ export class ParserLearningCasesService {
       draftRevision: record.draftRevision,
       source: {
         importFileId: record.sourceImportReferenceId,
-        originalFilename: record.sourceImport?.originalFilename ?? null,
+        originalFilename: record.sourceImport
+          ? projectCanonicalFilename(
+              record.sourceImport.originalFilename,
+              '.xlsx',
+            ).originalFilename
+          : null,
         fileSha256: record.sourceFileSha256,
       },
       contractVersion: payload.contractVersion,
@@ -2474,7 +2480,10 @@ export class ParserLearningCasesService {
       sourceImport: record.sourceImport
         ? {
             id: record.sourceImport.id,
-            originalFilename: record.sourceImport.originalFilename,
+            originalFilename: projectCanonicalFilename(
+              record.sourceImport.originalFilename,
+              '.xlsx',
+            ).originalFilename,
             format: record.sourceImport.format,
             parseStatus: record.sourceImport.parseStatus,
             rawMetadata: record.sourceImport.rawMetadata ?? null,

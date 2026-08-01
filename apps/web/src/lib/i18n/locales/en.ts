@@ -2600,6 +2600,19 @@ export const enMessages = {
     "Another generation completed at the same time. Refresh to use the current file.",
   "The current file is ready, but temporary-file cleanup must be retried by the system.":
     "The current file is ready, but temporary-file cleanup must be retried by the system.",
+  "Filename needs review": "Filename needs review",
+  "i18n.filenameReview.ambiguousEncoding":
+    "The transport encoding is ambiguous; the displayed name was preserved for review.",
+  "i18n.filenameReview.empty":
+    "The source did not provide a usable display filename.",
+  "i18n.filenameReview.invalidUtf8":
+    "The transport filename contained invalid UTF-8 and was preserved for review.",
+  "i18n.filenameReview.tooLong":
+    "The display filename is unusually long; storage still uses a bounded internal name.",
+  "i18n.filenameReview.unsafeCharacters":
+    "The filename contains control or direction characters and needs review.",
+  "i18n.filenameReview.unknown":
+    "The filename requires an administrator review.",
 } as const;
 
 export type MessageKey = keyof typeof enMessages;

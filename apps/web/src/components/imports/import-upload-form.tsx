@@ -18,6 +18,7 @@ import {
   uploadStatusLabel,
   type UploadQueueItem,
 } from "./import-upload-flow";
+import { FilenameReviewNotice } from "./filename-review-notice";
 
 type UploadItemState = UploadQueueItem & {
   file: File;
@@ -355,6 +356,10 @@ function ResultCell({
             {item.result.originalFilename}
           </span>
         </p>
+        <FilenameReviewNotice
+          code={item.result.filenameReviewCode}
+          locale={locale}
+        />
         <p className="text-xs text-zinc-600">
           {t("Status")}: {" "}
           <span

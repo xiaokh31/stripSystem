@@ -413,7 +413,7 @@ export interface OperationalSettingsMutationResponse {
 export interface AttendanceImportResponse {
   id: string;
   originalFilename: string;
-  storedPath: string;
+  filenameReviewCode: string | null;
   fileSha256: string;
   mimeType: string | null;
   fileSizeBytes: string | null;
@@ -964,7 +964,7 @@ export interface ExportUnloadingSummaryResponse extends UnloadingSummaryResponse
 export interface ImportFileResponse {
   id: string;
   originalFilename: string;
-  storedPath: string;
+  filenameReviewCode: string | null;
   fileSha256: string;
   mimeType: string | null;
   fileSizeBytes: string | null;

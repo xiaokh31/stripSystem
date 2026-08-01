@@ -1,7 +1,7 @@
 当前未完成功能任务索引。
 
 生成时间：
-- 2026-07-29
+- 2026-08-01
 
 依据：
 - docs/reports/project-completion-status.html
@@ -79,6 +79,12 @@
   只显示 wage workbook 历史，parsed JSON/task report 保留后台审计但不显示卡片或下载。`WAGE-HOURS-07` 也已
   `DONE`：整次考勤导入采用不可变审计软删除，原始文件与全部历史证据保留，旧 URL/job 被阻断，删除后同 SHA
   可作为独立新 active import 重传。
+- 2026-08-01 新增三个 P0 现场回归 Task。`FILE-UPLOAD-01` 已完成卸柜/考勤 multipart
+  中文原始文件名 mojibake 修复及保留 raw evidence 的既有记录处理；`WAGE-HOURS-08`
+  使用 7 月受控现场样本关闭“Parse 成功但 Generate 失败”的异步工资表闭环；
+  `PUBLIC-DEPLOY-04` 修复同一 Named Tunnel public-mode stack 中公网 HTTPS 可登录但
+  局域网 IP 无法登录的问题。旧 WAGE-HOURS-01 至 07 和 PUBLIC-DEPLOY-01/02 的历史
+  完成证据保留，但不得用于否定这三项新回归。
 - 2026-07-25 新增 POD 大功能及 `POD-00` 至 `05`。菜单固定为 `POD`；办公室人员可维护
   versioned template、选择模板填写、保存 immutable revision、打印 saved PDF 并从 archive 精确重打。
   POD-00 必须先取得一份真实/明确脱敏空白模板和 approved completed/printed example，冻结首版
@@ -223,7 +229,32 @@
 32. DOCKER-CACHE-01Docker Dependency Layer and Startup Cache Optimization.md
    - 已完成。API/Web/Worker/E2E Dockerfile 先复制依赖清单并用 frozen lockfile 安装，再复制源码；pnpm/uv BuildKit cache mount 与固定 pnpm 版本已加入，Compose 移除会遮蔽 image 的 Node、`.next`、`.venv` dependency volumes。API/Web 运行时直接迁移/启动已构建产物，worker 不再启动时同步依赖，nginx 在 upstream recreate 后自动刷新。新增 `scripts/verify-docker-cache-contract.sh`，静态契约、源码只变缓存复用、manifest/lock 变更失效探针均通过；热构建由基线 147.56 秒降至 5.88 秒。Docker full stack health、API 220、Web 188、Worker 124 tests、Prisma 22 migrations、Playwright CLI、PostgreSQL/storage 持久化均通过；完整证据见 `docs/reports/docker-cache-verification-2026-07-13.md`。
 
-当前执行队列（2026-07-29 MDT 复核）：
+当前执行队列（2026-08-01 MDT 复核）：
+
+### A00. 2026-08-01 新增 P0 现场修复线路
+
+严格按以下顺序执行，每个 Task 使用一个 fresh supervisor Session：
+
+1. `FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` — `DONE`
+   - 卸柜 `.xlsx` 与考勤 `.xls` 共用严格 multipart filename codec；正确 UTF-8 中文名
+     在 API/DB/Web 全链路一致，raw transport evidence、canonical display name 和
+     storage-safe basename 分离。`samples/attendance_test/` 是用户提供的7月现场真实
+     打卡记录样本，必须只读用于原始红灯；不得在日志、截图、报告或 handoff 暴露
+     员工姓名/打卡信息。
+2. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` — `READY`
+   - 必须使用 `samples/attendance_test/` 中用户提供的7月现场真实打卡记录样本，先经
+     真实 nginx/BullMQ 复现 Parse 成功、Generate 失败的准确阶段，
+     再修复 Worker/API/job/generated-file/Web 下载闭环；保留 WAGE-HOURS-01 至 07 的
+     奇偶打卡、多 Sheet 格式、删除审计和只显示工资表规则。
+3. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
+   - 同一 single-writer stack 同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。
+     Public cookie 始终 Secure；LAN HTTP 仅在 private allowlist + trusted ingress 下使用
+     host-only cookie。禁止全局关闭 Secure、wildcard CORS 或信任客户端 forwarded header。
+
+执行顺序固定为 `FILE-UPLOAD-01 -> WAGE-HOURS-08 -> PUBLIC-DEPLOY-04`。第三项代码上独立，
+但仍按该顺序交付，避免并行修改共享 API/Web E2E、i18n catalog 和 public-mode fixture。
+三个 Task 都要求 strict `en` / `zh-CN`、稳定 code、SSR/hydration no-flash、Docker-only
+验证、失败安全 cleanup 和专项 verification report。
 
 ### A0. 2026-07-25 至 2026-07-28 新增开发线路
 
@@ -301,8 +332,9 @@ strict `en` / `zh-CN`、stable code/labelKey、权限、审计、original/genera
      ADMIN 与四业务角色直接 RBAC、strict en/zh-CN/no-flash、11 张逐图视觉证据、Docker 全量检查、
      Chromium 11/11、healthcheck 和精确清理均通过；Dashboard 现场导航回归已完全退出。
 
-`WAGE-HOURS-07Attendance Import Audited Deletion.md` 已达到 `DONE`，不得重跑。外部样本、设备、打印/Excel、
-目标主机和 PUBLIC-DEPLOY-02 激活项继续按各自既有 gate 处理。
+`WAGE-HOURS-07Attendance Import Audited Deletion.md` 已达到 `DONE`，不得重跑。新发现的
+工资表生成故障只由 WAGE-HOURS-08 处理；外部样本、设备、打印/Excel、目标主机和
+PUBLIC-DEPLOY-02/04 项继续按各自新 gate 处理。
 
 公网访问新线路按以下顺序执行：
 
@@ -316,17 +348,21 @@ strict `en` / `zh-CN`、stable code/labelKey、权限、审计、original/genera
      应用上传门禁、双语浏览器错误、start/stop/status/rotate/revoke runbook、备份与三类故障演练。API 351 unit/125
      E2E、Web 267 unit/build、Worker 183 tests、18 项相关 Chromium、35 migrations、健康检查、备份/恢复 dry-run
      和 Cloudflare 正负向契约均通过；named tunnel + Access 只连 nginx，本地 PostgreSQL + `storage/` 继续是唯一 writer。
-     公司 Internet/主机故障时远程不可用，但 LAN 工作流继续。真实 domain/account、Access deny-by-default + MFA、
+     公司 Internet/主机故障时远程不可用；旧自动化只证明 LAN health/非 public-mode 基线，
+     当前真实 LAN IP 登录回归由 PUBLIC-DEPLOY-04 接管。真实 domain/account、Access deny-by-default + MFA、
      非公司网络、public cache/upload/download 和 token rotate/revoke 脱敏证据仍是外部门禁。
 3. `PUBLIC-DEPLOY-03OCI Always Free ARM64 Cloud Canonical Profile.md` — `ARCHIVED / DO NOT EXECUTE`
    - 产品已撤回 OCI Always Free A1 cloud-canonical 路线；中断 Session 新增的 cloud Compose、ARM64、备份、迁移和
      运维修改已全部还原。恢复必须取得明确产品批准、移除 Task 归档标记并同步索引/完成报告。
+4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
+   - 不重启 01/02；新增受信双 ingress、request-aware cookie 和 exact public/LAN Origin
+     contract，关闭真实公网域名可登录但 LAN IP 无法登录的回归。
 
-不得在同一 Session 连续执行 01/02/03。不得把 02 和 03 部署成两个可写环境；若从 02 迁移到 03，必须冻结写入、
+不得在同一 Session 连续执行这些 Task。不得把 02 和 03 部署成两个可写环境；若从 02 迁移到 03，必须冻结写入、
 同步 PostgreSQL 与 `storage/` 的同一恢复点、验证 hash/count，并停用或只读旧 local stack。当前 03 已归档，不得
 执行或作为 02 的 blocker；02 的真实 domain、Cloudflare account/Access 和外网验证保留为 external gate。
 
-WAGE-HOURS-01 至 07 均已达到 `DONE`：
+WAGE-HOURS-01 至 07 均已达到 `DONE`，新回归 08 已解锁但尚未执行：
 
 1. `WAGE-HOURS-01Attendance Punch Parity Calculation Contract.md` — `DONE`
 2. `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md` — `DONE`
@@ -335,6 +371,7 @@ WAGE-HOURS-01 至 07 均已达到 `DONE`：
 5. `WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md` — `DONE`
 6. `WAGE-HOURS-06Office Wage File Download Visibility.md` — `DONE`
 7. `WAGE-HOURS-07Attendance Import Audited Deletion.md` — `DONE`
+8. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` — `READY`
 
 七项已分别由 fresh supervisor Session 完成，不得重跑。07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
 Docker-only 门禁；整次考勤导入删除是留存原始 `.xls` 和审计证据的软删除，不得套用卸柜 import 的物理
@@ -470,50 +507,55 @@ Deferred，按现场反馈再执行：
   regression 已全部完成。
 
 给业务开发 agent 的建议执行顺序：
-1. 后续 Task 都先安装最新 business-agent profile；macOS/Linux 使用 `scripts/run-business-agent.sh task '<task-file>'`，
+1. `FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` 已完成且不得重跑；
+   下一项按 `WAGE-HOURS-08 -> PUBLIC-DEPLOY-04`，每项一个 fresh supervisor Session。macOS/Linux
+   使用 `scripts/run-business-agent.sh task '<task-file>'`，
    Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 后再执行
    `scripts\run-business-agent.cmd develop "<task-file>"`。当前 Windows 主机没有 Docker，`develop` 只允许完成实现，
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
+2. `FILE-UPLOAD-01` 已完成并解锁 WAGE-HOURS-08；PUBLIC-DEPLOY-04 虽无代码依赖，
+   仍排在 08 后，避免并行编辑共享认证、E2E 与 i18n 文件。后续两个 Task 均不得把现场
+   员工数据、cookie、token、真实域名/IP 或 secret 写入报告和 handoff。
+3. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。
-3. `UNLOAD-REPORT-04Current Report and Label Replacement Regression.md` 已完成；
+4. `UNLOAD-REPORT-04Current Report and Label Replacement Regression.md` 已完成；
    报告/面单统一 current contract、数据库唯一约束、staging/失败守恒、repair、
    并发/BullMQ、strict i18n 和 full-stack 浏览器门禁不得回归。
-4. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` 已完成仓库实现、
+5. `UNLOAD-REPORT-05Adaptive Primary and White Cell Layout.md` 已完成仓库实现、
    当前环境全部自动化和办公室 Windows/Microsoft Excel、Print Preview、Print to
    PDF、目标打印机实际纸张验收，状态为 `DONE`；不得重启该 Task，也不得使用旧
    `report-8` 证据替换 05 新 current 工件。
-5. POD 开发开始前，业务先提供 blank template、matching approved completed/printed
+6. POD 开发开始前，业务先提供 blank template、matching approved completed/printed
    example、字段清单和打印规则；输入齐全后严格执行 POD-00 -> 01 -> 02 -> 03 -> 04 -> 05，
    每项一个 fresh Session。没有真实/明确脱敏输入时不要启动 POD-00，更不能跳到 POD-01。
-6. `WEB-DASHBOARD-09` 已达到 `DONE`，不得重跑。后续工资 E2E 必须使用
+7. `WEB-DASHBOARD-09` 已达到 `DONE`，不得重跑。后续工资 E2E 必须使用
    `scripts/run-web-dashboard-09-e2e.sh`，不得直接运行旧 spec 绕过 cleanup supervisor；
    精确清理工具不得扩展为按未来年份广泛删除业务记录。
-7. `PUBLIC-DEPLOY-01` 已达到 `DONE`；`PUBLIC-DEPLOY-02` 已完成仓库实现和当前环境自动化，不得重启开发 Task。
-   下一动作是在真实 Cloudflare account/domain 上按公网 runbook 完成 named tunnel、Access MFA、非公司网络、
-   cache/upload/download、故障恢复和 token rotate/revoke 脱敏验收，关闭 external activation gate。
-8. `PUBLIC-DEPLOY-03` 已归档，不得执行或恢复其 OCI/ARM64 修改；恢复需要产品批准并同步任务状态。
-9. `WAGE-HOURS-01/02/03/04/05/06/07` 已关闭，不得重跑；最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
+8. `PUBLIC-DEPLOY-01` 已达到 `DONE`；`PUBLIC-DEPLOY-02` 旧仓库实现不得重启，但其
+   “public mode 下 LAN login healthy”验收已被现场回归推翻，必须由 PUBLIC-DEPLOY-04
+   关闭后再继续 02 的剩余外部安全验收。不得以恢复/删除 Access 代替 04。
+9. `PUBLIC-DEPLOY-03` 已归档，不得执行或恢复其 OCI/ARM64 修改；恢复需要产品批准并同步任务状态。
+10. `WAGE-HOURS-01/02/03/04/05/06/07` 已关闭，不得重跑；新生成故障只执行 08。最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
    证据保存在 gitignored `test-results/wage-hours-05/`，办公室文件可见性证据保存在
    gitignored `test-results/wage-hours-06/`，整次导入删除证据保存在 gitignored
    `test-results/wage-hours-07/`。
-10. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
+11. WEB-BRAND-01/02/03/04 已达到 DONE，不得重跑；后续品牌需求必须另立 Task，不得在本线路继续扩大到
    PWA 192/512 icon、Native 或 Excel/PDF/label branding。
-11. `WEB-DASHBOARD-00` 至 `09` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 均保持关闭，
+12. `WEB-DASHBOARD-00` 至 `09` 与 `WEB-OPS-01/02/03/04/05/06/07/08/09` 均保持关闭，
    不重复启动；后续日期完整性需求必须另立 Task。
-12. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
+13. PARSER-PROFILE-01 至 07 已完成，08 已完成仓库实现和当前环境自动化，只等 4 组真实/明确脱敏 golden pair 与业务签字；
    不得重跑 parser 开发，或在首版批准后跳过 3 个 distinct-SHA 连续复核门槛。该外部 gate 不阻塞
    PUBLIC-DEPLOY 外部激活或其他已批准线路。
    `NATIVE-AUTH-01` 已连续三次合法返回 external pending，不要第四次重复运行；设备项只按现有报告人工补证据。
-13. PUBLIC-DEPLOY 之外的既有 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
+14. PUBLIC-DEPLOY 之外的既有 Task 仍由外部条件决定：有真实/脱敏包装 workbook 时执行 `UNLOAD-PALLET-04`；只有
    iOS/Android 设备时完成 NATIVE-AUTH/UX 外部证据；有目标部署主机且其他活动 gate 已关闭时执行 `P5-PILOT-01`。
-14. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
+15. Android/iOS release 实机可采集主题、标题、冷启动和双语扫码证据，并按 B-5 至 B-8 关闭活动 Native gate；
    不等待或启动 Windows App。
-15. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
+16. 真实/脱敏业务 workbook 到位后执行 `UNLOAD-PALLET-04`；复用同一数据和目标打印机/PDA关闭
    `UNLOAD-PALLET-10` 的外部签字。08/09/10 代码任务均已完成，不要重复建立规则或重新跑开发任务。
-16. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
-17. 所有上述外部打印、真实样本、POD exit gate 和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。PUBLIC-DEPLOY-03 OCI
+17. P6-MOBILE-09 至 13 已归档，任何主机都不得执行。恢复需要产品批准、移除归档标记、恢复关联验收范围并同步索引/报告。
+18. 所有上述外部打印、真实样本、POD exit gate 和 Android/iOS 设备 gate 结束后，最后执行 `P5-PILOT-01`。PUBLIC-DEPLOY-03 OCI
     canonical host 已归档，不属于当前 pilot gate；恢复须先取得产品批准并同步任务状态。
-18. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
+19. `UNLOAD-INVENTORY-02`、`UNLOAD-WAGE-13`、`UNLOAD-PALLET-09`、`DOCKER-CACHE-01` 已完成，不得重复执行。
