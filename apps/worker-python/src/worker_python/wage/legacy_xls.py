@@ -101,7 +101,15 @@ class LegacyXlsTemplateEditor:
             raise ValueError("WAGE_TEMPLATE_SHEET_NAME_DUPLICATE")
         self._sheet_names[sheet_index] = name
 
-    def write(self, sheet_index: int, row_index: int, column_index: int, value: Any) -> None:
+    def write(
+        self,
+        sheet_index: int,
+        row_index: int,
+        column_index: int,
+        value: Any,
+        *,
+        style_xf_index: int | None = None,
+    ) -> None:
         sheet = self.workbook.sheet_by_index(sheet_index)
         if row_index >= sheet.nrows or column_index >= sheet.ncols:
             raise ValueError(
@@ -109,12 +117,18 @@ class LegacyXlsTemplateEditor:
                 f"{sheet.name}!R{row_index + 1}C{column_index + 1}"
             )
 
-        xf_index = sheet.cell_xf_index(row_index, column_index)
+        xf_index = (
+            sheet.cell_xf_index(row_index, column_index)
+            if style_xf_index is None
+            else style_xf_index
+        )
         if xf_index is None:
             raise ValueError(
                 "WAGE_TEMPLATE_STYLE_MISSING: "
                 f"{sheet.name}!R{row_index + 1}C{column_index + 1}"
             )
+        if not isinstance(xf_index, int) or not 0 <= xf_index < len(self.workbook.xf_list):
+            raise ValueError("WAGE_TEMPLATE_STYLE_OVERRIDE_INVALID")
 
         normalized = _normalized_cell_value(value)
         display_text = _measurement_text(self.workbook, xf_index, normalized)

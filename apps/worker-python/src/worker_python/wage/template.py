@@ -50,6 +50,10 @@ WAGE_TEMPLATE_SHEET_COUNT = 17
 WAGE_TEMPLATE_FORMULA_COUNT = 284
 WAGE_TEMPLATE_MERGE_COUNT = 58
 WAGE_TEMPLATE_XF_COUNT = 107
+# Versioned semantic roles derived from the approved 2026-05 source workbook.
+# Runtime generation verifies that these XFs still differ only by fill before use.
+WAGE_TEMPLATE_WEEKDAY_XF_INDEX = 83
+WAGE_TEMPLATE_WEEKEND_XF_INDEX = 87
 
 EMPLOYEE_SLOT_PREFIX = "EMPLOYEE-"
 ADJUSTMENTS_SHEET_NAME = "ADJUSTMENTS"
@@ -293,6 +297,7 @@ def preflight_wage_template(
         expected_sha256=expected_sha256,
         require_read_only=require_read_only,
     )
+    _validate_weekday_style_contract(path)
     return audit
 
 
@@ -361,6 +366,51 @@ def _validate_audit(
         raise ValueError("WAGE_TEMPLATE_METADATA_NOT_CLEARED")
     if require_read_only and not audit.readOnly:
         raise ValueError("WAGE_TEMPLATE_NOT_READ_ONLY")
+
+
+def _validate_weekday_style_contract(path: Path) -> None:
+    workbook = xlrd.open_workbook(path, formatting_info=True)
+    expected_xfs = {
+        WAGE_TEMPLATE_WEEKDAY_XF_INDEX,
+        WAGE_TEMPLATE_WEEKEND_XF_INDEX,
+    }
+    if not all(0 <= xf_index < len(workbook.xf_list) for xf_index in expected_xfs):
+        raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_OUT_OF_RANGE")
+    if (
+        _xf_without_fill(workbook, WAGE_TEMPLATE_WEEKDAY_XF_INDEX)
+        != _xf_without_fill(workbook, WAGE_TEMPLATE_WEEKEND_XF_INDEX)
+        or _xf_fill(workbook, WAGE_TEMPLATE_WEEKDAY_XF_INDEX)
+        == _xf_fill(workbook, WAGE_TEMPLATE_WEEKEND_XF_INDEX)
+    ):
+        raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_UNSAFE")
+    for sheet in workbook.sheets():
+        if not sheet.name.startswith(EMPLOYEE_SLOT_PREFIX):
+            continue
+        actual_xfs = {
+            sheet.cell_xf_index(row_index, column_index)
+            for row_index in range(sheet.nrows)
+            for column_index in range(sheet.ncols)
+            if _normalized_header(sheet.cell_value(row_index, column_index))
+            == WEEKDAY_SLOT
+        }
+        if actual_xfs != expected_xfs:
+            raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_MISSING")
+
+
+def _xf_without_fill(workbook, xf_index: int) -> tuple[object, ...]:
+    xf = workbook.xf_list[xf_index]
+    font = workbook.font_list[xf.font_index]
+    return (
+        tuple(sorted((key, value) for key, value in vars(font).items() if key != "font_index")),
+        tuple(sorted(vars(xf.border).items())),
+        tuple(sorted(vars(xf.alignment).items())),
+        tuple(sorted(vars(xf.protection).items())),
+        workbook.format_map[xf.format_key].format_str,
+    )
+
+
+def _xf_fill(workbook, xf_index: int) -> tuple[tuple[str, object], ...]:
+    return tuple(sorted(vars(workbook.xf_list[xf_index].background).items()))
 
 
 def _source_contracts(workbook) -> list[_SourceSheetContract]:
@@ -648,6 +698,12 @@ def write_template_manifest(audit: WageTemplateAudit, output_path: Path) -> None
         "template_version": audit.version,
         "template_sha256": audit.sha256,
         "source_reference_sha256": WAGE_TEMPLATE_SOURCE_SHA256,
+        "style_contract": {
+            "weekday_column": {
+                "weekday_xf_index": WAGE_TEMPLATE_WEEKDAY_XF_INDEX,
+                "weekend_xf_index": WAGE_TEMPLATE_WEEKEND_XF_INDEX,
+            }
+        },
         "privacy_contract": {
             "historical_dates": 0,
             "historical_business_values": 0,

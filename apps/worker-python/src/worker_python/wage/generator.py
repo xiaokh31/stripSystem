@@ -19,6 +19,11 @@ from worker_python.wage.attendance import (
     WageIssue,
 )
 from worker_python.wage.legacy_xls import LegacyXlsTemplateEditor
+from worker_python.wage.template import (
+    WAGE_TEMPLATE_SHA256,
+    WAGE_TEMPLATE_WEEKDAY_XF_INDEX,
+    WAGE_TEMPLATE_WEEKEND_XF_INDEX,
+)
 
 
 WAGE_RECORD_MANIFEST_FILENAME = "wage_record_manifest.json"
@@ -43,6 +48,21 @@ class _StandardSheet:
     columns: dict[str, int]
     dateRows: tuple[int, ...]
     totalRow: int | None
+
+
+@dataclass(frozen=True)
+class _WeekdayStyleRoles:
+    weekdayXfIndex: int
+    weekendXfIndex: int
+
+
+@dataclass(frozen=True)
+class _WrittenSheetValidation:
+    sheetIndex: int
+    weekdayColumn: int
+    dateColumn: int
+    dateRows: tuple[int, ...]
+    styles: _WeekdayStyleRoles
 
 
 @dataclass(frozen=True)
@@ -135,6 +155,7 @@ def generate_wage_record(
     days_by_employee = _days_by_employee(attendance_result.days)
     matched_employee_keys: set[tuple[str | None, str | None]] = set()
     matched_sheets: list[str] = []
+    written_sheet_validations: list[_WrittenSheetValidation] = []
     written_day_count = 0
 
     standard_sheets: list[_StandardSheet] = []
@@ -171,6 +192,26 @@ def generate_wage_record(
             )
             continue
         standard_sheets.append(contract)
+
+    try:
+        weekday_styles_by_sheet = {
+            contract.sheetIndex: _weekday_style_roles(
+                readable,
+                contract,
+                approved_template=template_sha256 == WAGE_TEMPLATE_SHA256,
+            )
+            for contract in standard_sheets
+        }
+    except ValueError as exc:
+        code = str(exc)
+        return _generation_error(
+            template_path=template_path,
+            output_dir=output_dir,
+            code=code,
+            stage="TEMPLATE_STYLE",
+            message=code,
+            warnings=tuple(warnings),
+        )
 
     slot_template = _is_employee_slot_template(standard_sheets)
     if slot_template and len(days_by_employee) > len(standard_sheets):
@@ -224,12 +265,22 @@ def generate_wage_record(
         written_day_count += _write_employee_sheet(
             editor,
             contract=contract,
+            weekday_styles=weekday_styles_by_sheet[contract.sheetIndex],
             employee_days=employee_days,
             period_start=attendance_result.periodStart,
             period_end=attendance_result.periodEnd,
         )
         matched_employee_keys.add(employee_key)
         matched_sheets.append(output_sheet_name)
+        written_sheet_validations.append(
+            _WrittenSheetValidation(
+                sheetIndex=contract.sheetIndex,
+                weekdayColumn=contract.weekdayColumn,
+                dateColumn=contract.columns["DATE"],
+                dateRows=contract.dateRows,
+                styles=weekday_styles_by_sheet[contract.sheetIndex],
+            )
+        )
 
     unmatched_employees = tuple(
         _employee_label(employee_id, employee_name)
@@ -291,17 +342,19 @@ def generate_wage_record(
             period_end=attendance_result.periodEnd,
             written_employee_count=len(matched_employee_keys),
             written_day_count=written_day_count,
+            written_sheets=tuple(written_sheet_validations),
         )
         staging_path.replace(output_path)
     except Exception as exc:
         staging_path.unlink(missing_ok=True)
         output_path.unlink(missing_ok=True)
+        validation_code = _safe_validation_error_code(exc)
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
-            code="WAGE_GENERATION_OUTPUT_VALIDATION_FAILED",
+            code=validation_code,
             stage="VALIDATE",
-            message=f"Generated wage record validation failed: {type(exc).__name__}: {exc}",
+            message=validation_code,
             warnings=tuple(warnings),
         )
     output_sha256 = compute_sha256(output_path)
@@ -366,6 +419,7 @@ def _write_employee_sheet(
     editor: LegacyXlsTemplateEditor,
     *,
     contract: _StandardSheet,
+    weekday_styles: _WeekdayStyleRoles,
     employee_days: list[AttendanceDay],
     period_start: date,
     period_end: date,
@@ -376,7 +430,7 @@ def _write_employee_sheet(
 
     for row_offset, row_index in enumerate(contract.dateRows):
         if row_offset >= len(period_dates):
-            _write_empty_day(editor, contract, row_index)
+            _write_empty_day(editor, contract, weekday_styles, row_index)
             continue
 
         work_date = period_dates[row_offset]
@@ -386,6 +440,7 @@ def _write_employee_sheet(
             row_index,
             contract.weekdayColumn,
             work_date.strftime("%a").upper(),
+            style_xf_index=_weekday_style_xf(work_date, weekday_styles),
         )
         editor.write(
             contract.sheetIndex,
@@ -467,9 +522,16 @@ def _write_employee_sheet(
 def _write_empty_day(
     editor: LegacyXlsTemplateEditor,
     contract: _StandardSheet,
+    weekday_styles: _WeekdayStyleRoles,
     row_index: int,
 ) -> None:
-    editor.write(contract.sheetIndex, row_index, contract.weekdayColumn, "")
+    editor.write(
+        contract.sheetIndex,
+        row_index,
+        contract.weekdayColumn,
+        "",
+        style_xf_index=weekday_styles.weekdayXfIndex,
+    )
     editor.write(contract.sheetIndex, row_index, contract.columns["DATE"], "")
     _write_empty_values(editor, contract, row_index)
 
@@ -496,6 +558,96 @@ def _write_review_values(
     )
     for header in STANDARD_HEADERS[2:]:
         editor.write(contract.sheetIndex, row_index, contract.columns[header], "/")
+
+
+def _weekday_style_roles(
+    workbook,
+    contract: _StandardSheet,
+    *,
+    approved_template: bool,
+) -> _WeekdayStyleRoles:
+    if approved_template:
+        weekday_xfs = {WAGE_TEMPLATE_WEEKDAY_XF_INDEX}
+        weekend_xfs = {WAGE_TEMPLATE_WEEKEND_XF_INDEX}
+        actual_xfs = {
+            workbook.sheet_by_index(contract.sheetIndex).cell_xf_index(
+                row_index, contract.weekdayColumn
+            )
+            for row_index in contract.dateRows
+        }
+        if actual_xfs != weekday_xfs | weekend_xfs:
+            raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_MISSING")
+    else:
+        sheet = workbook.sheet_by_index(contract.sheetIndex)
+        weekday_xfs = set()
+        weekend_xfs = set()
+        for row_index in contract.dateRows:
+            date_cell = sheet.cell(row_index, contract.columns["DATE"])
+            work_date = _parse_date_slot(
+                date_cell.value,
+                cell_type=date_cell.ctype,
+                datemode=workbook.datemode,
+            )
+            weekday_text = _cell_text(
+                sheet.cell_value(row_index, contract.weekdayColumn)
+            ).upper()
+            if work_date is None or weekday_text != work_date.strftime("%a").upper():
+                raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_MISSING")
+            target = weekend_xfs if work_date.weekday() >= 5 else weekday_xfs
+            target.add(sheet.cell_xf_index(row_index, contract.weekdayColumn))
+        if len(weekday_xfs) != 1 or len(weekend_xfs) != 1:
+            raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_AMBIGUOUS")
+
+    weekday_xf = next(iter(weekday_xfs))
+    weekend_xf = next(iter(weekend_xfs))
+    if not all(
+        isinstance(index, int) and 0 <= index < len(workbook.xf_list)
+        for index in (weekday_xf, weekend_xf)
+    ):
+        raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_OUT_OF_RANGE")
+    if (
+        weekday_xf == weekend_xf
+        or _xf_without_fill(workbook, weekday_xf)
+        != _xf_without_fill(workbook, weekend_xf)
+        or _xf_fill(workbook, weekday_xf) == _xf_fill(workbook, weekend_xf)
+    ):
+        raise ValueError("WAGE_TEMPLATE_WEEKDAY_STYLE_CONTRACT_UNSAFE")
+    return _WeekdayStyleRoles(
+        weekdayXfIndex=weekday_xf,
+        weekendXfIndex=weekend_xf,
+    )
+
+
+def _weekday_style_xf(work_date: date, styles: _WeekdayStyleRoles) -> int:
+    return styles.weekendXfIndex if work_date.weekday() >= 5 else styles.weekdayXfIndex
+
+
+def _xf_without_fill(workbook, xf_index: int) -> tuple[object, ...]:
+    xf = workbook.xf_list[xf_index]
+    font = workbook.font_list[xf.font_index]
+    return (
+        tuple(sorted((key, value) for key, value in vars(font).items() if key != "font_index")),
+        tuple(sorted(vars(xf.border).items())),
+        tuple(sorted(vars(xf.alignment).items())),
+        tuple(sorted(vars(xf.protection).items())),
+        workbook.format_map[xf.format_key].format_str,
+    )
+
+
+def _xf_fill(workbook, xf_index: int) -> tuple[tuple[str, object], ...]:
+    return tuple(sorted(vars(workbook.xf_list[xf_index].background).items()))
+
+
+def _safe_validation_error_code(exc: Exception) -> str:
+    code = str(exc)
+    if code in {
+        "WAGE_OUTPUT_PERIOD_DATE_MISMATCH",
+        "WAGE_OUTPUT_WEEKDAY_TEXT_MISMATCH",
+        "WAGE_OUTPUT_WEEKDAY_STYLE_MISMATCH",
+        "WAGE_OUTPUT_BLANK_SLOT_MISMATCH",
+    }:
+        return code
+    return "WAGE_GENERATION_OUTPUT_VALIDATION_FAILED"
 
 
 def _generation_error(
@@ -954,6 +1106,7 @@ def _validate_staged_workbook(
     period_end: date,
     written_employee_count: int,
     written_day_count: int,
+    written_sheets: tuple[_WrittenSheetValidation, ...],
 ) -> None:
     if not staging_path.is_file() or staging_path.stat().st_size <= 0:
         raise ValueError("Generated staging workbook is missing or empty.")
@@ -964,21 +1117,43 @@ def _validate_staged_workbook(
         raise ValueError(
             "Generated workbook sheet inventory differs from the template."
         )
-    expected_dates = {
-        _date_text(value) for value in _period_dates(period_start, period_end)
-    }
+    expected_dates = _period_dates(period_start, period_end)
     if not matched_sheets or len(matched_sheets) != written_employee_count:
         raise ValueError("Generated workbook matched-sheet count is inconsistent.")
-    for sheet_name in matched_sheets:
-        sheet = workbook.sheet_by_name(sheet_name)
-        written_dates = {
-            _cell_text(sheet.cell_value(row_index, column_index))
-            for row_index in range(sheet.nrows)
-            for column_index in range(sheet.ncols)
-            if _cell_text(sheet.cell_value(row_index, column_index)) in expected_dates
-        }
-        if written_dates != expected_dates:
-            raise ValueError("Generated workbook period slots are incomplete.")
+    if len(written_sheets) != written_employee_count:
+        raise ValueError("Generated workbook style-validation count is inconsistent.")
+    for validation in written_sheets:
+        sheet = workbook.sheet_by_index(validation.sheetIndex)
+        if len(validation.dateRows) < len(expected_dates):
+            raise ValueError("WAGE_OUTPUT_PERIOD_DATE_MISMATCH")
+        for offset, row_index in enumerate(validation.dateRows):
+            weekday_text = _cell_text(
+                sheet.cell_value(row_index, validation.weekdayColumn)
+            ).upper()
+            date_cell = sheet.cell(row_index, validation.dateColumn)
+            xf_index = sheet.cell_xf_index(row_index, validation.weekdayColumn)
+            if offset >= len(expected_dates):
+                if (
+                    weekday_text
+                    or _cell_text(date_cell.value)
+                    or xf_index != validation.styles.weekdayXfIndex
+                ):
+                    raise ValueError("WAGE_OUTPUT_BLANK_SLOT_MISMATCH")
+                continue
+
+            expected_date = expected_dates[offset]
+            actual_date = _parse_date_slot(
+                date_cell.value,
+                cell_type=date_cell.ctype,
+                datemode=workbook.datemode,
+            )
+            if actual_date != expected_date:
+                raise ValueError("WAGE_OUTPUT_PERIOD_DATE_MISMATCH")
+            if weekday_text != expected_date.strftime("%a").upper():
+                raise ValueError("WAGE_OUTPUT_WEEKDAY_TEXT_MISMATCH")
+            expected_xf = _weekday_style_xf(expected_date, validation.styles)
+            if xf_index != expected_xf:
+                raise ValueError("WAGE_OUTPUT_WEEKDAY_STYLE_MISMATCH")
 
 
 def _validate_manifest_record(

@@ -16,6 +16,12 @@
     "sheet_count": 17,
     "xf_count": 107
   },
+  "style_contract": {
+    "weekday_column": {
+      "weekday_xf_index": 83,
+      "weekend_xf_index": 87
+    }
+  },
   "template_sha256": "f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c",
   "template_version": "bestar-wage-template-v1"
 }

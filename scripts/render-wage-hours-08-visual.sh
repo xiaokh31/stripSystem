@@ -20,78 +20,44 @@ for required in \
 done
 test -s "$artifact_dir/visual-fixtures.json"
 
-python3 - "$source_dir" "$audit_dir/structure-style.json" <<'PY'
-from __future__ import annotations
-
-import hashlib
+python3 /usr/local/bin/audit-wage-hours-08-workbook.py \
+  --workbook "$source_dir/deidentified-june-wage-record.xls" \
+  --template "$source_dir/deidentified-template.xls" \
+  --period-start 2026-06-01 --period-end 2026-06-30 \
+  --output "$audit_dir/june-weekday-style.json"
+python3 /usr/local/bin/audit-wage-hours-08-workbook.py \
+  --workbook "$source_dir/deidentified-july-wage-record.xls" \
+  --template "$source_dir/deidentified-template.xls" \
+  --period-start 2026-07-01 --period-end 2026-07-31 \
+  --output "$audit_dir/july-weekday-style.json"
+python3 - "$audit_dir" <<'PY'
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
-import xlrd
-
-
-source = Path(sys.argv[1])
-output = Path(sys.argv[2])
-paths = {
-    "template": source / "deidentified-template.xls",
-    "june": source / "deidentified-june-wage-record.xls",
-    "july": source / "deidentified-july-wage-record.xls",
-}
-books = {key: xlrd.open_workbook(path, formatting_info=True) for key, path in paths.items()}
-template = books["template"]
-for key, book in books.items():
-    if book.nsheets != template.nsheets:
-        raise SystemExit(f"{key} changed sheet count")
-
-def style(book, sheet, row, column):
-    xf = book.xf_list[sheet.cell_xf_index(row, column)]
-    font = book.font_list[xf.font_index]
-    return (
-        tuple(sorted((key, str(value)) for key, value in vars(font).items() if key != "font_index")),
-        tuple(sorted((key, str(value)) for key, value in vars(xf.background).items())),
-        tuple(sorted((key, str(value)) for key, value in vars(xf.border).items())),
-        tuple(sorted((key, str(value)) for key, value in vars(xf.alignment).items())),
-        book.format_map[xf.format_key].format_str,
-    )
-
-style_differences = 0
-for key in ("june", "july"):
-    book = books[key]
-    for index in range(template.nsheets):
-        left = template.sheet_by_index(index)
-        right = book.sheet_by_index(index)
-        if (left.nrows, left.ncols, left.merged_cells) != (right.nrows, right.ncols, right.merged_cells):
-            raise SystemExit(f"{key} changed sheet structure")
-        for row in range(left.nrows):
-            for column in range(left.ncols):
-                if style(template, left, row, column) != style(book, right, row, column):
-                    style_differences += 1
-if style_differences:
-    raise SystemExit(f"normalized style differences: {style_differences}")
-
-adjustment_index = template.sheet_names().index("ADJUSTMENTS")
-adjustment_hashes = []
-for key in ("template", "june", "july"):
-    sheet = books[key].sheet_by_index(adjustment_index)
-    payload = json.dumps(
-        [[sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)],
-        ensure_ascii=False,
-    ).encode()
-    adjustment_hashes.append(hashlib.sha256(payload).hexdigest())
-if len(set(adjustment_hashes)) != 1:
-    raise SystemExit("special adjustment sheet changed")
-
-report = {
-    "schemaVersion": 1,
+audit_dir = Path(sys.argv[1])
+reports = [
+    json.loads((audit_dir / name).read_text(encoding="utf-8"))
+    for name in ("june-weekday-style.json", "july-weekday-style.json")
+]
+summary = {
+    "schemaVersion": 2,
     "result": "PASS",
-    "sheetCount": template.nsheets,
-    "eligibleSheetCount": template.nsheets - 1,
-    "normalizedStyleDifferences": 0,
-    "specialSheetUnchanged": True,
+    "workbookCount": len(reports),
+    "validDateCellCount": sum(report["validDateCellCount"] for report in reports),
+    "weekendCellCount": sum(report["weekendCellCount"] for report in reports),
+    "weekdayCellCount": sum(report["weekdayCellCount"] for report in reports),
+    "blankSlotCellCount": sum(report["blankSlotCellCount"] for report in reports),
+    "styleMismatchCount": sum(report["styleMismatchCount"] for report in reports),
+    "blankSlotMismatchCount": sum(report["blankSlotMismatchCount"] for report in reports),
+    "nonWeekdayColumnStyleMismatchCount": sum(
+        report["nonWeekdayColumnStyleMismatchCount"] for report in reports
+    ),
+    "specialSheetUnchanged": all(report["specialSheetUnchanged"] for report in reports),
 }
-output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+(audit_dir / "structure-style.json").write_text(
+    json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)
 PY
 
 expected_pages=""
@@ -154,13 +120,20 @@ done
 grep -Fq "2026.6.1" "$text_dir/deidentified-june-wage-record.txt"
 grep -Fq "2026.7.1" "$text_dir/deidentified-july-wage-record.txt"
 
+valid_date_cell_count=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["validDateCellCount"])' "$audit_dir/structure-style.json")
+weekend_cell_count=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["weekendCellCount"])' "$audit_dir/structure-style.json")
+weekday_cell_count=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["weekdayCellCount"])' "$audit_dir/structure-style.json")
 cat > "$artifact_dir/visual-summary.txt" <<EOF
 result=PASS
 fixture_classification=DEIDENTIFIED_SYNTHETIC
 workbook_count=3
 sheet_count=17
 eligible_sheet_count=16
-normalized_style_differences=0
+style_mismatches=0
+blank_slot_mismatches=0
+valid_date_cell_count=$valid_date_cell_count
+weekend_cell_count=$weekend_cell_count
+weekday_cell_count=$weekday_cell_count
 rendered_pages_each=$expected_pages
 visual_review_required=Inspect every original PNG and all three contact sheets.
 EOF

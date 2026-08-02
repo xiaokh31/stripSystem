@@ -346,11 +346,24 @@ stable codes and must not create a downloadable file.
 After the automated gate, inspect every original PNG and all three contact
 sheets under `test-results/wage-hours-08/visual/`. The deidentified template,
 June and July workbooks must each contain 17 sheets and currently render 50
-LibreOffice pages under the inherited print areas; normalized style differences
-must be zero and the protected adjustment sheet unchanged.
+LibreOffice pages under the inherited print areas. For every standard employee
+sheet, derive the weekday from the actual date in column B and verify that only
+column-A `SAT` and `SUN` cells use the approved weekend fill. `MON` through
+`FRI`, including `THU` and `FRI`, and every unused short-month slot must use the
+normal fill. Also verify B-F styles, print metadata and the protected adjustment
+sheet are unchanged. Comparing an output XF only with the template cell at the
+same physical row is prohibited as weekend-rule evidence because the approved
+template retains a historical month layout.
+
+The machine-readable audit must report valid-date, weekend, weekday,
+weekday-text, style-mismatch and blank-slot-mismatch counts and exit non-zero on
+any mismatch. In Windows Microsoft Excel, regenerate through `/work-hours`,
+inspect the first, middle and last standard employee sheets around a continuous
+`FRI -> SAT -> SUN -> MON` sequence, and inspect February or a 30-day month for
+blank trailing slots before reviewing Print Preview and the downloaded filename.
 
 The historical wage workbook is a read-only reference and must never be restored
-as `WAGE_TEMPLATE_PATH`. Before marking the Task Done, office Windows/Microsoft
-Excel must regenerate the approved July sample through `/work-hours` and inspect
-every employee sheet, dates, hours, colors, row heights, column widths, Print
-Preview and downloaded filename.
+as `WAGE_TEMPLATE_PATH`. Before marking WAGE-HOURS-09 Done, office
+Windows/Microsoft Excel must complete the semantic weekend checks above and
+inspect every employee sheet, dates, hours, colors, row heights, column widths,
+Print Preview and downloaded filename.

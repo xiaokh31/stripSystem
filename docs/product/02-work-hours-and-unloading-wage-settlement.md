@@ -463,7 +463,14 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Every generated value must keep the corresponding cell's own template style:
   fill/color, font, border, alignment, wrapping, number format and protection.
   Do not copy the first sheet's style over later sheets because sheets may have
-  intentional differences.
+  intentional differences. The one explicit semantic exception is the weekday
+  cell in column A: its approved weekend fill follows the generated calendar
+  date, not the physical template row. Only `SAT` and `SUN` use the weekend
+  fill; `MON` through `FRI`, including `THU` and `FRI`, use the normal fill.
+  Unused date slots in short months are blank and use the normal empty-slot
+  style. This exception changes the fill only and must preserve the cell's
+  sheet-specific font, border, alignment, wrapping, number format and
+  protection.
 - Preserve merged ranges, formulas, print settings, page setup, hidden state and
   untouched cells/sheets.
 - Start row heights and column widths from each sheet's template dimensions.
@@ -723,6 +730,11 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
    Worker, manifest, staged BIFF validation, API file commit and async-job UI
    boundaries; verify the approved July sample through the protected browser
    flow without exposing personal attendance data.
+9. `WAGE-HOURS-09`: correct the standard employee Sheet column-A weekend style
+   so it follows each generated date. Only `SAT` and `SUN` receive the approved
+   weekend fill; `THU`, `FRI`, all other weekdays and unused short-month slots
+   retain the normal fill. Add a semantic BIFF gate because positional
+   template-style equality cannot detect this defect.
 
 ## Proposed API Surface
 
@@ -1068,6 +1080,14 @@ download path. BIFF/LibreOffice audits cover all 17 sheets in deidentified
 template, June and July outputs. Cleanup probes remove only task-owned database,
 storage and runtime artifacts and recheck all source/reference/template hashes.
 
+The office Microsoft Excel review subsequently found that the column-A fill was
+still copied from fixed template row positions: `THU` and `FRI` were highlighted
+while `SAT` and `SUN` were not. WAGE-HOURS-08 therefore remains historical
+generation-integrity evidence but did not pass its final visual sign-off.
+WAGE-HOURS-09 owns the focused semantic weekday-style repair and the corrected
+Excel sign-off; WAGE-HOURS-08 must not be rerun as a separate implementation
+Task.
+
 ## Acceptance Criteria
 
 - A developer can identify the first worker tasks without building UI first.
@@ -1080,6 +1100,11 @@ storage and runtime artifacts and recheck all source/reference/template hashes.
   once under the existing rule.
 - All eligible generated wage sheets retain their own template formatting and
   use bounded content-aware dimensions; nonstandard sheets remain unchanged.
+- In every standard employee Sheet, the column-A weekend fill is driven by the
+  actual generated date: only `SAT` and `SUN` are highlighted, `MON` through
+  `FRI` use the normal fill, and unused short-month slots are blank and not
+  highlighted. The rule is verified semantically across different month starts,
+  not by comparing output to the same physical template row.
 - An authorized HR manager can soft-delete an employee-day row with a reason;
   active summaries and newly generated workbooks exclude it, while the original
   workbook, raw row, previous files and attributed deletion history remain

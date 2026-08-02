@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import stat
 from pathlib import Path
@@ -12,10 +13,13 @@ from worker_python.wage.template import (
     WAGE_TEMPLATE_SHA256,
     WAGE_TEMPLATE_SOURCE_SHA256,
     WAGE_TEMPLATE_VERSION,
+    WAGE_TEMPLATE_WEEKDAY_XF_INDEX,
+    WAGE_TEMPLATE_WEEKEND_XF_INDEX,
     audit_wage_template,
     build_wage_template,
     default_template_path,
     preflight_wage_template,
+    write_template_manifest,
 )
 
 
@@ -88,6 +92,23 @@ def test_template_audit_does_not_need_historical_reference() -> None:
     audit = audit_wage_template(default_template_path())
     assert audit.readable is True
     assert audit.sha256 == WAGE_TEMPLATE_SHA256
+
+
+def test_tracked_manifest_records_reproducible_weekday_style_roles(
+    tmp_path: Path,
+) -> None:
+    template = default_template_path()
+    manifest = template.with_suffix(".json")
+    generated_manifest = tmp_path / manifest.name
+
+    write_template_manifest(audit_wage_template(template), generated_manifest)
+
+    assert generated_manifest.read_bytes() == manifest.read_bytes()
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["style_contract"]["weekday_column"] == {
+        "weekday_xf_index": WAGE_TEMPLATE_WEEKDAY_XF_INDEX,
+        "weekend_xf_index": WAGE_TEMPLATE_WEEKEND_XF_INDEX,
+    }
 
 
 def _sha256(path: Path) -> str:

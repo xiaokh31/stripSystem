@@ -1,7 +1,18 @@
 # WAGE-HOURS-08 工资工作簿生成回归验证
 
 日期：2026-08-01 MDT  
-结论：`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+结论：`EXTERNAL_VERIFICATION_FAILED / SUPERSEDED_BY_WAGE_HOURS_09`
+
+## 外部验收后续发现
+
+办公室在 Microsoft Excel 中确认工资表内容和生成流程正确，但标准员工 Sheet 的 A 列
+周末底色存在明确回归：浅蓝底固定落在 `THU` / `FRI`，`SAT` / `SUN` 反而未着色。
+因此本报告中的模板供应、生成闭环、隐私、下载和当前环境自动化证据继续有效，但最终
+颜色视觉 gate 未通过，WAGE-HOURS-08 不能标记 `DONE`。
+
+旧审计的 `normalized style differences = 0` 只证明输出继承了模板同一物理行的 XF，
+没有根据 B 列实际日期验证 A 列 weekday/fill 语义，因而把本缺陷误判为通过。后续唯一
+修复 Task 为 `WAGE-HOURS-09Column A Weekend Highlight Regression.md`；不得重跑 08。
 
 ## 根因与修复结论
 
@@ -75,9 +86,9 @@ API、Worker、镜像和运行时均不再把它作为模板。
   cleanup 探针、真实 nginx/BullMQ/Chromium 主流程、同步诊断、受保护下载、BIFF 审计、
   源 SHA 复核、脱敏 LibreOffice 视觉门禁和最终精确 cleanup。
 - 脱敏模板、6 月和 7 月工作簿各为 17 Sheets、16 个 eligible 员工 Sheet，均渲染
-  50 页；normalized style differences 为 0，受保护调整 Sheet 未改变。三张全页联系表及
-  模板/6 月/7 月各第 1–3、46–50 页的 24 张原分辨率高信号页面已人工检查；日期、工时、
-  上下班时间、午休、颜色、边框和排版一致，无历史业务值泄露或截断。
+  50 页；旧 positional audit 得到 normalized style differences 为 0，受保护调整 Sheet
+  未改变。该结果只证明模板物理行样式被保留，不证明周末业务语义正确；外部复核已确认
+  其中 A 列颜色结论无效。日期、工时、上下班时间、午休、边框、排版和隐私证据仍保留。
 - Worker：Ruff 通过；243/243 pytest 通过。
 - API：lint/typecheck 通过；51 suites / 409 unit tests、21 suites / 131 E2E tests 通过。
 - Web：lint/typecheck 通过；285/285 tests 和 Next.js production build 通过。
@@ -86,11 +97,17 @@ API、Worker、镜像和运行时均不再把它作为模板。
   通过。Web production build 在运行中容器内更新 `.next` 后按运行手册重启 Web/nginx，
   避免旧进程 manifest 与新静态 chunk 不一致。
 
-## 唯一剩余外部验收
+## 外部验收结果与后续
 
-当前 macOS/Docker 环境没有 Microsoft Excel。办公室必须在 Windows/Microsoft Excel
-通过真实 `/work-hours` 受保护流程重新上传已批准的同一 7 月样本，执行 Parse、Generate
-并下载工作簿；检查所有员工 Sheet 的日期、工时、颜色、行高、列宽、Print Preview 和
-下载文件名。该检查通过后才能把 Task 更新为 `DONE`。
+Microsoft Excel 外部验收已执行并发现上述 A 列周末底色缺陷。WAGE-HOURS-09 必须先建立
+可在旧输出上失败的语义 BIFF 检查，修复为仅 `SAT` / `SUN` 着色，再复跑脱敏
+LibreOffice 和办公室 Microsoft Excel。09 通过前，08 保持 superseded historical
+baseline，不再尝试更新为 `DONE`。
+
+WAGE-HOURS-09 已完成当前环境仓库实现和自动化：新版语义审计能在旧 6/7 月输出上各以
+36 个 mismatch 稳定失败，新输出跨 16 个标准员工 Sheet 的 976 个日期格全部通过；
+真实 Chromium、cleanup/privacy、LibreOffice 视觉、Worker/API/Web 全量门禁也已通过。
+09 当前仅等待 Windows Microsoft Excel 复核，详见
+`docs/reports/wage-hours-09-weekend-highlight-verification.md`。
 
 本 Session 未开始 `PUBLIC-DEPLOY-04`。

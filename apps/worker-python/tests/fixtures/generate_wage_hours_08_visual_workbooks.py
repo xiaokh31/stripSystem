@@ -19,7 +19,9 @@ from worker_python.wage import (
 from worker_python.wage.template import default_template_path
 
 
-EMPLOYEES = (("EMP001", "Team Member Alpha"), ("EMP002", "Team Member Beta"))
+EMPLOYEES = tuple(
+    (f"EMP{index:03d}", f"Team Member {index:02d}") for index in range(1, 17)
+)
 
 
 def main() -> None:

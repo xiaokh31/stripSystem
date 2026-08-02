@@ -108,6 +108,18 @@ def test_real_wage_template_preserves_all_sheet_structure_and_touched_styles(
         assert len(date_rows) == 31
         for row_index in date_rows:
             for column_index in range(6):
+                if column_index == 0:
+                    assert _normalized_style_without_fill(
+                        before, source_sheet, row_index, column_index
+                    ) == _normalized_style_without_fill(
+                        after, output_sheet, row_index, column_index
+                    )
+                    output_weekday = str(
+                        output_sheet.cell_value(row_index, column_index)
+                    ).upper()
+                    expected_xf = 87 if output_weekday in {"SAT", "SUN"} else 83
+                    assert output_sheet.cell_xf_index(row_index, column_index) == expected_xf
+                    continue
                 assert _normalized_style(
                     before, source_sheet, row_index, column_index
                 ) == _normalized_style(after, output_sheet, row_index, column_index)
@@ -348,6 +360,11 @@ def _write_standard_template(path: Path, sheet_names: tuple[str, ...]) -> None:
         "font: name Arial; align: horiz center, vert center, wrap on; "
         "borders: left thin, right thin, top thin, bottom thin"
     )
+    weekend_style = xlwt.easyxf(
+        "font: name Arial; align: horiz center, vert center, wrap on; "
+        "borders: left thin, right thin, top thin, bottom thin; "
+        "pattern: pattern solid, fore_colour light_blue"
+    )
     for sheet_name in sheet_names:
         sheet = workbook.add_sheet(sheet_name)
         for column_index, value in enumerate(
@@ -363,7 +380,14 @@ def _write_standard_template(path: Path, sheet_names: tuple[str, ...]) -> None:
                     value = current.strftime("%a").upper()
                 elif column_index == 1:
                     value = f"2026.6.{day}"
-                sheet.write(row_index, column_index, value, style)
+                sheet.write(
+                    row_index,
+                    column_index,
+                    value,
+                    weekend_style
+                    if column_index == 0 and current.weekday() >= 5
+                    else style,
+                )
         sheet.write_merge(33, 33, 0, 1, "TOTAL HOURS", style)
         sheet.write_merge(33, 33, 2, 5, 0, style)
         # Keep synthetic BIFF stream capacity above the patched record size.
@@ -382,6 +406,11 @@ def _write_date_validation_template(path: Path) -> None:
         "font: name Arial; align: horiz center, vert center, wrap on; "
         "borders: left thin, right thin, top thin, bottom thin",
         num_format_str="YYYY.MM.DD",
+    )
+    weekend_style = xlwt.easyxf(
+        "font: name Arial; align: horiz center, vert center, wrap on; "
+        "borders: left thin, right thin, top thin, bottom thin; "
+        "pattern: pattern solid, fore_colour light_blue"
     )
     for column_index, value in enumerate(
         ("", "DATE", "HOURS", "LUNCH HOURS", "START TIME", "END TIME")
@@ -404,7 +433,11 @@ def _write_date_validation_template(path: Path) -> None:
                 row_index,
                 column_index,
                 date_value,
-                date_style if column_index == 1 else style,
+                date_style
+                if column_index == 1
+                else weekend_style
+                if column_index == 0 and current.weekday() >= 5
+                else style,
             )
     sheet.write_merge(34, 34, 0, 1, "TOTAL HOURS", style)
     sheet.write_merge(34, 34, 2, 5, 0, style)
@@ -556,6 +589,13 @@ def _normalized_style(workbook, sheet, row_index: int, column_index: int):
         vars(xf.protection).copy(),
         vars(xf.alignment).copy(),
     )
+
+
+def _normalized_style_without_fill(
+    workbook, sheet, row_index: int, column_index: int
+):
+    style = _normalized_style(workbook, sheet, row_index, column_index)
+    return (style[0], style[2], style[4], style[5], style[6])
 
 
 def _biff_record_payloads(path: Path, record_id: int) -> tuple[bytes, ...]:
