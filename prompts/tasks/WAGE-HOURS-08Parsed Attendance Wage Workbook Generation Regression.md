@@ -3,14 +3,14 @@
 ## 优先级与执行状态
 
 - 优先级：P0。办公室已能解析月度考勤，但无法生成工资工时表，核心月结流程被阻断。
-- Task-Status: SUPERSEDED_BY_WAGE_HOURS_09
+- Task-Status: DONE
 - 前置任务：`FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` 必须
   `DONE`；WAGE-HOURS-01 至 07 的计算、格式、审计删除和文件可见性继续作为基线。
 - 本 Task 是新现场回归，不得重跑或改写 WAGE-HOURS-01 至 07 的完成证据。
-- 本 Task 的仓库实现与当前环境证据保留为历史基线。2026-08-01 Microsoft Excel
-  外部验收发现 A 列周末底色仍按模板物理行落在 `THU` / `FRI`；后续只执行
-  `WAGE-HOURS-09Column A Weekend Highlight Regression.md`，不得重跑本 Task，也不得
-  在同一 Session 自动开始 PUBLIC-DEPLOY-04。
+- 本 Task 的模板供应、生成、下载和 Excel 业务流程已由用户在 2026-08-02 明确验收
+  通过，状态为 `DONE`，不得重跑。随后单独登记的 A 列周末底色细节继续由
+  `WAGE-HOURS-09Column A Weekend Highlight Regression.md` 管理，不回退本 Task 的
+  已验收终态，也不得在同一 Session 自动开始 PUBLIC-DEPLOY-04。
 
 ## 用户报告
 
@@ -309,9 +309,8 @@ WEB-DASHBOARD-09 的日期隔离和失败安全 cleanup；不得直接运行会�
   Web lint/typecheck、285 tests、production build；39 migrations up to date；最终 full-stack
   healthcheck 和 `git diff --check` 通过。本 Task 无 schema 变更，不需要 migration。
 - 完整脱敏证据见 `docs/reports/wage-hours-08-generation-regression-verification.md`。
-- 原定唯一剩余 gate 为办公室 Windows/Microsoft Excel 通过真实 `/work-hours` 流程重新
-  生成并检查颜色。该外部验收已发现明确缺陷：A 列浅蓝底固定落在 `THU` / `FRI`，而
-  `SAT` / `SUN` 未按周末着色，因此 08 不能标记 `DONE`。生成闭环、模板供应、隐私和
-  当前环境自动化证据继续有效；周末样式修复、语义 BIFF 门禁和最终 Excel 复核由
-  WAGE-HOURS-09 接管。
+- 用户于 2026-08-02 明确确认 WAGE-HOURS-08 已验收通过。模板供应、生成闭环、真实
+  `/work-hours` 流程、下载、隐私和当前环境自动化证据均作为本 Task 的完成依据，状态
+  更新为 `DONE`。此前发现的 A 列周末底色细节已拆为 WAGE-HOURS-09；09 的独立外部
+  复核状态不再阻止或重开 08。
 - 本 Session 未启动 `PUBLIC-DEPLOY-04`。

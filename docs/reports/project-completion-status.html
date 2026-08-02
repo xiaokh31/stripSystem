@@ -240,9 +240,9 @@
           无法登录。已分别建立 FILE-UPLOAD-01、WAGE-HOURS-08 和 PUBLIC-DEPLOY-04；
           FILE-UPLOAD-01 已完成；旧 Wage/Public 完成证据保留为历史基线。WAGE-HOURS-08
           已完成独立脱敏模板、生产只读供应、真实 7 月 full-stack 和全部当前环境自动化，
-          但 Windows Microsoft Excel 外部验收发现标准员工 Sheet 的 A 列周末底色错误地
-          固定落在 THU/FRI，而不是 SAT/SUN。08 未通过最终视觉 gate，新增
-          WAGE-HOURS-09 作为唯一后续修复；PUBLIC-DEPLOY-04 仍未开始。
+          并于 2026-08-02 由用户明确验收通过。后续独立发现的 A 列周末底色问题由
+          WAGE-HOURS-09 修复；其语义 BIFF、Docker、Chromium、LibreOffice 和用户专项
+          验收也已完成。08/09 均为 Done；PUBLIC-DEPLOY-04 仍未开始。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -457,8 +457,8 @@
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
           Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05/06 已全部关闭且不得重跑；
-          WAGE-HOURS-07 与 WEB-DASHBOARD-07/08/09 已关闭；WAGE-HOURS-08 的仓库实现和
-          当前环境证据保留，但 Microsoft Excel 视觉 gate 已失败并由 WAGE-HOURS-09 接管；2026-07-24 新发现的 2099
+          WAGE-HOURS-07/08/09 与 WEB-DASHBOARD-07/08/09 已关闭；WAGE-HOURS-08 的生成
+          闭环和 WAGE-HOURS-09 的周末底色修复均已通过用户验收；2026-07-24 新发现的 2099
           日期完整性回归已由 WEB-DASHBOARD-09 完整关闭。2026-07-25 新增三个需求线路：
           UNLOAD-WAGE-14 将美转加托车号改为选填；UNLOAD-REPORT-02 首轮修复长单元格和底部备注打印裁切；
           POD-00 至 05 交付 versioned template、办公室制单、saved revision 打印与 archive。2026-07-28
@@ -693,8 +693,8 @@
           历史基线；01 至 05 已由 05 关闭并保持 complete。后续新增的 WAGE-HOURS-06 也已关闭办公室页面的生成文件可见性，
           未删除或停止生成后台技术工件。WAGE-HOURS-07 已于 2026-07-23 达到 Done / 100%，交付整次
           attendance import 可审计软删除；WAGE-HOURS-08 已完成 staged BIFF、schema/manifest、
-          stable code、真实 7 月浏览器下载及脱敏视觉门禁，但 Microsoft Excel 外部检查确认
-          A 列 THU/FRI 与 SAT/SUN 的底色语义相反。WAGE-HOURS-09 已建立为唯一活动修复 Task。
+          stable code、真实 7 月浏览器下载及脱敏视觉门禁，并由用户验收通过。随后独立的
+          A 列 THU/FRI 与 SAT/SUN 底色问题已由 WAGE-HOURS-09 修复并通过专项验收。
           这些独立需求不改写 01 至 07 的关闭证据。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
@@ -969,17 +969,17 @@
             </tr>
             <tr>
               <td>Stage 7.8: WAGE-HOURS-08 Parsed Attendance Wage Workbook Generation Regression</td>
-              <td><span class="badge partial">External Visual Gate Failed / Superseded by 09</span></td>
-              <td>Baseline Preserved</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
               <td>已交付确定性脱敏 <code>bestar-wage-template-v1</code>：16 个通用员工槽位 + 1 个受保护 Sheet，历史业务值/未批准个人数据为 0，固定 SHA、连续重建字节一致，超容量 fail closed。API/Worker 默认路径、两个镜像内 <code>0444</code> 供应、build/startup preflight 和 clean tracked context regression 已关闭 ignored <code>samples/*</code> 导致的 <code>WAGE_TEMPLATE_MISSING</code>。</td>
-              <td>真实 7 月 UI upload/Parse/Generate/list/protected download、17-Sheet BIFF 审计、模板/6 月/7 月各 50 页 LibreOffice、精确 cleanup、Worker 243、API 409 unit / 131 E2E、Web 285 + production build、39 migrations、healthcheck 和 diff check 证据继续有效。但办公室 Microsoft Excel 复核确认 A 列浅蓝底固定落在 <code>THU</code>/<code>FRI</code>，<code>SAT</code>/<code>SUN</code> 未着色；旧样式审计只比较模板物理行，未验证日期语义。08 不得标记 Done 或重跑。</td>
+              <td>真实 7 月 UI upload/Parse/Generate/list/protected download、17-Sheet BIFF 审计、模板/6 月/7 月各 50 页 LibreOffice、精确 cleanup、Worker 243、API 409 unit / 131 E2E、Web 285 + production build、39 migrations、healthcheck 和 diff check 均通过。用户于 2026-08-02 明确确认 WAGE-HOURS-08 验收通过；后续 A 列周末底色细节独立由 09 关闭，不重开 08。</td>
             </tr>
             <tr>
               <td>Stage 7.9: WAGE-HOURS-09 Column A Weekend Highlight Regression</td>
-              <td><span class="badge partial">Code Complete / Excel Verification Pending</span></td>
-              <td>95%</td>
+              <td><span class="badge done">Done</span></td>
+              <td>100%</td>
               <td>生成器现按每行实际日期为 A 列选择 weekday/weekend 语义 XF；仅 <code>SAT</code>/<code>SUN</code> 使用获批周末底色，工作日和短月份空槽使用普通底色。保存后 validator 逐 Sheet 验证日期、weekday、exact XF 和空槽并 fail closed；模板二进制/SHA 与 107 XF 不变，B-F、公式、特殊 Sheet 和历史文件不变。</td>
-              <td>旧 6/7 月输出各 36 个语义 mismatch 的红灯稳定失败；新脱敏 6/7 月覆盖 16 Sheets、976 日期格、256 周末格和 720 工作日格，全部 mismatch 为 0。Worker 247、API 409 unit / 131 E2E、Web 285、真实 Chromium、cleanup/privacy、LibreOffice 150 页和六页逐图均通过。只剩办公室 Windows Microsoft Excel 检查首/中/末 Sheet、短月空槽、Print Preview 和文件名；证据见 <code>docs/reports/wage-hours-09-weekend-highlight-verification.md</code>。</td>
+              <td>旧 6/7 月输出各 36 个语义 mismatch 的红灯稳定失败；新脱敏 6/7 月覆盖 16 Sheets、976 日期格、256 周末格和 720 工作日格，全部 mismatch 为 0。Worker 247、API 409 unit / 131 E2E、Web 285、真实 Chromium、cleanup/privacy、LibreOffice 150 页和六页逐图均通过。用户于 2026-08-02 明确确认专项验收通过；证据见 <code>docs/reports/wage-hours-09-weekend-highlight-verification.md</code>。</td>
             </tr>
           </tbody>
         </table>
@@ -2241,10 +2241,10 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>FILE-UPLOAD-01 已 Done 且不得重跑；WAGE-HOURS-08 的独立模板、生产供应和当前环境证据继续有效，但旧 Microsoft Excel gate 已失败且 08 不得重跑。WAGE-HOURS-09 的语义 BIFF、Docker、Chromium 和 LibreOffice 修复已完成，只等待 Windows Microsoft Excel 外部复核；通过后才可开始 PUBLIC-DEPLOY-04。</li>
+          <li>FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 Done 且不得重跑；08 的独立模板/生成闭环与 09 的周末底色修复均已通过用户验收。当前下一开发 Task 为 PUBLIC-DEPLOY-04。</li>
           <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
-          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；WAGE-HOURS-08 为 External Visual Gate Failed / Superseded by 09，WAGE-HOURS-09 为 Code Complete / Excel Verification Pending。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
+          <li>WAGE-HOURS-01 至 09 已关闭且不得重跑。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 必须先关闭公网域名/LAN IP 登录并存回归。当前 LAN listener 仍不得端口转发到 Internet，公网 Secure cookie 不得降级。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>

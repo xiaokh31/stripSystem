@@ -4,9 +4,10 @@
 
 - 优先级：P1。工资工时表已可正确生成，但办公室外部验收确认所有标准员工 Sheet 的
   A 列把 `THU`、`FRI` 错当成周末着色，影响人工识别周末。
-- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
+- Task-Status: DONE
 - 前置状态：`WAGE-HOURS-08` 的模板供应、生成、下载、隐私和当前环境自动化证据继续
-  作为有效基线，但其 Microsoft Excel 外部验收未通过；不得把 08 直接标记 `DONE`。
+  作为有效基线，且用户已于 2026-08-02 明确验收通过并将 08 标记 `DONE`。本 Task
+  继续作为独立的 A 列周末底色修复，不回退或重开 08。
 - 本 Task 是 08 的窄范围样式回归修复。一个 fresh supervisor Session 只执行本 Task，
   不得顺带开始 `PUBLIC-DEPLOY-04` 或重做 WAGE-HOURS-01 至 08。
 - 完成仓库实现和当前环境门禁后更新本文件、Task Index、完成度报告、专项验证报告与
@@ -216,8 +217,8 @@ git diff --check
 3. 2 月或 30 天月份的空槽没有残留周末底色；
 4. 日期、工时、行高、列宽、其他单元格颜色、Print Preview 和下载文件名未回归。
 
-只有该复核通过后，本 Task 才可 `DONE`。通过时同步记录 WAGE-HOURS-08 的旧外部门禁
-已由 09 关闭；不得回头重跑 08 作为另一个业务 Task。
+只有该复核通过后，本 Task 才可 `DONE`。WAGE-HOURS-08 已独立验收完成；不得回头重跑
+08，也不得用 08 的验收结果代替本 Task 对周末底色的专项复核。
 
 ## 验收标准
 
@@ -263,6 +264,6 @@ git diff --check
   仅 A 列 `SAT` / `SUN` 为浅蓝底，B-F 既有业务颜色保持。
 - 无 schema/migration 变更，无新增 Web 用户可见文案；strict i18n/browser errors 为 0。
 - 详细证据见 `docs/reports/wage-hours-09-weekend-highlight-verification.md`。
-- 唯一剩余 gate：办公室 Windows Microsoft Excel 重新生成并检查首/中/末员工 Sheet、
-  2 月或 30 天月份空槽、其他颜色/尺寸、Print Preview 和文件名。通过前本 Task 不得
-  `DONE`，也不得启动 `PUBLIC-DEPLOY-04`。
+- 用户于 2026-08-02 明确确认 WAGE-HOURS-09 专项验收通过，本 Task 更新为 `DONE`。
+  用户未提供额外设备、文件名或截图细节，本记录不补写未提供的外部证据。08/09 均已
+  关闭，下一开发 Task 由当前 Task Index 指向 `PUBLIC-DEPLOY-04`。

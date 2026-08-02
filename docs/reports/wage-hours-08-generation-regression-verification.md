@@ -1,18 +1,19 @@
 # WAGE-HOURS-08 工资工作簿生成回归验证
 
-日期：2026-08-01 MDT  
-结论：`EXTERNAL_VERIFICATION_FAILED / SUPERSEDED_BY_WAGE_HOURS_09`
+日期：2026-08-01 MDT；2026-08-02 更新验收结论
+结论：`DONE`
 
-## 外部验收后续发现
+## 验收结论与后续细节任务
 
 办公室在 Microsoft Excel 中确认工资表内容和生成流程正确，但标准员工 Sheet 的 A 列
 周末底色存在明确回归：浅蓝底固定落在 `THU` / `FRI`，`SAT` / `SUN` 反而未着色。
-因此本报告中的模板供应、生成闭环、隐私、下载和当前环境自动化证据继续有效，但最终
-颜色视觉 gate 未通过，WAGE-HOURS-08 不能标记 `DONE`。
+该细节随后独立拆分为 `WAGE-HOURS-09Column A Weekend Highlight Regression.md`，不再
+混入本 Task 的模板供应和工资表生成故障范围。
 
 旧审计的 `normalized style differences = 0` 只证明输出继承了模板同一物理行的 XF，
 没有根据 B 列实际日期验证 A 列 weekday/fill 语义，因而把本缺陷误判为通过。后续唯一
-修复 Task 为 `WAGE-HOURS-09Column A Weekend Highlight Regression.md`；不得重跑 08。
+修复 Task 为 WAGE-HOURS-09；不得为该独立细节重跑 08。用户于 2026-08-02 明确确认
+WAGE-HOURS-08 已验收通过，因此本 Task 状态更新为 `DONE`。
 
 ## 根因与修复结论
 
@@ -99,15 +100,14 @@ API、Worker、镜像和运行时均不再把它作为模板。
 
 ## 外部验收结果与后续
 
-Microsoft Excel 外部验收已执行并发现上述 A 列周末底色缺陷。WAGE-HOURS-09 必须先建立
-可在旧输出上失败的语义 BIFF 检查，修复为仅 `SAT` / `SUN` 着色，再复跑脱敏
-LibreOffice 和办公室 Microsoft Excel。09 通过前，08 保持 superseded historical
-baseline，不再尝试更新为 `DONE`。
+用户于 2026-08-02 明确确认 WAGE-HOURS-08 已验收通过，本 Task 已标记 `DONE`。该结论
+关闭 08 的模板供应、Parse/Generate、下载与工资表业务流程，不表示替代后续独立
+WAGE-HOURS-09 的周末底色专项验收。
 
 WAGE-HOURS-09 已完成当前环境仓库实现和自动化：新版语义审计能在旧 6/7 月输出上各以
 36 个 mismatch 稳定失败，新输出跨 16 个标准员工 Sheet 的 976 个日期格全部通过；
 真实 Chromium、cleanup/privacy、LibreOffice 视觉、Worker/API/Web 全量门禁也已通过。
-09 当前仅等待 Windows Microsoft Excel 复核，详见
+09 当前仍仅等待 Windows Microsoft Excel 专项复核，详见
 `docs/reports/wage-hours-09-weekend-highlight-verification.md`。
 
 本 Session 未开始 `PUBLIC-DEPLOY-04`。

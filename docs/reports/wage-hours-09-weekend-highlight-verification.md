@@ -1,7 +1,7 @@
 # WAGE-HOURS-09 A 列周末底色回归验证
 
-日期：2026-08-01 MDT  
-结论：`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+日期：2026-08-01 MDT；2026-08-02 更新验收结论
+结论：`DONE`
 
 ## 结论
 
@@ -11,8 +11,9 @@
 `bestar-wage-template-v1` 和 SHA-256
 `f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c`。
 
-唯一未完成项是办公室 Windows Microsoft Excel 外部复核；LibreOffice 结果没有被冒充
-为 Excel 验收。本 Task 和被其接管的 WAGE-HOURS-08 在该复核通过前均不得标记 `DONE`。
+用户于 2026-08-02 明确确认 WAGE-HOURS-09 专项验收通过，本 Task 更新为 `DONE`。
+自动化与 LibreOffice 证据仍按其实际范围记录，不冒充 Microsoft Excel 过程细节；用户
+未提供额外设备、文件名或截图信息，本报告不补写未提供的外部证据。
 
 ## 根因诊断与红灯
 
@@ -101,15 +102,16 @@ SETUP/print metadata，避免只凭抽样截图下结论。
   通过。
 - 本 Task 无数据库 schema 变更，不需要 migration。
 
-## 唯一剩余外部复核
+## 外部验收结果
 
-办公室在 Windows Microsoft Excel 中通过真实 `/work-hours` 流程重新生成并下载一份
-获批月份工资表，然后：
+本 Task 原定外部复核清单为：
 
 1. 检查第一个、中间、最后一个员工 Sheet，确认 A 列仅 `SAT`、`SUN` 使用周末底色，
    `THU`、`FRI` 与其他工作日一致。
 2. 检查 2 月或 30 天月份，确认末尾空槽没有文字、日期、值或周末底色残留。
 3. 检查日期、工时、其他颜色、行高、列宽、Print Preview 和下载文件名没有回归。
 
-通过后将 WAGE-HOURS-09 更新为 `DONE`，并记录其已关闭 WAGE-HOURS-08 的旧外部视觉
-门禁；不得另开 Session 重跑 WAGE-HOURS-08。本 Session 未启动其他 Task。
+用户于 2026-08-02 明确确认 WAGE-HOURS-09 已验收通过，因此本 Task 标记 `DONE`。
+WAGE-HOURS-08 也已由用户单独确认验收完成。两项均不得重跑；下一开发 Task 为
+`PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md`。本次状态
+更新未启动其他 Task。

@@ -82,9 +82,9 @@
 - 2026-08-01 新增三个 P0 现场回归 Task。`FILE-UPLOAD-01` 已完成卸柜/考勤 multipart
   中文原始文件名 mojibake 修复及保留 raw evidence 的既有记录处理；`WAGE-HOURS-08`
   已创建独立脱敏模板、关闭生产供应缺口，并使用 7 月受控现场样本完成“Parse 成功但
-  Generate 失败”的异步工资表闭环。办公室 Microsoft Excel 外部验收随后确认 A 列
-  周末底色错误地落在 `THU` / `FRI`，因此 08 未通过最终视觉 gate，并由新增
-  `WAGE-HOURS-09` 接管语义样式修复；
+  Generate 失败”的异步工资表闭环，用户已于 2026-08-02 明确验收通过并标记 `DONE`。
+  随后单独发现的 A 列周末底色问题由新增 `WAGE-HOURS-09` 修复，当前环境门禁与用户
+  专项验收也已通过，状态同为 `DONE`；
   `PUBLIC-DEPLOY-04` 修复同一 Named Tunnel public-mode stack 中公网 HTTPS 可登录但
   局域网 IP 无法登录的问题。旧 WAGE-HOURS-01 至 07 和 PUBLIC-DEPLOY-01/02 的历史
   完成证据保留，但不得用于否定这三项新回归。
@@ -245,26 +245,26 @@
      打卡记录样本，必须只读用于原始红灯；不得在日志、截图、报告或 handoff 暴露
      员工姓名/打卡信息。
 2. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
-   `SUPERSEDED_BY_WAGE_HOURS_09`
+   `DONE`
    - 已从结构合同创建独立、确定性、无历史业务值的 tracked legacy BIFF 模板；API/Worker
      默认值、镜像只读供应、build/startup preflight 和 clean tracked context regression
      已关闭 ignored `samples/` 导致的 `WAGE_TEMPLATE_MISSING`。真实 7 月 UI/异步下载、
-     BIFF/LibreOffice、隐私、cleanup 和全量 Docker 门禁均通过；但 Microsoft Excel
-     外部验收发现 A 列 `THU` / `FRI` 被错误着色，08 不得直接结项或重跑。
+     BIFF/LibreOffice、隐私、cleanup 和全量 Docker 门禁均通过；用户于 2026-08-02
+     明确确认本 Task 验收通过。后续周末底色细节已拆为 09，不重开或重跑 08。
 3. `WAGE-HOURS-09Column A Weekend Highlight Regression.md` —
-   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+   `DONE`
    - 已按实际日期仅为 `SAT` / `SUN` 选择获批周末 XF，加入保存后 fail-closed validator
      和跨月份语义 BIFF 门禁。Docker Worker/API/Web、真实 Chromium、cleanup/privacy、
-     LibreOffice 视觉与全部 Sheet machine audit 已通过；模板/SHA/XF 数不变。只剩办公室
-     Windows Microsoft Excel 检查首/中/末员工 Sheet、短月空槽和 Print Preview。
-4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
+     LibreOffice 视觉与全部 Sheet machine audit 已通过；模板/SHA/XF 数不变。用户于
+     2026-08-02 明确确认专项验收通过，本 Task 已关闭。
+4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY / NEXT`
    - 同一 single-writer stack 同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。
      Public cookie 始终 Secure；LAN HTTP 仅在 private allowlist + trusted ingress 下使用
      host-only cookie。禁止全局关闭 Secure、wildcard CORS 或信任客户端 forwarded header。
 
-当前执行顺序固定为 `WAGE-HOURS-09 -> PUBLIC-DEPLOY-04`；FILE-UPLOAD-01 已完成，
-WAGE-HOURS-08 只保留基线证据，不再作为可执行 Task。PUBLIC-DEPLOY-04 代码上独立，但仍
-排在 09 终态之后，避免并行修改共享 API/Web E2E、i18n catalog 和 public-mode fixture。
+FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 `DONE`，不得重跑。当前下一项只
+执行 `PUBLIC-DEPLOY-04`，使用独立 fresh supervisor Session；不得把已关闭工资 Task 与
+公网双入口修复合并到同一 Session。
 所有活动 Task 都要求 strict `en` / `zh-CN`、稳定 code、SSR/hydration no-flash、Docker-only
 验证、失败安全 cleanup 和专项 verification report。
 
@@ -345,8 +345,8 @@ strict `en` / `zh-CN`、stable code/labelKey、权限、审计、original/genera
      Chromium 11/11、healthcheck 和精确清理均通过；Dashboard 现场导航回归已完全退出。
 
 `WAGE-HOURS-07Attendance Import Audited Deletion.md` 已达到 `DONE`，不得重跑。WAGE-HOURS-08
-完成的工资表生成闭环继续作为基线；其外部验收发现的 A 列周末底色缺陷只由
-WAGE-HOURS-09 处理。外部样本、设备、打印/Excel、目标主机和
+的工资表生成闭环和 WAGE-HOURS-09 的 A 列周末底色修复均已由用户验收并达到 `DONE`。
+外部样本、设备、打印/Excel、目标主机和
 PUBLIC-DEPLOY-02/04 项继续按各自新 gate 处理。
 
 公网访问新线路按以下顺序执行：
@@ -375,8 +375,7 @@ PUBLIC-DEPLOY-02/04 项继续按各自新 gate 处理。
 同步 PostgreSQL 与 `storage/` 的同一恢复点、验证 hash/count，并停用或只读旧 local stack。当前 03 已归档，不得
 执行或作为 02 的 blocker；02 的真实 domain、Cloudflare account/Access 和外网验证保留为 external gate。
 
-WAGE-HOURS-01 至 07 均已达到 `DONE`；08 的仓库实现与当前环境自动化证据保留，但其
-Microsoft Excel 视觉验收失败，09 为唯一可执行工资修复 Task：
+WAGE-HOURS-01 至 09 均已达到 `DONE`：
 
 1. `WAGE-HOURS-01Attendance Punch Parity Calculation Contract.md` — `DONE`
 2. `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md` — `DONE`
@@ -386,15 +385,14 @@ Microsoft Excel 视觉验收失败，09 为唯一可执行工资修复 Task：
 6. `WAGE-HOURS-06Office Wage File Download Visibility.md` — `DONE`
 7. `WAGE-HOURS-07Attendance Import Audited Deletion.md` — `DONE`
 8. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
-   `SUPERSEDED_BY_WAGE_HOURS_09`
+   `DONE`
 9. `WAGE-HOURS-09Column A Weekend Highlight Regression.md` —
-   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+   `DONE`
 
-前七项已分别由 fresh supervisor Session 完成，不得重跑。08 已交付确定性脱敏模板、
+九项均已分别完成并不得重跑。08 已交付确定性脱敏模板、
 只读镜像供应、clean tracked checkout preflight、真实 7 月 full-stack/BIFF/LibreOffice
-门禁，但外部验收发现 A 列 `THU` / `FRI` 固定着色且 `SAT` / `SUN` 未着色。不得重跑
-08；09 已把周末样式改为按实际日期判定并补齐语义 BIFF/视觉门禁，当前只需重新取得
-Microsoft Excel 外部验收。
+门禁并通过用户验收；09 已把周末样式改为按实际日期判定，补齐语义 BIFF/视觉门禁，
+并于 2026-08-02 通过用户专项验收。
 07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
 Docker-only 门禁；整次考勤导入删除是留存原始 `.xls` 和审计证据的软删除，不得套用卸柜 import 的物理
 storage cleanup。
@@ -529,20 +527,16 @@ Deferred，按现场反馈再执行：
   regression 已全部完成。
 
 给业务开发 agent 的建议执行顺序：
-1. `WAGE-HOURS-09Column A Weekend Highlight Regression.md` 已完成仓库实现、
-   Docker/BIFF/LibreOffice 和真实 Chromium 门禁，只等待办公室 Microsoft Excel 外部
-   复核。08 的生成、模板供应和隐私证据继续复用，不重跑 08 Task；09 取得 Excel 验收
-   并达到 `DONE` 后，才可在新的 supervisor Session 开始
-   `PUBLIC-DEPLOY-04`。macOS/Linux
+1. 下一项只执行 `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md`。
+   FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已验收完成且不得重跑。macOS/Linux
    使用 `scripts/run-business-agent.sh task '<task-file>'`，
    Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 后再执行
    `scripts\run-business-agent.cmd develop "<task-file>"`。当前 Windows 主机没有 Docker，`develop` 只允许完成实现，
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `FILE-UPLOAD-01` 已完成；WAGE-HOURS-08 为
-   `SUPERSEDED_BY_WAGE_HOURS_09`；PUBLIC-DEPLOY-04 虽无代码依赖，仍排在 09 终态后。
-   后续工作均不得把现场
+2. `FILE-UPLOAD-01`、WAGE-HOURS-08 和 WAGE-HOURS-09 均为 `DONE`；PUBLIC-DEPLOY-04
+   为 `READY / NEXT`。后续工作均不得把现场
    员工数据、cookie、token、真实域名/IP 或 secret 写入报告和 handoff。
 3. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。
@@ -563,8 +557,7 @@ Deferred，按现场反馈再执行：
    “public mode 下 LAN login healthy”验收已被现场回归推翻，必须由 PUBLIC-DEPLOY-04
    关闭后再继续 02 的剩余外部安全验收。不得以恢复/删除 Access 代替 04。
 9. `PUBLIC-DEPLOY-03` 已归档，不得执行或恢复其 OCI/ARM64 修改；恢复需要产品批准并同步任务状态。
-10. `WAGE-HOURS-01/02/03/04/05/06/07` 已关闭，不得重跑；08 的生成修复不重跑，
-   当前 A 列周末样式缺陷只执行 09。最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
+10. `WAGE-HOURS-01/02/03/04/05/06/07/08/09` 已关闭，不得重跑。最终 workbook visual gate 的 BIFF/LibreOffice/Chromium
    证据保存在 gitignored `test-results/wage-hours-05/`，办公室文件可见性证据保存在
    gitignored `test-results/wage-hours-06/`，整次导入删除证据保存在 gitignored
    `test-results/wage-hours-07/`。

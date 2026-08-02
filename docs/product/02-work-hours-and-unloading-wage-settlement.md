@@ -1082,11 +1082,10 @@ storage and runtime artifacts and recheck all source/reference/template hashes.
 
 The office Microsoft Excel review subsequently found that the column-A fill was
 still copied from fixed template row positions: `THU` and `FRI` were highlighted
-while `SAT` and `SUN` were not. WAGE-HOURS-08 therefore remains historical
-generation-integrity evidence but did not pass its final visual sign-off.
-WAGE-HOURS-09 owns the focused semantic weekday-style repair and the corrected
-Excel sign-off; WAGE-HOURS-08 must not be rerun as a separate implementation
-Task.
+while `SAT` and `SUN` were not. That focused style issue was split into
+WAGE-HOURS-09 instead of reopening the generation and template-supply work.
+The user explicitly accepted WAGE-HOURS-08 and WAGE-HOURS-09 on 2026-08-02;
+both Tasks are `DONE` and must not be rerun.
 
 ## Acceptance Criteria
 
