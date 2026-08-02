@@ -28,6 +28,12 @@ from worker_python.wage.report import generate_wage_html_task_report
 
 
 WAGE_API_BATCH_VERSION = "wage-p1-api-v1"
+PERSISTED_ATTENDANCE_SCHEMA_VERSION = 2
+PERSISTED_ATTENDANCE_PARSER_VERSION = "wage-attendance-v2"
+
+
+class PersistedAttendanceContractError(ValueError):
+    pass
 
 
 def run_wage_parse_api(
@@ -102,11 +108,47 @@ def run_wage_generate_record_api(
     output_dir = output_dir.resolve()
     generated_at = generated_at or operational_now()
 
-    parsed_result = (
-        _persisted_attendance_result(normalized_attendance_json)
-        if normalized_attendance_json is not None
-        else parse_attendance_workbook(attendance_file)
-    )
+    try:
+        parsed_result = (
+            _persisted_attendance_result(normalized_attendance_json)
+            if normalized_attendance_json is not None
+            else parse_attendance_workbook(attendance_file)
+        )
+    except (
+        json.JSONDecodeError,
+        PersistedAttendanceContractError,
+        TypeError,
+        ValueError,
+    ):
+        issue = WageIssue(
+            code="WAGE_GENERATION_INPUT_SCHEMA_INVALID",
+            message="Persisted attendance generation input does not match the supported schema.",
+        )
+        return {
+            "schema_version": 2,
+            "batch_version": WAGE_API_BATCH_VERSION,
+            "generated_at": generated_at.isoformat(),
+            "source_file": str(attendance_file),
+            "original_filename": attendance_file.name,
+            "sha256": compute_sha256(attendance_file),
+            "parsed_result": None,
+            "wage_record_result": None,
+            "task_report": None,
+            "task_status": "ERROR",
+            "parsed_json_path": None,
+            "wage_record_path": None,
+            "task_report_path": None,
+            "employee_count": 0,
+            "day_count": 0,
+            "warning_count": 0,
+            "error_count": 1,
+            "warnings": [],
+            "errors": _json_ready((issue,)),
+            "exception": None,
+            "generation_stage": "NORMALIZED_INPUT",
+            "generation_error_code": issue.code,
+            "generation_input_source": "PERSISTED_ACTIVE_ATTENDANCE_ROWS",
+        }
     wage_result = generate_wage_record(
         attendance_result=parsed_result,
         template_path=template_path,
@@ -126,7 +168,7 @@ def run_wage_generate_record_api(
     task_status = _task_status(warnings, errors)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "batch_version": WAGE_API_BATCH_VERSION,
         "generated_at": generated_at.isoformat(),
         "source_file": str(attendance_file),
@@ -137,7 +179,9 @@ def run_wage_generate_record_api(
         "task_report": _json_ready(task_report),
         "task_status": task_status,
         "parsed_json_path": None,
-        "wage_record_path": str(wage_result.outputPath),
+        "wage_record_path": str(wage_result.outputPath)
+        if not wage_result.errors and wage_result.validated
+        else None,
         "task_report_path": str(task_report.htmlPath),
         "employee_count": len(parsed_result.employees),
         "day_count": len(parsed_result.days),
@@ -146,6 +190,8 @@ def run_wage_generate_record_api(
         "warnings": _json_ready(warnings),
         "errors": _json_ready(errors),
         "exception": None,
+        "generation_stage": wage_result.generationStage,
+        "generation_error_code": wage_result.errorCode,
         "generation_input_source": (
             "PERSISTED_ACTIVE_ATTENDANCE_ROWS"
             if normalized_attendance_json is not None
@@ -156,12 +202,29 @@ def run_wage_generate_record_api(
 
 def _persisted_attendance_result(path: Path) -> AttendanceParseResult:
     payload = json.loads(path.resolve().read_text(encoding="utf-8"))
+    if payload.get("schemaVersion") != PERSISTED_ATTENDANCE_SCHEMA_VERSION:
+        raise PersistedAttendanceContractError(
+            "Normalized attendance input schema version is unsupported."
+        )
     if payload.get("source") != "PERSISTED_ACTIVE_ATTENDANCE_ROWS":
-        raise ValueError("Normalized attendance input has an unsupported source.")
+        raise PersistedAttendanceContractError(
+            "Normalized attendance input has an unsupported source."
+        )
     parsed = payload.get("parsedResult")
     if not isinstance(parsed, dict):
-        raise ValueError("Normalized attendance input is missing parsedResult.")
-    days = tuple(_persisted_day(day) for day in parsed.get("days", []))
+        raise PersistedAttendanceContractError(
+            "Normalized attendance input is missing parsedResult."
+        )
+    if parsed.get("parserVersion") != PERSISTED_ATTENDANCE_PARSER_VERSION:
+        raise PersistedAttendanceContractError(
+            "Normalized attendance parser version is unsupported."
+        )
+    for key in ("employees", "days", "warnings", "errors", "assumptions"):
+        if not isinstance(parsed.get(key), list):
+            raise PersistedAttendanceContractError(
+                f"Normalized attendance {key} must be an array."
+            )
+    days = tuple(_persisted_day(day) for day in parsed["days"])
     employees = tuple(
         AttendanceEmployeeSummary(
             employeeId=item.get("employeeId"),
@@ -172,11 +235,11 @@ def _persisted_attendance_result(path: Path) -> AttendanceParseResult:
             reviewDayCount=int(item.get("reviewDayCount", 0)),
             totalCalculatedHours=float(item.get("totalCalculatedHours", 0)),
         )
-        for item in parsed.get("employees", [])
+        for item in parsed["employees"]
     )
     return AttendanceParseResult(
         formatType=WageFormatType(str(parsed.get("formatType", "WAGE_ATTENDANCE"))),
-        parserVersion=str(parsed.get("parserVersion") or "persisted-active-rows-v1"),
+        parserVersion=str(parsed["parserVersion"]),
         sourceSheet=parsed.get("sourceSheet"),
         periodStart=_date_or_none(parsed.get("periodStart")),
         periodEnd=_date_or_none(parsed.get("periodEnd")),
@@ -191,9 +254,28 @@ def _persisted_attendance_result(path: Path) -> AttendanceParseResult:
 
 
 def _persisted_day(value: dict[str, Any]) -> AttendanceDay:
+    if not isinstance(value, dict):
+        raise PersistedAttendanceContractError(
+            "Persisted attendance day must be an object."
+        )
     work_date = _date_or_none(value.get("workDate"))
     if work_date is None:
-        raise ValueError("Persisted attendance day is missing workDate.")
+        raise PersistedAttendanceContractError(
+            "Persisted attendance day is missing workDate."
+        )
+    calculation_method = value.get("calculationMethod")
+    if calculation_method not in {
+        "NO_PUNCHES",
+        "FIRST_LAST_FALLBACK",
+        "PAIRED_INTERVALS",
+    }:
+        raise PersistedAttendanceContractError(
+            "Persisted attendance calculation method is unsupported."
+        )
+    if not isinstance(value.get("workIntervals"), list):
+        raise PersistedAttendanceContractError(
+            "Persisted attendance workIntervals must be an array."
+        )
     return AttendanceDay(
         employeeId=value.get("employeeId"),
         employeeName=value.get("employeeName"),
@@ -201,9 +283,7 @@ def _persisted_day(value: dict[str, Any]) -> AttendanceDay:
         workDate=work_date,
         dayNumber=int(value.get("dayNumber", work_date.day)),
         punchTimes=tuple(str(item) for item in value.get("punchTimes", [])),
-        calculationMethod=AttendanceCalculationMethod(
-            str(value.get("calculationMethod", "NO_PUNCHES"))
-        ),
+        calculationMethod=AttendanceCalculationMethod(str(calculation_method)),
         workIntervals=tuple(
             AttendanceWorkInterval(
                 start=str(item.get("start", "")),
@@ -229,7 +309,9 @@ def _persisted_issue(value: dict[str, Any]) -> WageIssue:
     return WageIssue(
         code=str(value.get("code", "ATTENDANCE_REVIEW_REQUIRED")),
         message=str(value.get("message", value.get("code", "Review required"))),
-        rowNumber=int(value["rowNumber"]) if value.get("rowNumber") is not None else None,
+        rowNumber=int(value["rowNumber"])
+        if value.get("rowNumber") is not None
+        else None,
         field=value.get("field"),
         employeeId=value.get("employeeId"),
         employeeName=value.get("employeeName"),
@@ -263,7 +345,9 @@ def _write_wage_payload_json(
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     sha256 = compute_sha256(attendance_file)
-    output_path = output_dir / f"{_safe_filename(attendance_file.stem)}-{sha256[:12]}.json"
+    output_path = (
+        output_dir / f"{_safe_filename(attendance_file.stem)}-{sha256[:12]}.json"
+    )
     payload = {
         "schema_version": 1,
         "batch_version": WAGE_API_BATCH_VERSION,

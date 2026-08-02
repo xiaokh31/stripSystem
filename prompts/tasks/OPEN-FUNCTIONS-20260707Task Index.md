@@ -241,11 +241,13 @@
      storage-safe basename 分离。`samples/attendance_test/` 是用户提供的7月现场真实
      打卡记录样本，必须只读用于原始红灯；不得在日志、截图、报告或 handoff 暴露
      员工姓名/打卡信息。
-2. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` — `READY`
-   - 必须使用 `samples/attendance_test/` 中用户提供的7月现场真实打卡记录样本，先经
-     真实 nginx/BullMQ 复现 Parse 成功、Generate 失败的准确阶段，
-     再修复 Worker/API/job/generated-file/Web 下载闭环；保留 WAGE-HOURS-01 至 07 的
-     奇偶打卡、多 Sheet 格式、删除审计和只显示工资表规则。
+2. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
+   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
+   - 当前基线首次执行现场 7 月样本时 Parse/Generate 已成功，准确历史异常不可重现；
+     未伪造唯一根因。已关闭 schema/manifest/0 output/staging/post-save validation 和
+     safe error propagation 缺口，并通过真实 nginx/BullMQ/Chromium、受保护下载、
+     BIFF/LibreOffice、隐私及失败安全 cleanup 门禁。只剩办公室 Windows/Microsoft
+     Excel 逐 Sheet、颜色、尺寸、Print Preview 与下载名验收。
 3. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
    - 同一 single-writer stack 同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。
      Public cookie 始终 Secure；LAN HTTP 仅在 private allowlist + trusted ingress 下使用
@@ -362,7 +364,8 @@ PUBLIC-DEPLOY-02/04 项继续按各自新 gate 处理。
 同步 PostgreSQL 与 `storage/` 的同一恢复点、验证 hash/count，并停用或只读旧 local stack。当前 03 已归档，不得
 执行或作为 02 的 blocker；02 的真实 domain、Cloudflare account/Access 和外网验证保留为 external gate。
 
-WAGE-HOURS-01 至 07 均已达到 `DONE`，新回归 08 已解锁但尚未执行：
+WAGE-HOURS-01 至 07 均已达到 `DONE`；08 的仓库实现与当前环境自动化已完成，等待
+Microsoft Excel 外部验收：
 
 1. `WAGE-HOURS-01Attendance Punch Parity Calculation Contract.md` — `DONE`
 2. `WAGE-HOURS-02Multi-Sheet Wage Workbook Formatting.md` — `DONE`
@@ -371,9 +374,11 @@ WAGE-HOURS-01 至 07 均已达到 `DONE`，新回归 08 已解锁但尚未执行
 5. `WAGE-HOURS-05Full Stack Workbook Visual Exit Gate.md` — `DONE`
 6. `WAGE-HOURS-06Office Wage File Download Visibility.md` — `DONE`
 7. `WAGE-HOURS-07Attendance Import Audited Deletion.md` — `DONE`
-8. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` — `READY`
+8. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
+   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
 
-七项已分别由 fresh supervisor Session 完成，不得重跑。07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
+前七项已分别由 fresh supervisor Session 完成，不得重跑。08 只剩指定 Microsoft Excel
+外部检查，不得重跑仓库 Task 或用 LibreOffice 代替该检查。07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
 Docker-only 门禁；整次考勤导入删除是留存原始 `.xls` 和审计证据的软删除，不得套用卸柜 import 的物理
 storage cleanup。
 
@@ -508,15 +513,16 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. `FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` 已完成且不得重跑；
-   下一项按 `WAGE-HOURS-08 -> PUBLIC-DEPLOY-04`，每项一个 fresh supervisor Session。macOS/Linux
+   `WAGE-HOURS-08` 仓库工作已完成，只执行其 Microsoft Excel 外部验收并同步为 Done，
+   之后才可在新的 supervisor Session 开始 `PUBLIC-DEPLOY-04`。macOS/Linux
    使用 `scripts/run-business-agent.sh task '<task-file>'`，
    Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 后再执行
    `scripts\run-business-agent.cmd develop "<task-file>"`。当前 Windows 主机没有 Docker，`develop` 只允许完成实现，
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `FILE-UPLOAD-01` 已完成并解锁 WAGE-HOURS-08；PUBLIC-DEPLOY-04 虽无代码依赖，
-   仍排在 08 后，避免并行编辑共享认证、E2E 与 i18n 文件。后续两个 Task 均不得把现场
+2. `FILE-UPLOAD-01` 已完成；WAGE-HOURS-08 当前仅等待 Microsoft Excel 外部验收；
+   PUBLIC-DEPLOY-04 虽无代码依赖，仍排在 08 终态后。后续工作均不得把现场
    员工数据、cookie、token、真实域名/IP 或 secret 写入报告和 handoff。
 3. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。

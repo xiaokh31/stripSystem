@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'node:child_process';
+import type { ExecFileException } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -76,6 +77,15 @@ export interface WorkerWagePayload {
   parsed_result?: WorkerAttendanceParsedResult | null;
   wage_record_result?: {
     outputPath?: string;
+    generatedFilename?: string;
+    outputSha256?: string | null;
+    outputSizeBytes?: number | null;
+    writtenEmployeeCount?: number;
+    writtenDayCount?: number;
+    matchedSheets?: string[];
+    generationStage?: string;
+    errorCode?: string | null;
+    validated?: boolean;
     errors?: WorkerAttendanceIssue[];
     warnings?: WorkerAttendanceIssue[];
     [key: string]: unknown;
@@ -97,6 +107,8 @@ export interface WorkerWagePayload {
   warnings?: WorkerAttendanceIssue[];
   errors?: WorkerAttendanceIssue[];
   exception?: Record<string, unknown> | null;
+  generation_stage?: string;
+  generation_error_code?: string | null;
   [key: string]: unknown;
 }
 
@@ -165,13 +177,11 @@ export class WorkerAttendanceService {
         return payload;
       }
 
+      const code = this.workerInvocationCode(error);
       throw new InternalServerErrorException({
-        code: 'WORKER_ATTENDANCE_INVOCATION_FAILED',
-        message: 'The Python wage worker could not be executed.',
-        details: {
-          workerPythonDir: this.workerPythonDir,
-          errorMessage: this.errorMessage(error),
-        },
+        code,
+        message: code,
+        details: { stage: 'WORKER_PROCESS' },
       });
     }
   }
@@ -193,22 +203,18 @@ export class WorkerAttendanceService {
     if (!output) {
       throw new InternalServerErrorException({
         code: 'WORKER_ATTENDANCE_EMPTY_OUTPUT',
-        message: 'The Python wage worker returned no JSON output.',
-        details: { workerPythonDir: this.workerPythonDir },
+        message: 'WORKER_ATTENDANCE_EMPTY_OUTPUT',
+        details: { stage: 'WORKER_STDOUT' },
       });
     }
 
     try {
       return JSON.parse(output) as WorkerWagePayload;
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException({
         code: 'WORKER_ATTENDANCE_INVALID_OUTPUT',
-        message: 'The Python wage worker returned invalid JSON.',
-        details: {
-          workerPythonDir: this.workerPythonDir,
-          errorMessage: this.errorMessage(error),
-          stdout: output.slice(0, 4000),
-        },
+        message: 'WORKER_ATTENDANCE_INVALID_OUTPUT',
+        details: { stage: 'WORKER_STDOUT' },
       });
     }
   }
@@ -222,10 +228,11 @@ export class WorkerAttendanceService {
     );
   }
 
-  private errorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
+  private workerInvocationCode(error: unknown): string {
+    const candidate = error as ExecFileException | null;
+    if (candidate?.killed || candidate?.code === 'ETIMEDOUT') {
+      return 'WORKER_ATTENDANCE_TIMEOUT';
     }
-    return 'Unknown wage worker error';
+    return 'WORKER_ATTENDANCE_INVOCATION_FAILED';
   }
 }

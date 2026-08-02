@@ -10,7 +10,9 @@ from worker_python.cli import app
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-ATTENDANCE_FIXTURE = REPO_ROOT / "samples" / "wage" / "workAttendanceRecordForm_June.xls"
+ATTENDANCE_FIXTURE = (
+    REPO_ROOT / "samples" / "wage" / "workAttendanceRecordForm_June.xls"
+)
 WAGE_TEMPLATE = REPO_ROOT / "samples" / "wage" / "20260601-0630_wageRecords.xls"
 
 
@@ -35,9 +37,11 @@ def test_wage_parse_file_cli_writes_parsed_json_and_task_report(tmp_path: Path) 
     assert payload["employee_count"] > 0
     assert payload["day_count"] > 0
     assert payload["parsed_result"]["parserVersion"] == "wage-attendance-v2"
-    assert {
-        day["calculationMethod"] for day in payload["parsed_result"]["days"]
-    } == {"NO_PUNCHES", "FIRST_LAST_FALLBACK", "PAIRED_INTERVALS"}
+    assert {day["calculationMethod"] for day in payload["parsed_result"]["days"]} == {
+        "NO_PUNCHES",
+        "FIRST_LAST_FALLBACK",
+        "PAIRED_INTERVALS",
+    }
     assert all("workIntervals" in day for day in payload["parsed_result"]["days"])
     assert Path(payload["parsed_json_path"]).is_file()
     assert Path(payload["task_report_path"]).is_file()
@@ -70,13 +74,15 @@ def test_wage_generate_record_cli_writes_wage_record(tmp_path: Path) -> None:
     assert payload["wage_record_result"]["writtenEmployeeCount"] > 0
 
 
-def test_wage_generate_record_uses_server_controlled_active_rows(tmp_path: Path) -> None:
+def test_wage_generate_record_uses_server_controlled_active_rows(
+    tmp_path: Path,
+) -> None:
     output_dir = tmp_path / "wage-api-active-only"
     normalized_path = tmp_path / "active-rows.json"
     normalized_path.write_text(
         json.dumps(
             {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "source": "PERSISTED_ACTIVE_ATTENDANCE_ROWS",
                 "attendanceImportId": "test-import",
                 "dataRevision": 2,
@@ -115,9 +121,55 @@ def test_wage_generate_record_uses_server_controlled_active_rows(tmp_path: Path)
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["generation_input_source"] == "PERSISTED_ACTIVE_ATTENDANCE_ROWS"
+    assert payload["task_status"] == "ERROR"
     assert payload["day_count"] == 0
     assert payload["wage_record_result"]["writtenDayCount"] == 0
-    assert Path(payload["wage_record_path"]).is_file()
+    assert payload["wage_record_path"] is None
+    assert [issue["code"] for issue in payload["errors"]] == [
+        "WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT"
+    ]
+
+
+def test_wage_generate_record_rejects_persisted_schema_mismatch(
+    tmp_path: Path,
+) -> None:
+    normalized_path = tmp_path / "invalid-active-rows.json"
+    normalized_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "source": "PERSISTED_ACTIVE_ATTENDANCE_ROWS",
+                "attendanceImportId": "test-import",
+                "dataRevision": 2,
+                "parsedResult": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "wage-generate-record",
+            "--attendance-file",
+            str(ATTENDANCE_FIXTURE),
+            "--wage-template",
+            str(WAGE_TEMPLATE),
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--normalized-attendance-json",
+            str(normalized_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["task_status"] == "ERROR"
+    assert payload["wage_record_path"] is None
+    assert payload["generation_stage"] == "NORMALIZED_INPUT"
+    assert [issue["code"] for issue in payload["errors"]] == [
+        "WAGE_GENERATION_INPUT_SCHEMA_INVALID"
+    ]
 
 
 def test_active_row_overlay_excludes_one_real_employee_day_without_changing_other_sheets(
@@ -144,8 +196,7 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
         for day in parsed_result["days"]
         if day["employeeName"] == "lay"
         and day["calculatedHours"] is not None
-        and source_lay.cell_value(3 + day["dayNumber"] - 1, 2)
-        != day["calculatedHours"]
+        and source_lay.cell_value(3 + day["dayNumber"] - 1, 2) != day["calculatedHours"]
     )
     active_result = {
         **parsed_result,
@@ -167,7 +218,7 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
         path.write_text(
             json.dumps(
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
                     "source": "PERSISTED_ACTIVE_ATTENDANCE_ROWS",
                     "attendanceImportId": "fixture-import",
                     "dataRevision": 3,
@@ -219,9 +270,10 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
     full_book = xlrd.open_workbook(full_payload["wage_record_path"])
     deleted_book = xlrd.open_workbook(deleted_payload["wage_record_path"])
     target_row = 3 + target["dayNumber"] - 1
-    assert full_book.sheet_by_name("FANGLEI XIAO (lay)").cell_value(
-        target_row, 2
-    ) == target["calculatedHours"]
+    assert (
+        full_book.sheet_by_name("FANGLEI XIAO (lay)").cell_value(target_row, 2)
+        == target["calculatedHours"]
+    )
     assert deleted_book.sheet_by_name("FANGLEI XIAO (lay)").row_values(
         target_row, 2, 6
     ) == ["/", "/", "/", "/"]
@@ -237,9 +289,9 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
     )
     source_driver = source_book.sheet_by_name("司机WeiSheng Hong")
     deleted_driver = deleted_book.sheet_by_name("司机WeiSheng Hong")
-    assert [source_driver.row_values(index) for index in range(source_driver.nrows)] == [
-        deleted_driver.row_values(index) for index in range(deleted_driver.nrows)
-    ]
+    assert [
+        source_driver.row_values(index) for index in range(source_driver.nrows)
+    ] == [deleted_driver.row_values(index) for index in range(deleted_driver.nrows)]
 
 
 def test_wage_api_parse_and_generate_task_reports_do_not_overwrite(

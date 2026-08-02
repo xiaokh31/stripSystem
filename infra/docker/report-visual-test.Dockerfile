@@ -18,6 +18,7 @@ COPY scripts/render-unload-report-visual.sh /usr/local/bin/render-unload-report-
 COPY scripts/render-unload-report-02-visual.sh /usr/local/bin/render-unload-report-02-visual
 COPY scripts/render-unload-report-03-visual.sh /usr/local/bin/render-unload-report-03-visual
 COPY scripts/render-wage-workbook-visual.sh /usr/local/bin/render-wage-workbook-visual
+COPY scripts/render-wage-hours-08-visual.sh /usr/local/bin/render-wage-hours-08-visual
 COPY scripts/audit-wage-workbooks.py /usr/local/bin/audit-wage-workbooks
 
 ENTRYPOINT ["/usr/local/bin/render-unload-report-visual"]

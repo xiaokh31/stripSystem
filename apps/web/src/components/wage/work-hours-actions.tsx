@@ -16,6 +16,7 @@ import {
   attendanceUploadError,
   canGenerateWageRecord,
   wageGenerationBlockReason,
+  wageGenerationJobErrorMessage,
 } from "./attendance-flow";
 
 interface ActionState {
@@ -169,10 +170,12 @@ export function AttendanceImportActions({
   const { format, locale, t } = useI18n();
   const router = useRouter();
   const [state, setState] = useState<ActionState>(idleState);
+  const [generationFailed, setGenerationFailed] = useState(false);
   const isReadyToGenerate = canGenerateWageRecord(attendanceImport);
   const generateBlockReason = wageGenerationBlockReason(attendanceImport, locale);
 
   async function runParse() {
+    setGenerationFailed(false);
     if (!canParse) {
       setState({
         message: t("Attendance parse permission required."),
@@ -238,6 +241,7 @@ export function AttendanceImportActions({
       message: t("Generating wage record workbook."),
       status: "running",
     });
+    setGenerationFailed(false);
     try {
       const submitted = await submitAttendanceWageRecordJob(
         attendanceImport.id,
@@ -248,10 +252,9 @@ export function AttendanceImportActions({
       });
       const job = await waitForAsyncJob(submitted.id);
       if (job.status !== "succeeded") {
+        setGenerationFailed(true);
         setState({
-          message: t(
-            "Attendance background job failed. Review parser and generated file history.",
-          ),
+          message: wageGenerationJobErrorMessage(job, locale),
           status: "error",
         });
         return;
@@ -260,8 +263,10 @@ export function AttendanceImportActions({
         message: t("Wage record generated. File history refreshed."),
         status: "success",
       });
+      setGenerationFailed(false);
       router.refresh();
     } catch (error) {
+      setGenerationFailed(true);
       setState({
         message: attendanceApiErrorMessage(error, locale),
         status: "error",
@@ -290,7 +295,9 @@ export function AttendanceImportActions({
             type="button"
             title={generateBlockReason ?? t("Generate wage record workbook")}
           >
-            {t("Generate wage record")}
+            {generationFailed
+              ? t("Retry wage record generation")
+              : t("Generate wage record")}
           </button>
         ) : null}
       </div>

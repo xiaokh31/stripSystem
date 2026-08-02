@@ -274,6 +274,17 @@ services:
       - ../../test-results:/workspace/test-results
     profiles: ["report-visual"]
 
+  wage-hours-08-visual-test:
+    build:
+      context: ../..
+      dockerfile: infra/docker/report-visual-test.Dockerfile
+    image: bestar_report_visual_test_local:latest
+    working_dir: /workspace
+    entrypoint: ["/usr/local/bin/render-wage-hours-08-visual"]
+    volumes:
+      - ../../test-results:/workspace/test-results
+    profiles: ["report-visual"]
+
   mobile-scan-app:
     build:
       context: ../..

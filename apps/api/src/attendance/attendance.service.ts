@@ -748,6 +748,13 @@ export class AttendanceService {
       where: { attendanceImportId: id, deletedAt: null },
       orderBy: [{ workDate: 'asc' }, { rowKey: 'asc' }],
     })) as AttendanceRowRecord[];
+    if (activeRows.length === 0) {
+      throw new BadRequestException({
+        code: 'ATTENDANCE_ACTIVE_ROWS_REQUIRED',
+        message: 'ATTENDANCE_ACTIVE_ROWS_REQUIRED',
+        details: { attendanceImportId: id, stage: 'PRECONDITION' },
+      });
+    }
     const normalizedInputPath = await this.writeActiveGenerationInput(
       record,
       activeRows,
@@ -763,6 +770,10 @@ export class AttendanceService {
         normalizedInputPath,
       );
     } catch (error) {
+      const errorCode = this.exceptionCode(
+        error,
+        'WAGE_RECORD_WORKER_INVOCATION_FAILED',
+      );
       const failed = await this.recordGeneratedFile({
         attendanceImportId: id,
         fileType: WageGeneratedFileType.WAGE_RECORD_XLS,
@@ -770,22 +781,18 @@ export class AttendanceService {
         mimeType: 'application/vnd.ms-excel',
         generatedById,
         status: GeneratedFileStatus.FAILED,
-        errorMessage: this.errorMessage(error),
+        errorMessage: errorCode,
       });
 
       throw new InternalServerErrorException({
-        code: 'WAGE_RECORD_GENERATION_FAILED',
-        message: 'The wage record worker could not complete.',
+        code: errorCode,
+        message: errorCode,
         details: {
+          stage: 'WORKER_PROCESS',
           generatedFile: this.toGeneratedFileResponse(failed),
           taskReport: null,
           warnings: [],
-          errors: [
-            {
-              code: 'WAGE_RECORD_WORKER_INVOCATION_FAILED',
-              message: this.errorMessage(error),
-            },
-          ],
+          errors: [{ code: errorCode }],
         },
       });
     }
@@ -794,10 +801,30 @@ export class AttendanceService {
     const wageRecordPath = this.stringOrNull(payload.wage_record_path);
     const taskReportPath = this.stringOrNull(payload.task_report_path);
 
-    const generationFailed =
+    const generationCode =
+      this.stringOrNull(payload.generation_error_code) ??
+      this.firstIssueCode(errors) ??
+      'WAGE_RECORD_GENERATION_FAILED';
+    let generationStage =
+      this.stringOrNull(payload.generation_stage) ?? 'WORKER_RESULT';
+    let generationFailed =
       payload.task_status === 'ERROR' ||
       errors.length > 0 ||
       !wageRecordPath;
+    if (!generationFailed) {
+      const validationError = await this.validateWorkerGenerationResult(
+        record,
+        payload,
+        wageRecordPath!,
+      );
+      if (validationError) {
+        errors.push({ code: validationError.code });
+        generationStage = validationError.stage;
+        generationFailed = true;
+      }
+    }
+    const committedErrorCode =
+      this.firstIssueCode(errors) ?? generationCode;
 
     const generationCommit = await this.prisma.$transaction(async (tx) => {
       await this.lockAttendanceImport(tx, id);
@@ -837,7 +864,7 @@ export class AttendanceService {
             status: GeneratedFileStatus.FAILED,
             errorMessage: stale
               ? staleCode
-              : this.firstIssueMessage(errors, payload),
+              : committedErrorCode,
           }),
         };
       }
@@ -874,9 +901,10 @@ export class AttendanceService {
     }
     if (generationFailed) {
       throw new BadRequestException({
-        code: 'WAGE_RECORD_GENERATION_FAILED',
-        message: 'The wage record workbook could not be generated.',
+        code: committedErrorCode,
+        message: committedErrorCode,
         details: {
+          stage: generationStage,
           generatedFile: this.toGeneratedFileResponse(
             generationCommit.generatedFile,
           ),
@@ -1560,7 +1588,7 @@ export class AttendanceService {
       errors: row.errors ?? [],
     }));
     const payload = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       source: 'PERSISTED_ACTIVE_ATTENDANCE_ROWS',
       attendanceImportId: record.id,
       dataRevision: record.dataRevision,
@@ -1891,6 +1919,113 @@ export class AttendanceService {
 
   private issueArray(value: unknown): unknown[] {
     return Array.isArray(value) ? value : [];
+  }
+
+  private firstIssueCode(errors: unknown[]): string | null {
+    const first = errors[0];
+    if (!first || typeof first !== 'object' || !('code' in first)) {
+      return null;
+    }
+    return this.stringOrNull((first as { code?: unknown }).code);
+  }
+
+  private exceptionCode(error: unknown, fallback: string): string {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'getResponse' in error &&
+      typeof (error as { getResponse?: unknown }).getResponse === 'function'
+    ) {
+      const response = (error as { getResponse: () => unknown }).getResponse();
+      if (response && typeof response === 'object' && 'code' in response) {
+        return this.stringOrNull((response as { code?: unknown }).code) ?? fallback;
+      }
+    }
+    return fallback;
+  }
+
+  private async validateWorkerGenerationResult(
+    record: AttendanceImportRecord,
+    payload: WorkerWagePayload,
+    wageRecordPath: string,
+  ): Promise<{ code: string; stage: string } | null> {
+    if (
+      payload.schema_version !== 2 ||
+      payload.batch_version !== 'wage-p1-api-v1'
+    ) {
+      return {
+        code: 'WAGE_GENERATION_WORKER_SCHEMA_INVALID',
+        stage: 'WORKER_RESULT',
+      };
+    }
+    const result = payload.wage_record_result;
+    if (
+      !result ||
+      result.validated !== true ||
+      result.generationStage !== 'COMPLETED' ||
+      result.errorCode !== null ||
+      this.intValue(result.writtenEmployeeCount) <= 0 ||
+      this.intValue(result.writtenDayCount) <= 0
+    ) {
+      return {
+        code: 'WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT',
+        stage: 'WORKER_RESULT',
+      };
+    }
+    if (
+      this.stringOrNull(result.outputPath) !== wageRecordPath ||
+      this.stringOrNull(result.generatedFilename) !== basename(wageRecordPath)
+    ) {
+      return {
+        code: 'WAGE_GENERATION_MANIFEST_INVALID',
+        stage: 'API_VALIDATE',
+      };
+    }
+    const expectedRoot = await this.realPathOrNull(this.storageRoot);
+    const realOutputPath = await this.realPathOrNull(wageRecordPath);
+    if (!this.isPathAtOrInside(realOutputPath, expectedRoot)) {
+      return {
+        code: 'WAGE_GENERATION_STORAGE_PATH_INVALID',
+        stage: 'API_VALIDATE',
+      };
+    }
+    try {
+      const fileStat = await stat(realOutputPath);
+      if (!fileStat.isFile() || fileStat.size <= 0) {
+        throw new Error('invalid output file');
+      }
+      const fileSha256 = createHash('sha256')
+        .update(await readFile(realOutputPath))
+        .digest('hex');
+      if (
+        fileSha256 !== this.stringOrNull(result.outputSha256) ||
+        fileStat.size !== this.intValue(result.outputSizeBytes)
+      ) {
+        return {
+          code: 'WAGE_GENERATION_MANIFEST_INVALID',
+          stage: 'API_VALIDATE',
+        };
+      }
+    } catch {
+      return {
+        code: 'WAGE_GENERATION_OUTPUT_VALIDATION_FAILED',
+        stage: 'API_VALIDATE',
+      };
+    }
+    const periodStart = this.dateResponse(record.periodStart);
+    const periodEnd = this.dateResponse(record.periodEnd);
+    if (
+      !periodStart ||
+      !periodEnd ||
+      !basename(wageRecordPath).includes(periodStart) ||
+      !basename(wageRecordPath).includes(periodEnd)
+    ) {
+      return {
+        code: 'WAGE_GENERATION_PERIOD_MISMATCH',
+        stage: 'API_VALIDATE',
+      };
+    }
+    return null;
   }
 
   private rawMetadataArray(value: unknown, key: string): unknown[] {

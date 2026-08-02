@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import xlrd  # type: ignore[import-untyped]
 
@@ -59,6 +60,9 @@ class WageRecordGenerationResult:
     matchedSheets: tuple[str, ...]
     warnings: tuple[WageIssue, ...]
     errors: tuple[WageIssue, ...]
+    generationStage: str
+    errorCode: str | None
+    validated: bool
 
 
 def generate_wage_record(
@@ -75,18 +79,24 @@ def generate_wage_record(
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_GENERATION_PERIOD_MISSING",
+            stage="PERIOD",
             message="Attendance period is missing; wage record was not generated.",
         )
     if attendance_result.errors:
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_GENERATION_INPUT_HAS_ERRORS",
+            stage="NORMALIZED_INPUT",
             message="Attendance parser has errors; wage record was not generated.",
         )
     if not template_path.is_file():
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_TEMPLATE_MISSING",
+            stage="TEMPLATE_OPEN",
             message=f"Wage template does not exist: {template_path}",
         )
 
@@ -101,6 +111,8 @@ def generate_wage_record(
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_TEMPLATE_UNREADABLE",
+            stage="TEMPLATE_OPEN",
             message=f"Unable to open wage template: {type(exc).__name__}: {exc}",
         )
 
@@ -175,38 +187,103 @@ def generate_wage_record(
             )
         )
 
+    if not matched_employee_keys or written_day_count <= 0:
+        return _generation_error(
+            template_path=template_path,
+            output_dir=output_dir,
+            code="WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT",
+            stage="SHEET_WRITE",
+            message="No matched employee work days were written to the wage template.",
+            warnings=tuple(warnings),
+        )
+
     output_path = output_dir / _output_filename(
         attendance_result.periodStart,
         attendance_result.periodEnd,
         generated_at,
     )
+    staging_path = output_dir / f".{output_path.name}.{uuid4().hex}.staging"
     try:
-        editor.save(output_path)
+        editor.save(staging_path)
     except Exception as exc:
+        staging_path.unlink(missing_ok=True)
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_GENERATION_SAVE_FAILED",
+            stage="SAVE",
             message=f"Unable to save wage record: {type(exc).__name__}: {exc}",
+            warnings=tuple(warnings),
         )
     if compute_sha256(template_path) != template_sha256:
+        staging_path.unlink(missing_ok=True)
         return _generation_error(
             template_path=template_path,
             output_dir=output_dir,
+            code="WAGE_TEMPLATE_CHANGED_DURING_GENERATION",
+            stage="VALIDATE",
             message="Wage template SHA-256 changed during generation.",
+            warnings=tuple(warnings),
+        )
+    try:
+        _validate_staged_workbook(
+            staging_path=staging_path,
+            template_sheet_names=tuple(readable.sheet_names()),
+            matched_sheets=tuple(matched_sheets),
+            period_start=attendance_result.periodStart,
+            period_end=attendance_result.periodEnd,
+            written_employee_count=len(matched_employee_keys),
+            written_day_count=written_day_count,
+        )
+        staging_path.replace(output_path)
+    except Exception as exc:
+        staging_path.unlink(missing_ok=True)
+        output_path.unlink(missing_ok=True)
+        return _generation_error(
+            template_path=template_path,
+            output_dir=output_dir,
+            code="WAGE_GENERATION_OUTPUT_VALIDATION_FAILED",
+            stage="VALIDATE",
+            message=f"Generated wage record validation failed: {type(exc).__name__}: {exc}",
+            warnings=tuple(warnings),
         )
     output_sha256 = compute_sha256(output_path)
     output_size_bytes = output_path.stat().st_size
     manifest_path = output_dir / WAGE_RECORD_MANIFEST_FILENAME
-    _append_manifest_record(
-        manifest_path=manifest_path,
-        output_path=output_path,
-        template_path=template_path,
-        output_sha256=output_sha256,
-        output_size_bytes=output_size_bytes,
-        generated_at=generated_at,
-        attendance_result=attendance_result,
-        warnings=warnings,
-    )
+    try:
+        _append_manifest_record(
+            manifest_path=manifest_path,
+            output_path=output_path,
+            template_path=template_path,
+            output_sha256=output_sha256,
+            output_size_bytes=output_size_bytes,
+            generated_at=generated_at,
+            attendance_result=attendance_result,
+            warnings=warnings,
+            written_employee_count=len(matched_employee_keys),
+            written_day_count=written_day_count,
+            matched_sheet_count=len(matched_sheets),
+        )
+        _validate_manifest_record(
+            manifest_path=manifest_path,
+            output_path=output_path,
+            output_sha256=output_sha256,
+            output_size_bytes=output_size_bytes,
+            period_start=attendance_result.periodStart,
+            period_end=attendance_result.periodEnd,
+            written_employee_count=len(matched_employee_keys),
+            written_day_count=written_day_count,
+        )
+    except Exception as exc:
+        output_path.unlink(missing_ok=True)
+        return _generation_error(
+            template_path=template_path,
+            output_dir=output_dir,
+            code="WAGE_GENERATION_MANIFEST_INVALID",
+            stage="MANIFEST",
+            message=f"Generated wage manifest validation failed: {type(exc).__name__}: {exc}",
+            warnings=tuple(warnings),
+        )
 
     return WageRecordGenerationResult(
         outputPath=output_path,
@@ -222,6 +299,9 @@ def generate_wage_record(
         matchedSheets=tuple(matched_sheets),
         warnings=tuple(warnings),
         errors=tuple(errors),
+        generationStage="COMPLETED",
+        errorCode=None,
+        validated=True,
     )
 
 
@@ -365,7 +445,10 @@ def _generation_error(
     *,
     template_path: Path,
     output_dir: Path,
+    code: str,
+    stage: str,
     message: str,
+    warnings: tuple[WageIssue, ...] = (),
 ) -> WageRecordGenerationResult:
     output_path = output_dir / "wage-record-not-generated.xls"
     return WageRecordGenerationResult(
@@ -380,8 +463,11 @@ def _generation_error(
         writtenDayCount=0,
         unmatchedEmployees=(),
         matchedSheets=(),
-        warnings=(),
-        errors=(WageIssue(code="WAGE_RECORD_GENERATION_FAILED", message=message),),
+        warnings=warnings,
+        errors=(WageIssue(code=code, message=message),),
+        generationStage=stage,
+        errorCode=code,
+        validated=False,
     )
 
 
@@ -403,9 +489,7 @@ def _resolve_sheet_matches(
     list[WageIssue],
 ]:
     warnings: list[WageIssue] = []
-    candidates_by_sheet: dict[
-        int, list[tuple[str | None, str | None]]
-    ] = {}
+    candidates_by_sheet: dict[int, list[tuple[str | None, str | None]]] = {}
     candidate_sheets_by_employee: dict[
         tuple[str | None, str | None], list[_StandardSheet]
     ] = {}
@@ -496,8 +580,7 @@ def _employee_matches_sheet(
     return bool(
         employee_tokens
         and all(
-            len(token) >= MIN_EMPLOYEE_MATCH_TOKEN_LENGTH
-            for token in employee_tokens
+            len(token) >= MIN_EMPLOYEE_MATCH_TOKEN_LENGTH for token in employee_tokens
         )
         and employee_tokens.issubset(sheet_tokens)
     )
@@ -602,7 +685,12 @@ def _validated_date_rows(
         for row_index, candidate_date in candidate_dates
         if period_start <= candidate_date <= period_end
     )
-    if current_period_rows:
+    current_period_dates = [
+        candidate_date
+        for _, candidate_date in candidate_dates
+        if period_start <= candidate_date <= period_end
+    ]
+    if current_period_dates == _period_dates(period_start, period_end):
         return current_period_rows
 
     # The supplied legacy template is a prior-month office form. It is safe to
@@ -720,6 +808,9 @@ def _append_manifest_record(
     generated_at: datetime,
     attendance_result: AttendanceParseResult,
     warnings: list[WageIssue],
+    written_employee_count: int,
+    written_day_count: int,
+    matched_sheet_count: int,
 ) -> None:
     manifest = _load_manifest(manifest_path)
     record = {
@@ -737,7 +828,10 @@ def _append_manifest_record(
         if attendance_result.periodEnd
         else None,
         "parser_version": attendance_result.parserVersion,
-        "warnings": [warning.message for warning in warnings],
+        "written_employee_count": written_employee_count,
+        "written_day_count": written_day_count,
+        "matched_sheet_count": matched_sheet_count,
+        "warning_codes": [warning.code for warning in warnings],
     }
     manifest["records"] = [
         existing
@@ -749,6 +843,72 @@ def _append_manifest_record(
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _validate_staged_workbook(
+    *,
+    staging_path: Path,
+    template_sheet_names: tuple[str, ...],
+    matched_sheets: tuple[str, ...],
+    period_start: date,
+    period_end: date,
+    written_employee_count: int,
+    written_day_count: int,
+) -> None:
+    if not staging_path.is_file() or staging_path.stat().st_size <= 0:
+        raise ValueError("Generated staging workbook is missing or empty.")
+    if written_employee_count <= 0 or written_day_count <= 0:
+        raise ValueError("Generated workbook has no effective employee-day output.")
+    workbook = xlrd.open_workbook(staging_path, formatting_info=True)
+    if tuple(workbook.sheet_names()) != template_sheet_names:
+        raise ValueError(
+            "Generated workbook sheet inventory differs from the template."
+        )
+    expected_dates = {
+        _date_text(value) for value in _period_dates(period_start, period_end)
+    }
+    if not matched_sheets or len(matched_sheets) != written_employee_count:
+        raise ValueError("Generated workbook matched-sheet count is inconsistent.")
+    for sheet_name in matched_sheets:
+        sheet = workbook.sheet_by_name(sheet_name)
+        written_dates = {
+            _cell_text(sheet.cell_value(row_index, column_index))
+            for row_index in range(sheet.nrows)
+            for column_index in range(sheet.ncols)
+            if _cell_text(sheet.cell_value(row_index, column_index)) in expected_dates
+        }
+        if written_dates != expected_dates:
+            raise ValueError("Generated workbook period slots are incomplete.")
+
+
+def _validate_manifest_record(
+    *,
+    manifest_path: Path,
+    output_path: Path,
+    output_sha256: str,
+    output_size_bytes: int,
+    period_start: date,
+    period_end: date,
+    written_employee_count: int,
+    written_day_count: int,
+) -> None:
+    manifest = _load_manifest(manifest_path)
+    record = next(
+        (item for item in manifest["records"] if item.get("path") == str(output_path)),
+        None,
+    )
+    if not isinstance(record, dict):
+        raise ValueError("Generated workbook manifest record is missing.")
+    expected = {
+        "sha256": output_sha256,
+        "size_bytes": output_size_bytes,
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+        "written_employee_count": written_employee_count,
+        "written_day_count": written_day_count,
+    }
+    if any(record.get(key) != value for key, value in expected.items()):
+        raise ValueError("Generated workbook manifest record is inconsistent.")
 
 
 def _load_manifest(manifest_path: Path) -> dict[str, Any]:

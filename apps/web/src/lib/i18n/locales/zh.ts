@@ -1642,6 +1642,41 @@ export const zhMessages = {
     "工资文件生成失败。请复核任务结果后重试。",
   "Attendance background job failed. Review parser and generated file history.":
     "考勤后台任务失败。请复核解析结果和生成文件记录。",
+  "Retry wage record generation": "重试生成工资表",
+  "No active employee-day rows are available. Parse the attendance workbook again before retrying.":
+    "没有可用的在用员工日记录。请重新解析考勤工作簿后再试。",
+  "Wage generation timed out. Retry once; contact an administrator if it happens again.":
+    "工资表生成超时。请重试一次；若再次发生，请联系管理员。",
+  "The wage generator returned no result. Retry once; contact an administrator if it happens again.":
+    "工资表生成器未返回结果。请重试一次；若再次发生，请联系管理员。",
+  "The wage generator returned an invalid result. Contact an administrator.":
+    "工资表生成器返回了无效结果。请联系管理员。",
+  "The wage generator could not start. Contact an administrator.":
+    "工资表生成器无法启动。请联系管理员。",
+  "Saved attendance data is incompatible with wage generation. Parse the attendance workbook again.":
+    "已保存的考勤数据与工资表生成不兼容。请重新解析考勤工作簿。",
+  "The wage generator version is incompatible. Contact an administrator.":
+    "工资表生成器版本不兼容。请联系管理员。",
+  "The attendance period is missing. Parse the attendance workbook again.":
+    "考勤期间缺失。请重新解析考勤工作簿。",
+  "The generated workbook period did not match the attendance month. Contact an administrator.":
+    "生成工作簿的期间与考勤月份不一致。请联系管理员。",
+  "The wage workbook template is unavailable. Contact an administrator.":
+    "工资表模板不可用。请联系管理员。",
+  "The wage workbook template could not be opened. Contact an administrator.":
+    "无法打开工资表模板。请联系管理员。",
+  "The wage workbook template changed during generation. Retry the generation.":
+    "工资表模板在生成期间发生变化。请重试生成。",
+  "No employees could be written to the wage workbook. Review employee-template matching.":
+    "没有员工可写入工资表。请复核员工与模板的匹配关系。",
+  "The wage workbook could not be saved. Retry once; contact an administrator if it happens again.":
+    "无法保存工资表。请重试一次；若再次发生，请联系管理员。",
+  "The generated wage workbook failed validation and was not published. Retry the generation.":
+    "生成的工资表未通过验证，因此未发布。请重试生成。",
+  "The generated wage workbook failed its audit check and was not published. Retry the generation.":
+    "生成的工资表未通过审计校验，因此未发布。请重试生成。",
+  "The generated wage workbook failed its storage safety check. Contact an administrator.":
+    "生成的工资表未通过存储安全校验。请联系管理员。",
   "Attendance calculation contract v2": "考勤计算规则第二版",
   "Calculation method": "计算方式",
   "Current employee": "当前员工",

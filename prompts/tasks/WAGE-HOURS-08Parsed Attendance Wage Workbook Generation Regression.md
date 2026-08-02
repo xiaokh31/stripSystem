@@ -3,7 +3,7 @@
 ## 优先级与执行状态
 
 - 优先级：P0。办公室已能解析月度考勤，但无法生成工资工时表，核心月结流程被阻断。
-- Task-Status: BLOCKED_BY_FILE_UPLOAD_01
+- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
 - 前置任务：`FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` 必须
   `DONE`；WAGE-HOURS-01 至 07 的计算、格式、审计删除和文件可见性继续作为基线。
 - 本 Task 是新现场回归，不得重跑或改写 WAGE-HOURS-01 至 07 的完成证据。
@@ -246,3 +246,29 @@ WEB-DASHBOARD-09 的日期隔离和失败安全 cleanup；不得直接运行会�
 - 不物理删除考勤原件、已删除行、audit events、旧 generated records 或 jobs。
 - 不把 task report/parsed JSON 暴露给办公室人员。
 - 不借本 Task 重做模板品牌、卸柜工资、拆柜报告或 PUBLIC-DEPLOY。
+
+## 当前环境完成证据（2026-08-01 MDT）
+
+- 前置 `FILE-UPLOAD-01` 已为 `DONE`。当前基线第一次通过真实现场样本执行完整流程时，
+  Parse 与 Generate 均成功，故无法重现用户报告发生时的准确历史异常；未把未经观察的
+  假设冒充唯一根因。当前环境逐项排除了 Unicode path、模板路径/权限、7 月槽位、
+  persisted schema、Sheet warning、输出权限、Worker timeout/stdout 和 job propagation。
+- 审计发现并关闭了可独立导致假成功/损坏下载的边界：API/Worker schema version mismatch、
+  0 effective output、未验证 manifest/SHA/size/period、非 staging 保存和不安全错误传播。
+  生成现为 staging -> BIFF/期间/Sheet/计数/manifest 验证 -> atomic publish；失败无下载物。
+- 真实 7 月流程通过 UI upload -> async Parse -> refresh -> async Generate -> list ->
+  protected download；465 active rows，blocking errors 0，生成与下载 SHA/bytes 相同，
+  10 Sheets 中 7 个完整期间 Sheet、217 个期间日期单元格和 93 个正工时单元格通过审计。
+- Docker 门禁通过：Worker 238；API lint/typecheck/build、408 unit / 131 E2E；Web
+  lint/typecheck/build、285 tests；39 migrations up to date；healthcheck、Ruff、脚本语法和
+  `git diff --check` 通过。
+- `scripts/run-wage-hours-08-e2e.sh verify` 已通过故意失败 cleanup 探针、真实
+  nginx/BullMQ/Chromium 成功流、UI list/Web 代理下载 SHA、en/zh-CN、light/dark、
+  390/1366/1920、真实 200% zoom、隐私/BIFF 审计、精确零残留和脱敏 6/7 月 LibreOffice
+  视觉门禁。完整证据见
+  `docs/reports/wage-hours-08-generation-regression-verification.md`。
+- 唯一剩余 gate：办公室 Windows/Microsoft Excel 通过真实 `/work-hours` 流程重新生成并
+  下载同一获批 7 月样本，逐个员工 Sheet 检查日期、工时、颜色、行高列宽、Print
+  Preview 和下载文件名。通过前状态只能是
+  `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。
+- 本 Session 未启动 `PUBLIC-DEPLOY-04`。

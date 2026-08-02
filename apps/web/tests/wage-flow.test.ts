@@ -13,6 +13,7 @@ import {
   isOfficeVisibleWageFile,
   officeVisibleWageFiles,
   wageGenerationBlockReason,
+  wageGenerationJobErrorMessage,
 } from "../src/components/wage/attendance-flow";
 import { WorkHoursGeneratedFiles } from "../src/components/wage/work-hours-generated-files";
 import {
@@ -192,6 +193,53 @@ test("attendance API errors map to review workflow messages", () => {
       status: 409,
     }),
     "Attendance data changed during generation. Generate the wage record again.",
+  );
+});
+
+test("wage generation job stable codes map to actionable single-locale messages", () => {
+  const job = {
+    id: "job-1",
+    jobType: "WAGE_RECORD_GENERATION",
+    status: "failed" as const,
+    queueName: "jobs",
+    bullJobId: "job-1",
+    targetType: "ATTENDANCE_IMPORT",
+    targetId: "attendance-1",
+    idempotencyKey: "wage",
+    importFileId: null,
+    containerId: null,
+    attendanceImportId: "attendance-1",
+    parserLearningCaseId: null,
+    generatedFileId: null,
+    wageGeneratedFileId: null,
+    actorUserId: "user-1",
+    attempts: 1,
+    maxAttempts: 2,
+    lastError: "raw Python error must not be shown",
+    result: {
+      code: "WAGE_GENERATION_OUTPUT_VALIDATION_FAILED",
+      details: { stage: "VALIDATE" },
+    },
+    metadata: null,
+    queuedAt: "2026-08-01T00:00:00.000Z",
+    startedAt: "2026-08-01T00:00:01.000Z",
+    finishedAt: "2026-08-01T00:00:02.000Z",
+    cancelledAt: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:02.000Z",
+  };
+
+  assert.equal(
+    wageGenerationJobErrorMessage(job),
+    "The generated wage workbook failed validation and was not published. Retry the generation.",
+  );
+  assert.equal(
+    wageGenerationJobErrorMessage(job, "zh-CN"),
+    "生成的工资表未通过验证，因此未发布。请重试生成。",
+  );
+  assert.doesNotMatch(
+    wageGenerationJobErrorMessage(job),
+    /Python|WAGE_GENERATION|VALIDATE/,
   );
 });
 

@@ -1,4 +1,5 @@
 import type {
+  AsyncJobResponse,
   AttendanceImportResponse,
   WageGeneratedFileResponse,
 } from "@/lib/api-client";
@@ -171,6 +172,8 @@ export function attendanceApiErrorMessage(
       "Original attendance workbook is unavailable.",
     ATTENDANCE_PARSE_FAILED:
       "Attendance parse failed. Review parser errors before generating a wage record.",
+    ATTENDANCE_ACTIVE_ROWS_REQUIRED:
+      "No active employee-day rows are available. Parse the attendance workbook again before retrying.",
     ATTENDANCE_WORKER_INVOCATION_FAILED:
       "Attendance parse failed. Review parser errors before generating a wage record.",
     DUPLICATE_ATTENDANCE_IMPORT:
@@ -180,6 +183,38 @@ export function attendanceApiErrorMessage(
       "Wage record generation failed. Review generated file history for the failed record.",
     WAGE_RECORD_WORKER_INVOCATION_FAILED:
       "Wage record generation failed. Review generated file history for the failed record.",
+    WORKER_ATTENDANCE_TIMEOUT:
+      "Wage generation timed out. Retry once; contact an administrator if it happens again.",
+    WORKER_ATTENDANCE_EMPTY_OUTPUT:
+      "The wage generator returned no result. Retry once; contact an administrator if it happens again.",
+    WORKER_ATTENDANCE_INVALID_OUTPUT:
+      "The wage generator returned an invalid result. Contact an administrator.",
+    WORKER_ATTENDANCE_INVOCATION_FAILED:
+      "The wage generator could not start. Contact an administrator.",
+    WAGE_GENERATION_INPUT_SCHEMA_INVALID:
+      "Saved attendance data is incompatible with wage generation. Parse the attendance workbook again.",
+    WAGE_GENERATION_WORKER_SCHEMA_INVALID:
+      "The wage generator version is incompatible. Contact an administrator.",
+    WAGE_GENERATION_PERIOD_MISSING:
+      "The attendance period is missing. Parse the attendance workbook again.",
+    WAGE_GENERATION_PERIOD_MISMATCH:
+      "The generated workbook period did not match the attendance month. Contact an administrator.",
+    WAGE_TEMPLATE_MISSING:
+      "The wage workbook template is unavailable. Contact an administrator.",
+    WAGE_TEMPLATE_UNREADABLE:
+      "The wage workbook template could not be opened. Contact an administrator.",
+    WAGE_TEMPLATE_CHANGED_DURING_GENERATION:
+      "The wage workbook template changed during generation. Retry the generation.",
+    WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT:
+      "No employees could be written to the wage workbook. Review employee-template matching.",
+    WAGE_GENERATION_SAVE_FAILED:
+      "The wage workbook could not be saved. Retry once; contact an administrator if it happens again.",
+    WAGE_GENERATION_OUTPUT_VALIDATION_FAILED:
+      "The generated wage workbook failed validation and was not published. Retry the generation.",
+    WAGE_GENERATION_MANIFEST_INVALID:
+      "The generated wage workbook failed its audit check and was not published. Retry the generation.",
+    WAGE_GENERATION_STORAGE_PATH_INVALID:
+      "The generated wage workbook failed its storage safety check. Contact an administrator.",
   };
 
   return t(
@@ -187,6 +222,21 @@ export function attendanceApiErrorMessage(
       ? (messages[error.code] ?? "The request failed.")
       : "The request failed.",
   );
+}
+
+export function wageGenerationJobErrorMessage(
+  job: AsyncJobResponse,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  const result =
+    job.result !== null && typeof job.result === "object"
+      ? (job.result as Record<string, unknown>)
+      : null;
+  const code =
+    result && typeof result.code === "string" && result.code.trim()
+      ? result.code
+      : "WAGE_RECORD_GENERATION_FAILED";
+  return attendanceApiErrorMessage({ code, message: code }, locale);
 }
 
 function isApiErrorLike(

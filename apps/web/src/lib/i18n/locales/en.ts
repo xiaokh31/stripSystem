@@ -1771,6 +1771,41 @@ export const enMessages = {
     "Generated wage file failed. Review the job result and try again.",
   "Attendance background job failed. Review parser and generated file history.":
     "Attendance background job failed. Review parser and generated file history.",
+  "Retry wage record generation": "Retry wage record generation",
+  "No active employee-day rows are available. Parse the attendance workbook again before retrying.":
+    "No active employee-day rows are available. Parse the attendance workbook again before retrying.",
+  "Wage generation timed out. Retry once; contact an administrator if it happens again.":
+    "Wage generation timed out. Retry once; contact an administrator if it happens again.",
+  "The wage generator returned no result. Retry once; contact an administrator if it happens again.":
+    "The wage generator returned no result. Retry once; contact an administrator if it happens again.",
+  "The wage generator returned an invalid result. Contact an administrator.":
+    "The wage generator returned an invalid result. Contact an administrator.",
+  "The wage generator could not start. Contact an administrator.":
+    "The wage generator could not start. Contact an administrator.",
+  "Saved attendance data is incompatible with wage generation. Parse the attendance workbook again.":
+    "Saved attendance data is incompatible with wage generation. Parse the attendance workbook again.",
+  "The wage generator version is incompatible. Contact an administrator.":
+    "The wage generator version is incompatible. Contact an administrator.",
+  "The attendance period is missing. Parse the attendance workbook again.":
+    "The attendance period is missing. Parse the attendance workbook again.",
+  "The generated workbook period did not match the attendance month. Contact an administrator.":
+    "The generated workbook period did not match the attendance month. Contact an administrator.",
+  "The wage workbook template is unavailable. Contact an administrator.":
+    "The wage workbook template is unavailable. Contact an administrator.",
+  "The wage workbook template could not be opened. Contact an administrator.":
+    "The wage workbook template could not be opened. Contact an administrator.",
+  "The wage workbook template changed during generation. Retry the generation.":
+    "The wage workbook template changed during generation. Retry the generation.",
+  "No employees could be written to the wage workbook. Review employee-template matching.":
+    "No employees could be written to the wage workbook. Review employee-template matching.",
+  "The wage workbook could not be saved. Retry once; contact an administrator if it happens again.":
+    "The wage workbook could not be saved. Retry once; contact an administrator if it happens again.",
+  "The generated wage workbook failed validation and was not published. Retry the generation.":
+    "The generated wage workbook failed validation and was not published. Retry the generation.",
+  "The generated wage workbook failed its audit check and was not published. Retry the generation.":
+    "The generated wage workbook failed its audit check and was not published. Retry the generation.",
+  "The generated wage workbook failed its storage safety check. Contact an administrator.":
+    "The generated wage workbook failed its storage safety check. Contact an administrator.",
   "Attendance calculation contract v2": "Attendance calculation contract v2",
   "Calculation method": "Calculation method",
   "Current employee": "Current employee",

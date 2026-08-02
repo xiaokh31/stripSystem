@@ -238,8 +238,9 @@
           2026-08-01 现场新增三项 P0 回归：中文上传文件名发生 mojibake；7 月考勤
           Parse 成功但工资表 Generate 失败；Named Tunnel 公网域名可登录而 LAN IP
           无法登录。已分别建立 FILE-UPLOAD-01、WAGE-HOURS-08 和 PUBLIC-DEPLOY-04；
-          FILE-UPLOAD-01 已完成；旧 Wage/Public 完成证据保留为历史基线，WAGE-HOURS-08
-          与 PUBLIC-DEPLOY-04 仍未完成。
+          FILE-UPLOAD-01 已完成；旧 Wage/Public 完成证据保留为历史基线。WAGE-HOURS-08
+          仓库实现与当前环境自动化已完成，只待办公室 Microsoft Excel 验收；
+          PUBLIC-DEPLOY-04 仍未开始。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -454,7 +455,8 @@
           supervisor DONE；NATIVE-AUTH-01 的仓库实现、Docker 自动化、真实
           PostgreSQL/HTTP 和 iOS 非破坏性已认证矩阵已完成，连续三次运行都只剩
           Android/iOS 外部设备验收。WEB-BRAND-01/02/03/04 和 WAGE-HOURS-01/02/03/04/05/06 已全部关闭且不得重跑；
-          WAGE-HOURS-07 与 WEB-DASHBOARD-07/08/09 已关闭；2026-07-24 新发现的 2099
+          WAGE-HOURS-07 与 WEB-DASHBOARD-07/08/09 已关闭；WAGE-HOURS-08 已达到
+          Code Complete / Microsoft Excel Verification Pending；2026-07-24 新发现的 2099
           日期完整性回归已由 WEB-DASHBOARD-09 完整关闭。2026-07-25 新增三个需求线路：
           UNLOAD-WAGE-14 将美转加托车号改为选填；UNLOAD-REPORT-02 首轮修复长单元格和底部备注打印裁切；
           POD-00 至 05 交付 versioned template、办公室制单、saved revision 打印与 archive。2026-07-28
@@ -688,7 +690,9 @@
           不改变既有卸柜核心 P1 已完成结论。2026-07-21 新增 WAGE-HOURS-01 至 05 修正线路，既有完成记录保留为
           历史基线；01 至 05 已由 05 关闭并保持 complete。后续新增的 WAGE-HOURS-06 也已关闭办公室页面的生成文件可见性，
           未删除或停止生成后台技术工件。WAGE-HOURS-07 已于 2026-07-23 达到 Done / 100%，交付整次
-          attendance import 可审计软删除；它是独立需求，不改写 01 至 06 的关闭证据。按用户要求，每个阶段完成后更新本 HTML。
+          attendance import 可审计软删除；WAGE-HOURS-08 已完成 staged BIFF、schema/manifest、
+          stable code、真实 7 月浏览器下载及脱敏视觉门禁，只剩 Microsoft Excel 外部检查。
+          这些独立需求不改写 01 至 07 的关闭证据。按用户要求，每个阶段完成后更新本 HTML。
         </p>
         <table>
           <thead>
@@ -962,10 +966,10 @@
             </tr>
             <tr>
               <td>Stage 7.8: WAGE-HOURS-08 Parsed Attendance Wage Workbook Generation Regression</td>
-              <td><span class="badge partial">Ready / Not Started</span></td>
-              <td>0%</td>
-              <td>关闭 7 月现场考勤 Parse 成功但异步 Generate 失败的 Worker/API/BullMQ/generated-file/Web 下载闭环；保留奇偶打卡、active-row 删除、多 Sheet BIFF 格式和办公室只显示工资表的既有规则。</td>
-              <td>FILE-UPLOAD-01 已 Done；下一 fresh supervisor Session 执行本 Task。必须以 <code>samples/attendance_test/</code> 中用户提供的7月现场真实打卡记录样本定位准确 failure stage；真实样本只记录脱敏 count/code/hash，BIFF/LibreOffice/Chromium 视觉证据使用脱敏 fixture，Windows Microsoft Excel 外部检查单独记录。</td>
+              <td><span class="badge partial">Code Complete / Microsoft Excel Verification Pending</span></td>
+              <td>95%</td>
+              <td>当前基线首次运行现场 7 月样本时 Parse/Generate 已成功，准确历史异常不可重现且未伪造唯一根因。已关闭 persisted schema/Worker version、0 effective output、manifest/period/SHA/size、staging/atomic publish、post-save BIFF validation 和安全 stable-code 传播缺口；<code>/work-hours</code> 继续只显示工资表并提供严格双语可操作失败提示。</td>
+              <td>Worker 238、API 408 unit / 131 E2E、Web 285、39 migrations、lint/typecheck/build/healthcheck 全通过；真实 nginx/BullMQ/Chromium 完成 upload→async Parse→refresh→async Generate→UI list→Web 代理 download 且 SHA 一致，en/zh-CN、light/dark、390/1366/1920、真实 200% zoom、无 overflow/浏览器错误通过。BIFF 为 10 Sheets/7 完整期间 Sheets，故意失败 cleanup、源 SHA、隐私和脱敏 6/7 月 LibreOffice 视觉门禁通过。证据见 <code>docs/reports/wage-hours-08-generation-regression-verification.md</code>；只剩 Windows Microsoft Excel 逐 Sheet、颜色、尺寸、Print Preview 与下载名检查。</td>
             </tr>
           </tbody>
         </table>
@@ -2227,10 +2231,10 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>FILE-UPLOAD-01 已 Done 且不得重跑；下一开发任务依次为 WAGE-HOURS-08、PUBLIC-DEPLOY-04，每项一个 fresh supervisor Session。后续两项继续严格执行 en/zh-CN、stable code、no-flash、隐私和 Docker-only 门禁。</li>
+          <li>FILE-UPLOAD-01 已 Done 且不得重跑；WAGE-HOURS-08 仓库工作已完成，只执行指定 Windows/Microsoft Excel 外部验收并同步为 Done，之后才可在新的 supervisor Session 开始 PUBLIC-DEPLOY-04。</li>
           <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
-          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；新现场生成故障只执行 WAGE-HOURS-08。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
+          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；WAGE-HOURS-08 只剩 Microsoft Excel 外部验收，不得重跑仓库 Task 或以 LibreOffice 代替。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 必须先关闭公网域名/LAN IP 登录并存回归。当前 LAN listener 仍不得端口转发到 Internet，公网 Secure cookie 不得降级。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>

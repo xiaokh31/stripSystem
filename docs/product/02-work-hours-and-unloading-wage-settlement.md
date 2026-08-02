@@ -711,6 +711,10 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 7. `WAGE-HOURS-07`: add whole attendance-import audited soft deletion,
    active-only SHA uniqueness, job/race protection, deleted-import history and
    strict bilingual UI.
+8. `WAGE-HOURS-08`: make wage generation fail closed across persisted-row,
+   Worker, manifest, staged BIFF validation, API file commit and async-job UI
+   boundaries; verify the approved July sample through the protected browser
+   flow without exposing personal attendance data.
 
 ## Proposed API Surface
 
@@ -1030,6 +1034,34 @@ back from a deleted selection, keeps deletion history separate from active
 actions/downloads and remains strictly single-language across English/Chinese,
 light/dark, mobile/desktop and real 200% zoom.
 
+### WAGE-HOURS-08 Generation Integrity Evidence
+
+The 2026-08-01 repository delivery is code complete and awaits only the named
+Microsoft Excel check. After the prerequisite filename repair, the first
+current-checkout run of the approved July sample already completed Parse and
+Generate, so the exact historical failure could not be reproduced and is not
+claimed as a known root cause. The diagnosis nevertheless closed observable
+fail-open seams: persisted schema/batch mismatch, zero effective output,
+unvalidated manifest/file metadata, direct final-path saving and unsafe Worker
+error propagation.
+
+Generation now writes a unique same-directory staging file, validates non-zero
+OLE/BIFF readability, target period, sheet inventory, written employee/day
+counts, manifest, filename, size and SHA, then atomically publishes it. Worker
+and API schema versions must agree; invalid, missing, outside-root or mismatched
+artifacts cannot become downloadable records. Stable stage/codes cover missing
+period/template, invalid input, save/validation failure, timeout and invalid
+stdout, while Work Hours maps them to typed English/Chinese recovery guidance
+without rendering paths, Python output or personal data.
+
+The real nginx/BullMQ/Chromium route passed upload, async Parse, refresh, async
+Generate, wage-only list and protected download for the July period. The BIFF
+audit found 10 sheets, seven complete period sheets, 217 period date cells and
+93 positive-hour cells. A deidentified June/July/template visual set preserved
+all normalized styles and the special sheet. Cleanup probes proved both forced
+failure and success paths remove only task-owned database, storage and runtime
+artifacts while preserving the approved source and template hashes.
+
 ## Acceptance Criteria
 
 - A developer can identify the first worker tasks without building UI first.
@@ -1053,6 +1085,9 @@ light/dark, mobile/desktop and real 200% zoom.
 - The Work Hours generated-file area exposes only wage workbook history and
   wage workbook downloads. Parsed JSON and task reports remain auditable in the
   backend but are absent from office-visible and accessibility-visible markup.
+- Wage generation accepts only the current persisted-row/Worker contract and
+  publishes a workbook only after staged BIFF, period, sheet, count, manifest,
+  size and SHA validation; zero-output or damaged artifacts are not downloadable.
 - Existing container detail includes unloading wage tag, trailer number,
   associated containers, unloading completion, and unloader rows.
 - Temporary unloaders can be manually maintained without creating employee

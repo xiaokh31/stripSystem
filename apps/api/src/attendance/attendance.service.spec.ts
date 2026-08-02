@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -649,7 +650,10 @@ describe('AttendanceService', () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
     markParsedImport();
-    const wageRecordPath = join(storageRoot, 'wage-record.xls');
+    const wageRecordPath = join(
+      storageRoot,
+      'wage-record-2026-06-01-2026-06-30.xls',
+    );
     const taskReportPath = join(storageRoot, 'wage-report.html');
     await writeFile(wageRecordPath, 'xls', 'utf8');
     await writeFile(taskReportPath, '<html></html>', 'utf8');
@@ -748,22 +752,12 @@ describe('AttendanceService', () => {
     expect(rowRecords).toHaveLength(1);
     expect(rowRecords[0].deletedAt).toEqual(expect.any(Date));
 
-    const wageRecordPath = join(storageRoot, 'active-only.xls');
-    const wageReportPath = join(storageRoot, 'active-only.html');
-    await writeFile(wageRecordPath, 'xls', 'utf8');
-    await writeFile(wageReportPath, '<html></html>', 'utf8');
-    workerAttendance.generateWageRecord.mockResolvedValue(
-      generatePayload(wageRecordPath, wageReportPath),
-    );
-    await service.generateWageRecord(importRecord.id, officeActor);
-    const normalizedInputPath = workerAttendance.generateWageRecord.mock.calls.at(-1)?.[2];
-    const normalizedInput = JSON.parse(
-      await readFile(normalizedInputPath, 'utf8'),
-    ) as { source: string; parsedResult: { days: unknown[] } };
-    expect(normalizedInput).toMatchObject({
-      source: 'PERSISTED_ACTIVE_ATTENDANCE_ROWS',
-      parsedResult: { days: [] },
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: { code: 'ATTENDANCE_ACTIVE_ROWS_REQUIRED' },
     });
+    expect(workerAttendance.generateWageRecord).not.toHaveBeenCalled();
   });
 
   it('rolls back the tombstone when the immutable audit event cannot be written', async () => {
@@ -1110,7 +1104,10 @@ describe('AttendanceService', () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
     markParsedImport();
-    const wageRecordPath = join(storageRoot, 'revision-race.xls');
+    const wageRecordPath = join(
+      storageRoot,
+      'revision-race-2026-06-01-2026-06-30.xls',
+    );
     const taskReportPath = join(storageRoot, 'revision-race.html');
     await writeFile(wageRecordPath, 'stale xls', 'utf8');
     await writeFile(taskReportPath, '<html>stale</html>', 'utf8');
@@ -1145,7 +1142,10 @@ describe('AttendanceService', () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
     markParsedImport();
-    const wageRecordPath = join(storageRoot, 'deleted-race.xls');
+    const wageRecordPath = join(
+      storageRoot,
+      'deleted-race-2026-06-01-2026-06-30.xls',
+    );
     const taskReportPath = join(storageRoot, 'deleted-race.html');
     await writeFile(wageRecordPath, 'late xls', 'utf8');
     await writeFile(taskReportPath, '<html>late</html>', 'utf8');
@@ -1173,7 +1173,10 @@ describe('AttendanceService', () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
     markParsedImport();
-    const wageRecordPath = join(storageRoot, 'wage-record.xls');
+    const wageRecordPath = join(
+      storageRoot,
+      'wage-record-2026-06-01-2026-06-30.xls',
+    );
     const taskReportPath = join(storageRoot, 'wage-report.html');
     await writeFile(wageRecordPath, 'download xls', 'utf8');
     await writeFile(taskReportPath, '<html></html>', 'utf8');
@@ -1190,7 +1193,9 @@ describe('AttendanceService', () => {
       generated.generatedFile.id,
     );
 
-    expect(download.filename).toBe('wage-record.xls');
+    expect(download.filename).toBe(
+      'wage-record-2026-06-01-2026-06-30.xls',
+    );
     expect(download.buffer.toString()).toBe('download xls');
     expect(download.mimeType).toBe('application/vnd.ms-excel');
   });
@@ -1232,6 +1237,76 @@ describe('AttendanceService', () => {
     expect(generatedFiles).toHaveLength(0);
   });
 
+  it('fails closed on a worker schema mismatch without inventing file metadata', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    markParsedImport();
+    workerAttendance.generateWageRecord.mockResolvedValue({
+      schema_version: 1,
+      batch_version: 'wage-p1-api-v1',
+      task_status: 'ERROR',
+      generation_stage: 'NORMALIZED_INPUT',
+      generation_error_code: 'WAGE_GENERATION_INPUT_SCHEMA_INVALID',
+      wage_record_path: null,
+      task_report_path: null,
+      warnings: [],
+      errors: [{ code: 'WAGE_GENERATION_INPUT_SCHEMA_INVALID' }],
+    });
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'WAGE_GENERATION_INPUT_SCHEMA_INVALID',
+        details: { stage: 'NORMALIZED_INPUT' },
+      },
+    });
+    expect(generatedFiles).toHaveLength(1);
+    expect(generatedFiles[0]).toMatchObject({
+      status: 'FAILED',
+      errorMessage: 'WAGE_GENERATION_INPUT_SCHEMA_INVALID',
+      fileSha256: null,
+      fileSizeBytes: null,
+    });
+  });
+
+  it('rejects a post-save manifest mismatch and never exposes it for download', async () => {
+    const file = await loadFixtureFile();
+    await service.importFile(file, officeActor);
+    markParsedImport();
+    const wageRecordPath = join(
+      storageRoot,
+      'invalid-manifest-2026-06-01-2026-06-30.xls',
+    );
+    const taskReportPath = join(storageRoot, 'invalid-manifest-report.html');
+    await writeFile(wageRecordPath, 'invalid manifest bytes', 'utf8');
+    await writeFile(taskReportPath, '<html></html>', 'utf8');
+    const payload = generatePayload(wageRecordPath, taskReportPath);
+    payload.wage_record_result!.outputSha256 = '0'.repeat(64);
+    workerAttendance.generateWageRecord.mockResolvedValue(payload);
+
+    await expect(
+      service.generateWageRecord(importRecord.id, officeActor),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'WAGE_GENERATION_MANIFEST_INVALID',
+        details: { stage: 'API_VALIDATE' },
+      },
+    });
+    const failed = generatedFiles.find(
+      (item) => item.fileType === 'WAGE_RECORD_XLS',
+    )!;
+    expect(failed).toMatchObject({
+      status: 'FAILED',
+      errorMessage: 'WAGE_GENERATION_MANIFEST_INVALID',
+    });
+    await expect(
+      service.downloadFile(importRecord.id, failed.id),
+    ).rejects.toMatchObject({
+      response: { code: 'WAGE_GENERATED_FILE_NOT_DOWNLOADABLE' },
+    });
+  });
+
   it('records a failed wage generated file when the worker invocation fails', async () => {
     const file = await loadFixtureFile();
     await service.importFile(file, officeActor);
@@ -1249,7 +1324,7 @@ describe('AttendanceService', () => {
       attendanceImportId: importRecord.id,
       fileType: 'WAGE_RECORD_XLS',
       status: 'FAILED',
-      errorMessage: 'worker crashed',
+      errorMessage: 'WAGE_RECORD_WORKER_INVOCATION_FAILED',
       generatedById: 'auth-office',
     });
   });
@@ -1316,12 +1391,26 @@ describe('AttendanceService', () => {
     wageRecordPath: string,
     taskReportPath: string,
   ): WorkerWagePayload {
+    const bytes = readFileSync(wageRecordPath);
     return {
+      schema_version: 2,
+      batch_version: 'wage-p1-api-v1',
       task_status: 'WARNING',
+      generation_stage: 'COMPLETED',
+      generation_error_code: null,
       wage_record_path: wageRecordPath,
       task_report_path: taskReportPath,
       wage_record_result: {
         outputPath: wageRecordPath,
+        generatedFilename: wageRecordPath.split('/').at(-1),
+        outputSha256: createHash('sha256').update(bytes).digest('hex'),
+        outputSizeBytes: statSync(wageRecordPath).size,
+        writtenEmployeeCount: 1,
+        writtenDayCount: 1,
+        matchedSheets: ['TEST'],
+        generationStage: 'COMPLETED',
+        errorCode: null,
+        validated: true,
         warnings: [{ code: 'UNMATCHED', message: 'One unmatched employee.' }],
         errors: [],
       },
@@ -1343,5 +1432,33 @@ describe('AttendanceService', () => {
       errorCount: 0,
       errorMessage: null,
     });
+    if (rowRecords.length === 0) {
+      rowRecords.push({
+        id: 'attendance-row-generated',
+        attendanceImportId: importRecord.id,
+        rowKey: 'employee-1:2026-06-01:1',
+        employeeId: 'employee-1',
+        employeeName: 'Employee One',
+        department: 'Warehouse',
+        workDate: new Date('2026-06-01T00:00:00.000Z'),
+        dayNumber: 1,
+        punchTimes: ['08:00', '16:00'],
+        calculationMethod: 'PAIRED_INTERVALS',
+        workIntervals: [
+          { start: '08:00', end: '16:00', minutes: 480, hours: 8 },
+        ],
+        pairedGrossHours: 8,
+        lunchHours: 0.5,
+        calculatedHours: 7.5,
+        firstPunch: '08:00',
+        lastPunch: '16:00',
+        rawJson: {},
+        warnings: [],
+        errors: [],
+        deletedAt: null,
+        deletedById: null,
+        deletionReason: null,
+      });
+    }
   }
 });

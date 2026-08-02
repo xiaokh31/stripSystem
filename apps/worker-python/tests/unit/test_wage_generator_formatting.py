@@ -109,31 +109,25 @@ def test_real_wage_template_preserves_all_sheet_structure_and_touched_styles(
             for column_index in range(6):
                 assert _normalized_style(
                     before, source_sheet, row_index, column_index
-                ) == _normalized_style(
-                    after, output_sheet, row_index, column_index
-                )
+                ) == _normalized_style(after, output_sheet, row_index, column_index)
         for column_index in (0, 2):
             assert _normalized_style(
                 before, source_sheet, total_row, column_index
-            ) == _normalized_style(
-                after, output_sheet, total_row, column_index
-            )
+            ) == _normalized_style(after, output_sheet, total_row, column_index)
 
     for unchanged_sheet_name in ("Rui Zhou", "司机WeiSheng Hong", "JIANMING ZHANG"):
         assert _complete_sheet_inventory(
             before, before.sheet_by_name(unchanged_sheet_name)
-        ) == _complete_sheet_inventory(
-            after, after.sheet_by_name(unchanged_sheet_name)
-        )
+        ) == _complete_sheet_inventory(after, after.sheet_by_name(unchanged_sheet_name))
         assert _sheet_record_payloads(
             WAGE_TEMPLATE, unchanged_sheet_name, 0x0006
         ) == _sheet_record_payloads(result.outputPath, unchanged_sheet_name, 0x0006)
 
     source_driver = before.sheet_by_name("司机WeiSheng Hong")
     output_driver = after.sheet_by_name("司机WeiSheng Hong")
-    assert _complete_sheet_inventory(before, source_driver) == _complete_sheet_inventory(
-        after, output_driver
-    )
+    assert _complete_sheet_inventory(
+        before, source_driver
+    ) == _complete_sheet_inventory(after, output_driver)
 
     source_deng = before.sheet_by_name("Wei Deng")
     output_deng = after.sheet_by_name("Wei Deng")
@@ -163,8 +157,7 @@ def test_review_empty_and_total_writes_retain_their_template_styles(
     lay_days = [day for day in parsed.days if day.employeeName == "lay"]
     review_day = replace(lay_days[0], calculatedHours=None)
     modified_days = tuple(
-        review_day if day is lay_days[0] else day
-        for day in parsed.days
+        review_day if day is lay_days[0] else day for day in parsed.days
     )
     modified = replace(parsed, days=modified_days)
 
@@ -201,7 +194,6 @@ def test_employee_to_sheet_matching_is_one_to_one_and_never_uses_substrings(
 ) -> None:
     template_path = tmp_path / "duplicate-employee-sheets.xls"
     _write_standard_template(template_path, ("LAY Alpha", "Alpha LAY", "JIANMING"))
-    original = xlrd.open_workbook(template_path, formatting_info=True)
     parsed = parse_attendance_workbook(ATTENDANCE_FIXTURE)
     lay_days = tuple(day for day in parsed.days if day.employeeName == "lay")
     ming_days = tuple(day for day in parsed.days if day.employeeName == "ming")
@@ -214,7 +206,9 @@ def test_employee_to_sheet_matching_is_one_to_one_and_never_uses_substrings(
         generated_at=datetime(2026, 7, 21, 12, 2, 0),
     )
 
-    assert result.errors == ()
+    assert [issue.code for issue in result.errors] == [
+        "WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT"
+    ]
     assert result.matchedSheets == ()
     assert any(
         warning.code == "WAGE_TEMPLATE_EMPLOYEE_MULTIPLE_SHEETS"
@@ -226,11 +220,7 @@ def test_employee_to_sheet_matching_is_one_to_one_and_never_uses_substrings(
         and "JIANMING" in warning.message
         for warning in result.warnings
     )
-    output = xlrd.open_workbook(result.outputPath, formatting_info=True)
-    for sheet_name in original.sheet_names():
-        assert _complete_sheet_inventory(
-            original, original.sheet_by_name(sheet_name)
-        ) == _complete_sheet_inventory(output, output.sheet_by_name(sheet_name))
+    assert not result.outputPath.exists()
 
 
 def test_employee_sheet_matching_supports_reliable_id_and_rejects_short_name_tokens(
@@ -341,12 +331,8 @@ def test_legacy_xls_adaptive_dimensions_are_bounded_cjk_aware_and_deterministic(
     assert output_sheet.rowinfo_map[6].height <= MAX_ROW_HEIGHT_TWIPS
 
     for row_index, column_index in ((3, 0), (4, 1), (5, 2), (6, 3)):
-        source_style = _normalized_style(
-            source, source_sheet, row_index, column_index
-        )
-        output_style = _normalized_style(
-            output, output_sheet, row_index, column_index
-        )
+        source_style = _normalized_style(source, source_sheet, row_index, column_index)
+        output_style = _normalized_style(output, output_sheet, row_index, column_index)
         assert source_style[:-1] == output_style[:-1]
         assert output_style[-1]["text_wrapped"] == 1
 
@@ -363,14 +349,20 @@ def _write_standard_template(path: Path, sheet_names: tuple[str, ...]) -> None:
             ("", "DATE", "HOURS", "LUNCH HOURS", "START TIME", "END TIME")
         ):
             sheet.write(2, column_index, value, style)
-            sheet.write(
-                3,
-                column_index,
-                "" if column_index > 1 else ("MON", "2026.6.1")[column_index],
-                style,
-            )
-        sheet.write_merge(4, 4, 0, 1, "TOTAL HOURS", style)
-        sheet.write_merge(4, 4, 2, 5, 0, style)
+        for day in range(1, 31):
+            row_index = day + 2
+            current = datetime(2026, 6, day)
+            for column_index in range(6):
+                value: object = ""
+                if column_index == 0:
+                    value = current.strftime("%a").upper()
+                elif column_index == 1:
+                    value = f"2026.6.{day}"
+                sheet.write(row_index, column_index, value, style)
+        sheet.write_merge(33, 33, 0, 1, "TOTAL HOURS", style)
+        sheet.write_merge(33, 33, 2, 5, 0, style)
+        # Keep synthetic BIFF stream capacity above the patched record size.
+        sheet.write(40, 0, "capacity-padding-" + ("x" * 2_048), style)
     workbook.save(str(path))
 
 
@@ -390,26 +382,28 @@ def _write_date_validation_template(path: Path) -> None:
         ("", "DATE", "HOURS", "LUNCH HOURS", "START TIME", "END TIME")
     ):
         sheet.write(2, column_index, value, style)
-        note_value: object = ("MON", 42, "NUMERIC NOTE", "", "", "")[
-            column_index
-        ]
-        date_value: object = (
-            "MON",
-            datetime(2026, 6, 1),
-            "",
-            "",
-            "",
-            "",
-        )[column_index]
+        note_value: object = ("MON", 42, "NUMERIC NOTE", "", "", "")[column_index]
         sheet.write(3, column_index, note_value, style)
-        sheet.write(
-            4,
-            column_index,
-            date_value,
-            date_style if column_index == 1 else style,
-        )
-    sheet.write_merge(5, 5, 0, 1, "TOTAL HOURS", style)
-    sheet.write_merge(5, 5, 2, 5, 0, style)
+        for day in range(1, 31):
+            row_index = day + 3
+            current = datetime(2026, 6, day)
+            date_value: object = (
+                current.strftime("%a").upper(),
+                current,
+                "",
+                "",
+                "",
+                "",
+            )[column_index]
+            sheet.write(
+                row_index,
+                column_index,
+                date_value,
+                date_style if column_index == 1 else style,
+            )
+    sheet.write_merge(34, 34, 0, 1, "TOTAL HOURS", style)
+    sheet.write_merge(34, 34, 2, 5, 0, style)
+    sheet.write(40, 0, "capacity-padding-" + ("x" * 2_048), style)
     workbook.save(str(path))
 
 
@@ -434,7 +428,10 @@ def _date_slots_and_total(sheet) -> tuple[list[int], int]:
     date_rows: list[int] = []
     total_row = -1
     for row_index in range(3, sheet.nrows):
-        values = [str(sheet.cell_value(row_index, column_index)).strip() for column_index in range(sheet.ncols)]
+        values = [
+            str(sheet.cell_value(row_index, column_index)).strip()
+            for column_index in range(sheet.ncols)
+        ]
         if any(value.upper().startswith("TOTAL HOURS") for value in values):
             total_row = row_index
             break
@@ -489,8 +486,7 @@ def _sheet_structure_inventory(
         in STANDARD_HEADERS
     )
     key_coordinates = {
-        (row_index, column_index)
-        for row_index, column_index, _ in header_cells
+        (row_index, column_index) for row_index, column_index, _ in header_cells
     }
     for row_index in range(sheet.nrows):
         if any(
@@ -519,7 +515,10 @@ def _sheet_structure_inventory(
 def _complete_sheet_inventory(workbook, sheet) -> dict[str, object]:
     inventory = _sheet_structure(sheet)
     inventory["values"] = tuple(
-        tuple(sheet.cell_value(row_index, column_index) for column_index in range(sheet.ncols))
+        tuple(
+            sheet.cell_value(row_index, column_index)
+            for column_index in range(sheet.ncols)
+        )
         for row_index in range(sheet.nrows)
     )
     inventory["styles"] = tuple(
@@ -536,9 +535,7 @@ def _normalized_style(workbook, sheet, row_index: int, column_index: int):
     xf = workbook.xf_list[sheet.cell_xf_index(row_index, column_index)]
     font = workbook.font_list[xf.font_index]
     font_properties = {
-        key: value
-        for key, value in vars(font).items()
-        if key != "font_index"
+        key: value for key, value in vars(font).items() if key != "font_index"
     }
     colour_properties = {
         "font": workbook.colour_map.get(font.colour_index),

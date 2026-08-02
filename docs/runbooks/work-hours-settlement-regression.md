@@ -308,3 +308,44 @@ Expected hashes are listed in the prerequisites table.
   Chinese dark mobile dialog/fallback history and English real 200% zoom.
   Each was inspected at original resolution; the history danger surface was
   corrected to retain dark-theme contrast.
+
+## WAGE-HOURS-08 Generation Regression Gate (2026-08-01)
+
+Run the task-specific gate only from the repository root:
+
+```bash
+scripts/run-wage-hours-08-e2e.sh verify
+```
+
+The runner requires exactly one approved real `.xls` under
+`samples/attendance_test/` and rejects a changed SHA. It creates a unique admin
+and runtime prefix, first forces a browser failure to prove trap cleanup, then
+uses the same `/work-hours` UI endpoints as production for upload, async Parse,
+refresh, async Generate, wage-only list and protected download. The synchronous
+generation endpoint is called only as a diagnostic comparison.
+
+The real workbook audit records only period, counts, stable warning/error codes,
+size and hashes. Employee names, sheet names and punch times must never be added
+to runner logs, screenshots, reports or handoff. On both failure and success,
+the runner deletes only the test user's attendance imports, rows, audit events,
+generated-file records, async jobs, user/auth records, import-scoped storage and
+real runtime download. The approved source workbook is read-only.
+
+Generation is successful only when Worker/API schema and batch versions match,
+the staged file is non-zero and OLE/BIFF-readable, period/filename/sheet/count
+and manifest metadata agree, storage containment holds, and API size/SHA match
+the bytes. `WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT`, input/schema/template/save/
+validation errors, Worker timeout, empty stdout and invalid stdout are blocking
+stable codes and must not create a downloadable file.
+
+After the automated gate, inspect every original PNG and all three contact
+sheets under `test-results/wage-hours-08/visual/`. The deidentified template,
+June and July workbooks must each render three pages; normalized style
+differences must be zero and the special sheet unchanged.
+
+The current checkout passed the Docker full-stack and visual gate. The exact
+historical reported failure did not reproduce after `FILE-UPLOAD-01`; do not
+invent a root cause or weaken the fail-closed checks. Before marking the Task
+Done, office Windows/Microsoft Excel must regenerate the approved July sample
+through `/work-hours` and inspect every employee sheet, dates, hours, colors,
+row heights, column widths, Print Preview and downloaded filename.
