@@ -257,14 +257,16 @@
      和跨月份语义 BIFF 门禁。Docker Worker/API/Web、真实 Chromium、cleanup/privacy、
      LibreOffice 视觉与全部 Sheet machine audit 已通过；模板/SHA/XF 数不变。用户于
      2026-08-02 明确确认专项验收通过，本 Task 已关闭。
-4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY / NEXT`
-   - 同一 single-writer stack 同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。
-     Public cookie 始终 Secure；LAN HTTP 仅在 private allowlist + trusted ingress 下使用
-     host-only cookie。禁止全局关闭 Secure、wildcard CORS 或信任客户端 forwarded header。
+4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `CODE COMPLETE / EXTERNAL VERIFICATION PENDING`
+   - 同一 single-writer stack 已支持批准公网 HTTPS origin 和显式批准 LAN HTTP origin。
+     request-aware Cookie、exact Origin、trusted ingress、独立 listener、spoof protection、
+     双入口 Chromium、Tunnel outage/恢复与 LAN host publication 停用时 public 登录自动化
+     已通过；API 429 unit/131 E2E、Web 285 unit/build、Worker 247、39 migrations、合同、
+     healthcheck 和零残留门禁已关闭。只剩真实公网域名 + 真实仓库 LAN IP 隐私窗口、
+     Cookie/RBAC/refresh/logout 与现场故障矩阵。
 
-FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 `DONE`，不得重跑。当前下一项只
-执行 `PUBLIC-DEPLOY-04`，使用独立 fresh supervisor Session；不得把已关闭工资 Task 与
-公网双入口修复合并到同一 Session。
+FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 `DONE`，不得重跑。PUBLIC-DEPLOY-04
+仓库工作与当前环境自动化已关闭；不得启动另一开发 Task 代替其真实公网/LAN 外部门禁。
 所有活动 Task 都要求 strict `en` / `zh-CN`、稳定 code、SSR/hydration no-flash、Docker-only
 验证、失败安全 cleanup 和专项 verification report。
 
@@ -367,9 +369,10 @@ PUBLIC-DEPLOY-02/04 项继续按各自新 gate 处理。
 3. `PUBLIC-DEPLOY-03OCI Always Free ARM64 Cloud Canonical Profile.md` — `ARCHIVED / DO NOT EXECUTE`
    - 产品已撤回 OCI Always Free A1 cloud-canonical 路线；中断 Session 新增的 cloud Compose、ARM64、备份、迁移和
      运维修改已全部还原。恢复必须取得明确产品批准、移除 Task 归档标记并同步索引/完成报告。
-4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
-   - 不重启 01/02；新增受信双 ingress、request-aware cookie 和 exact public/LAN Origin
-     contract，关闭真实公网域名可登录但 LAN IP 无法登录的回归。
+4. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `CODE COMPLETE / EXTERNAL VERIFICATION PENDING`
+   - 不重启 01/02；受信双 ingress、request-aware Cookie、exact public/LAN Origin、
+     Chromium/outage/恢复、LAN host publication 停用时 public 可用性和 single-writer
+     contract 已完成。仅等待真实域名与真实 LAN IP 的现场隐私窗口和故障矩阵。
 
 不得在同一 Session 连续执行这些 Task。不得把 02 和 03 部署成两个可写环境；若从 02 迁移到 03，必须冻结写入、
 同步 PostgreSQL 与 `storage/` 的同一恢复点、验证 hash/count，并停用或只读旧 local stack。当前 03 已归档，不得
@@ -527,7 +530,7 @@ Deferred，按现场反馈再执行：
   regression 已全部完成。
 
 给业务开发 agent 的建议执行顺序：
-1. 下一项只执行 `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md`。
+1. 不启动另一开发 Task；只关闭 `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` 的真实公网/LAN 外部门禁。
    FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已验收完成且不得重跑。macOS/Linux
    使用 `scripts/run-business-agent.sh task '<task-file>'`，
    Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 后再执行
@@ -536,7 +539,7 @@ Deferred，按现场反馈再执行：
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
 2. `FILE-UPLOAD-01`、WAGE-HOURS-08 和 WAGE-HOURS-09 均为 `DONE`；PUBLIC-DEPLOY-04
-   为 `READY / NEXT`。后续工作均不得把现场
+   为 `CODE COMPLETE / EXTERNAL VERIFICATION PENDING`。后续工作均不得把现场
    员工数据、cookie、token、真实域名/IP 或 secret 写入报告和 handoff。
 3. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。

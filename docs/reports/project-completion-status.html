@@ -242,7 +242,8 @@
           已完成独立脱敏模板、生产只读供应、真实 7 月 full-stack 和全部当前环境自动化，
           并于 2026-08-02 由用户明确验收通过。后续独立发现的 A 列周末底色问题由
           WAGE-HOURS-09 修复；其语义 BIFF、Docker、Chromium、LibreOffice 和用户专项
-          验收也已完成。08/09 均为 Done；PUBLIC-DEPLOY-04 仍未开始。
+          验收也已完成。08/09 均为 Done；PUBLIC-DEPLOY-04 的仓库实现和当前环境自动化
+          已完成，只等待真实公网域名与真实仓库 LAN IP 的外部矩阵。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -1709,7 +1710,7 @@
               <td>PUBLIC-DEPLOY-02 Cloudflare Tunnel Local Canonical Pilot</td>
               <td><span class="badge partial">Code Complete / External Activation Pending</span></td>
               <td>已交付 digest-pinned remotely-managed named tunnel、secret-file/fail-closed/network isolation contract、nginx no-store 与稳定 413、50 MB 应用上传门禁、严格双语错误、运维/备份/监控/故障演练 runbook。API 351 unit/125 E2E、Web 267 unit/build、Worker 183 tests、18 项相关 Chromium、35 migrations、healthcheck、备份/恢复 dry-run、正负向契约与本地故障演练均通过；本地 PostgreSQL + storage 仍是唯一 writer，LAN 不依赖 Tunnel。</td>
-              <td>旧 Task 不得重跑；但“public mode 下 LAN login healthy”已被 2026-08-01 现场回归推翻，须先完成 PUBLIC-DEPLOY-04。Access 当前现场状态继续按独立安全决定处理，不得以改 Access 代替应用双入口修复。</td>
+              <td>旧 Task 不得重跑；“public mode 下 LAN login healthy”旧证据已由 PUBLIC-DEPLOY-04 的受信双入口实现和自动化取代。02 继续关闭自身真实 Cloudflare 外部门禁，04 继续关闭真实域名/LAN IP 外部矩阵；Access 当前现场状态仍按独立安全决定处理。</td>
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-03 OCI Always Free ARM64 Cloud Canonical Profile</td>
@@ -1719,9 +1720,9 @@
             </tr>
             <tr>
               <td>PUBLIC-DEPLOY-04 Public Domain and LAN IP Login Coexistence Regression</td>
-              <td><span class="badge partial">Ready / Not Started</span></td>
-              <td>同一 single-writer public-mode stack 必须同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。公网 Cookie 始终 Secure；LAN HTTP 仅在 private allowlist、trusted ingress 和防火墙边界下使用 host-only cookie。</td>
-              <td>禁止全局关闭 Secure cookie、wildcard CORS、信任客户端 forwarded header、暴露 API/DB/Redis 或修改 Cloudflare Access/DNS/Tunnel token。仓库自动化后仍需真实公网域名 + 真实 LAN IP 外部矩阵。</td>
+              <td><span class="badge partial">Code Complete / External Verification Pending</span></td>
+              <td>已交付 exact public/LAN origin、受信双 ingress、request-aware Secure/non-Secure host-only Cookie、独立 nginx listener、spoof protection、审计、Compose contract 与双入口 Chromium。公网 edge 中断时 LAN 导入、解析、生成、下载继续，恢复后双入口再次通过；取消 LAN host publication 时 public 登录仍正常。API 429 unit/131 E2E、Web 285 unit/build、Worker 247、39 migrations、合同、healthcheck 和零残留门禁通过；PostgreSQL + storage 仍为唯一 writer。</td>
+              <td>只剩真实公网域名与真实仓库 LAN IP 的隐私窗口 Cookie/RBAC/refresh/logout、Tunnel/Internet outage、LAN firewall isolation 和恢复无重复 mutation 外部矩阵；不得写入真实身份、域名/IP、Cookie 或 token。</td>
             </tr>
           </tbody>
         </table>
@@ -2241,11 +2242,11 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 Done 且不得重跑；08 的独立模板/生成闭环与 09 的周末底色修复均已通过用户验收。当前下一开发 Task 为 PUBLIC-DEPLOY-04。</li>
+          <li>FILE-UPLOAD-01、WAGE-HOURS-08 和 WAGE-HOURS-09 均已 Done 且不得重跑；08 的独立模板/生成闭环与 09 的周末底色修复均已通过用户验收。PUBLIC-DEPLOY-04 仓库实现完成，只关闭真实公网/LAN 外部门禁，不启动另一开发 Task。</li>
           <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
           <li>WAGE-HOURS-01 至 09 已关闭且不得重跑。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
-          <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 必须先关闭公网域名/LAN IP 登录并存回归。当前 LAN listener 仍不得端口转发到 Internet，公网 Secure cookie 不得降级。</li>
+          <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 已完成公网 HTTPS/LAN HTTP 并存仓库回归，只等待真实公网域名和真实 LAN IP 外部矩阵。LAN listener 仍不得端口转发到 Internet，公网 Secure Cookie 不得降级。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>
           <li>固定使用 `docs/runbooks/local-deployment.md` 的 Docker/nginx full-stack 模式做本地开发测试和生产演练。</li>

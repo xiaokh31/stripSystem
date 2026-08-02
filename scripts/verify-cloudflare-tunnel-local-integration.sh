@@ -14,6 +14,8 @@ printf '%s\n' 'static-local-drill-fixture-not-a-cloud-token' >"$contract_token"
 public_env=(
   PUBLIC_BASE_URL=https://warehouse.example.test
   CORS_ORIGINS=https://warehouse.example.test
+  LAN_BROWSER_ORIGINS=http://127.0.0.1
+  LAN_BIND_ADDRESS=127.0.0.1
   JWT_SECRET=contract-check-only-secret-value-1234567890
   TRUSTED_PROXY_MODE=cloudflare-tunnel
   TRUSTED_PROXY_CIDRS=172.16.0.0/12

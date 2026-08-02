@@ -10,6 +10,10 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { canonicalClientAddress } from '../common/trusted-proxy';
 import type { PublicDeploymentConfiguration } from '../config/public-deployment.config';
+import {
+  resolveBrowserIngressPolicy,
+  type BrowserIngressPolicy,
+} from './browser-ingress';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { AuthService } from './auth.service';
@@ -37,6 +41,7 @@ const AUTH_USER_INCLUDE = {
 };
 
 export interface BrowserSessionResult extends BrowserSessionResponseDto {
+  ingressPolicy: BrowserIngressPolicy;
   cookieValues: {
     accessToken: string;
     accessExpiresInSeconds: number;
@@ -57,7 +62,20 @@ export class BrowserSessionService {
   ) {}
 
   async login(dto: LoginDto, request: Request): Promise<BrowserSessionResult> {
-    if (this.configuration.enabled) this.assertAllowedOrigin(request);
+    let ingressPolicy: BrowserIngressPolicy;
+    try {
+      ingressPolicy = this.browserIngressPolicy(
+        request,
+        this.configuration.enabled,
+      );
+    } catch (error) {
+      const user = await this.prisma.user.findUnique({
+        where: { email: dto.email.trim().toLowerCase() },
+        select: { id: true },
+      });
+      await this.recordBrowserIngressRejection(request, error, user?.id);
+      throw error;
+    }
     const clientAddress = this.clientAddress(request);
     try {
       await this.rateLimiter.assertAllowed(
@@ -68,7 +86,7 @@ export class BrowserSessionService {
       if (this.httpCode(error) === 'AUTH_RATE_LIMITED') {
         await this.writeAudit('AUTH_RATE_LIMITED', {
           clientAddress,
-          metadata: { scope: 'browser-login' },
+          metadata: { ingressType: ingressPolicy.type, scope: 'browser-login' },
         });
       }
       throw error;
@@ -80,7 +98,10 @@ export class BrowserSessionService {
     } catch {
       await this.writeAudit('BROWSER_LOGIN_FAILED', {
         clientAddress,
-        metadata: { reason: 'INVALID_CREDENTIALS' },
+        metadata: {
+          ingressType: ingressPolicy.type,
+          reason: 'INVALID_CREDENTIALS',
+        },
       });
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
@@ -120,8 +141,9 @@ export class BrowserSessionService {
       clientAddress,
       sessionId: session.id,
       userId: profile.id,
+      metadata: { ingressType: ingressPolicy.type },
     });
-    return this.result(profile, session.id, refreshToken, csrfToken, refreshExpiresAt);
+    return this.result(profile, session.id, refreshToken, csrfToken, refreshExpiresAt, ingressPolicy);
   }
 
   async refresh(
@@ -129,7 +151,7 @@ export class BrowserSessionService {
     csrfToken: string,
     request: Request,
   ): Promise<BrowserSessionResult> {
-    this.assertAllowedOrigin(request);
+    const ingressPolicy = await this.browserIngressPolicyWithAudit(request);
     const hash = this.hash(refreshToken);
     const clientAddress = this.clientAddress(request);
     try {
@@ -141,7 +163,7 @@ export class BrowserSessionService {
       if (this.httpCode(error) === 'AUTH_RATE_LIMITED') {
         await this.writeAudit('AUTH_RATE_LIMITED', {
           clientAddress,
-          metadata: { scope: 'browser-refresh' },
+          metadata: { ingressType: ingressPolicy.type, scope: 'browser-refresh' },
         });
       }
       throw error;
@@ -181,6 +203,7 @@ export class BrowserSessionService {
           data: {
             clientAddressHash: this.optionalHash(clientAddress),
             eventCode: 'BROWSER_REFRESH_REUSED',
+            metadata: { ingressType: ingressPolicy.type },
             sessionId: session.id,
             userId: session.userId,
           },
@@ -192,6 +215,7 @@ export class BrowserSessionService {
           data: {
             clientAddressHash: this.optionalHash(clientAddress),
             eventCode: 'CSRF_REJECTED',
+            metadata: { ingressType: ingressPolicy.type },
             sessionId: session.id,
             userId: session.userId,
           },
@@ -244,6 +268,7 @@ export class BrowserSessionService {
         data: {
           clientAddressHash: this.optionalHash(clientAddress),
           eventCode: 'BROWSER_REFRESH_SUCCEEDED',
+          metadata: { ingressType: ingressPolicy.type },
           sessionId: session.id,
           userId: session.userId,
         },
@@ -279,6 +304,7 @@ export class BrowserSessionService {
       outcome.refreshToken,
       outcome.csrfToken,
       outcome.refreshExpiresAt,
+      ingressPolicy,
     );
   }
 
@@ -288,7 +314,7 @@ export class BrowserSessionService {
     request: Request,
   ): Promise<{ revoked: true }> {
     if (!refreshToken) return { revoked: true };
-    this.assertAllowedOrigin(request);
+    const ingressPolicy = this.browserIngressPolicy(request);
     const hash = this.hash(refreshToken);
     const candidate = await this.prisma.nativeRefreshToken.findUnique({
       where: { tokenHash: hash },
@@ -310,6 +336,7 @@ export class BrowserSessionService {
         data: {
           clientAddressHash: this.optionalHash(this.clientAddress(request)),
           eventCode: 'BROWSER_LOGOUT',
+          metadata: { ingressType: ingressPolicy.type },
           sessionId: session.id,
           userId: session.userId,
         },
@@ -332,10 +359,12 @@ export class BrowserSessionService {
   }
 
   async recordCsrfRejection(sessionId: string, request: Request) {
+    const ingressPolicy = this.browserIngressPolicy(request);
     await this.prisma.authAuditEvent.create({
       data: {
         clientAddressHash: this.optionalHash(this.clientAddress(request)),
         eventCode: 'CSRF_REJECTED',
+        metadata: { ingressType: ingressPolicy.type },
         sessionId: sessionId || null,
       },
     });
@@ -375,20 +404,47 @@ export class BrowserSessionService {
   }
 
   assertAllowedOrigin(request: Request): void {
-    const supplied = request.get('origin') ?? request.get('referer');
-    let origin: string | null = null;
+    this.browserIngressPolicy(request);
+  }
+
+  browserIngressPolicy(
+    request: Request,
+    requireOrigin = true,
+  ): BrowserIngressPolicy {
+    return resolveBrowserIngressPolicy(request, this.configuration, requireOrigin);
+  }
+
+  async browserIngressPolicyWithAudit(
+    request: Request,
+    requireOrigin = true,
+  ): Promise<BrowserIngressPolicy> {
     try {
-      origin = supplied ? new URL(supplied).origin : null;
-    } catch {
-      origin = null;
+      return this.browserIngressPolicy(request, requireOrigin);
+    } catch (error) {
+      await this.recordBrowserIngressRejection(request, error);
+      throw error;
     }
-    const sameRequestOrigin = `${request.protocol}://${request.get('host') ?? ''}`;
-    const allowed = this.configuration.enabled
-      ? Boolean(origin && this.configuration.allowedOrigins.includes(origin))
-      : Boolean(origin && (origin === sameRequestOrigin || this.configuration.allowedOrigins.includes(origin)));
-    if (!allowed) {
-      throw new ForbiddenException({ code: 'CSRF_ORIGIN_REJECTED', message: 'Request origin rejected.', details: {} });
-    }
+  }
+
+  async recordBrowserIngressRejection(
+    request: Request,
+    error: unknown,
+    userId?: string,
+  ) {
+    const suppliedType = request.get('x-bestar-browser-ingress');
+    const ingressType =
+      suppliedType === 'public' || suppliedType === 'lan'
+        ? suppliedType
+        : 'unknown';
+    await this.writeAudit('CSRF_REJECTED', {
+      clientAddress: this.clientAddress(request),
+      metadata: {
+        code: this.httpCode(error) ?? 'BROWSER_INGRESS_REJECTED',
+        ingressType,
+        reason: 'BROWSER_INGRESS_REJECTED',
+      },
+      userId,
+    });
   }
 
   private result(
@@ -397,6 +453,7 @@ export class BrowserSessionService {
     refreshToken: string,
     csrfToken: string,
     refreshExpiresAt: Date,
+    ingressPolicy: BrowserIngressPolicy,
   ): BrowserSessionResult {
     const token = this.tokenService.sign(
       {
@@ -417,6 +474,7 @@ export class BrowserSessionService {
         refreshToken,
       },
       expiresIn: token.expiresIn,
+      ingressPolicy,
       sessionExpiresAt: refreshExpiresAt.toISOString(),
       user: profile,
     };
@@ -442,7 +500,8 @@ export class BrowserSessionService {
     eventCode:
       | 'AUTH_RATE_LIMITED'
       | 'BROWSER_LOGIN_FAILED'
-      | 'BROWSER_LOGIN_SUCCEEDED',
+      | 'BROWSER_LOGIN_SUCCEEDED'
+      | 'CSRF_REJECTED',
     input: {
       clientAddress: string | null;
       metadata?: Record<string, unknown>;

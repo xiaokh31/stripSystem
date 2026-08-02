@@ -27,7 +27,12 @@ export class BrowserCsrfGuard implements CanActivate {
       return true;
     }
 
-    this.browserSessions.assertAllowedOrigin(request);
+    try {
+      this.browserSessions.assertAllowedOrigin(request);
+    } catch (error) {
+      await this.browserSessions.recordBrowserIngressRejection(request, error);
+      throw error;
+    }
     const cookie = readCookie(request.headers.cookie, BROWSER_CSRF_COOKIE);
     const header = request.get(BROWSER_CSRF_HEADER);
     const valid = Boolean(

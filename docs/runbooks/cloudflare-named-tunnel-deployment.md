@@ -33,6 +33,12 @@ single-writer decision remain in
   -> Docker nginx
   -> Bestar Web / API
   -> 本地 PostgreSQL、Redis 和 storage/
+
+批准的仓库 LAN 浏览器
+  -> 主机防火墙
+  -> nginx LAN HTTP listener
+  -> 同一 Bestar Web / API
+  -> 同一 PostgreSQL、Redis 和 storage/
 ```
 
 本方案适合以下情况：
@@ -61,6 +67,9 @@ Access service token，也不得把本指南当作 Native 公网接入批准。
 6. 原始上传文件、生成文件、数据库和审计记录仍保存在仓库主机；公网接入
    前必须完成备份和恢复验证。
 7. 本方案只允许一个正式可写系统，不得同时运行另一个云端可写副本。
+8. 公网和 LAN 是两个独立 origin：公网 auth Cookie 始终 `Secure`；LAN HTTP
+   只在精确私网 origin、受信 nginx 和主机防火墙边界内使用 non-Secure
+   host-only Cookie。不得把 LAN listener 转发到 Internet。
 
 ## 3. 准备清单
 
@@ -314,6 +323,11 @@ PUBLIC_DEPLOYMENT_ENABLED=true
 PUBLIC_BASE_URL=https://warehouse.example.com
 CORS_ORIGINS=https://warehouse.example.com
 BROWSER_COOKIE_SECURE=true
+LAN_BROWSER_ENABLED=true
+LAN_BROWSER_ORIGINS=http://<private-ip-or-approved-lan-host>
+LAN_BIND_ADDRESS=<private-interface-address>
+LAN_HTTP_PORT=80
+PUBLIC_HTTP_PORT=8080
 TRUSTED_PROXY_MODE=cloudflare-tunnel
 TRUSTED_PROXY_CIDRS=<目标主机上经过确认的私有 Docker 代理 CIDR>
 AUTH_RATE_LIMIT_FAIL_CLOSED=true
@@ -325,11 +339,26 @@ NEXT_PUBLIC_API_BASE_URL=/api
 
 - `JWT_SECRET` 是至少 32 字符且未在其他环境使用的生产 secret；
 - PostgreSQL 和 Redis 使用生产配置；
-- `PUBLIC_BASE_URL` 与 `CORS_ORIGINS` 完全相同，不包含 wildcard；
+- `PUBLIC_BASE_URL` 与 `CORS_ORIGINS` 完全相同，不包含 wildcard；LAN origin
+  只写入 `LAN_BROWSER_ORIGINS`，必须是精确 `http://` origin，不能写 CIDR；
+- `LAN_BIND_ADDRESS` 是批准的私网接口地址，LAN port 只允许仓库网段访问；
+  `PUBLIC_HTTP_PORT` 保持 loopback，仅供本机 Tunnel connector；
 - 不把公网主机名编译进 `NEXT_PUBLIC_API_BASE_URL`；
 - `TRUSTED_PROXY_CIDRS` 使用目标 Docker 网络的明确私有 CIDR，不要盲目
   复制测试脚本中的宽泛 fallback；
 - `.env` 和 `.secrets/` 都没有进入 Git。
+
+Windows Docker 主机需在管理员 PowerShell 中建立精确入站规则。替换占位符后在
+目标机执行，不要把真实地址写回仓库：
+
+```powershell
+New-NetFirewallRule -DisplayName "Bestar approved LAN browser" `
+  -Direction Inbound -Action Allow -Protocol TCP `
+  -LocalPort <LAN_HTTP_PORT> -RemoteAddress <APPROVED_LAN_CIDR>
+```
+
+确认没有更宽泛的 allow rule 或路由器 port forwarding；不得为 PostgreSQL、Redis
+或 API container port 建立主机入站规则。
 
 ## 9. 配置 Cloudflare Access 和 MFA
 
@@ -726,6 +755,12 @@ connector。不要只删除本地文件而保留已泄露的有效 token。
 3. 断开公司互联网：公网不可用，LAN 和本地数据仍可用。
 4. 重启或重建 nginx：connector 在 nginx 健康后恢复。
 5. 从匹配的数据库 + `storage/` 恢复点完成一次恢复验证。
+6. 在两个独立隐私窗口分别登录公网 HTTPS 和 LAN HTTP origin。只在 DevTools
+   Application/Cookies 检查属性：公网 auth Cookie 为 Secure，LAN auth Cookie
+   不带 Secure；两边仍为 host-only，HttpOnly/SameSite/Path 符合预期。不要记录值。
+7. 保持 LAN 会话时停止 connector，完成一次导入、解析、报告生成和下载；恢复
+   connector 后确认公网可登录且没有重复业务写入。随后只阻断 LAN 防火墙规则，
+   确认公网仍可登录。
 
 完整回滚：
 
@@ -735,6 +770,10 @@ connector。不要只删除本地文件而保留已泄露的有效 token。
 4. 从外网确认主机名不可访问，从 LAN 确认系统仍可用。
 
 Named Tunnel 只增加入口，不迁移数据，因此正常回滚不需要数据库回滚。
+如只回滚双入口兼容，先阻断 LAN 防火墙规则，再恢复上一版 public overlay/nginx
+镜像并复查公网 Secure Cookie。不得关闭公网 Secure Cookie、扩大 CORS、公开内部
+端口、删除 Tunnel/DNS/Access 状态或创建第二 writer。生产 apply/回滚前必须先建立
+同一恢复点的 PostgreSQL + `storage/` 匹配备份。
 
 ## 16. 常见问题
 
@@ -747,7 +786,8 @@ Named Tunnel 只增加入口，不迁移数据，因此正常回滚不需要数�
 | contract 检查失败           | `PUBLIC_BASE_URL`、`CORS_ORIGINS`、proxy mode/CIDR、`jq` 和 Compose v2 |
 | Tunnel 反复认证失败         | token 已轮换/撤销、复制错误或连接的是错误 Tunnel                             |
 | Access 返回 403             | Allow policy、用户组、身份提供商或 MFA 条件                                  |
-| 登录循环或 Cookie 丢失      | HTTPS origin、CORS、`BROWSER_COOKIE_SECURE=true` 和代理信任配置            |
+| 公网登录循环或 Cookie 丢失   | 公网 HTTPS origin、public ingress marker、Secure Cookie 和代理信任配置      |
+| LAN 登录循环或 Cookie 丢失    | 精确 LAN origin、LAN listener/Host、受信代理和防火墙；不得关闭公网 Secure Cookie |
 | 上传返回 413                | nginx 公网配置和 Cloudflare 当前上传限制；不要绕过 nginx                     |
 | 公网正常但 LAN 不通         | 主机防火墙、`HTTP_PORT` 和 nginx LAN binding；不要开放路由器入站转发       |
 
@@ -779,6 +819,12 @@ Off-site browser
   -> Docker nginx
   -> Bestar Web / API
   -> local PostgreSQL, Redis and storage/
+
+Approved warehouse LAN browser
+  -> host firewall
+  -> nginx LAN HTTP listener
+  -> the same Bestar Web / API
+  -> the same PostgreSQL, Redis and storage/
 ```
 
 Use this route when the Bestar stack remains on one warehouse Docker host,
@@ -803,6 +849,10 @@ a Cloudflare Access service token.
 6. Back up and restore the database and `storage/` as one recovery point before
    public activation.
 7. Do not operate a second cloud system as another writable production copy.
+8. Public and LAN are separate origins. Public auth cookies always remain
+   `Secure`; LAN HTTP may use non-Secure host-only cookies only for an exact
+   private origin behind trusted nginx and the host firewall. Never forward the
+   LAN listener to the Internet.
 
 ## 3. Prerequisites
 
@@ -1073,6 +1123,11 @@ PUBLIC_DEPLOYMENT_ENABLED=true
 PUBLIC_BASE_URL=https://warehouse.example.com
 CORS_ORIGINS=https://warehouse.example.com
 BROWSER_COOKIE_SECURE=true
+LAN_BROWSER_ENABLED=true
+LAN_BROWSER_ORIGINS=http://<private-ip-or-approved-lan-host>
+LAN_BIND_ADDRESS=<private-interface-address>
+LAN_HTTP_PORT=80
+PUBLIC_HTTP_PORT=8080
 TRUSTED_PROXY_MODE=cloudflare-tunnel
 TRUSTED_PROXY_CIDRS=<verified-private-Docker-proxy-CIDR-on-this-host>
 AUTH_RATE_LIMIT_FAIL_CLOSED=true
@@ -1085,10 +1140,27 @@ Also verify that:
 - `JWT_SECRET` is unique to production and at least 32 characters;
 - PostgreSQL and Redis use production configuration;
 - `PUBLIC_BASE_URL` and `CORS_ORIGINS` are identical and contain no wildcard;
+  put the exact LAN HTTP origin only in `LAN_BROWSER_ORIGINS`, never a CIDR;
+- `LAN_BIND_ADDRESS` is the approved private host interface and the LAN port is
+  reachable only from approved warehouse ranges; `PUBLIC_HTTP_PORT` remains
+  loopback-only for the local Tunnel connector;
 - the public hostname is not compiled into `NEXT_PUBLIC_API_BASE_URL`;
 - `TRUSTED_PROXY_CIDRS` contains the explicitly verified private Docker proxy
   range, not a broad test fallback;
 - neither `.env` nor `.secrets/` is tracked by Git.
+
+On a Windows Docker host, create the exact inbound rule from an elevated
+PowerShell session after replacing the placeholders. Do not commit real
+addresses:
+
+```powershell
+New-NetFirewallRule -DisplayName "Bestar approved LAN browser" `
+  -Direction Inbound -Action Allow -Protocol TCP `
+  -LocalPort <LAN_HTTP_PORT> -RemoteAddress <APPROVED_LAN_CIDR>
+```
+
+Prove there is no broader allow rule and no router port forwarding. Never add
+host inbound rules for PostgreSQL, Redis, or the API container port.
 
 ## 9. Configure Access and MFA
 
@@ -1527,6 +1599,15 @@ Before approval:
 4. Restart/recreate nginx; the connector recovers after nginx is healthy.
 5. Complete a restore test from a matching database plus `storage/` recovery
    point.
+6. In two separate incognito windows, log in through the public HTTPS origin
+   and LAN HTTP origin. In DevTools Application/Cookies inspect attributes
+   only: public auth cookies are Secure, LAN auth cookies are not Secure, and
+   both remain host-only with expected HttpOnly/SameSite/Path attributes. Never
+   record cookie values.
+7. Keep the LAN session open, stop the connector, and complete one import,
+   parse, report generation, and download. Restore the connector and prove
+   public login returns without duplicate business writes. Then block only the
+   LAN firewall rule and prove public login remains healthy.
 
 Full rollback:
 
@@ -1538,6 +1619,12 @@ Full rollback:
 
 The tunnel adds ingress only and does not migrate data, so normal rollback does
 not require a database rollback.
+To roll back only dual-ingress compatibility, block the LAN firewall rule,
+restore the previous public overlay/nginx image, and recheck public Secure
+cookies. Do not disable public Secure cookies, widen CORS, publish internal
+ports, delete Tunnel/DNS/Access state, or create another writer. Before every
+production apply or rollback, take a matching PostgreSQL plus `storage/`
+backup from one recovery point.
 
 ## 16. Troubleshooting
 
@@ -1550,7 +1637,8 @@ not require a database rollback.
 | Contract failure                      | Origins, proxy mode/CIDR,`jq` and Docker Compose v2                                      |
 | Repeated tunnel authentication errors | Rotated/revoked/miscopied token or the wrong Tunnel                                        |
 | Access 403                            | Allow policy, group membership, identity provider and MFA condition                        |
-| Login loop or missing cookie          | HTTPS origin, CORS, secure cookie and trusted proxy settings                               |
+| Public login loop or missing cookie   | Public HTTPS origin, public ingress marker, Secure cookie and trusted proxy settings        |
+| LAN login loop or missing cookie      | Exact LAN origin, LAN listener/Host, trusted proxy and firewall; never disable public Secure cookies |
 | Upload 413                            | Public nginx configuration and current Cloudflare upload limit; do not bypass nginx        |
 | Public works but LAN fails            | Host firewall,`HTTP_PORT` and nginx LAN binding; do not add router forwarding            |
 

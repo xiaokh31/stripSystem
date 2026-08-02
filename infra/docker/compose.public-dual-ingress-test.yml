@@ -1,0 +1,50 @@
+services:
+  nginx:
+    networks:
+      default: {}
+
+  public-edge-emulator:
+    image: nginx:1.27-alpine
+    depends_on:
+      nginx:
+        condition: service_healthy
+    networks:
+      default: {}
+    ports:
+      - "0.0.0.0:18443:443"
+    volumes:
+      - ../nginx/public-edge-emulator.conf:/etc/nginx/nginx.conf:ro
+      - ${PUBLIC_DEPLOY_04_TLS_DIR:?PUBLIC_DEPLOY_04_TLS_DIR is required}:/etc/nginx/test-tls:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=8m,mode=0777
+      - /var/run:size=1m,mode=0777
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1/api/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    profiles: ["public-deploy-04-test"]
+
+  e2e-web:
+    depends_on:
+      public-edge-emulator:
+        condition: service_healthy
+    environment:
+      PUBLIC_DEPLOY_04_PUBLIC_URL: https://public-edge-emulator
+      PUBLIC_DEPLOY_04_LAN_URL: http://nginx
+    extra_hosts:
+      - "public-edge-emulator:${PUBLIC_DEPLOY_04_EDGE_IP:-127.0.0.1}"
+    networks:
+      default: {}
+      public_tunnel: {}

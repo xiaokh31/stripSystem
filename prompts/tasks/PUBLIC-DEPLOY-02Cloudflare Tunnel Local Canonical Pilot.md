@@ -9,6 +9,16 @@
   account/domain/Access policy 的外部激活可以在全部仓库实现通过后保留为明确 external verification gate。
 - 保留现有 local/LAN Docker 入口和唯一 PostgreSQL + `storage/`；Tunnel 故障时仓库 LAN 工作流必须继续可用。
 
+## 2026-08-02 状态说明
+
+本 Task 的旧仓库实现不得重跑。PUBLIC-DEPLOY-04 已完成 public-mode 下公网 HTTPS 与
+显式 LAN HTTP 并存修复及当前环境 Chromium/outage 自动化，状态为
+`CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`。旧证据中“public mode 下 LAN login
+healthy”的声明由 04 新证据取代。02 自身仍等待真实 domain/account、Access MFA、
+非公司网络、cache/upload/download 与 token rotate/revoke 外部门禁；04 仍等待真实公网
+域名 + 真实仓库 LAN IP 的现场隐私窗口和故障矩阵。Access 当前是否启用仍是独立现场
+安全决定，不得以删除/恢复 Access 代替任何应用门禁。
+
 ## 对应产品需求
 
 公司外授权人员需要通过稳定公网域名访问系统，公司公网 IP 或主机 LAN IP 变化不能要求修改访问地址。首个 pilot

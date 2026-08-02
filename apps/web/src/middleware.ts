@@ -16,7 +16,7 @@ const PUBLIC_PATH_PREFIXES = [
 ];
 
 export function middleware(request: NextRequest) {
-  const security = securityPolicy();
+  const security = securityPolicy(request);
   const { pathname, search } = request.nextUrl;
   if (isPublicPath(pathname)) {
     return secureNextResponse(request, security);
@@ -71,13 +71,18 @@ export function middleware(request: NextRequest) {
 
 interface SecurityPolicy {
   csp: string;
+  hsts: boolean;
   nonce: string;
 }
 
-function securityPolicy(): SecurityPolicy {
+function securityPolicy(request: NextRequest): SecurityPolicy {
   const nonce = crypto.randomUUID().replaceAll("-", "");
   return {
     nonce,
+    hsts:
+      process.env.PUBLIC_DEPLOYMENT_ENABLED === "true" &&
+      request.headers.get("x-bestar-browser-ingress") === "public" &&
+      request.headers.get("x-forwarded-proto") === "https",
     csp: [
       "default-src 'self'",
       `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
@@ -120,7 +125,7 @@ function applySecurityHeaders(
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
-  if (process.env.PUBLIC_DEPLOYMENT_ENABLED === "true") {
+  if (security.hsts) {
     response.headers.set(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains",

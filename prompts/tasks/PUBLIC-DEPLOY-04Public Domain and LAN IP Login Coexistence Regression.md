@@ -4,7 +4,7 @@
 
 - 优先级：P0。Named Tunnel 公网域名可登录，但同一部署经局域网 IP 打开时无法登录，
   与“公网故障时 LAN 业务继续”的既有承诺冲突。
-- Task-Status: READY
+- Task-Status: CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING
 - 前置任务：PUBLIC-DEPLOY-01 保持 `DONE`；PUBLIC-DEPLOY-02 的仓库实现与真实 Named
   Tunnel 保留，不重跑旧 Task。本 Task 是新发现的双入口回归，完成前不能再以旧证据
   宣称 public mode 下 LAN login healthy。
@@ -253,3 +253,25 @@ git diff --check
 - 不创建第二数据库/storage writer、cloud replica 或 active-active。
 - 不自动修改 Cloudflare Access、DNS、Tunnel token、MFA 或 cache policy。
 - 不修改 Native App auth、业务权限、Excel parser、工资或库存规则。
+
+## 2026-08-02 实施终态证据
+
+- 仓库实现和当前环境自动化已完成；真实公网域名与真实仓库 LAN IP 的现场矩阵仍是
+  外部门禁，因此本 Task 为 `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`，不是 `DONE`。
+- 修复前聚焦配置测试为 1 failed / 10 passed；修复后 ingress/config/cookie/trusted
+  proxy 聚焦测试 4 suites / 35 tests 通过。
+- Docker API lint、typecheck、52 suites / 429 unit tests、21 suites / 131 E2E tests、
+  production build 通过；Web lint、typecheck、285 unit tests、production build 通过；
+  Worker 247 tests 通过。
+- PUBLIC-DEPLOY-04 runner 在无真实 Cloudflare credential 下完成 public HTTPS + LAN HTTP
+  独立会话、refresh/logout、en/zh-CN、light/dark、390/1366、真实 Chromium 200% zoom、
+  cross-origin/wrong-host 拒绝、public edge 中断期间 LAN 导入/解析/生成/下载、edge 恢复，
+  以及取消 LAN host publication 时 public 登录保持正常；全部阶段通过。
+- 专项 runner 在清理前机器断言 public/LAN 成功登录与两类受拒请求均带正确 ingress audit
+  metadata；未把代码存在性当作审计归属证据。
+- public deployment/Tunnel 正负向合同、Tunnel 本地故障演练、39 migrations up to date、
+  full-stack healthcheck 与 `git diff --check` 通过。专项 runner 最终清理后任务导入、用户、
+  session、auth audit 与 task-named storage artifact 残留均为 0。
+- 当前环境未使用或输出 Tunnel token、真实域名/IP、Cookie/token value、账号或客户数据；
+  未修改 Prisma schema，不需要 migration。
+- 终态报告：`docs/reports/public-deploy-04-dual-origin-login-verification.md`。

@@ -32,7 +32,8 @@ export function canonicalClientAddress(
 
   if (
     trusted &&
-    configuration.trustedProxyMode === 'cloudflare-tunnel'
+    configuration.trustedProxyMode === 'cloudflare-tunnel' &&
+    firstHeaderValue(request.headers['x-bestar-browser-ingress']) === 'public'
   ) {
     const cloudflareAddress = firstHeaderValue(
       request.headers['cf-connecting-ip'],

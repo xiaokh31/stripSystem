@@ -14,6 +14,8 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
       BROWSER_COOKIE_SECURE: "true"
+      LAN_BROWSER_ENABLED: "true"
+      LAN_BROWSER_ORIGINS: ${LAN_BROWSER_ORIGINS:?LAN_BROWSER_ORIGINS is required}
       TRUSTED_PROXY_MODE: ${TRUSTED_PROXY_MODE:?TRUSTED_PROXY_MODE is required}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:?TRUSTED_PROXY_CIDRS is required}
       AUTH_RATE_LIMIT_FAIL_CLOSED: "true"
@@ -26,6 +28,7 @@ services:
 
   nginx:
     ports: !override
-      - "127.0.0.1:${PUBLIC_HTTP_PORT:-8080}:80"
+      - "127.0.0.1:${PUBLIC_HTTP_PORT:-8080}:8080"
+      - "${LAN_BIND_ADDRESS:?LAN_BIND_ADDRESS is required}:${LAN_HTTP_PORT:-80}:80"
     volumes:
       - ../nginx/nginx.public.conf:/etc/nginx/nginx.conf:ro

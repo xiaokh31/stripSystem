@@ -14,6 +14,8 @@ describe('DistributedAuthRateLimiter Redis semantics', () => {
     browserSessionAbsoluteExpiresInSeconds: 34_560_000,
     browserSessionIdleExpiresInSeconds: 34_560_000,
     cookieSecure: true,
+    lanBrowserEnabled: false,
+    lanBrowserOrigins: [],
     enabled: true,
     trustedProxyCidrs: ['172.20.0.0/16'],
     trustedProxyMode: 'cloudflare-tunnel',

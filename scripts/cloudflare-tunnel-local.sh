@@ -100,16 +100,22 @@ preflight_token() {
 }
 
 verify_contract() {
-  local public_base_url cors_origins trusted_proxy_mode trusted_proxy_cidrs
+  local public_base_url cors_origins lan_browser_origins lan_bind_address trusted_proxy_mode trusted_proxy_cidrs
   public_base_url="$(read_env_value PUBLIC_BASE_URL)"
   cors_origins="$(read_env_value CORS_ORIGINS "$public_base_url")"
+  lan_browser_origins="$(read_env_value LAN_BROWSER_ORIGINS)"
+  lan_bind_address="$(read_env_value LAN_BIND_ADDRESS)"
   trusted_proxy_mode="$(read_env_value TRUSTED_PROXY_MODE)"
   trusted_proxy_cidrs="$(read_env_value TRUSTED_PROXY_CIDRS)"
   [[ -n "$public_base_url" ]] || fail "PUBLIC_BASE_URL_MISSING"
   [[ -n "$cors_origins" ]] || fail "CORS_ORIGINS_MISSING"
+  [[ -n "$lan_browser_origins" ]] || fail "LAN_BROWSER_ORIGINS_MISSING"
+  [[ -n "$lan_bind_address" ]] || fail "LAN_BIND_ADDRESS_MISSING"
 
   PUBLIC_BASE_URL="$public_base_url" \
   CORS_ORIGINS="$cors_origins" \
+  LAN_BROWSER_ORIGINS="$lan_browser_origins" \
+  LAN_BIND_ADDRESS="$lan_bind_address" \
   TRUSTED_PROXY_MODE="$trusted_proxy_mode" \
   TRUSTED_PROXY_CIDRS="$trusted_proxy_cidrs" \
     "$repo_root/scripts/verify-cloudflare-tunnel-contract.sh"

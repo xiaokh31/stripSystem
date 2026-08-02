@@ -9,6 +9,8 @@ trap 'rm -f "$rendered"' EXIT
 
 PUBLIC_BASE_URL=https://warehouse.example.invalid \
 CORS_ORIGINS=https://warehouse.example.invalid \
+LAN_BROWSER_ORIGINS=http://127.0.0.1 \
+LAN_BIND_ADDRESS=127.0.0.1 \
 JWT_SECRET=contract-check-only-secret-value-1234567890 \
 TRUSTED_PROXY_MODE=cloudflare-tunnel \
 TRUSTED_PROXY_CIDRS=172.16.0.0/12 \
@@ -40,6 +42,10 @@ grep -q 'published: "18080"' <<<"$nginx_block" || {
   echo 'PUBLIC_NETWORK_CONTRACT_FAILED:NGINX_PORT_MISSING' >&2
   exit 1
 }
+grep -q 'target: 80' <<<"$nginx_block" || {
+  echo 'PUBLIC_NETWORK_CONTRACT_FAILED:LAN_PORT_MISSING' >&2
+  exit 1
+}
 
 api_block="$(service_block api)"
 grep -q 'PUBLIC_DEPLOYMENT_ENABLED: "true"' <<<"$api_block" || {
@@ -48,6 +54,10 @@ grep -q 'PUBLIC_DEPLOYMENT_ENABLED: "true"' <<<"$api_block" || {
 }
 grep -q 'BROWSER_COOKIE_SECURE: "true"' <<<"$api_block" || {
   echo 'PUBLIC_CONFIG_CONTRACT_FAILED:SECURE_COOKIE_DISABLED' >&2
+  exit 1
+}
+grep -q 'LAN_BROWSER_ENABLED: "true"' <<<"$api_block" || {
+  echo 'PUBLIC_CONFIG_CONTRACT_FAILED:LAN_BROWSER_DISABLED' >&2
   exit 1
 }
 grep -q 'AUTH_RATE_LIMIT_FAIL_CLOSED: "true"' <<<"$api_block" || {

@@ -1,14 +1,11 @@
 import type { Response } from 'express';
-import type { PublicDeploymentConfiguration } from '../config/public-deployment.config';
 import {
   clearBrowserSessionCookies,
   setBrowserSessionCookies,
 } from './browser-cookie';
 
 describe('browser session cookies', () => {
-  const configuration = {
-    cookieSecure: true,
-  } as PublicDeploymentConfiguration;
+  const policy = { secure: true };
 
   it('sets short access and narrow opaque refresh cookies securely', () => {
     const calls: Array<{ name: string; options: Record<string, unknown> }> = [];
@@ -29,7 +26,7 @@ describe('browser session cookies', () => {
         refreshExpiresAt,
         refreshToken: 'refresh-secret',
       },
-      configuration,
+      policy,
     );
 
     expect(calls).toEqual(
@@ -77,11 +74,41 @@ describe('browser session cookies', () => {
     const response = {
       clearCookie,
     } as unknown as Response;
-    clearBrowserSessionCookies(response, configuration);
+    clearBrowserSessionCookies(response, policy);
     expect(clearCookie).toHaveBeenCalledTimes(5);
     expect(clearCookie).toHaveBeenCalledWith(
       'bestar_auth_token',
       expect.objectContaining({ path: '/', secure: true }),
     );
+  });
+
+  it('sets and clears the same host-only cookies without Secure for approved LAN HTTP', () => {
+    const response = {
+      clearCookie: jest.fn(),
+      cookie: jest.fn(),
+    } as unknown as Response;
+    const refreshExpiresAt = new Date(Date.now() + 34_560_000_000);
+
+    setBrowserSessionCookies(
+      response,
+      {
+        accessExpiresInSeconds: 900,
+        accessToken: 'access-secret',
+        csrfToken: 'csrf-secret',
+        refreshExpiresAt,
+        refreshToken: 'refresh-secret',
+      },
+      { secure: false },
+    );
+    clearBrowserSessionCookies(response, { secure: false });
+
+    for (const call of (response.cookie as jest.Mock).mock.calls) {
+      expect(call[2]).toMatchObject({ sameSite: 'lax', secure: false });
+      expect(call[2]).not.toHaveProperty('domain');
+    }
+    for (const call of (response.clearCookie as jest.Mock).mock.calls) {
+      expect(call[1]).toMatchObject({ sameSite: 'lax', secure: false });
+      expect(call[1]).not.toHaveProperty('domain');
+    }
   });
 });

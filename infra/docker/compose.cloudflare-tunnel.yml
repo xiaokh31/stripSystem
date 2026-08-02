@@ -3,8 +3,6 @@
 # outbound-only connector that can resolve only nginx.
 services:
   nginx:
-    ports: !override
-      - "${HTTP_PORT:-80}:80"
     networks:
       default: {}
       public_tunnel: {}
@@ -28,7 +26,7 @@ services:
         "--transport-loglevel",
         "warn",
         "--url",
-        "http://nginx:80",
+        "http://nginx:8080",
         "run",
         "--token-file",
         "/run/secrets/cloudflare_tunnel_token",
@@ -76,6 +74,8 @@ services:
     entrypoint: ["/bin/sh", "-euc"]
     command:
       - >-
+        wget -qO- http://nginx:8080/api/health >/dev/null &&
+        wget -qO- http://nginx:8080/ >/dev/null &&
         wget -qO- http://nginx/api/health >/dev/null &&
         wget -qO- http://nginx/ >/dev/null
     networks:

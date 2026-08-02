@@ -8,7 +8,6 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { CurrentUser, Public, RequirePermissions } from './auth.decorators';
 import { PERMISSIONS } from './permissions';
@@ -28,14 +27,12 @@ import {
   BROWSER_CSRF_HEADER,
   BROWSER_REFRESH_COOKIE,
 } from './browser-session.constants';
-import type { PublicDeploymentConfiguration } from '../config/public-deployment.config';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly browserSessionService: BrowserSessionService,
-    private readonly configService: ConfigService,
   ) {}
 
   @Post('login')
@@ -46,7 +43,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.browserSessionService.login(dto, request);
-    setBrowserSessionCookies(response, result.cookieValues, this.configuration);
+    setBrowserSessionCookies(response, result.cookieValues, result.ingressPolicy);
     return this.publicBrowserResponse(result);
   }
 
@@ -56,6 +53,8 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const ingressPolicy =
+      await this.browserSessionService.browserIngressPolicyWithAudit(request);
     const refreshToken = readCookie(
       request.headers.cookie,
       BROWSER_REFRESH_COOKIE,
@@ -63,7 +62,7 @@ export class AuthController {
     const csrfCookie = readCookie(request.headers.cookie, BROWSER_CSRF_COOKIE);
     const csrfHeader = request.get(BROWSER_CSRF_HEADER);
     if (!refreshToken || !csrfCookie || csrfHeader !== csrfCookie) {
-      clearBrowserSessionCookies(response, this.configuration);
+      clearBrowserSessionCookies(response, ingressPolicy);
       throw new UnauthorizedException({
         code: 'AUTH_REFRESH_EXPIRED',
         message: 'Browser session refresh was rejected.',
@@ -75,7 +74,7 @@ export class AuthController {
       csrfHeader,
       request,
     );
-    setBrowserSessionCookies(response, result.cookieValues, this.configuration);
+    setBrowserSessionCookies(response, result.cookieValues, result.ingressPolicy);
     return this.publicBrowserResponse(result);
   }
 
@@ -85,6 +84,8 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const ingressPolicy =
+      await this.browserSessionService.browserIngressPolicyWithAudit(request);
     const refreshToken = readCookie(
       request.headers.cookie,
       BROWSER_REFRESH_COOKIE,
@@ -96,7 +97,7 @@ export class AuthController {
       csrfCookie && csrfHeader === csrfCookie ? csrfHeader : null,
       request,
     );
-    clearBrowserSessionCookies(response, this.configuration);
+    clearBrowserSessionCookies(response, ingressPolicy);
     return { revoked: true };
   }
 
@@ -139,14 +140,6 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser): AuthUserResponseDto {
     return user;
-  }
-
-  private get configuration(): PublicDeploymentConfiguration {
-    const value = this.configService.get<PublicDeploymentConfiguration>(
-      'app.publicDeployment',
-    );
-    if (!value) throw new Error('TYPED_PUBLIC_CONFIG_REQUIRED');
-    return value;
   }
 
   private publicBrowserResponse(result: {

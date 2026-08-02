@@ -12,6 +12,8 @@ export interface PublicDeploymentConfiguration {
   baseUrl?: string;
   allowedOrigins: string[];
   cookieSecure: boolean;
+  lanBrowserEnabled: boolean;
+  lanBrowserOrigins: string[];
   trustedProxyMode: TrustedProxyMode;
   trustedProxyCidrs: string[];
   browserAccessExpiresInSeconds: number;
@@ -27,6 +29,8 @@ export interface PublicDeploymentInput {
   publicBaseUrl?: string;
   corsOrigins?: string;
   browserCookieSecure?: string;
+  lanBrowserEnabled?: string;
+  lanBrowserOrigins?: string;
   trustedProxyMode?: string;
   trustedProxyCidrs?: string;
   browserAccessExpiresInSeconds?: string;
@@ -47,7 +51,10 @@ export function parsePublicDeploymentConfiguration(
 ): PublicDeploymentConfiguration {
   const enabled = parseBoolean(input.publicDeploymentEnabled, false);
   const baseUrl = optionalTrim(input.publicBaseUrl);
-  const allowedOrigins = parseList(input.corsOrigins);
+  const configuredOrigins = parseList(input.corsOrigins);
+  const lanBrowserEnabled = parseBoolean(input.lanBrowserEnabled, false);
+  const lanBrowserOrigins = parseList(input.lanBrowserOrigins);
+  const allowedOrigins = [...new Set([...configuredOrigins, ...lanBrowserOrigins])];
   const cookieSecure = parseBoolean(input.browserCookieSecure, enabled);
   const trustedProxyMode = parseTrustedProxyMode(input.trustedProxyMode);
   const trustedProxyCidrs = parseList(input.trustedProxyCidrs);
@@ -59,6 +66,8 @@ export function parsePublicDeploymentConfiguration(
         ? allowedOrigins
         : ['http://localhost:3000', 'http://127.0.0.1:3000'],
     cookieSecure,
+    lanBrowserEnabled,
+    lanBrowserOrigins,
     trustedProxyMode,
     trustedProxyCidrs,
     browserAccessExpiresInSeconds: parsePositiveInteger(
@@ -93,7 +102,10 @@ export function parsePublicDeploymentConfiguration(
 
 export function validatePublicDeploymentConfiguration(
   configuration: PublicDeploymentConfiguration,
-  input: Pick<PublicDeploymentInput, 'jwtSecret' | 'redisUrl'>,
+  input: Pick<
+    PublicDeploymentInput,
+    'jwtSecret' | 'redisUrl' | 'corsOrigins' | 'lanBrowserOrigins'
+  >,
 ): void {
   if (!configuration.enabled) {
     return;
@@ -140,17 +152,60 @@ export function validatePublicDeploymentConfiguration(
   }
   if (
     configuration.allowedOrigins.length === 0 ||
-    configuration.allowedOrigins.some(
-      (origin) => origin === '*' || safeUrl(origin)?.protocol !== 'https:',
+    configuration.allowedOrigins.some((origin) =>
+      origin === '*' ||
+      (!configuration.lanBrowserOrigins.includes(origin) &&
+        safeUrl(origin)?.protocol !== 'https:'),
     )
   ) {
     errors.push('PUBLIC_CORS_HTTPS_ORIGINS_REQUIRED');
+  }
+  if (hasDuplicateListValue(input.lanBrowserOrigins)) {
+    errors.push('LAN_BROWSER_ORIGIN_DUPLICATE');
+  }
+  if (hasDuplicateListValue(input.corsOrigins)) {
+    errors.push('PUBLIC_CORS_ORIGIN_DUPLICATE');
+  }
+  if (
+    configuration.lanBrowserEnabled &&
+    configuration.lanBrowserOrigins.length === 0
+  ) {
+    errors.push('LAN_BROWSER_ORIGINS_REQUIRED');
+  }
+  if (
+    !configuration.lanBrowserEnabled &&
+    configuration.lanBrowserOrigins.length > 0
+  ) {
+    errors.push('LAN_BROWSER_ORIGINS_REQUIRE_ENABLE');
+  }
+  for (const origin of configuration.lanBrowserOrigins) {
+    const lanUrl = safeUrl(origin);
+    if (!lanUrl || lanUrl.origin !== origin || lanUrl.protocol !== 'http:') {
+      errors.push('LAN_BROWSER_ORIGIN_HTTP_REQUIRED');
+      continue;
+    }
+    if (!isApprovedLanHostname(lanUrl.hostname)) {
+      errors.push('LAN_BROWSER_ORIGIN_PRIVATE_REQUIRED');
+    }
+    if (publicUrl?.hostname.toLowerCase() === lanUrl.hostname.toLowerCase()) {
+      errors.push('LAN_PUBLIC_HOST_CONFLICT');
+    }
   }
   if (
     publicUrl &&
     !configuration.allowedOrigins.includes(publicUrl.origin)
   ) {
     errors.push('PUBLIC_CORS_MUST_INCLUDE_BASE_ORIGIN');
+  }
+  if (
+    publicUrl &&
+    configuration.allowedOrigins.some(
+      (origin) =>
+        origin !== publicUrl.origin &&
+        !configuration.lanBrowserOrigins.includes(origin),
+    )
+  ) {
+    errors.push('PUBLIC_CORS_ORIGIN_NOT_APPROVED');
   }
   if (
     configuration.browserSessionIdleExpiresInSeconds >
@@ -211,6 +266,14 @@ function parseList(value: string | undefined): string[] {
   ];
 }
 
+function hasDuplicateListValue(value: string | undefined): boolean {
+  const items = (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return new Set(items).size !== items.length;
+}
+
 function optionalTrim(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed || undefined;
@@ -234,5 +297,36 @@ function isValidCidr(value: string): boolean {
     Number.isInteger(prefix) &&
     ((family === 4 && prefix >= 0 && prefix <= 32) ||
       (family === 6 && prefix >= 0 && prefix <= 128))
+  );
+}
+
+function isApprovedLanHostname(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  const normalized =
+    lower.startsWith('[') && lower.endsWith(']') ? lower.slice(1, -1) : lower;
+  if (normalized === 'localhost') return true;
+  const family = isIP(normalized);
+  if (family === 4) {
+    const [first, second] = normalized.split('.').map(Number);
+    return (
+      first === 127 ||
+      first === 10 ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168)
+    );
+  }
+  if (family === 6) {
+    return (
+      normalized === '::1' ||
+      normalized.startsWith('fc') ||
+      normalized.startsWith('fd')
+    );
+  }
+  return (
+    !normalized.includes('.') ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.lan') ||
+    normalized.endsWith('.internal') ||
+    normalized.endsWith('.home.arpa')
   );
 }

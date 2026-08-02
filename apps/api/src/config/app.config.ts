@@ -44,6 +44,8 @@ export const appConfig = (): { app: AppConfiguration } => {
     publicBaseUrl: process.env.PUBLIC_BASE_URL,
     corsOrigins: process.env.CORS_ORIGINS,
     browserCookieSecure: process.env.BROWSER_COOKIE_SECURE,
+    lanBrowserEnabled: process.env.LAN_BROWSER_ENABLED,
+    lanBrowserOrigins: process.env.LAN_BROWSER_ORIGINS,
     trustedProxyMode: process.env.TRUSTED_PROXY_MODE,
     trustedProxyCidrs: process.env.TRUSTED_PROXY_CIDRS,
     browserAccessExpiresInSeconds:

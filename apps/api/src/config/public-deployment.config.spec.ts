@@ -33,6 +33,39 @@ describe('public deployment configuration', () => {
     });
   });
 
+  it('accepts an explicit private HTTP LAN browser origin without weakening the public origin', () => {
+    const configuration = parsePublicDeploymentConfiguration({
+      ...safePublicInput,
+      lanBrowserEnabled: 'true',
+      lanBrowserOrigins: 'http://192.168.20.15,http://warehouse-lan:8080',
+    });
+
+    expect(configuration).toMatchObject({
+      baseUrl: 'https://warehouse.example.com',
+      cookieSecure: true,
+      lanBrowserEnabled: true,
+      lanBrowserOrigins: [
+        'http://192.168.20.15',
+        'http://warehouse-lan:8080',
+      ],
+    });
+    expect(configuration.allowedOrigins).toEqual([
+      'https://warehouse.example.com',
+      'http://192.168.20.15',
+      'http://warehouse-lan:8080',
+    ]);
+  });
+
+  it('accepts the IPv6 loopback as an explicitly configured LAN origin', () => {
+    expect(
+      parsePublicDeploymentConfiguration({
+        ...safePublicInput,
+        lanBrowserEnabled: 'true',
+        lanBrowserOrigins: 'http://[::1]:8080',
+      }).lanBrowserOrigins,
+    ).toEqual(['http://[::1]:8080']);
+  });
+
   it.each([
     [{ publicBaseUrl: 'http://warehouse.example.com' }, 'PUBLIC_BASE_URL_HTTPS_REQUIRED'],
     [{ jwtSecret: 'replace-with-long-random-secret' }, 'PUBLIC_JWT_SECRET_UNSAFE'],
@@ -45,6 +78,14 @@ describe('public deployment configuration', () => {
       'PUBLIC_BROWSER_SESSION_MAX_400_DAYS',
     ],
     [{ authRateLimitFailClosed: 'false' }, 'PUBLIC_AUTH_RATE_LIMIT_FAIL_CLOSED_REQUIRED'],
+    [{ lanBrowserEnabled: 'true', lanBrowserOrigins: '' }, 'LAN_BROWSER_ORIGINS_REQUIRED'],
+    [{ lanBrowserOrigins: 'http://192.168.20.15' }, 'LAN_BROWSER_ORIGINS_REQUIRE_ENABLE'],
+    [{ lanBrowserEnabled: 'true', lanBrowserOrigins: 'https://192.168.20.15' }, 'LAN_BROWSER_ORIGIN_HTTP_REQUIRED'],
+    [{ lanBrowserEnabled: 'true', lanBrowserOrigins: 'http://203.0.113.20' }, 'LAN_BROWSER_ORIGIN_PRIVATE_REQUIRED'],
+    [{ lanBrowserEnabled: 'true', lanBrowserOrigins: '*' }, 'LAN_BROWSER_ORIGIN_HTTP_REQUIRED'],
+    [{ lanBrowserEnabled: 'true', lanBrowserOrigins: 'http://192.168.20.15,http://192.168.20.15' }, 'LAN_BROWSER_ORIGIN_DUPLICATE'],
+    [{ corsOrigins: 'https://warehouse.example.com,https://warehouse.example.com' }, 'PUBLIC_CORS_ORIGIN_DUPLICATE'],
+    [{ corsOrigins: 'https://warehouse.example.com,https://other.example.com' }, 'PUBLIC_CORS_ORIGIN_NOT_APPROVED'],
   ])('rejects dangerous public input %j', (override, code) => {
     expect(() =>
       parsePublicDeploymentConfiguration({ ...safePublicInput, ...override }),

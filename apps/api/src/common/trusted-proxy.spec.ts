@@ -15,6 +15,8 @@ const configuration: PublicDeploymentConfiguration = {
   browserSessionAbsoluteExpiresInSeconds: 34_560_000,
   browserSessionIdleExpiresInSeconds: 34_560_000,
   cookieSecure: true,
+  lanBrowserEnabled: false,
+  lanBrowserOrigins: [],
   enabled: true,
   trustedProxyCidrs: ['172.20.0.0/16'],
   trustedProxyMode: 'cloudflare-tunnel',
@@ -45,11 +47,23 @@ describe('trusted proxy client identity', () => {
       ),
     ).toBe('198.51.100.7');
   });
+
+  it('ignores Cloudflare identity on a trusted LAN ingress', () => {
+    expect(
+      canonicalClientAddress(
+        requestFixture('172.20.4.9', '203.0.113.8', 'lan'),
+        configuration,
+      ),
+    ).toBe('172.20.4.9');
+  });
 });
 
-function requestFixture(peer: string, cloudflare: string): Request {
+function requestFixture(peer: string, cloudflare: string, ingress = 'public'): Request {
   return {
-    headers: { 'cf-connecting-ip': cloudflare },
+    headers: {
+      'cf-connecting-ip': cloudflare,
+      'x-bestar-browser-ingress': ingress,
+    },
     ip: peer,
     socket: { remoteAddress: peer },
   } as unknown as Request;

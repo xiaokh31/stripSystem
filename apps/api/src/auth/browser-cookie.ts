@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import type { PublicDeploymentConfiguration } from '../config/public-deployment.config';
+import type { BrowserIngressPolicy } from './browser-ingress';
 import {
   BROWSER_ACCESS_COOKIE,
   BROWSER_CSRF_COOKIE,
@@ -20,11 +20,11 @@ export interface BrowserCookieValues {
 export function setBrowserSessionCookies(
   response: Response,
   values: BrowserCookieValues,
-  configuration: PublicDeploymentConfiguration,
+  policy: Pick<BrowserIngressPolicy, 'secure'>,
 ): void {
   const base = {
     sameSite: 'lax' as const,
-    secure: configuration.cookieSecure,
+    secure: policy.secure,
   };
   response.cookie(BROWSER_ACCESS_COOKIE, values.accessToken, {
     ...base,
@@ -50,16 +50,16 @@ export function setBrowserSessionCookies(
     httpOnly: true,
     path: '/',
   });
-  clearLegacyBrowserBearerCookie(response, configuration);
+  clearLegacyBrowserBearerCookie(response, policy);
 }
 
 export function clearBrowserSessionCookies(
   response: Response,
-  configuration: PublicDeploymentConfiguration,
+  policy: Pick<BrowserIngressPolicy, 'secure'>,
 ): void {
   const base = {
     sameSite: 'lax' as const,
-    secure: configuration.cookieSecure,
+    secure: policy.secure,
   };
   response.clearCookie(BROWSER_ACCESS_COOKIE, { ...base, path: '/' });
   response.clearCookie(BROWSER_REFRESH_COOKIE, {
@@ -68,17 +68,17 @@ export function clearBrowserSessionCookies(
   });
   response.clearCookie(BROWSER_CSRF_COOKIE, { ...base, path: '/' });
   response.clearCookie(BROWSER_SESSION_HINT_COOKIE, { ...base, path: '/' });
-  clearLegacyBrowserBearerCookie(response, configuration);
+  clearLegacyBrowserBearerCookie(response, policy);
 }
 
 export function clearLegacyBrowserBearerCookie(
   response: Response,
-  configuration: PublicDeploymentConfiguration,
+  policy: Pick<BrowserIngressPolicy, 'secure'>,
 ): void {
   response.clearCookie(LEGACY_BROWSER_BEARER_COOKIE, {
     path: '/',
     sameSite: 'lax',
-    secure: configuration.cookieSecure,
+    secure: policy.secure,
   });
 }
 

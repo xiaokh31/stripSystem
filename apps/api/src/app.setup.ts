@@ -4,6 +4,8 @@ import { ApiExceptionFilter } from './common/api-exception.filter';
 import { requestLoggingMiddleware } from './common/request-logging.middleware';
 import { createTrustedProxyPredicate } from './common/trusted-proxy';
 import type { PublicDeploymentConfiguration } from './config/public-deployment.config';
+import { isPublicBrowserIngress } from './auth/browser-ingress';
+import type { Request } from 'express';
 
 export function configureApp(app: INestApplication): void {
   const publicDeployment = app
@@ -25,8 +27,11 @@ export function configureApp(app: INestApplication): void {
 
   app.setGlobalPrefix('api');
   app.use(requestLoggingMiddleware(publicDeployment));
-  app.use((_request: unknown, response: SecurityHeaderResponse, next: () => void) => {
-    applySecurityHeaders(response, publicDeployment.enabled);
+  app.use((request: Request, response: SecurityHeaderResponse, next: () => void) => {
+    applySecurityHeaders(
+      response,
+      publicDeployment.enabled && isPublicBrowserIngress(request, publicDeployment),
+    );
     next();
   });
   app.enableCors({
@@ -56,7 +61,7 @@ interface SecurityHeaderResponse {
 
 function applySecurityHeaders(
   response: SecurityHeaderResponse,
-  publicDeploymentEnabled: boolean,
+  publicIngress: boolean,
 ): void {
   response.setHeader(
     'Content-Security-Policy',
@@ -66,7 +71,7 @@ function applySecurityHeaders(
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('X-Frame-Options', 'DENY');
-  if (publicDeploymentEnabled) {
+  if (publicIngress) {
     response.setHeader(
       'Strict-Transport-Security',
       'max-age=31536000; includeSubDomains',
