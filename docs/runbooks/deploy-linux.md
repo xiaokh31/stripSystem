@@ -132,6 +132,9 @@ BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
 BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
+WAGE_TEMPLATE_PATH=/workspace/apps/worker-python/templates/wage/bestar-wage-template-v1.xls
+WAGE_TEMPLATE_VERSION=bestar-wage-template-v1
+WAGE_TEMPLATE_SHA256=f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c
 ```
 
 Notes:
@@ -147,6 +150,11 @@ Notes:
   session uses the separate idle/absolute values and is capped at 400 days.
   Browsers may still cap persistent cookie lifetimes.
 - Do not commit `.env`.
+- The wage template is baked into both API and Worker images at the path above.
+  Startup fails closed if its fixed identity, BIFF structure/privacy audit, or
+  read-only mode does not match. Never point this setting at
+  `samples/wage/20260601-0630_wageRecords.xls`; that file is historical reference
+  data and is not present in a clean production checkout.
 
 ## Start Services
 

@@ -7,7 +7,8 @@ The office currently performs two monthly wage-related tasks manually in Excel.
 The HR manager downloads the monthly employee attendance workbook from the time
 clock, for example `samples/wage/workAttendanceRecordForm_June.xls`, and
 calculates each employee's work hours into a wage record workbook matching the
-format of `samples/wage/20260601-0630_wageRecords.xls`.
+format of the read-only historical reference
+`samples/wage/20260601-0630_wageRecords.xls`.
 
 The warehouse manager calculates unloading worker pay every month from
 unloading reports. The manager needs each imported or manually created
@@ -75,7 +76,7 @@ Add two office workflows:
 
 1. Work hours settlement: upload the monthly attendance record, parse punch
    rows, calculate each employee's payable work hours, and generate a wage
-   record workbook from the real wage template.
+   record workbook from the approved, deidentified wage template.
 2. Unloading wage settlement: add unloading wage fields directly to the
    existing container detail workflow, then add a monthly settlement page that
    summarizes those completed container records by worker.
@@ -286,8 +287,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
   active import of the same bytes.
 - The first supported fixtures are:
   - `samples/wage/workAttendanceRecordForm_June.xls`
-  - `samples/wage/20260601-0630_wageRecords.xls`
-- The source and template files are legacy Excel `.xls` files, not `.xlsx`.
+  - `samples/wage/20260601-0630_wageRecords.xls` (historical output reference)
+- The source and historical reference files are legacy Excel `.xls` files, not `.xlsx`.
   Implementation must explicitly support `.xls` or convert safely while
   preserving the original file.
 - Parser output must include employee identifier/name, department when present,
@@ -433,9 +434,16 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 
 ### Wage Record Workbook Rules
 
-- Continue copying `samples/wage/20260601-0630_wageRecords.xls`; never modify the
-  source template or replace the legacy `.xls` delivery with an approximate new
-  workbook.
+- Production generation must copy the tracked, deidentified
+  `apps/worker-python/templates/wage/bestar-wage-template-v1.xls`. Its approved
+  version and SHA-256 are verified before startup and generation; it remains
+  read-only in API and Worker images.
+- `samples/wage/20260601-0630_wageRecords.xls` is an immutable historical
+  output reference only. Runtime code must never read it as a template.
+- The approved template provides 16 deterministic generic employee slots plus
+  a protected adjustment sheet. Employees are sorted deterministically and
+  mapped one-to-one; unsafe or excess capacity fails closed instead of dropping
+  employees.
 - A sheet is eligible for the standard attendance writer only when its wage
   table contract contains `DATE`, `HOURS`, `LUNCH HOURS`, `START TIME`, and
   `END TIME`. A special sheet such as `司机WeiSheng Hong`, whose columns include
@@ -649,8 +657,8 @@ and batch-readable outputs, then add persistence/API, then add office web pages.
 - Add a wage attendance detector for the real time-clock workbook layout.
 - Emit parsed JSON with raw rows, warnings, errors, employee/day rows, and
   calculated hours.
-- Generate the wage record workbook from
-  `samples/wage/20260601-0630_wageRecords.xls` as a template.
+- Generate the wage record workbook from an independently sanitized, approved
+  legacy `.xls` template; retain the historical wage output as reference only.
 - Generate an HTML task report for the attendance import.
 - Do not build database/API/web in this phase.
 
@@ -1036,14 +1044,13 @@ light/dark, mobile/desktop and real 200% zoom.
 
 ### WAGE-HOURS-08 Generation Integrity Evidence
 
-The 2026-08-01 repository delivery is code complete and awaits only the named
-Microsoft Excel check. After the prerequisite filename repair, the first
-current-checkout run of the approved July sample already completed Parse and
-Generate, so the exact historical failure could not be reproduced and is not
-claimed as a known root cause. The diagnosis nevertheless closed observable
-fail-open seams: persisted schema/batch mismatch, zero effective output,
-unvalidated manifest/file metadata, direct final-path saving and unsafe Worker
-error propagation.
+The 2026-08-01 clarification reopened this delivery because the historical wage
+output was incorrectly used as a runtime template and ignored `samples/` did
+not survive a clean production rebuild. Production now uses an independently
+sanitized, tracked template with fixed version/SHA, 16 deterministic employee
+slots and a protected adjustment sheet. Image build and API startup preflight
+verify readable OLE/BIFF bytes, privacy/structure, approved identity and
+read-only permissions without depending on ignored samples.
 
 Generation now writes a unique same-directory staging file, validates non-zero
 OLE/BIFF readability, target period, sheet inventory, written employee/day
@@ -1054,13 +1061,12 @@ period/template, invalid input, save/validation failure, timeout and invalid
 stdout, while Work Hours maps them to typed English/Chinese recovery guidance
 without rendering paths, Python output or personal data.
 
-The real nginx/BullMQ/Chromium route passed upload, async Parse, refresh, async
-Generate, wage-only list and protected download for the July period. The BIFF
-audit found 10 sheets, seven complete period sheets, 217 period date cells and
-93 positive-hour cells. A deidentified June/July/template visual set preserved
-all normalized styles and the special sheet. Cleanup probes proved both forced
-failure and success paths remove only task-owned database, storage and runtime
-artifacts while preserving the approved source and template hashes.
+The dedicated gate verifies a clean tracked build context contains the approved
+template but no historical wage reference, then exercises the real
+nginx/BullMQ/Chromium upload, Parse, Generate, wage-only list and protected
+download path. BIFF/LibreOffice audits cover all 17 sheets in deidentified
+template, June and July outputs. Cleanup probes remove only task-owned database,
+storage and runtime artifacts and recheck all source/reference/template hashes.
 
 ## Acceptance Criteria
 

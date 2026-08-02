@@ -1663,6 +1663,12 @@ export const zhMessages = {
     "生成工作簿的期间与考勤月份不一致。请联系管理员。",
   "The wage workbook template is unavailable. Contact an administrator.":
     "工资表模板不可用。请联系管理员。",
+  "The approved wage workbook template failed its integrity check. Contact an administrator.":
+    "已批准的工资表模板完整性检查失败。请联系管理员。",
+  "The approved wage workbook template is not safely installed. Contact an administrator.":
+    "已批准的工资表模板未安全安装。请联系管理员。",
+  "The attendance employee count exceeds the approved workbook capacity. Contact an administrator.":
+    "考勤员工人数超过已批准工资表的容量。请联系管理员。",
   "The wage workbook template could not be opened. Contact an administrator.":
     "无法打开工资表模板。请联系管理员。",
   "The wage workbook template changed during generation. Retry the generation.":

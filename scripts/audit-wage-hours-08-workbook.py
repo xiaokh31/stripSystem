@@ -25,8 +25,10 @@ def main() -> None:
         raise SystemExit("generated workbook is missing or empty")
     generated = xlrd.open_workbook(workbook_path, formatting_info=True)
     template = xlrd.open_workbook(template_path, formatting_info=True)
-    if generated.sheet_names() != template.sheet_names():
-        raise SystemExit("generated workbook changed template sheet inventory")
+    if generated.nsheets != template.nsheets:
+        raise SystemExit("generated workbook changed template sheet count")
+    if "ADJUSTMENTS" not in generated.sheet_names():
+        raise SystemExit("generated workbook removed the protected adjustment sheet")
 
     expected_dates = set(period_dates(args.period_start, args.period_end))
     complete_period_sheets = 0

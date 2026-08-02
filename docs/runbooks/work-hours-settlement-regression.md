@@ -21,7 +21,8 @@ settlement. It does not introduce new business behavior.
   history, repeated-parse tombstone retention, and active-row-only generation.
 - Complete generated-file audit metadata in the API, with browser download
   links shown only for wage workbooks on the office page.
-- Preservation of the original attendance workbook and wage template.
+- Preservation of the original attendance workbook, historical wage output
+  reference, and independently approved wage template.
 
 ## Prerequisites
 
@@ -45,7 +46,8 @@ docker compose -f infra/docker/compose.local.yml exec -T api \
 | Fixture | SHA-256 |
 | --- | --- |
 | `samples/wage/workAttendanceRecordForm_June.xls` | `4c3a5c0750e04f99cd614da033d54d948b5fd1b72e0ffec4f19a3d35c9f682b3` |
-| `samples/wage/20260601-0630_wageRecords.xls` | `6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a` |
+| `samples/wage/20260601-0630_wageRecords.xls` (historical reference only) | `6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a` |
+| `apps/worker-python/templates/wage/bestar-wage-template-v1.xls` | `f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c` |
 
 ## Automated Checks
 
@@ -314,10 +316,13 @@ Expected hashes are listed in the prerequisites table.
 Run the task-specific gate only from the repository root:
 
 ```bash
+scripts/verify-wage-template-supply.sh
 scripts/run-wage-hours-08-e2e.sh verify
 ```
 
-The runner requires exactly one approved real `.xls` under
+The supply check creates a clean tracked build context and proves the API and
+Worker images contain the versioned, read-only approved template while ignored
+historical samples are absent. The runner then requires exactly one approved real `.xls` under
 `samples/attendance_test/` and rejects a changed SHA. It creates a unique admin
 and runtime prefix, first forces a browser failure to prove trap cleanup, then
 uses the same `/work-hours` UI endpoints as production for upload, async Parse,
@@ -340,12 +345,12 @@ stable codes and must not create a downloadable file.
 
 After the automated gate, inspect every original PNG and all three contact
 sheets under `test-results/wage-hours-08/visual/`. The deidentified template,
-June and July workbooks must each render three pages; normalized style
-differences must be zero and the special sheet unchanged.
+June and July workbooks must each contain 17 sheets and currently render 50
+LibreOffice pages under the inherited print areas; normalized style differences
+must be zero and the protected adjustment sheet unchanged.
 
-The current checkout passed the Docker full-stack and visual gate. The exact
-historical reported failure did not reproduce after `FILE-UPLOAD-01`; do not
-invent a root cause or weaken the fail-closed checks. Before marking the Task
-Done, office Windows/Microsoft Excel must regenerate the approved July sample
-through `/work-hours` and inspect every employee sheet, dates, hours, colors,
-row heights, column widths, Print Preview and downloaded filename.
+The historical wage workbook is a read-only reference and must never be restored
+as `WAGE_TEMPLATE_PATH`. Before marking the Task Done, office Windows/Microsoft
+Excel must regenerate the approved July sample through `/work-hours` and inspect
+every employee sheet, dates, hours, colors, row heights, column widths, Print
+Preview and downloaded filename.

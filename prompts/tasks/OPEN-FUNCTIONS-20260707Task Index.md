@@ -81,7 +81,8 @@
   可作为独立新 active import 重传。
 - 2026-08-01 新增三个 P0 现场回归 Task。`FILE-UPLOAD-01` 已完成卸柜/考勤 multipart
   中文原始文件名 mojibake 修复及保留 raw evidence 的既有记录处理；`WAGE-HOURS-08`
-  使用 7 月受控现场样本关闭“Parse 成功但 Generate 失败”的异步工资表闭环；
+  已创建独立脱敏模板、关闭生产供应缺口，并使用 7 月受控现场样本完成“Parse 成功但
+  Generate 失败”的异步工资表闭环，当前只等待 Windows Microsoft Excel 外部验收；
   `PUBLIC-DEPLOY-04` 修复同一 Named Tunnel public-mode stack 中公网 HTTPS 可登录但
   局域网 IP 无法登录的问题。旧 WAGE-HOURS-01 至 07 和 PUBLIC-DEPLOY-01/02 的历史
   完成证据保留，但不得用于否定这三项新回归。
@@ -243,11 +244,11 @@
      员工姓名/打卡信息。
 2. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
-   - 当前基线首次执行现场 7 月样本时 Parse/Generate 已成功，准确历史异常不可重现；
-     未伪造唯一根因。已关闭 schema/manifest/0 output/staging/post-save validation 和
-     safe error propagation 缺口，并通过真实 nginx/BullMQ/Chromium、受保护下载、
-     BIFF/LibreOffice、隐私及失败安全 cleanup 门禁。只剩办公室 Windows/Microsoft
-     Excel 逐 Sheet、颜色、尺寸、Print Preview 与下载名验收。
+   - 已从结构合同创建独立、确定性、无历史业务值的 tracked legacy BIFF 模板；API/Worker
+     默认值、镜像只读供应、build/startup preflight 和 clean tracked context regression
+     已关闭 ignored `samples/` 导致的 `WAGE_TEMPLATE_MISSING`。真实 7 月 UI/异步下载、
+     BIFF/LibreOffice、隐私、cleanup 和全量 Docker 门禁均通过，只剩 Windows Microsoft
+     Excel 打开和 Print Preview 外部验收。
 3. `PUBLIC-DEPLOY-04Public Domain and LAN IP Login Coexistence Regression.md` — `READY`
    - 同一 single-writer stack 同时支持批准公网 HTTPS origin 和显式批准 LAN IP origin。
      Public cookie 始终 Secure；LAN HTTP 仅在 private allowlist + trusted ingress 下使用
@@ -377,8 +378,10 @@ Microsoft Excel 外部验收：
 8. `WAGE-HOURS-08Parsed Attendance Wage Workbook Generation Regression.md` —
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`
 
-前七项已分别由 fresh supervisor Session 完成，不得重跑。08 只剩指定 Microsoft Excel
-外部检查，不得重跑仓库 Task 或用 LibreOffice 代替该检查。07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
+前七项已分别由 fresh supervisor Session 完成，不得重跑。08 已交付确定性脱敏模板、
+只读镜像供应、clean tracked checkout preflight、真实 7 月 full-stack/BIFF/LibreOffice
+门禁；只剩 Windows Microsoft Excel external gate。
+07 保持 strict `en` / `zh-CN`、真实 API 工件审计和
 Docker-only 门禁；整次考勤导入删除是留存原始 `.xls` 和审计证据的软删除，不得套用卸柜 import 的物理
 storage cleanup。
 
@@ -513,16 +516,18 @@ Deferred，按现场反馈再执行：
 
 给业务开发 agent 的建议执行顺序：
 1. `FILE-UPLOAD-01Unicode Original Filename Integrity Regression.md` 已完成且不得重跑；
-   `WAGE-HOURS-08` 仓库工作已完成，只执行其 Microsoft Excel 外部验收并同步为 Done，
-   之后才可在新的 supervisor Session 开始 `PUBLIC-DEPLOY-04`。macOS/Linux
+   `WAGE-HOURS-08` 仓库实现和当前环境自动化已完成，只等待 Windows Microsoft Excel
+   外部验收；通过并更新为 `DONE` 后才可在新的 supervisor Session 开始
+   `PUBLIC-DEPLOY-04`。macOS/Linux
    使用 `scripts/run-business-agent.sh task '<task-file>'`，
    Windows PowerShell 使用 `scripts\run-business-agent.cmd install` 后再执行
    `scripts\run-business-agent.cmd develop "<task-file>"`。当前 Windows 主机没有 Docker，`develop` 只允许完成实现，
    禁止运行测试、构建、migration、服务、浏览器、模拟器或设备检查，并且只能以
    `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 结束；完整验证须交给另一台具备环境的主机。不要使用直接 prompt、
    原始 `exec`、手工 `resume`、桌面版 Codex 或旧权限会话绕过监督器。
-2. `FILE-UPLOAD-01` 已完成；WAGE-HOURS-08 当前仅等待 Microsoft Excel 外部验收；
-   PUBLIC-DEPLOY-04 虽无代码依赖，仍排在 08 终态后。后续工作均不得把现场
+2. `FILE-UPLOAD-01` 已完成；WAGE-HOURS-08 为
+   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING`；PUBLIC-DEPLOY-04 虽无代码依赖，
+   仍排在 08 终态后。后续工作均不得把现场
    员工数据、cookie、token、真实域名/IP 或 secret 写入报告和 handoff。
 3. `UNLOAD-WAGE-14Optional Trailer Number for US-to-Canada Transfer.md` 已完成；
    美转加托车号已在 API、Worker、Web、i18n、结算与汇总链路真正改为选填，不得恢复旧必填规则。

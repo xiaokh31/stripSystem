@@ -13,6 +13,8 @@ artifact_root="$repo_root/test-results/wage-hours-08"
 real_runtime_root="$artifact_root/runtime"
 visual_root="$artifact_root/visual"
 sample_sha="63927d94a027f77b41ce4345e38fb9f7b9df8b8d44b989e710fe7f50f4172597"
+historical_wage_sha="6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a"
+approved_template_sha="f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c"
 
 cd "$repo_root"
 
@@ -169,7 +171,7 @@ run_real_workbook_audit() {
     -v "$repo_root/scripts/audit-wage-hours-08-workbook.py:/tmp/audit-wage-hours-08-workbook.py:ro" \
     worker-python uv run python /tmp/audit-wage-hours-08-workbook.py \
     --workbook "$runtime_container/api-downloaded-wage-record.xls" \
-    --template /workspace/samples/wage/20260601-0630_wageRecords.xls \
+    --template /workspace/apps/worker-python/templates/wage/bestar-wage-template-v1.xls \
     --period-start 2026-07-01 --period-end 2026-07-31 \
     --output /workspace/test-results/wage-hours-08/real-workbook-audit.json
 }
@@ -196,6 +198,14 @@ if [[ "$(shasum -a 256 "$source_file" | awk '{print $1}')" != "$sample_sha" ]]; 
   echo "WAGE-HOURS-08 real sample SHA-256 changed." >&2
   exit 1
 fi
+if [[ "$(shasum -a 256 "$repo_root/samples/wage/20260601-0630_wageRecords.xls" | awk '{print $1}')" != "$historical_wage_sha" ]]; then
+  echo "WAGE-HOURS-08 historical wage reference SHA-256 changed." >&2
+  exit 1
+fi
+if [[ "$(shasum -a 256 "$repo_root/apps/worker-python/templates/wage/bestar-wage-template-v1.xls" | awk '{print $1}')" != "$approved_template_sha" ]]; then
+  echo "WAGE-HOURS-08 approved template SHA-256 changed." >&2
+  exit 1
+fi
 
 if [[ "$mode" == "repro" ]]; then
   create_test_user
@@ -206,6 +216,8 @@ if [[ "$mode" != "verify" ]]; then
   echo "Usage: $0 [repro|verify]" >&2
   exit 2
 fi
+
+"$repo_root/scripts/verify-wage-template-supply.sh"
 
 docker compose -f "$compose_file" up -d --build \
   worker-python api web nginx
@@ -242,6 +254,14 @@ if [[ "$(residual_count)" != "0" || -e "$real_runtime_root/$success_id" ]]; then
 fi
 if [[ "$(shasum -a 256 "$source_file" | awk '{print $1}')" != "$sample_sha" ]]; then
   echo "WAGE-HOURS-08 real sample changed during verification." >&2
+  exit 1
+fi
+if [[ "$(shasum -a 256 "$repo_root/samples/wage/20260601-0630_wageRecords.xls" | awk '{print $1}')" != "$historical_wage_sha" ]]; then
+  echo "WAGE-HOURS-08 historical wage reference changed during verification." >&2
+  exit 1
+fi
+if [[ "$(shasum -a 256 "$repo_root/apps/worker-python/templates/wage/bestar-wage-template-v1.xls" | awk '{print $1}')" != "$approved_template_sha" ]]; then
+  echo "WAGE-HOURS-08 approved template changed during verification." >&2
   exit 1
 fi
 

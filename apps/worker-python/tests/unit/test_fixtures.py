@@ -168,7 +168,7 @@ def test_real_wage_xls_fixtures_are_registered_with_unique_sha256() -> None:
 
         assert entry.source_type in {
             "real attendance record",
-            "real wage record template",
+            "real historical wage record reference",
         }
         assert entry.path.endswith(".xls")
         assert fixture_path.is_file()

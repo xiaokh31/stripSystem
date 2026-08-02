@@ -203,6 +203,28 @@ export function attendanceApiErrorMessage(
       "The wage workbook template is unavailable. Contact an administrator.",
     WAGE_TEMPLATE_UNREADABLE:
       "The wage workbook template could not be opened. Contact an administrator.",
+    WAGE_TEMPLATE_SHA_MISMATCH:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_VERSION_MISMATCH:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_PRIVACY_AUDIT_FAILED:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_METADATA_NOT_CLEARED:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_SHEET_COUNT_INVALID:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_EMPLOYEE_SLOT_COUNT_INVALID:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_FORMULA_COUNT_INVALID:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_MERGE_COUNT_INVALID:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_XF_COUNT_INVALID:
+      "The approved wage workbook template failed its integrity check. Contact an administrator.",
+    WAGE_TEMPLATE_NOT_READ_ONLY:
+      "The approved wage workbook template is not safely installed. Contact an administrator.",
+    WAGE_TEMPLATE_EMPLOYEE_CAPACITY_EXCEEDED:
+      "The attendance employee count exceeds the approved workbook capacity. Contact an administrator.",
     WAGE_TEMPLATE_CHANGED_DURING_GENERATION:
       "The wage workbook template changed during generation. Retry the generation.",
     WAGE_GENERATION_ZERO_EFFECTIVE_OUTPUT:

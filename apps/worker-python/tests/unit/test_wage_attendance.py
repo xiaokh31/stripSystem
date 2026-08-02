@@ -273,6 +273,7 @@ def test_wage_record_generator_copies_template_and_writes_matched_employee_hours
         attendance_result=parsed,
         template_path=WAGE_TEMPLATE,
         output_dir=tmp_path,
+        enforce_approved_template=False,
     )
 
     assert result.errors == ()

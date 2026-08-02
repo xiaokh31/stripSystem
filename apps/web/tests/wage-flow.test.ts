@@ -241,6 +241,20 @@ test("wage generation job stable codes map to actionable single-locale messages"
     wageGenerationJobErrorMessage(job),
     /Python|WAGE_GENERATION|VALIDATE/,
   );
+  assert.equal(
+    attendanceApiErrorMessage(
+      { code: "WAGE_TEMPLATE_SHA_MISMATCH", message: "/private/template.xls" },
+      "zh-CN",
+    ),
+    "已批准的工资表模板完整性检查失败。请联系管理员。",
+  );
+  assert.equal(
+    attendanceApiErrorMessage({
+      code: "WAGE_TEMPLATE_EMPLOYEE_CAPACITY_EXCEEDED",
+      message: "WAGE_TEMPLATE_EMPLOYEE_CAPACITY_EXCEEDED",
+    }),
+    "The attendance employee count exceeds the approved workbook capacity. Contact an administrator.",
+  );
 });
 
 test("pay container draft accepts an empty optional transfer trailer", () => {

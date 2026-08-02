@@ -218,9 +218,11 @@ describe('AttendanceImportsController (e2e)', () => {
     '..',
     '..',
     '..',
-    'samples',
+    'apps',
+    'worker-python',
+    'templates',
     'wage',
-    '20260601-0630_wageRecords.xls',
+    'bestar-wage-template-v1.xls',
   );
 
   let app: INestApplication<App>;

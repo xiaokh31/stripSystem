@@ -143,9 +143,11 @@ function defaultReportTemplatePath(): string {
 function defaultWageTemplatePath(): string {
   return resolve(
     defaultRepoRoot(),
-    'samples',
+    'apps',
+    'worker-python',
+    'templates',
     'wage',
-    '20260601-0630_wageRecords.xls',
+    'bestar-wage-template-v1.xls',
   );
 }
 

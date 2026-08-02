@@ -4,9 +4,9 @@ Phase 0 uses real unloading plan Excel files from `samples/unloading-plans`.
 These files are the fixture source of truth for parser discovery and regression
 tests. They must not be replaced by hand-written mock spreadsheets.
 
-WAGE-P0 also uses real legacy Excel files from `samples/wage` for attendance
-record parsing and wage record generation. These files are `.xls` BIFF
-workbooks and must stay byte-preserved.
+WAGE-P0 also uses real legacy Excel files from `samples/wage` as read-only
+attendance and historical wage-output references. These `.xls` BIFF workbooks
+must stay byte-preserved and are never the production wage template.
 
 UNLOAD-WAGE-P0 uses a small reviewed JSON fixture from `samples/unloading-wage`
 for settlement rule validation. It references real container numbers from
@@ -71,13 +71,18 @@ Generated on 2026-07-04 from `samples/wage`.
 | Path | Bytes | SHA-256 | Source type |
 | --- | ---: | --- | --- |
 | samples/wage/workAttendanceRecordForm_June.xls | 45056 | 4c3a5c0750e04f99cd614da033d54d948b5fd1b72e0ffec4f19a3d35c9f682b3 | real attendance record |
-| samples/wage/20260601-0630_wageRecords.xls | 76288 | 6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a | real wage record template |
+| samples/wage/20260601-0630_wageRecords.xls | 76288 | 6f2fb31f54e7cca39e696c11e8891f0a6e36041c28b98f1d287f703f9ecf375a | real historical wage record reference |
 
 ## Wage Acceptance Notes
 
 - Registered wage fixture count: 2.
 - Duplicate wage SHA-256 count: 0.
-- Wage parser and generator implementation starts after this manifest is covered by tests.
+- Production generation uses the tracked, fully deidentified
+  `apps/worker-python/templates/wage/bestar-wage-template-v1.xls`, version
+  `bestar-wage-template-v1`, SHA-256
+  `f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c`.
+- The approved template is independently audited and supplied in both API and
+  Worker images; it is not stored under ignored `samples/`.
 
 ## Unloading Wage Manifest
 

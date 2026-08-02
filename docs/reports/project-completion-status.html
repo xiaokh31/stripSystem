@@ -239,8 +239,8 @@
           Parse 成功但工资表 Generate 失败；Named Tunnel 公网域名可登录而 LAN IP
           无法登录。已分别建立 FILE-UPLOAD-01、WAGE-HOURS-08 和 PUBLIC-DEPLOY-04；
           FILE-UPLOAD-01 已完成；旧 Wage/Public 完成证据保留为历史基线。WAGE-HOURS-08
-          仓库实现与当前环境自动化已完成，只待办公室 Microsoft Excel 验收；
-          PUBLIC-DEPLOY-04 仍未开始。
+          已完成独立脱敏模板、生产只读供应、真实 7 月 full-stack 和全部当前环境自动化，
+          只等待 Windows Microsoft Excel 外部验收；PUBLIC-DEPLOY-04 仍未开始。
           因此 Web/API full stack 可以继续进入 Windows 11 内网生产部署准备；
           P6 Exit Gate 当前结论为 Conditional Pass（Android+iOS pilot route）：
           Android 平台工程已包含
@@ -723,8 +723,8 @@
               <td>Stage 0.2: WAGE-P0-03 Wage Record / Task Report</td>
               <td><span class="badge done">Done</span></td>
               <td>P0-03</td>
-              <td>WAGE-P0 full worker flow 已使用 `samples/wage/20260601-0630_wageRecords.xls` 作为真实 `.xls` 模板复制生成工资工时表，不修改原模板；生成的 wage record 可由 workbook reader 打开；新增 `wage_record_manifest.json` 记录生成文件 path、SHA-256、byte size、type、template path 和 template SHA；HTML task report 显示输入文件名、SHA-256、parse status、employee count、total calculated hours、warning/error 汇总和 generated wage record path。</td>
-              <td>WAGE-P0 worker 原型已覆盖 fixture、parser、hours JSON、wage record 和 task report；下一步按任务队列进入后续 wage P1/P2 或指定的新切片。</td>
+              <td>历史 P0 原型曾把 `samples/wage/20260601-0630_wageRecords.xls` 当作真实 `.xls` 模板复制生成工资工时表；该假设已被 WAGE-HOURS-08 的产品澄清和独立脱敏模板取代。历史成品现只作只读结构参考，不能再作为运行时模板。</td>
+              <td>本行只保留历史里程碑；当前生产合同以 WAGE-HOURS-08 的 `bestar-wage-template-v1`、approved SHA 和 preflight 为准。</td>
             </tr>
             <tr>
               <td>Stage 1.0: WAGE-P1-01 Attendance Schema / Upload API</td>
@@ -966,10 +966,10 @@
             </tr>
             <tr>
               <td>Stage 7.8: WAGE-HOURS-08 Parsed Attendance Wage Workbook Generation Regression</td>
-              <td><span class="badge partial">Code Complete / Microsoft Excel Verification Pending</span></td>
+              <td><span class="badge partial">Code Complete / Excel Verification Pending</span></td>
               <td>95%</td>
-              <td>当前基线首次运行现场 7 月样本时 Parse/Generate 已成功，准确历史异常不可重现且未伪造唯一根因。已关闭 persisted schema/Worker version、0 effective output、manifest/period/SHA/size、staging/atomic publish、post-save BIFF validation 和安全 stable-code 传播缺口；<code>/work-hours</code> 继续只显示工资表并提供严格双语可操作失败提示。</td>
-              <td>Worker 238、API 408 unit / 131 E2E、Web 285、39 migrations、lint/typecheck/build/healthcheck 全通过；真实 nginx/BullMQ/Chromium 完成 upload→async Parse→refresh→async Generate→UI list→Web 代理 download 且 SHA 一致，en/zh-CN、light/dark、390/1366/1920、真实 200% zoom、无 overflow/浏览器错误通过。BIFF 为 10 Sheets/7 完整期间 Sheets，故意失败 cleanup、源 SHA、隐私和脱敏 6/7 月 LibreOffice 视觉门禁通过。证据见 <code>docs/reports/wage-hours-08-generation-regression-verification.md</code>；只剩 Windows Microsoft Excel 逐 Sheet、颜色、尺寸、Print Preview 与下载名检查。</td>
+              <td>已交付确定性脱敏 <code>bestar-wage-template-v1</code>：16 个通用员工槽位 + 1 个受保护 Sheet，历史业务值/未批准个人数据为 0，固定 SHA、连续重建字节一致，超容量 fail closed。API/Worker 默认路径、两个镜像内 <code>0444</code> 供应、build/startup preflight 和 clean tracked context regression 已关闭 ignored <code>samples/*</code> 导致的 <code>WAGE_TEMPLATE_MISSING</code>。</td>
+              <td>真实 7 月 UI upload/Parse/Generate/list/protected download、17-Sheet BIFF 审计、模板/6 月/7 月各 50 页 LibreOffice 视觉门禁、精确 cleanup、Worker 243、API 409 unit / 131 E2E、Web 285 + production build、39 migrations、healthcheck 和 diff check 均通过。只剩 Windows Microsoft Excel 检查所有员工 Sheet、日期/工时/颜色/尺寸、Print Preview 和文件名。</td>
             </tr>
           </tbody>
         </table>
@@ -2231,10 +2231,10 @@
       <section>
         <h2>当前验收建议</h2>
         <ul>
-          <li>FILE-UPLOAD-01 已 Done 且不得重跑；WAGE-HOURS-08 仓库工作已完成，只执行指定 Windows/Microsoft Excel 外部验收并同步为 Done，之后才可在新的 supervisor Session 开始 PUBLIC-DEPLOY-04。</li>
+          <li>FILE-UPLOAD-01 已 Done 且不得重跑；WAGE-HOURS-08 已完成独立模板、生产供应和全量当前环境门禁，只等待 Windows Microsoft Excel 外部验收。08 达到 Done 后才可开始 PUBLIC-DEPLOY-04。</li>
           <li>UNLOAD-WAGE-14、UNLOAD-REPORT-04 与 UNLOAD-REPORT-05 已 Done；UNLOAD-REPORT-02/03 不得重跑。05 的 1–8 条深色主行、9–16 条白色扩展行、current 8→9→8、失败保留、full-stack/PDF/PNG/i18n、Microsoft Excel 与实际打印门禁均已关闭。POD 仍等待真实/明确脱敏模板和 approved 成品。</li>
           <li>WEB-DASHBOARD-09 已 Done：2099 E2E 日期污染、未来完成时间写入、默认月份和页眉时钟完整性均已关闭。WEB-DASHBOARD-00 至 09 不得重跑；后续工资 E2E 使用失败安全 runner，不得直接运行旧 spec 绕过 cleanup supervisor。</li>
-          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；WAGE-HOURS-08 只剩 Microsoft Excel 外部验收，不得重跑仓库 Task 或以 LibreOffice 代替。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
+          <li>WAGE-HOURS-01 至 07 已关闭且不得重跑；WAGE-HOURS-08 当前为 Code Complete / Microsoft Excel Verification Pending。07 的整次导入删除必须继续保留为软删除，不能物理删除原始考勤文件或审计工件。</li>
           <li>PUBLIC-DEPLOY-01 已 Done，PUBLIC-DEPLOY-02 旧代码 Task 不重跑；PUBLIC-DEPLOY-04 必须先关闭公网域名/LAN IP 登录并存回归。当前 LAN listener 仍不得端口转发到 Internet，公网 Secure cookie 不得降级。</li>
           <li>PUBLIC-DEPLOY-03 OCI canonical migration 已归档且中断修改已还原，不得执行或形成第二个 writer。</li>
           <li>公网部署前必须完成 HTTPS、Access/MFA、应用 RBAC、可撤销 HttpOnly session、CSRF、Redis rate limit、trusted proxy、backup/restore、privacy review 和 strict en/zh-CN；免费额度不作为 SLA。</li>

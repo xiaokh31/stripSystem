@@ -28,6 +28,9 @@ BIFF_RK = 0x027E
 BIFF_ROW = 0x0208
 BIFF_SHRFMLA = 0x04BC
 BIFF_STRING = 0x0207
+BIFF_SST = 0x00FC
+BIFF_CONTINUE = 0x003C
+BIFF_EXTSST = 0x00FF
 BIFF_XF = 0x00E0
 
 CELL_RECORD_IDS = {
@@ -70,10 +73,33 @@ class LegacyXlsTemplateEditor:
     written cells plus deterministic ROW/COLINFO dimension records.
     """
 
-    def __init__(self, template_path: Path):
+    def __init__(
+        self,
+        template_path: Path,
+        *,
+        update_dimensions: bool = True,
+        sanitize_shared_strings: bool = False,
+    ):
         self.template_path = template_path
         self.workbook = xlrd.open_workbook(template_path, formatting_info=True)
         self._writes: dict[int, dict[tuple[int, int], _CellWrite]] = {}
+        self._sheet_names: dict[int, str] = {}
+        self._update_dimensions = update_dimensions
+        self._sanitize_shared_strings = sanitize_shared_strings
+
+    def rename_sheet(self, sheet_index: int, name: str) -> None:
+        if not 0 <= sheet_index < self.workbook.nsheets:
+            raise ValueError("WAGE_TEMPLATE_SHEET_INDEX_INVALID")
+        if not name or len(name) > 31 or any(character in name for character in "[]:*?/\\"):
+            raise ValueError("WAGE_TEMPLATE_SHEET_NAME_INVALID")
+        existing = {
+            self._sheet_names.get(index, sheet_name).casefold()
+            for index, sheet_name in enumerate(self.workbook.sheet_names())
+            if index != sheet_index
+        }
+        if name.casefold() in existing:
+            raise ValueError("WAGE_TEMPLATE_SHEET_NAME_DUPLICATE")
+        self._sheet_names[sheet_index] = name
 
     def write(self, sheet_index: int, row_index: int, column_index: int, value: Any) -> None:
         sheet = self.workbook.sheet_by_index(sheet_index)
@@ -125,8 +151,11 @@ class LegacyXlsTemplateEditor:
             for index, offset in enumerate(sheet_offsets)
         ]
 
-        width_updates, height_updates = self._dimension_updates()
+        width_updates, height_updates = (
+            self._dimension_updates() if self._update_dimensions else ({}, {})
+        )
         wrap_xf_map = _append_wrapped_xfs(global_records, self.workbook, self._writes)
+        _patch_boundsheet_names(global_records, self._sheet_names)
         patched_sheets: list[list[_BiffRecord]] = []
         for sheet_index, records in enumerate(sheet_records):
             writes = {
@@ -148,6 +177,12 @@ class LegacyXlsTemplateEditor:
                     height_updates=height_updates.get(sheet_index, {}),
                 )
             )
+
+        if self._sanitize_shared_strings:
+            global_records = _without_shared_string_records(global_records)
+            for records in patched_sheets:
+                if any(record.record_id == BIFF_LABELSST for record in records):
+                    raise ValueError("WAGE_TEMPLATE_SENSITIVE_SST_REFERENCE_REMAINS")
 
         global_size = sum(len(record.to_bytes()) for record in global_records)
         new_offsets: list[int] = []
@@ -177,7 +212,11 @@ class LegacyXlsTemplateEditor:
 
         # Reopen before returning so corrupt record offsets never reach a manifest.
         verification = xlrd.open_workbook(output_path, formatting_info=True)
-        if verification.sheet_names() != self.workbook.sheet_names():
+        expected_sheet_names = [
+            self._sheet_names.get(index, name)
+            for index, name in enumerate(self.workbook.sheet_names())
+        ]
+        if verification.sheet_names() != expected_sheet_names:
             raise ValueError("WAGE_TEMPLATE_OUTPUT_SHEET_DIRECTORY_MISMATCH")
 
     def _dimension_updates(
@@ -411,6 +450,50 @@ def _patch_boundsheet_offsets(
         offset_index += 1
     if offset_index != len(offsets):
         raise ValueError("WAGE_TEMPLATE_BOUNDSHEET_COUNT_MISMATCH")
+
+
+def _patch_boundsheet_names(
+    global_records: list[_BiffRecord], names_by_index: dict[int, str]
+) -> None:
+    sheet_index = 0
+    for index, record in enumerate(global_records):
+        if record.record_id != BIFF_BOUNDSHEET:
+            continue
+        if sheet_index not in names_by_index:
+            sheet_index += 1
+            continue
+        name = names_by_index[sheet_index]
+        if any(ord(character) > 0xFF for character in name):
+            encoded = name.encode("utf-16le")
+            option_flags = 0x01
+        else:
+            encoded = name.encode("latin1")
+            option_flags = 0x00
+        if len(record.payload) < 8:
+            raise ValueError("WAGE_TEMPLATE_BOUNDSHEET_RECORD_TRUNCATED")
+        payload = record.payload[:6] + struct.pack("<BB", len(name), option_flags) + encoded
+        global_records[index] = _BiffRecord(record.record_id, payload)
+        sheet_index += 1
+    if sheet_index != len(
+        [record for record in global_records if record.record_id == BIFF_BOUNDSHEET]
+    ):
+        raise ValueError("WAGE_TEMPLATE_BOUNDSHEET_COUNT_MISMATCH")
+
+
+def _without_shared_string_records(records: list[_BiffRecord]) -> list[_BiffRecord]:
+    output: list[_BiffRecord] = []
+    skipping_continuations = False
+    for record in records:
+        if record.record_id == BIFF_SST:
+            skipping_continuations = True
+            continue
+        if skipping_continuations and record.record_id == BIFF_CONTINUE:
+            continue
+        skipping_continuations = False
+        if record.record_id == BIFF_EXTSST:
+            continue
+        output.append(record)
+    return output
 
 
 def _patch_sheet_records(

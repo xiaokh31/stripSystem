@@ -86,6 +86,12 @@ Git pull does not include:
 - dependency caches such as `node_modules/`, `.venv/`, `.next/`, and `dist/`
 - local Excel samples under `samples/`
 
+The approved wage template is an exception to the old sample-dependent pattern:
+it is a fully deidentified tracked asset at
+`apps/worker-python/templates/wage/bestar-wage-template-v1.xls` and is baked into
+both API and Worker images. The historical wage workbook under `samples/wage/`
+is not a template and must not be copied to production.
+
 This matters because the Docker API service expects the report template at:
 
 ```text
@@ -226,6 +232,9 @@ BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
 BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
+WAGE_TEMPLATE_PATH=/workspace/apps/worker-python/templates/wage/bestar-wage-template-v1.xls
+WAGE_TEMPLATE_VERSION=bestar-wage-template-v1
+WAGE_TEMPLATE_SHA256=f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c
 ```
 
 Rules:
@@ -234,6 +243,10 @@ Rules:
 - Do not use default passwords in production.
 - Keep `NEXT_PUBLIC_API_BASE_URL=/api` for LAN phones and PDA devices.
 - Keep Docker internal API URLs as `http://api:4000/api`.
+- Keep the wage template identity values unchanged for this template version.
+  API startup checks SHA/version, OLE/BIFF structure/privacy, and read-only mode
+  before migrations; never work around a preflight failure by copying into a
+  running container.
 - Keep timezone values as IANA names. `America/Edmonton` covers Calgary and
   automatically switches between MDT and MST.
 - Browser access cookies are short lived; the rotating opaque server-side
@@ -452,6 +465,9 @@ BROWSER_SESSION_IDLE_EXPIRES_IN_SECONDS=34560000
 BROWSER_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=34560000
 WORKER_PYTHON_DIR=/workspace/apps/worker-python
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
+WAGE_TEMPLATE_PATH=/workspace/apps/worker-python/templates/wage/bestar-wage-template-v1.xls
+WAGE_TEMPLATE_VERSION=bestar-wage-template-v1
+WAGE_TEMPLATE_SHA256=f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c
 ```
 
 ### 5. Create Runtime Folders

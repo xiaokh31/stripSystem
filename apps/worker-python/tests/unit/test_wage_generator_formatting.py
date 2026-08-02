@@ -51,6 +51,7 @@ def test_real_wage_template_preserves_all_sheet_structure_and_touched_styles(
         template_path=WAGE_TEMPLATE,
         output_dir=tmp_path,
         generated_at=datetime(2026, 7, 21, 12, 0, 0),
+        enforce_approved_template=False,
     )
 
     assert result.errors == ()
@@ -166,6 +167,7 @@ def test_review_empty_and_total_writes_retain_their_template_styles(
         template_path=WAGE_TEMPLATE,
         output_dir=tmp_path,
         generated_at=datetime(2026, 7, 21, 12, 1, 0),
+        enforce_approved_template=False,
     )
 
     assert result.errors == ()
@@ -204,6 +206,7 @@ def test_employee_to_sheet_matching_is_one_to_one_and_never_uses_substrings(
         template_path=template_path,
         output_dir=tmp_path / "output",
         generated_at=datetime(2026, 7, 21, 12, 2, 0),
+        enforce_approved_template=False,
     )
 
     assert [issue.code for issue in result.errors] == [
@@ -246,6 +249,7 @@ def test_employee_sheet_matching_supports_reliable_id_and_rejects_short_name_tok
         template_path=template_path,
         output_dir=tmp_path / "output",
         generated_at=datetime(2026, 7, 21, 12, 3, 0),
+        enforce_approved_template=False,
     )
 
     assert result.errors == ()
@@ -276,6 +280,7 @@ def test_date_slots_require_a_date_in_the_generated_period_and_preserve_numeric_
         template_path=template_path,
         output_dir=tmp_path / "output",
         generated_at=datetime(2026, 7, 21, 12, 4, 0),
+        enforce_approved_template=False,
     )
 
     assert result.errors == ()

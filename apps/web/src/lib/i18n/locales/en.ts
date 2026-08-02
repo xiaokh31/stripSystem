@@ -1792,6 +1792,12 @@ export const enMessages = {
     "The generated workbook period did not match the attendance month. Contact an administrator.",
   "The wage workbook template is unavailable. Contact an administrator.":
     "The wage workbook template is unavailable. Contact an administrator.",
+  "The approved wage workbook template failed its integrity check. Contact an administrator.":
+    "The approved wage workbook template failed its integrity check. Contact an administrator.",
+  "The approved wage workbook template is not safely installed. Contact an administrator.":
+    "The approved wage workbook template is not safely installed. Contact an administrator.",
+  "The attendance employee count exceeds the approved workbook capacity. Contact an administrator.":
+    "The attendance employee count exceeds the approved workbook capacity. Contact an administrator.",
   "The wage workbook template could not be opened. Contact an administrator.":
     "The wage workbook template could not be opened. Contact an administrator.",
   "The wage workbook template changed during generation. Retry the generation.":

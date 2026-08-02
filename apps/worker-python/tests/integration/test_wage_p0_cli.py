@@ -11,7 +11,14 @@ from worker_python.cli import app
 REPO_ROOT = Path(__file__).resolve().parents[4]
 WAGE_DIR = REPO_ROOT / "samples" / "wage"
 ATTENDANCE_FIXTURE = WAGE_DIR / "workAttendanceRecordForm_June.xls"
-WAGE_TEMPLATE = WAGE_DIR / "20260601-0630_wageRecords.xls"
+WAGE_TEMPLATE = (
+    REPO_ROOT
+    / "apps"
+    / "worker-python"
+    / "templates"
+    / "wage"
+    / "bestar-wage-template-v1.xls"
+)
 
 
 def test_wage_p0_parse_cli_generates_attendance_hours_json_only(

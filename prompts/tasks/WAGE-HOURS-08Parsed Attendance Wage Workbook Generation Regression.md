@@ -14,6 +14,22 @@
 
 工时表导入后可以解析，但无法生成工时工资表。
 
+## 2026-08-01 用户产品澄清：真实成品不是模板
+
+1. `samples/wage/20260601-0630_wageRecords.xls` 是办公室提供的**真实历史工资工时成品**，
+   只可作为版式、公式、样式、Sheet、行列尺寸、打印设置和输出合同的只读参考；它不是
+   运行时模板。先前代码和 Task 把它直接称为 template 的假设已被用户明确否定。
+2. 必须从该真实成品创建一份独立工资表模板，并让后续所有工资表只从新模板生成。真实
+   参考文件的 SHA 必须保持不变，不能继续由 API/Worker 直接读取作为生产模板。
+3. 新模板不得包含历史日期、打卡时间、工时、工资结果或其他历史业务值。若模板需要保留
+   员工 identity/Sheet mapping，这类信息仍视为个人数据，模板必须通过受控持久化路径供应，
+   不得以未审计方式提交 Git；优先实现可提交的完全脱敏结构模板和运行时安全映射。
+4. 生产更新后已出现 `WAGE_TEMPLATE_MISSING`。根因证据表明真实成品受 `samples/*` 忽略、
+   不随 `git pull` 到生产机，而 Dockerfile 只会复制构建主机偶然已有的 `samples/`。本次
+   必须同时关闭模板创建与生产供应缺口，不能通过复制到正在运行的容器临时修复。
+5. 此澄清重新打开 WAGE-HOURS-08 的仓库实现与自动化门禁。旧的
+   `CODE_COMPLETE_EXTERNAL_VERIFICATION_PENDING` 证据保留为历史基线，不再代表当前终态。
+
 ## 用户确认的真实样本
 
 1. `samples/attendance_test/` 目录存放的是用户提供的**7月现场真实打卡记录样本**，
@@ -69,6 +85,7 @@ Generate 失败”的实际终止阶段并完成可下载工作簿闭环。
 - `.codex/skills/nestjs-prisma-api/SKILL.md`
 - `.codex/skills/nextjs-pwa-ui/SKILL.md`
 - `.codex/skills/qa-regression/SKILL.md`
+- `document-skills:xlsx`（创建/审计从真实 `.xls` 成品派生的新模板）
 - `apps/api/src/attendance/**`
 - `apps/api/src/async-jobs/**`
 - `apps/worker-python/src/worker_python/wage/**`
@@ -103,6 +120,24 @@ Generate 失败”的实际终止阶段并完成可下载工作簿闭环。
 或完整现场员工数据。
 
 ## 实现要求
+
+### 0. 从真实成品创建独立模板并可靠供应
+
+1. 先对真实成品做隐私安全结构清单：Sheet 类别、日期/工时输入格、公式、样式/XF、merge、
+   ROW/COLINFO、print metadata 和特殊/调整 Sheet；报告只记录 count/hash/code，不记录姓名、
+   Sheet 名或业务值。
+2. 创建独立模板工件并证明其中不存在历史日期、打卡、工时、工资结果或未批准个人数据。
+   模板生成必须可复现且有固定 SHA/版本；不得在每次生成工资表时重新读取真实历史成品。
+3. 新模板必须支持当前及未来月份。员工 Sheet 不能依赖历史成品中固定的某月业务值；员工
+   mapping/slot/Sheet 创建策略必须显式、可测试，容量不足或无法安全映射时 fail closed。
+4. API/Worker 的默认 `WAGE_TEMPLATE_PATH` 必须指向新模板。生产 Compose 使用明确的只读、
+   持久化供应方式；`git pull`、镜像重建和容器重建后仍存在。若模板因隐私不能进 Git，使用
+   host-managed persistent path、备份和部署 preflight，不得依赖 image build context 中的
+   ignored `samples/`。
+5. 生产更新 preflight/startup 必须验证 exists、regular file、non-zero、approved SHA/version、
+   legacy OLE/BIFF readable 和只读权限；失败必须在停机/业务生成前返回稳定安全错误。
+6. 添加 clean tracked checkout/image regression，证明缺少开发机 ignored samples 时仍能获得
+   新模板或在 preflight 明确阻断；禁止再次出现开发机通过、生产重建后缺模板。
 
 ### 1. Worker 与模板生成
 
@@ -249,24 +284,29 @@ WEB-DASHBOARD-09 的日期隔离和失败安全 cleanup；不得直接运行会�
 
 ## 当前环境完成证据（2026-08-01 MDT）
 
-- 前置 `FILE-UPLOAD-01` 已为 `DONE`。当前基线第一次通过真实现场样本执行完整流程时，
-  Parse 与 Generate 均成功，故无法重现用户报告发生时的准确历史异常；未把未经观察的
-  假设冒充唯一根因。当前环境逐项排除了 Unicode path、模板路径/权限、7 月槽位、
-  persisted schema、Sheet warning、输出权限、Worker timeout/stdout 和 job propagation。
-- 审计发现并关闭了可独立导致假成功/损坏下载的边界：API/Worker schema version mismatch、
-  0 effective output、未验证 manifest/SHA/size/period、非 staging 保存和不安全错误传播。
-  生成现为 staging -> BIFF/期间/Sheet/计数/manifest 验证 -> atomic publish；失败无下载物。
+- 前置 `FILE-UPLOAD-01` 已为 `DONE`。旧配置把被 `samples/*` 忽略的真实历史工资成品
+  误作运行时模板，开发机偶然存在该文件掩盖 clean checkout / production rebuild 的供应
+  缺口。现在历史成品只作只读结构参考，API/Worker 不再读取它作为生产模板。
+- 已创建确定性、完全脱敏的 tracked legacy BIFF 模板 `bestar-wage-template-v1`，固定 SHA
+  `f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c`。隐私审计中
+  历史日期、打卡、工时、工资结果、未批准个人数据和 metadata 均为 0；模板含 16 个
+  通用员工槽位和 1 个受保护调整 Sheet。连续重建字节一致，超过容量 fail closed。
+- Worker/API image build 和 API startup preflight 验证 approved path/version/SHA、OLE/BIFF
+  可读和只读权限；两个镜像中的模板均为 `0444`。clean tracked context regression 在没有
+  ignored samples 时成功构建、验证并清理 Worker/API 镜像，关闭 `WAGE_TEMPLATE_MISSING`
+  生产供应缺口。
 - 真实 7 月流程通过 UI upload -> async Parse -> refresh -> async Generate -> list ->
-  protected download；465 active rows，blocking errors 0，生成与下载 SHA/bytes 相同，
-  10 Sheets 中 7 个完整期间 Sheet、217 个期间日期单元格和 93 个正工时单元格通过审计。
-- Docker 门禁通过：Worker 238；API lint/typecheck/build、408 unit / 131 E2E；Web
-  lint/typecheck/build、285 tests；39 migrations up to date；healthcheck、Ruff、脚本语法和
-  `git diff --check` 通过。
-- `scripts/run-wage-hours-08-e2e.sh verify` 已通过故意失败 cleanup 探针、真实
-  nginx/BullMQ/Chromium 成功流、UI list/Web 代理下载 SHA、en/zh-CN、light/dark、
-  390/1366/1920、真实 200% zoom、隐私/BIFF 审计、精确零残留和脱敏 6/7 月 LibreOffice
-  视觉门禁。完整证据见
-  `docs/reports/wage-hours-08-generation-regression-verification.md`。
+  protected download；465 active rows，blocking errors 0，生成/API 下载/Web 代理下载
+  SHA 与 124928 bytes 完全一致。BIFF 审计验证 17 Sheets、15 个完整期间员工 Sheet、
+  465 个日期单元格和 155 个正工时单元格。
+- `scripts/run-wage-hours-08-e2e.sh verify` 通过 clean supply、故意失败 cleanup 探针、真实
+  nginx/BullMQ/Chromium 成功流、同步诊断、隐私/BIFF 审计、精确零残留和脱敏 LibreOffice
+  视觉门禁。模板/6 月/7 月各 17 Sheets、50 pages、normalized style differences 0；三张
+  全页联系表和 24 张原分辨率高信号页面已检查。
+- Docker 门禁通过：Worker Ruff + 243 pytest；API lint/typecheck、409 unit / 131 E2E；
+  Web lint/typecheck、285 tests、production build；39 migrations up to date；最终 full-stack
+  healthcheck 和 `git diff --check` 通过。本 Task 无 schema 变更，不需要 migration。
+- 完整脱敏证据见 `docs/reports/wage-hours-08-generation-regression-verification.md`。
 - 唯一剩余 gate：办公室 Windows/Microsoft Excel 通过真实 `/work-hours` 流程重新生成并
   下载同一获批 7 月样本，逐个员工 Sheet 检查日期、工时、颜色、行高列宽、Print
   Preview 和下载文件名。通过前状态只能是

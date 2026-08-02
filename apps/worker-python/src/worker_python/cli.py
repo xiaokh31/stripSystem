@@ -54,6 +54,13 @@ from worker_python.wage import (
     run_wage_p0_parse,
     run_wage_parse_api,
 )
+from worker_python.wage.template import (
+    WAGE_TEMPLATE_SHA256,
+    WAGE_TEMPLATE_VERSION,
+    build_wage_template,
+    preflight_wage_template,
+    write_template_manifest,
+)
 
 
 app = typer.Typer(no_args_is_help=True)
@@ -258,6 +265,83 @@ def wage_generate_record(
         json.dumps(
             _json_ready(result),
             ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+@app.command("wage-template-build")
+def wage_template_build(
+    source: Path = typer.Option(
+        ...,
+        "--source",
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Approved read-only historical workbook used only to derive the template.",
+    ),
+    output: Path = typer.Option(
+        ...,
+        "--output",
+        file_okay=True,
+        dir_okay=False,
+        help="Deterministic sanitized legacy .xls template output.",
+    ),
+    manifest: Path | None = typer.Option(
+        None,
+        "--manifest",
+        file_okay=True,
+        dir_okay=False,
+        help="Optional privacy-safe template manifest JSON output.",
+    ),
+) -> None:
+    audit = build_wage_template(source_path=source, output_path=output)
+    if manifest is not None:
+        write_template_manifest(audit, manifest)
+    typer.echo(json.dumps(audit.to_dict(), ensure_ascii=False, sort_keys=True))
+
+
+@app.command("wage-template-preflight")
+def wage_template_preflight(
+    template: Path = typer.Option(
+        ...,
+        "--template",
+        exists=False,
+        file_okay=True,
+        dir_okay=False,
+        help="Sanitized legacy .xls wage template.",
+    ),
+    expected_sha256: str = typer.Option(
+        WAGE_TEMPLATE_SHA256,
+        "--expected-sha256",
+    ),
+    expected_version: str = typer.Option(
+        WAGE_TEMPLATE_VERSION,
+        "--expected-version",
+    ),
+    require_read_only: bool = typer.Option(
+        True,
+        "--require-read-only/--allow-writable",
+    ),
+) -> None:
+    try:
+        audit = preflight_wage_template(
+            template,
+            expected_sha256=expected_sha256,
+            expected_version=expected_version,
+            require_read_only=require_read_only,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        typer.echo(json.dumps({"code": code, "status": "ERROR"}, sort_keys=True))
+        raise typer.Exit(code=78) from None
+    typer.echo(
+        json.dumps(
+            {
+                "sha256": audit.sha256,
+                "status": "OK",
+                "version": audit.version,
+            },
             sort_keys=True,
         )
     )
@@ -767,7 +851,7 @@ def write_report(
                 sort_keys=True,
             )
         )
-    except Exception as exc:
+    except Exception:
         typer.echo(
             json.dumps(
                 {

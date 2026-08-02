@@ -54,6 +54,17 @@ generated artifacts are business records and must survive container restarts.
 - Template source is `samples/templates/卸柜报告-En.xlsx`.
 - The template must not be modified directly.
 
+### Wage Template
+
+- The production wage template is the tracked, fully deidentified
+  `apps/worker-python/templates/wage/bestar-wage-template-v1.xls`.
+- API and Worker images contain the same fixed version/SHA and expose it
+  read-only. Image build and API startup preflight must fail closed on identity,
+  OLE/BIFF readability, structure/privacy, or permission mismatch.
+- `samples/wage/20260601-0630_wageRecords.xls` is an immutable historical output
+  reference only. It is ignored deployment input and must never be mounted,
+  copied, or configured as the runtime template.
+
 ### Labels
 
 - PDF labels live under `storage/labels`.

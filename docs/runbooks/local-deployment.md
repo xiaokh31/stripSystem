@@ -153,12 +153,22 @@ NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS=157680000
 NATIVE_REFRESH_RATE_LIMIT_MAX=10
 NATIVE_REFRESH_RATE_LIMIT_WINDOW_SECONDS=60
 REPORT_TEMPLATE_PATH=/workspace/samples/templates/卸柜报告-En.xlsx
+WAGE_TEMPLATE_PATH=/workspace/apps/worker-python/templates/wage/bestar-wage-template-v1.xls
+WAGE_TEMPLATE_VERSION=bestar-wage-template-v1
+WAGE_TEMPLATE_SHA256=f9e11d6f2c6f45b0453f8346df2ff8347f2e6f5c8b7505a642367f1dade4206c
 ```
 
 For pilot or production, replace default passwords and `JWT_SECRET` with unique
 strong values before starting services. The compose file builds the API
 `DATABASE_URL` from `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
 Do not use the example values as production credentials.
+
+The wage template is a tracked, fully deidentified image asset, not a file under
+ignored `samples/`. API startup validates its fixed version/SHA, OLE/BIFF
+readability, structure/privacy contract and read-only permissions before
+migrations. Do not replace it with the historical wage workbook or copy a file
+into a running container. Run `scripts/verify-wage-template-supply.sh` after any
+template or Docker supply change.
 
 `JWT_EXPIRES_IN_SECONDS` is now the short lifetime for legacy/non-browser JWTs;
 it no longer provides browser persistence. Browser Web login uses a 15-minute

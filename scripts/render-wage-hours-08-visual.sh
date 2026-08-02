@@ -42,8 +42,8 @@ paths = {
 books = {key: xlrd.open_workbook(path, formatting_info=True) for key, path in paths.items()}
 template = books["template"]
 for key, book in books.items():
-    if book.sheet_names() != template.sheet_names():
-        raise SystemExit(f"{key} changed sheet inventory")
+    if book.nsheets != template.nsheets:
+        raise SystemExit(f"{key} changed sheet count")
 
 def style(book, sheet, row, column):
     xf = book.xf_list[sheet.cell_xf_index(row, column)]
@@ -71,7 +71,7 @@ for key in ("june", "july"):
 if style_differences:
     raise SystemExit(f"normalized style differences: {style_differences}")
 
-adjustment_index = template.nsheets - 1
+adjustment_index = template.sheet_names().index("ADJUSTMENTS")
 adjustment_hashes = []
 for key in ("template", "june", "july"):
     sheet = books[key].sheet_by_index(adjustment_index)
@@ -158,8 +158,8 @@ cat > "$artifact_dir/visual-summary.txt" <<EOF
 result=PASS
 fixture_classification=DEIDENTIFIED_SYNTHETIC
 workbook_count=3
-sheet_count=3
-eligible_sheet_count=2
+sheet_count=17
+eligible_sheet_count=16
 normalized_style_differences=0
 rendered_pages_each=$expected_pages
 visual_review_required=Inspect every original PNG and all three contact sheets.

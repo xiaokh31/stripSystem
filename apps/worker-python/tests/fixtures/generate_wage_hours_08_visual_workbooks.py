@@ -5,8 +5,6 @@ import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import xlwt
-
 from worker_python.imports import compute_sha256
 from worker_python.wage import (
     ATTENDANCE_PARSER_VERSION,
@@ -18,6 +16,7 @@ from worker_python.wage import (
     WageFormatType,
     generate_wage_record,
 )
+from worker_python.wage.template import default_template_path
 
 
 EMPLOYEES = (("EMP001", "Team Member Alpha"), ("EMP002", "Team Member Beta"))
@@ -30,8 +29,8 @@ def main() -> None:
     output_dir = args.output_dir.resolve()
     source_dir = output_dir / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
-    template_path = source_dir / "deidentified-template.xls"
-    write_template(template_path)
+    template_path = default_template_path()
+    (source_dir / "deidentified-template.xls").write_bytes(template_path.read_bytes())
 
     records: list[dict[str, object]] = []
     for label, start, end in (
@@ -55,7 +54,7 @@ def main() -> None:
                 "periodEnd": end.isoformat(),
                 "sha256": compute_sha256(target),
                 "sizeBytes": target.stat().st_size,
-                "sheetCount": 3,
+                "sheetCount": 17,
                 "writtenEmployeeCount": result.writtenEmployeeCount,
                 "writtenDayCount": result.writtenDayCount,
             }
@@ -71,41 +70,6 @@ def main() -> None:
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-
-
-def write_template(path: Path) -> None:
-    workbook = xlwt.Workbook()
-    style = xlwt.easyxf(
-        "font: name Arial; align: horiz center, vert center, wrap on; "
-        "borders: left thin, right thin, top thin, bottom thin"
-    )
-    for employee_id, label in EMPLOYEES:
-        sheet = workbook.add_sheet(f"{employee_id} {label}")
-        for column, value in enumerate(
-            ("", "DATE", "HOURS", "LUNCH HOURS", "START TIME", "END TIME")
-        ):
-            sheet.write(2, column, value, style)
-        for day_number in range(1, 32):
-            current = date(2026, 1, day_number)
-            row = day_number + 2
-            values: tuple[object, ...] = (
-                current.strftime("%a").upper(),
-                f"2026.1.{day_number}",
-                "",
-                "",
-                "",
-                "",
-            )
-            for column, value in enumerate(values):
-                sheet.write(row, column, value, style)
-        sheet.write_merge(34, 34, 0, 1, "TOTAL HOURS", style)
-        sheet.write_merge(34, 34, 2, 5, 0, style)
-        # Keep at least one BIFF sector free for value records added by the editor.
-        sheet.row(40).hidden = True
-        sheet.write(40, 0, "capacity-padding-" + ("x" * 13_500), style)
-    adjustment = workbook.add_sheet("ADJUSTMENTS")
-    adjustment.write(0, 0, "Synthetic adjustment sheet - do not write", style)
-    workbook.save(str(path))
 
 
 def attendance_result(start: date, end: date) -> AttendanceParseResult:

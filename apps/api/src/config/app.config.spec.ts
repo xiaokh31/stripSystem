@@ -13,6 +13,7 @@ describe('appConfig auth session defaults', () => {
   const originalNativeIdle = process.env.NATIVE_SESSION_IDLE_EXPIRES_IN_SECONDS;
   const originalNativeAbsolute =
     process.env.NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS;
+  const originalWageTemplatePath = process.env.WAGE_TEMPLATE_PATH;
 
   afterEach(() => {
     restoreEnv('JWT_EXPIRES_IN_SECONDS', originalJwtExpiresInSeconds);
@@ -22,6 +23,7 @@ describe('appConfig auth session defaults', () => {
       'NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS',
       originalNativeAbsolute,
     );
+    restoreEnv('WAGE_TEMPLATE_PATH', originalWageTemplatePath);
   });
 
   it('defaults legacy access JWT expiry to a short session', () => {
@@ -61,6 +63,17 @@ describe('appConfig auth session defaults', () => {
     expect(config.nativeSessionAbsoluteExpiresInSeconds).toBe(
       DEFAULT_NATIVE_SESSION_ABSOLUTE_EXPIRES_IN_SECONDS,
     );
+  });
+
+  it('defaults wage generation to the tracked sanitized template', () => {
+    delete process.env.WAGE_TEMPLATE_PATH;
+
+    const path = appConfig().app.wageTemplatePath;
+    expect(path).toContain(
+      'apps/worker-python/templates/wage/bestar-wage-template-v1.xls',
+    );
+    expect(path).not.toContain('samples/wage');
+    expect(path).not.toContain('20260601-0630_wageRecords.xls');
   });
 });
 

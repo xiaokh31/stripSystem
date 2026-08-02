@@ -71,6 +71,7 @@ def generate_wage_record(
     template_path: Path,
     output_dir: Path,
     generated_at: datetime | None = None,
+    enforce_approved_template: bool = True,
 ) -> WageRecordGenerationResult:
     generated_at = generated_at or operational_now()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +100,21 @@ def generate_wage_record(
             stage="TEMPLATE_OPEN",
             message=f"Wage template does not exist: {template_path}",
         )
+
+    if enforce_approved_template:
+        from worker_python.wage.template import preflight_wage_template
+
+        try:
+            preflight_wage_template(template_path, require_read_only=False)
+        except ValueError as exc:
+            code = str(exc)
+            return _generation_error(
+                template_path=template_path,
+                output_dir=output_dir,
+                code=code,
+                stage="TEMPLATE_OPEN",
+                message=code,
+            )
 
     warnings: list[WageIssue] = []
     errors: list[WageIssue] = []
@@ -156,14 +172,55 @@ def generate_wage_record(
             continue
         standard_sheets.append(contract)
 
-    matches, match_warnings = _resolve_sheet_matches(
-        standard_sheets,
-        days_by_employee,
-    )
+    slot_template = _is_employee_slot_template(standard_sheets)
+    if slot_template and len(days_by_employee) > len(standard_sheets):
+        return _generation_error(
+            template_path=template_path,
+            output_dir=output_dir,
+            code="WAGE_TEMPLATE_EMPLOYEE_CAPACITY_EXCEEDED",
+            stage="SHEET_MATCH",
+            message="Attendance employee count exceeds approved template capacity.",
+            warnings=tuple(warnings),
+        )
+    if slot_template:
+        employee_keys = sorted(days_by_employee, key=_employee_sort_key)
+        matches = list(zip(standard_sheets, employee_keys, strict=False))
+        match_warnings: list[WageIssue] = []
+    else:
+        legacy_matches, match_warnings = _resolve_sheet_matches(
+            standard_sheets,
+            days_by_employee,
+        )
+        matches = [
+            (contract, employee_key)
+            for contract, employee_key in legacy_matches
+        ]
     warnings.extend(match_warnings)
+
+    output_sheet_names = list(readable.sheet_names())
+    reserved_sheet_names = {
+        name.casefold()
+        for name in readable.sheet_names()
+        if not name.startswith("EMPLOYEE-")
+    }
 
     for contract, employee_key in matches:
         employee_days = days_by_employee[employee_key]
+        output_sheet_name = contract.sheetName
+        if slot_template:
+            output_sheet_name = _unique_employee_sheet_name(
+                employee_key,
+                reserved=reserved_sheet_names,
+            )
+            reserved_sheet_names.add(output_sheet_name.casefold())
+            editor.rename_sheet(contract.sheetIndex, output_sheet_name)
+            editor.write(
+                contract.sheetIndex,
+                0,
+                0,
+                _employee_label(*employee_key),
+            )
+            output_sheet_names[contract.sheetIndex] = output_sheet_name
         written_day_count += _write_employee_sheet(
             editor,
             contract=contract,
@@ -172,7 +229,7 @@ def generate_wage_record(
             period_end=attendance_result.periodEnd,
         )
         matched_employee_keys.add(employee_key)
-        matched_sheets.append(contract.sheetName)
+        matched_sheets.append(output_sheet_name)
 
     unmatched_employees = tuple(
         _employee_label(employee_id, employee_name)
@@ -228,7 +285,7 @@ def generate_wage_record(
     try:
         _validate_staged_workbook(
             staging_path=staging_path,
-            template_sheet_names=tuple(readable.sheet_names()),
+            expected_sheet_names=tuple(output_sheet_names),
             matched_sheets=tuple(matched_sheets),
             period_start=attendance_result.periodStart,
             period_end=attendance_result.periodEnd,
@@ -611,6 +668,7 @@ def _standard_sheet(
 
         total_row: int | None = None
         candidate_dates: list[tuple[int, date]] = []
+        placeholder_rows: list[int] = []
         for candidate_row in range(row_index + 1, sheet.nrows):
             row_values = [
                 _cell_text(sheet.cell_value(candidate_row, column_index))
@@ -631,10 +689,17 @@ def _standard_sheet(
             if weekday in WEEKDAY_VALUES and parsed_date is not None:
                 candidate_dates.append((candidate_row, parsed_date))
 
-        date_rows = _validated_date_rows(
-            candidate_dates,
-            period_start=period_start,
-            period_end=period_end,
+            if weekday == "WEEKDAY_SLOT" and _cell_text(date_cell.value).upper() == "DATE_SLOT":
+                placeholder_rows.append(candidate_row)
+
+        date_rows = (
+            tuple(placeholder_rows)
+            if len(placeholder_rows) == 31
+            else _validated_date_rows(
+                candidate_dates,
+                period_start=period_start,
+                period_end=period_end,
+            )
         )
 
         return _StandardSheet(
@@ -733,6 +798,41 @@ def _employee_details(
     employee_keys: list[tuple[str | None, str | None]],
 ) -> str:
     return "|".join(_employee_label(*employee_key) for employee_key in employee_keys)
+
+
+def _is_employee_slot_template(standard_sheets: list[_StandardSheet]) -> bool:
+    return bool(standard_sheets) and all(
+        re.fullmatch(r"EMPLOYEE-\d{2}", contract.sheetName) is not None
+        for contract in standard_sheets
+    )
+
+
+def _employee_sort_key(
+    employee_key: tuple[str | None, str | None],
+) -> tuple[str, str]:
+    employee_id, employee_name = employee_key
+    return (
+        _normalized_identifier(employee_id),
+        " ".join((employee_name or "").casefold().split()),
+    )
+
+
+def _unique_employee_sheet_name(
+    employee_key: tuple[str | None, str | None],
+    *,
+    reserved: set[str],
+) -> str:
+    employee_id, employee_name = employee_key
+    base = employee_name or employee_id or "Employee"
+    base = re.sub(r"[\[\]:*?/\\\x00-\x1f]", " ", base)
+    base = " ".join(base.split()).strip(" '") or "Employee"
+    candidate = base[:31]
+    suffix = 2
+    while candidate.casefold() in reserved:
+        marker = f"-{suffix}"
+        candidate = f"{base[: 31 - len(marker)]}{marker}"
+        suffix += 1
+    return candidate
 
 
 def _normalized_identifier(value: str | None) -> str:
@@ -848,7 +948,7 @@ def _append_manifest_record(
 def _validate_staged_workbook(
     *,
     staging_path: Path,
-    template_sheet_names: tuple[str, ...],
+    expected_sheet_names: tuple[str, ...],
     matched_sheets: tuple[str, ...],
     period_start: date,
     period_end: date,
@@ -860,7 +960,7 @@ def _validate_staged_workbook(
     if written_employee_count <= 0 or written_day_count <= 0:
         raise ValueError("Generated workbook has no effective employee-day output.")
     workbook = xlrd.open_workbook(staging_path, formatting_info=True)
-    if tuple(workbook.sheet_names()) != template_sheet_names:
+    if tuple(workbook.sheet_names()) != expected_sheet_names:
         raise ValueError(
             "Generated workbook sheet inventory differs from the template."
         )

@@ -13,7 +13,14 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 ATTENDANCE_FIXTURE = (
     REPO_ROOT / "samples" / "wage" / "workAttendanceRecordForm_June.xls"
 )
-WAGE_TEMPLATE = REPO_ROOT / "samples" / "wage" / "20260601-0630_wageRecords.xls"
+WAGE_TEMPLATE = (
+    REPO_ROOT
+    / "apps"
+    / "worker-python"
+    / "templates"
+    / "wage"
+    / "bestar-wage-template-v1.xls"
+)
 
 
 def test_wage_parse_file_cli_writes_parsed_json_and_task_report(tmp_path: Path) -> None:
@@ -190,13 +197,11 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
     parsed_payload = json.loads(parsed_cli.output)
     parsed_result = parsed_payload["parsed_result"]
     source_book = xlrd.open_workbook(WAGE_TEMPLATE)
-    source_lay = source_book.sheet_by_name("FANGLEI XIAO (lay)")
     target = next(
         day
         for day in parsed_result["days"]
         if day["employeeName"] == "lay"
         and day["calculatedHours"] is not None
-        and source_lay.cell_value(3 + day["dayNumber"] - 1, 2) != day["calculatedHours"]
     )
     active_result = {
         **parsed_result,
@@ -269,12 +274,18 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
 
     full_book = xlrd.open_workbook(full_payload["wage_record_path"])
     deleted_book = xlrd.open_workbook(deleted_payload["wage_record_path"])
-    target_row = 3 + target["dayNumber"] - 1
+    target_sheet = full_book.sheet_by_name("lay")
+    target_row = next(
+        row
+        for row in range(target_sheet.nrows)
+        if str(target_sheet.cell_value(row, 1)).strip()
+        == f"2026.6.{target['dayNumber']}"
+    )
     assert (
-        full_book.sheet_by_name("FANGLEI XIAO (lay)").cell_value(target_row, 2)
+        full_book.sheet_by_name("lay").cell_value(target_row, 2)
         == target["calculatedHours"]
     )
-    assert deleted_book.sheet_by_name("FANGLEI XIAO (lay)").row_values(
+    assert deleted_book.sheet_by_name("lay").row_values(
         target_row, 2, 6
     ) == ["/", "/", "/", "/"]
 
@@ -283,12 +294,18 @@ def test_active_row_overlay_excludes_one_real_employee_day_without_changing_othe
         for day in parsed_result["days"]
         if day["employeeName"] == "hao" and day["calculatedHours"] is not None
     )
-    control_row = 3 + control["dayNumber"] - 1
-    assert full_book.sheet_by_name("HAO LIU").row_values(control_row) == (
-        deleted_book.sheet_by_name("HAO LIU").row_values(control_row)
+    control_sheet = full_book.sheet_by_name("hao")
+    control_row = next(
+        row
+        for row in range(control_sheet.nrows)
+        if str(control_sheet.cell_value(row, 1)).strip()
+        == f"2026.6.{control['dayNumber']}"
     )
-    source_driver = source_book.sheet_by_name("司机WeiSheng Hong")
-    deleted_driver = deleted_book.sheet_by_name("司机WeiSheng Hong")
+    assert full_book.sheet_by_name("hao").row_values(control_row) == (
+        deleted_book.sheet_by_name("hao").row_values(control_row)
+    )
+    source_driver = source_book.sheet_by_name("EMPLOYEE-16")
+    deleted_driver = deleted_book.sheet_by_name("EMPLOYEE-16")
     assert [
         source_driver.row_values(index) for index in range(source_driver.nrows)
     ] == [deleted_driver.row_values(index) for index in range(deleted_driver.nrows)]
