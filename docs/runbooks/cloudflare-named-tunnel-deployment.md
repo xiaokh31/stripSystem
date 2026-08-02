@@ -3,7 +3,7 @@
 [中文操作指南](#中文操作指南) | [English operations guide](#english-operations-guide)
 
 Last reviewed against the repository and official Cloudflare/AWS documentation:
-**2026-07-30**.
+**2026-08-01**.
 
 This is the standalone operator guide for exposing the existing Bestar
 warehouse Docker stack through a Cloudflare **named tunnel**. It does not move
@@ -472,9 +472,224 @@ scripts/healthcheck.sh
 | 查看最近 200 行日志     | `scripts/cloudflare-tunnel-local.sh logs`      |
 | 验证 connector 到 nginx | `scripts/cloudflare-tunnel-local.sh probe`     |
 | 验证本地全栈            | `scripts/healthcheck.sh`                       |
+| 只读验证生产更新门禁     | `scripts\update-production.cmd -ValidateOnly` |
+| `git pull` 后执行更新   | `scripts\update-production.cmd -BusinessPaused` |
 
 停止 `cloudflared` 只应关闭公网入口，不应停止 PostgreSQL、Redis、Web、
 API、worker 或 LAN 入口。
+
+### 13.1 生产更新后 API `P1000` / `dependency api failed to start` 恢复
+
+#### 发生原因
+
+2026-08-01 的生产更新中，表面错误是：
+
+```text
+Container bestar_api_local Error dependency api failed to start
+```
+
+这不是 API TypeScript 编译失败。API 镜像已经构建完成，但容器启动命令会先执行
+`prisma migrate deploy`；该步骤因 PostgreSQL 认证失败返回 `P1000`，容器随即退出并按
+restart policy 循环重启。Web 和 nginx 依赖 API healthy，因而只显示下游的
+`dependency api failed to start`。
+
+根因是更新时只使用了 `compose.local.yml`，没有显式指定仓库根目录 `.env`，也没有
+叠加 `compose.public.yml` 和 `compose.cloudflare-tunnel.yml`。在本次 Windows Docker
+Compose 调用中，根目录 `.env` 未被自动加载，结果是：
+
+1. 新 API 和 PostgreSQL 容器使用 local Compose fallback，而不是生产配置；
+2. PostgreSQL persistent volume 已经存在，`POSTGRES_PASSWORD` 只在首次初始化 volume
+   时设置角色密码，重新创建容器不会修改 volume 内的现有角色密码；
+3. API 因此无法用新容器配置连接既有数据库，Prisma 返回 `P1000`；
+4. 缺少 public overlay 还使 PostgreSQL 和 Redis 恢复了主机端口绑定，产生独立的
+   暴露风险。
+
+不要通过删除 PostgreSQL volume、重新初始化数据库或盲目轮换密码来处理此症状。
+先证明 Compose 配置来源，再恢复正确 overlay。不得显示 `.env`、`DATABASE_URL`、
+容器完整 environment 或任何凭据。
+
+#### 可重复恢复步骤（Windows PowerShell）
+
+从仓库根目录执行。先暂停业务写入；如果 API 仍在循环重启，保持公网入口关闭，直到
+下面全部门禁通过。
+
+1. 捕获第一条真实错误，不要只看依赖摘要：
+
+   ```powershell
+   docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+   docker logs --tail 200 bestar_api_local
+   ```
+
+   本事件的确定信号是 Prisma `P1000`。如果看到 `P3009`、`P3018`、缺失 build
+   artifact 或其他错误，停止使用本节并按对应迁移/构建 runbook 处理。
+
+2. Redis 当前没有持久化 volume；重建会清空临时 BullMQ key。先检查所有 live state：
+
+   ```powershell
+   $bestarQueue = 'bull:bestar-async-jobs'
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:active"
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:wait"
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:paused"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:delayed"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:prioritized"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:waiting-children"
+   ```
+
+   六项必须全部为 `0`。任一非零时，不得重建 Redis；先停止新任务、等待完成或由业务
+   负责人决定如何恢复队列。不要读取或记录 job payload。
+
+3. 创建当前数据库恢复点。Windows 上明确使用 Git Bash，不要调用指向空 WSL 的
+   `C:\Windows\System32\bash.exe`：
+
+   ```powershell
+   $env:BACKUP_DIR = '/c/bestar-backups'
+   & 'C:\Program Files\Git\bin\bash.exe' scripts/backup-postgres.sh
+   Remove-Item Env:BACKUP_DIR
+   ```
+
+   验证生成的 SQL 非空且包含 PostgreSQL dump header。此恢复只重建容器，不修改
+   `storage/`；若怀疑数据库与文件同时损坏，必须改用
+   [备份与恢复指南](backup-restore.md)创建匹配的 PostgreSQL + `storage/` 恢复点。
+
+4. 定义唯一允许的生产 Compose 参数，并只输出服务名验证解析；不要输出完整
+   `docker compose config`，因为它可能包含其他 environment secret：
+
+   ```powershell
+   $bestarCompose = @(
+     '--env-file', '.env',
+     '-f', 'infra/docker/compose.local.yml',
+     '-f', 'infra/docker/compose.public.yml',
+     '-f', 'infra/docker/compose.cloudflare-tunnel.yml'
+   )
+
+   docker compose @bestarCompose --profile public-tunnel config --services
+   ```
+
+   必须包含 `postgres`、`redis`、`api`、`web`、`worker-python`、`nginx` 和
+   `cloudflared`。任何 required variable 错误都表示根目录 `.env` 不完整；不要退回
+   fallback 或省略 overlay。
+
+5. 先构建 API，明确区分 build 与 startup：
+
+   ```powershell
+   docker compose @bestarCompose --profile public-tunnel build api
+   ```
+
+   构建必须经过 frozen dependency、Prisma generate 和 Nest production build，并
+   成功导出 `bestar_api_local:latest`。
+
+6. 为避免数据库重建期间接受业务写入，先关闭公网入口及应用层，再使用同一参数重建
+   完整栈：
+
+   ```powershell
+   docker compose @bestarCompose --profile public-tunnel stop cloudflared nginx web api
+   docker compose @bestarCompose --profile public-tunnel up -d --force-recreate
+   ```
+
+   此命令保留 PostgreSQL named volume 和 host-mounted `storage/`，但会重置无 volume
+   的 Redis 临时状态，因此第 2 步是硬门禁。不得加入 `down -v`，不得删除 volume。
+
+7. 验证原始红灯消失、迁移正常且端口边界恢复：
+
+   ```powershell
+   docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+   docker inspect --format '{{.State.Status}}|{{.State.Health.Status}}|{{.RestartCount}}' `
+     bestar_api_local
+   docker logs --since 10m bestar_api_local
+   docker compose @bestarCompose --profile public-tunnel exec -T api `
+     pnpm --filter api prisma migrate status
+   & 'C:\Program Files\Git\bin\bash.exe' scripts/healthcheck.sh
+   docker compose @bestarCompose --profile public-tunnel-test run --rm --no-deps `
+     tunnel-origin-probe
+   curl.exe -sS -o NUL -L --max-time 20 `
+     -w "STATUS=%{http_code}`nFINAL_URL=%{url_effective}`n" `
+     https://warehouse.***.cc/
+   ```
+
+   将掩码 hostname 替换为根目录 `.env` 中 `PUBLIC_BASE_URL` 的 hostname；不要把
+   `.env` 内容复制到终端输出、聊天或运行记录。
+
+   退出门禁：所有七个服务 healthy；API restart count 不再增加；日志无新的
+   `P1000/P3009/P3018`；39 migrations（或仓库当前的更高合法数量）up to date；
+   healthcheck 和 origin probe 通过；PostgreSQL/Redis 只显示 `5432/tcp`、`6379/tcp`
+   等容器端口，不能出现 `0.0.0.0:<host-port>->...`；公网最终到达 Bestar 登录页。
+
+8. 只有全部门禁通过后才恢复业务操作。若仍是 `P1000`，不要猜测或显示密码；由获准
+   管理员核对密码管理器中的生产数据库凭据与根目录 `.env`。只有在凭据确实泄露或
+   明确丢失时，才按批准流程同时更新 PostgreSQL role 和 `.env`，然后再次执行本节。
+
+#### 本次恢复证据
+
+- BullMQ 六个 live state 均为 0；
+- PostgreSQL 恢复点：
+  `C:\bestar-backups\postgres-pre-api-env-repair-20260801-204245.sql`，非空且 dump
+  header 验证通过；
+- API image build 通过，39 migrations up to date；
+- API、PostgreSQL、Redis、Web、worker、nginx、cloudflared 全部 healthy；
+- API restart count 为 0，近期 `P1000/P3009/P3018/error` 匹配为 0；
+- PostgreSQL/Redis 主机绑定已移除；Tunnel 注册 4 条连接且近期错误为 0；
+- healthcheck、origin probe 和公网 HTTPS 到 Bestar 登录页均通过；
+- 未修改业务代码、数据库数据、PostgreSQL volume 或 `storage/`。
+
+防复发规则：公网生产更新不得只运行 local Compose。代码更新使用第 13.2 节的
+`scripts\update-production.cmd`；它在 PowerShell 中验证同一个安全合同，不依赖 `jq`。
+手工执行 Tunnel token、connector 生命周期或 Bash contract 时仍必须安装 `jq` 并运行
+`scripts/cloudflare-tunnel-local.sh preflight`。`JQ_REQUIRED` 不是省略 `.env` 或
+public/tunnel overlays 的理由。
+
+### 13.2 `git pull` 后的一键生产更新
+
+Windows 生产主机使用：
+
+```powershell
+scripts\update-production.cmd -ValidateOnly
+scripts\update-production.cmd -BusinessPaused
+```
+
+第一条命令是只读检查，不创建备份、不构建镜像、不停止或重启容器。第二条命令是真实
+更新；只有操作人已经暂停业务写入时才能传入 `-BusinessPaused`。脚本不执行
+`git pull`，标准顺序是：
+
+```powershell
+git pull --ff-only
+scripts\update-production.cmd -ValidateOnly
+# 暂停业务写入
+scripts\update-production.cmd -BusinessPaused
+```
+
+真实更新会按顺序执行以下硬门禁：
+
+1. checkout 必须是与 upstream 完全同步的 `main`，且 worktree clean；未提交文件会
+   进入 Docker build context，因此任何 dirty state 都失败关闭。
+2. 根目录 `.env`、生产 HTTPS/CORS、secure cookie、trusted proxy、rate-limit、
+   JWT 长度、Git ignore、Tunnel token 格式和 Windows ACL 必须通过。
+3. 脚本使用显式 `--env-file .env` 和 local/public/tunnel 三个 Compose 文件，在内存中
+   解析 JSON；不会输出完整配置或 secret。PostgreSQL、Redis、API、cloudflared 不得有
+   published host port。
+4. BullMQ active/wait/paused/delayed/prioritized/waiting-children 必须全部为 0。任一非零
+   时更新终止，不读取 job payload。
+5. 在 `C:\bestar-backups`（可用 `-BackupDirectory` 改为批准目录）创建并验证同一次
+   PostgreSQL SQL 和 `storage/` tar.gz 恢复点。
+6. 在保持旧生产容器运行时先构建 API、Web 和 worker-python。任何 build 失败不会造成
+   生产停机。
+7. 构建通过后才停止 cloudflared/nginx/Web/API，使用同一 Compose 参数执行
+   `up -d --no-build --wait`。不会执行 `down -v` 或删除 volume；PostgreSQL/Redis 只有在
+   Compose 检测到配置确实变化时才会被重建。
+8. 更新后验证七个容器 healthy、API restart count 0、PostgreSQL/Redis 无主机端口、
+   API 日志无 `P1000/P3009/P3018/error`、Prisma migrations up to date、完整 healthcheck、
+   Tunnel origin probe 和公网 HTTPS 2xx/3xx。
+
+成功输出以 `PRODUCTION_UPDATE:PASS` 结尾，并打印 commit 及两份备份路径。失败输出使用
+`PRODUCTION_UPDATE_FAILED:<CODE>`，业务必须继续暂停；先检查第一项失败，不要反复重试、
+删除 volume 或盲目轮换密码。
+
+`-AllowDirtyWorktreeForValidation` 只供此脚本尚未提交时的开发测试；正式生产不得使用。
+脚本契约测试：
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/test-update-production-contract.ps1
+```
 
 ## 14. Token 轮换
 
@@ -1024,9 +1239,253 @@ acceptance screenshots.
 | Inspect the latest 200 log lines      | `scripts/cloudflare-tunnel-local.sh logs`      |
 | Probe connector-to-nginx access       | `scripts/cloudflare-tunnel-local.sh probe`     |
 | Verify the local stack                | `scripts/healthcheck.sh`                       |
+| Validate production-update gates only | `scripts\update-production.cmd -ValidateOnly` |
+| Update after `git pull`              | `scripts\update-production.cmd -BusinessPaused` |
 
 Stopping `cloudflared` must not stop PostgreSQL, Redis, Web, API, workers or LAN
 access.
+
+### 13.1 Recover API `P1000` / `dependency api failed to start` After an Update
+
+#### Why it happened
+
+During the 2026-08-01 production update, the visible error was:
+
+```text
+Container bestar_api_local Error dependency api failed to start
+```
+
+This was not a TypeScript build failure. The API image had built, but the API
+container runs `prisma migrate deploy` before starting Node. PostgreSQL
+authentication returned `P1000`, so the container exited and its restart policy
+created a loop. Web and nginx require a healthy API and therefore reported only
+the downstream dependency error.
+
+The update used only `compose.local.yml`, without explicitly loading the root
+`.env` and without applying `compose.public.yml` plus
+`compose.cloudflare-tunnel.yml`. In this incident's Windows Docker Compose
+invocation, the root `.env` was not loaded. Consequently:
+
+1. the new API and PostgreSQL containers used local fallback configuration;
+2. the PostgreSQL persistent volume already existed, and `POSTGRES_PASSWORD`
+   changes a role password only during first-time volume initialization;
+3. recreating the container therefore did not change the role inside the
+   existing database, while the API attempted to use the fallback value and
+   failed with `P1000`;
+4. omitting the public overlay also restored PostgreSQL and Redis host port
+   bindings, creating a separate exposure risk.
+
+Do not delete the PostgreSQL volume, reinitialize the database, or blindly
+rotate credentials for this symptom. Prove the Compose configuration source
+first. Never display `.env`, `DATABASE_URL`, a container's complete environment,
+or any credential.
+
+#### Repeatable recovery procedure (Windows PowerShell)
+
+Run from the repository root. Pause business writes first and keep public
+ingress closed until every exit gate below passes.
+
+1. Capture the first real error rather than the dependency summary:
+
+   ```powershell
+   docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+   docker logs --tail 200 bestar_api_local
+   ```
+
+   The deterministic signal in this incident was Prisma `P1000`. Stop using
+   this section if the first error is `P3009`, `P3018`, a missing build artifact,
+   or another failure; use the matching migration/build runbook instead.
+
+2. Redis currently has no persistent volume, so recreation clears temporary
+   BullMQ keys. Check every live state first:
+
+   ```powershell
+   $bestarQueue = 'bull:bestar-async-jobs'
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:active"
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:wait"
+   docker exec bestar_redis_local redis-cli LLEN "${bestarQueue}:paused"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:delayed"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:prioritized"
+   docker exec bestar_redis_local redis-cli ZCARD "${bestarQueue}:waiting-children"
+   ```
+
+   All six results must be `0`. If any result is nonzero, do not recreate
+   Redis. Stop new submissions, allow work to drain, or obtain a business
+   decision for queue recovery. Never inspect or record job payloads.
+
+3. Create a current database recovery point. On Windows, invoke Git Bash
+   explicitly rather than `C:\Windows\System32\bash.exe`, which may target an
+   unconfigured WSL installation:
+
+   ```powershell
+   $env:BACKUP_DIR = '/c/bestar-backups'
+   & 'C:\Program Files\Git\bin\bash.exe' scripts/backup-postgres.sh
+   Remove-Item Env:BACKUP_DIR
+   ```
+
+   Verify that the SQL is non-empty and contains a PostgreSQL dump header. This
+   procedure recreates containers and does not modify `storage/`. If both data
+   and files may be damaged, create a matched PostgreSQL plus `storage/`
+   recovery point using the [backup and restore runbook](backup-restore.md).
+
+4. Define the only approved production Compose arguments and render service
+   names only. Do not print full `docker compose config` output because it can
+   contain other environment secrets:
+
+   ```powershell
+   $bestarCompose = @(
+     '--env-file', '.env',
+     '-f', 'infra/docker/compose.local.yml',
+     '-f', 'infra/docker/compose.public.yml',
+     '-f', 'infra/docker/compose.cloudflare-tunnel.yml'
+   )
+
+   docker compose @bestarCompose --profile public-tunnel config --services
+   ```
+
+   The result must include `postgres`, `redis`, `api`, `web`, `worker-python`,
+   `nginx`, and `cloudflared`. A required-variable failure means the root `.env`
+   is incomplete; never fall back to local defaults or omit an overlay.
+
+5. Build the API separately so build and startup have distinct verdicts:
+
+   ```powershell
+   docker compose @bestarCompose --profile public-tunnel build api
+   ```
+
+   Frozen dependency installation, Prisma generate, and the Nest production
+   build must pass, and `bestar_api_local:latest` must be exported.
+
+6. Close public and application traffic before database recreation, then use
+   the same argument set to recreate the complete stack:
+
+   ```powershell
+   docker compose @bestarCompose --profile public-tunnel stop cloudflared nginx web api
+   docker compose @bestarCompose --profile public-tunnel up -d --force-recreate
+   ```
+
+   This preserves the PostgreSQL named volume and host-mounted `storage/`, but
+   resets Redis temporary state because Redis has no volume. Step 2 is therefore
+   a hard gate. Never add `down -v` and never delete a volume.
+
+7. Prove that the original red signal is gone, migrations are current, and port
+   boundaries are restored:
+
+   ```powershell
+   docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+   docker inspect --format '{{.State.Status}}|{{.State.Health.Status}}|{{.RestartCount}}' `
+     bestar_api_local
+   docker logs --since 10m bestar_api_local
+   docker compose @bestarCompose --profile public-tunnel exec -T api `
+     pnpm --filter api prisma migrate status
+   & 'C:\Program Files\Git\bin\bash.exe' scripts/healthcheck.sh
+   docker compose @bestarCompose --profile public-tunnel-test run --rm --no-deps `
+     tunnel-origin-probe
+   curl.exe -sS -o NUL -L --max-time 20 `
+     -w "STATUS=%{http_code}`nFINAL_URL=%{url_effective}`n" `
+     https://warehouse.***.cc/
+   ```
+
+   Replace the masked hostname with the hostname from `PUBLIC_BASE_URL` in the
+   root `.env`. Never copy `.env` content into terminal output, chat, or an
+   operations record.
+
+   Exit gates: all seven services are healthy; API restart count stops
+   increasing; no new `P1000`, `P3009`, or `P3018` appears; all 39 migrations
+   (or the repository's later legitimate count) are up to date; healthcheck and
+   origin probe pass; PostgreSQL/Redis show container-only `5432/tcp` and
+   `6379/tcp`, never `0.0.0.0:<host-port>->...`; and public HTTPS reaches the
+   Bestar login page.
+
+8. Resume business operations only after every gate passes. If `P1000` remains,
+   do not guess or display passwords. An authorized administrator must compare
+   the password-manager production credential with the root `.env`. Change the
+   PostgreSQL role and `.env` together only if the credential was genuinely
+   lost or exposed, then repeat this section.
+
+#### Evidence from this recovery
+
+- all six BullMQ live states were 0;
+- PostgreSQL recovery point
+  `C:\bestar-backups\postgres-pre-api-env-repair-20260801-204245.sql` was
+  non-empty and its dump header passed validation;
+- the API image build passed and all 39 migrations were up to date;
+- API, PostgreSQL, Redis, Web, worker, nginx, and cloudflared were healthy;
+- API restart count was 0 and recent `P1000/P3009/P3018/error` matches were 0;
+- PostgreSQL/Redis host bindings were removed; the Tunnel registered four
+  connections with no recent errors;
+- healthcheck, origin probe, and public HTTPS to the Bestar login page passed;
+- no business code, database data, PostgreSQL volume, or `storage/` was changed.
+
+Prevention: never update public production with only the local Compose file. Use
+`scripts\update-production.cmd` from section 13.2 for code updates; it validates
+the same safety contract in PowerShell and does not depend on `jq`. Manual Tunnel
+token/connector lifecycle work and the Bash contract still require `jq` plus
+`scripts/cloudflare-tunnel-local.sh preflight`. `JQ_REQUIRED` is not permission
+to omit `.env` or either overlay.
+
+### 13.2 One-command Production Update After `git pull`
+
+Use these commands on the Windows production host:
+
+```powershell
+scripts\update-production.cmd -ValidateOnly
+scripts\update-production.cmd -BusinessPaused
+```
+
+The first command is read-only: it does not create backups, build images, stop
+containers, or restart anything. The second performs the update and accepts
+`-BusinessPaused` only as the operator's explicit confirmation that business
+writes have stopped. The script does not run `git pull`; the standard sequence
+is:
+
+```powershell
+git pull --ff-only
+scripts\update-production.cmd -ValidateOnly
+# Pause business writes
+scripts\update-production.cmd -BusinessPaused
+```
+
+The real update enforces these gates in order:
+
+1. The checkout must be clean `main` and exactly synchronized with its upstream.
+   Uncommitted files enter the Docker build context, so every dirty state fails
+   closed.
+2. The root `.env`, production HTTPS/CORS, secure cookie, trusted proxy,
+   fail-closed rate limit, JWT length, Git ignore rules, Tunnel token format,
+   and Windows token ACL must pass.
+3. The script explicitly supplies `--env-file .env` plus the local, public, and
+   Tunnel Compose files. It parses Compose JSON in memory and never prints the
+   complete configuration or secrets. PostgreSQL, Redis, API, and cloudflared
+   must have no published host port.
+4. BullMQ active/wait/paused/delayed/prioritized/waiting-children counts must all
+   be zero. A nonzero state aborts without reading job payloads.
+5. One PostgreSQL SQL dump and one `storage/` tar.gz recovery point are created
+   and validated under `C:\bestar-backups` (or an approved
+   `-BackupDirectory`).
+6. API, Web, and worker-python images build while the old production containers
+   remain online. A build failure causes no production downtime.
+7. Only after a successful build does the script stop cloudflared/nginx/Web/API
+   and run `up -d --no-build --wait` with the same Compose arguments. It never
+   runs `down -v` or deletes a volume; PostgreSQL/Redis are recreated only if
+   Compose detects an actual configuration change.
+8. Post-update gates require seven healthy containers, API restart count 0, no
+   PostgreSQL/Redis host bindings, no new `P1000/P3009/P3018/error`, current
+   Prisma migrations, full healthcheck, Tunnel origin probe, and public HTTPS
+   2xx/3xx.
+
+Success ends with `PRODUCTION_UPDATE:PASS` and prints the commit plus both backup
+paths. Failure uses `PRODUCTION_UPDATE_FAILED:<CODE>`; keep business operations
+paused and inspect the first failure. Do not repeatedly retry, delete volumes,
+or guess/rotate credentials.
+
+`-AllowDirtyWorktreeForValidation` exists only to test an uncommitted version of
+the script and is forbidden for normal production use. Contract test:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/test-update-production-contract.ps1
+```
 
 ## 14. Rotate or Revoke the Token
 
