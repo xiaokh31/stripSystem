@@ -64,6 +64,17 @@ forwarded header 绕过问题。
 
 本报告不得用于替代尚未完成的真实现场矩阵。
 
+## 生产路由配置回归
+
+- 2026-08-02 首次生产双入口配置后，LAN 登录正常，但公网登录返回
+  `LAN_BROWSER_INGRESS_MISMATCH`。该稳定码证明公网请求进入了 nginx 的 LAN listener，
+  不是关闭 Secure Cookie 或扩大 CORS 可以解决的问题。
+- 仓库 Compose 与合同一直要求 Tunnel origin 为 `http://nginx:8080`，但中英文 runbook
+  的 Published Route 表格仍错误写为 `http://nginx:80`。已把两处改为 `8080`，补充专项
+  排障说明，并增加合同回归门禁，禁止文档再次把公网 route 指向 LAN listener。
+- 生产 Cloudflare route 修正和公网复测仍属于下面的现场外部门禁；本报告不声称已经在
+  真实 Cloudflare 环境完成修改或复测。
+
 ## 现场外部门禁
 
 在目标部署先建立同一恢复点的 PostgreSQL + `storage/` 匹配备份，然后：

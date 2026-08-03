@@ -48,6 +48,16 @@ secure_token_file() {
 
 "$repo_root/scripts/verify-cloudflare-tunnel-contract.sh"
 
+runbook="$repo_root/docs/runbooks/cloudflare-named-tunnel-deployment.md"
+if grep -Fq '`http://nginx:80`' "$runbook"; then
+  echo "PUBLIC_ROUTE_DOCUMENTATION_POINTS_TO_LAN_LISTENER" >&2
+  exit 1
+fi
+grep -Fq '`http://nginx:8080`' "$runbook" || {
+  echo "PUBLIC_ROUTE_DOCUMENTATION_MISSING_PUBLIC_LISTENER" >&2
+  exit 1
+}
+
 expect_failure "PUBLIC_ORIGIN_NOT_HTTPS" \
   env PUBLIC_BASE_URL=http://warehouse.example.test \
     CORS_ORIGINS=http://warehouse.example.test \
@@ -59,7 +69,7 @@ expect_failure "CORS_ORIGIN_MISMATCH" \
     "$repo_root/scripts/verify-cloudflare-tunnel-contract.sh"
 
 quick_tunnel_compose="$tmp_dir/compose.quick-tunnel.yml"
-sed 's#http://nginx:80#https://trycloudflare.com#' \
+sed 's#http://nginx:8080#https://trycloudflare.com#' \
   "$repo_root/infra/docker/compose.cloudflare-tunnel.yml" >"$quick_tunnel_compose"
 expect_failure "NAMED_TUNNEL_COMMAND" \
   env CLOUDFLARE_TUNNEL_COMPOSE_FILE="$quick_tunnel_compose" \

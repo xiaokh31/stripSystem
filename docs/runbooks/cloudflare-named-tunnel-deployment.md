@@ -266,7 +266,7 @@ token，也不能提交到项目。
 | ------------ | ------------------------------------------------- |
 | Hostname     | 已批准的完整子域名，例如`warehouse.example.com` |
 | Service type | `HTTP`                                          |
-| Service URL  | `http://nginx:80`                               |
+| Service URL  | `http://nginx:8080`                             |
 
 约束：
 
@@ -274,6 +274,8 @@ token，也不能提交到项目。
 - 不创建 wildcard route；
 - 不单独发布 `/api`、PostgreSQL、Redis、SSH 或 Docker；
 - 不把 Service URL 写成宿主机公网 IP；
+- `8080` 是只供 Tunnel 使用的 public listener；`80` 是 LAN listener，公网 route
+  错误指向 LAN 的 80 端口会让 API 返回 `LAN_BROWSER_INGRESS_MISMATCH`；
 - Cloudflare 中的公开主机名必须和后续 `.env` 完全一致。
 
 ## 7. 安全保存 Tunnel Token
@@ -787,6 +789,7 @@ Named Tunnel 只增加入口，不迁移数据，因此正常回滚不需要数�
 | Tunnel 反复认证失败         | token 已轮换/撤销、复制错误或连接的是错误 Tunnel                             |
 | Access 返回 403             | Allow policy、用户组、身份提供商或 MFA 条件                                  |
 | 公网登录循环或 Cookie 丢失   | 公网 HTTPS origin、public ingress marker、Secure Cookie 和代理信任配置      |
+| 公网登录返回 `LAN_BROWSER_INGRESS_MISMATCH` | Cloudflare Published Route 错误进入 LAN listener；将 Service URL 改为 `http://nginx:8080`，确认 nginx/cloudflared 已按 public overlay 重建 |
 | LAN 登录循环或 Cookie 丢失    | 精确 LAN origin、LAN listener/Host、受信代理和防火墙；不得关闭公网 Secure Cookie |
 | 上传返回 413                | nginx 公网配置和 Cloudflare 当前上传限制；不要绕过 nginx                     |
 | 公网正常但 LAN 不通         | 主机防火墙、`HTTP_PORT` 和 nginx LAN binding；不要开放路由器入站转发       |
@@ -1068,11 +1071,13 @@ Open the Tunnel's **Routes** tab and add a Published application route:
 | ------------ | --------------------------------------------------- |
 | Hostname     | Approved FQDN, for example`warehouse.example.com` |
 | Service type | `HTTP`                                            |
-| Service URL  | `http://nginx:80`                                 |
+| Service URL  | `http://nginx:8080`                               |
 
 Create only this Web hostname. Do not create a wildcard or separate routes for
-the API, database, Redis, SSH or Docker. The hostname must exactly match the
-application environment configured below.
+the API, database, Redis, SSH or Docker. Port `8080` is the Tunnel-only public
+listener; port `80` is the LAN listener. Pointing the public route at the LAN
+port causes `LAN_BROWSER_INGRESS_MISMATCH`. The hostname must
+exactly match the application environment configured below.
 
 ## 7. Store the Connector Token Safely
 
@@ -1638,6 +1643,7 @@ backup from one recovery point.
 | Repeated tunnel authentication errors | Rotated/revoked/miscopied token or the wrong Tunnel                                        |
 | Access 403                            | Allow policy, group membership, identity provider and MFA condition                        |
 | Public login loop or missing cookie   | Public HTTPS origin, public ingress marker, Secure cookie and trusted proxy settings        |
+| Public login returns `LAN_BROWSER_INGRESS_MISMATCH` | The Cloudflare Published Route entered the LAN listener; change its Service URL to `http://nginx:8080` and confirm nginx/cloudflared were recreated with the public overlay |
 | LAN login loop or missing cookie      | Exact LAN origin, LAN listener/Host, trusted proxy and firewall; never disable public Secure cookies |
 | Upload 413                            | Public nginx configuration and current Cloudflare upload limit; do not bypass nginx        |
 | Public works but LAN fails            | Host firewall,`HTTP_PORT` and nginx LAN binding; do not add router forwarding            |
